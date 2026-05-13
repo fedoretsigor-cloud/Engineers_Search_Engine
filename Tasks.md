@@ -40,6 +40,27 @@
 
 ---
 
+## Phase 2 - Multi-query search engine
+
+### Backlog
+
+- [ ] P2-001 Зафиксировать multi-query стратегию для Java/Ukraine
+- [ ] P2-002 Добавить backend multi-query runner
+- [ ] P2-003 Добавить нормализацию LinkedIn URL для dedupe
+- [ ] P2-004 Добавить dedupe результатов по normalized LinkedIn URL
+- [ ] P2-005 Добавить query source metadata для кандидатов
+- [ ] P2-006 Обновить counts для multi-query выдачи
+- [ ] P2-007 Добавить frontend режим multi-query search
+- [ ] P2-008 Обновить scoring для multi-query результатов
+- [ ] P2-009 Прогнать Phase 2 Java/Ukraine baseline
+- [ ] P2-010 Зафиксировать выводы Phase 2 в документах
+
+### In Progress
+
+### Done
+
+---
+
 ## Task: P1-001 Определить границы POC
 
 ### Context
