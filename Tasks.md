@@ -55,9 +55,82 @@
 - [ ] P2-009 Прогнать Phase 2 Java/Ukraine baseline
 - [ ] P2-010 Зафиксировать выводы Phase 2 в документах
 
+Note: Detailed task steps are currently defined only for `P2-001`. Do not expand `P2-002` through `P2-010` until separately agreed.
+
 ### In Progress
 
 ### Done
+
+---
+
+## Task: P2-001 Зафиксировать multi-query стратегию для Java/Ukraine
+
+### Context
+
+Phase 1.1 показала, что один широкий универсальный Boolean-запрос не является лучшей стратегией для покрытия кандидатов.
+
+Для Java/Ukraine сценария несколько focused queries дали больше уникальных `ua.linkedin.com/in/...` профилей, чем один общий запрос. Перед реализацией backend multi-query runner нужно зафиксировать стратегию: какие запросы запускаются, как объединяются результаты, как выполняется dedupe и какие метрики считаются успешными.
+
+### Goal
+
+Зафиксировать первую multi-query стратегию для базового Java/Ukraine сценария, чтобы следующая задача `P2-002` могла реализовать backend runner по согласованной схеме.
+
+### Constraints
+
+- Не писать backend runner в рамках `P2-001`.
+- Не менять frontend в рамках `P2-001`.
+- Не менять существующую Phase 1.1 search behavior.
+- Не добавлять LinkedIn login, scraping, bypass, database, shortlist, AI agent или multi-source search beyond Tavily.
+- Не считать задачу завершенной, пока стратегия не просмотрена и явно не принята.
+
+### Proposed steps
+
+1. Зафиксировать baseline-сценарий: рекрутер ищет Backend Developer with main skill Java в Украине через публичные LinkedIn-профили.
+2. Утвердить первый набор focused queries:
+
+```text
+U02: site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"
+U10: site:linkedin.com/in AND "Java Programmer" AND "Ukraine"
+U08: site:linkedin.com/in AND ("Java Developer" OR "Java Engineer" OR "Backend Java") AND ("Ukraine" OR "Kyiv" OR "Lviv")
+```
+
+3. Зафиксировать режим выполнения: sequential Tavily requests, `max_results=20` на каждый query, без parallel execution на первом этапе.
+4. Зафиксировать baseline-фильтры для проверки: `LinkedIn profiles only = on`, `Ukraine LinkedIn domain only = on`.
+5. Зафиксировать правило dedupe: главным ключом является normalized LinkedIn profile URL.
+6. Зафиксировать query source metadata: у каждого кандидата сохраняются query IDs, из которых он пришел, например `["U02"]` или `["U02", "U10"]`.
+7. Зафиксировать counts для Phase 2 baseline: `raw_total`, `normalized_total`, `unique_profiles`, `duplicates_removed`, `displayed`, `hidden_by_profile_filter`, `hidden_by_ukraine_domain_filter`.
+8. Зафиксировать критерий успеха: минимум 20 уникальных `ua.linkedin.com/in/...` профилей за один multi-query проход после dedupe.
+9. Зафиксировать границы Phase 2: без LinkedIn login, scraping, database, shortlist, AI agent и multi-source search beyond Tavily.
+10. Сохранить стратегию прямо в блоке `P2-001` в `Tasks.md` и использовать его как рабочий draft до финального утверждения.
+
+### Expected behavior
+
+После выполнения `P2-001` в проекте есть понятная и согласованная стратегия Phase 2:
+
+- какие запросы запускаются;
+- в каком порядке они запускаются;
+- как объединяются результаты;
+- как считается уникальность кандидатов;
+- какие фильтры используются в baseline-прогоне;
+- какие counts должен вернуть backend;
+- по какому критерию Phase 2 считается успешной.
+
+### Acceptance criteria
+
+- Создан или обновлен подробный блок `P2-001` в `Tasks.md`.
+- В стратегии явно указан baseline-сценарий: Backend Developer with main skill Java в Украине.
+- В стратегии явно указан первый query set: `U02`, `U10`, `U08`.
+- В стратегии явно указано, что первый runner выполняет запросы sequentially через Tavily.
+- В стратегии явно указано, что `max_results=20` применяется к каждому query.
+- В стратегии описано правило normalized LinkedIn URL для dedupe.
+- В стратегии описана query source metadata для кандидатов.
+- В стратегии перечислены counts для multi-query выдачи.
+- В стратегии зафиксирован критерий успеха: не менее 20 уникальных украинских LinkedIn-профилей после dedupe.
+- В стратегии явно перечислены out-of-scope пункты Phase 2.
+
+### Before implementation
+
+Codex должен пересказать стратегию `P2-001`, показать draft пользователю и дождаться явного подтверждения перед тем, как считать задачу выполненной или переходить к `P2-002`.
 
 ---
 
