@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Engineers Search POC</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Phase 1 POC</p>
+          <h1>Engineers Search</h1>
+        </div>
+        <div class="status" id="app-status">Frontend script loading...</div>
+      </header>
+
+      <section class="workspace" aria-label="Search workspace">
+        <form class="search-form" id="search-form">
+          <div class="form-grid">
+            <label>
+              Main anchor
+              <input id="main-anchor" name="mainAnchor" value="Java" autocomplete="off" />
+            </label>
+
+            <label>
+              Additional anchors
+              <input
+                id="additional-anchors"
+                name="additionalAnchors"
+                value="Developer, Engineer"
+                autocomplete="off"
+              />
+            </label>
+
+            <label>
+              Stack
+              <input id="stack" name="stack" value="Java, Spring" autocomplete="off" />
+            </label>
+
+            <label>
+              Location
+              <input id="location" name="location" value="Ukraine" autocomplete="off" />
+            </label>
+          </div>
+
+          <label class="query-label">
+            Editable X-ray Boolean query
+            <textarea id="boolean-query" name="booleanQuery" rows="5"></textarea>
+          </label>
+
+          <div class="actions">
+            <button class="secondary-button" id="rebuild-query" type="button">Rebuild query</button>
+            <button class="primary-button" type="submit">Search</button>
+          </div>
+        </form>
+
+        <section class="results-panel" aria-live="polite">
+          <h2>Relevant results</h2>
+          <p id="results-status">Run a search to see relevant filtered results.</p>
+          <div class="results-list" id="results-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
