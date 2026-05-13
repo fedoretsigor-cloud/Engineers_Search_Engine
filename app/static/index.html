@@ -50,6 +50,18 @@
             <textarea id="boolean-query" name="booleanQuery" rows="5"></textarea>
           </label>
 
+          <div class="filter-toggles" aria-label="Result filters">
+            <label class="toggle-field">
+              <input id="profiles-only" name="profilesOnly" type="checkbox" />
+              <span>LinkedIn profiles only</span>
+            </label>
+
+            <label class="toggle-field">
+              <input id="ukraine-domain-only" name="ukraineDomainOnly" type="checkbox" />
+              <span>Ukraine LinkedIn domain only</span>
+            </label>
+          </div>
+
           <div class="actions">
             <button class="secondary-button" id="rebuild-query" type="button">Rebuild query</button>
             <button class="primary-button" type="submit">Search</button>
@@ -57,8 +69,8 @@
         </form>
 
         <section class="results-panel" aria-live="polite">
-          <h2>Relevant results</h2>
-          <p id="results-status">Run a search to see relevant filtered results.</p>
+          <h2>Search results</h2>
+          <p id="results-status">Run a search to see Tavily results.</p>
           <div class="results-list" id="results-list"></div>
         </section>
       </section>

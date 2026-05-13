@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-import re
 from urllib.parse import urlparse
 
 import httpx
@@ -24,10 +23,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
     max_results: int = Field(default=20, ge=1, le=20)
-    main_anchor: str = ""
-    additional_anchors: list[str] = Field(default_factory=list)
-    stack: list[str] = Field(default_factory=list)
-    location: str = ""
+    linkedin_profiles_only: bool = False
+    ukraine_linkedin_domain_only: bool = False
 
 
 def detect_source(url: str) -> str:
@@ -37,12 +34,79 @@ def detect_source(url: str) -> str:
     return domain or "unknown"
 
 
+def is_linkedin_profile_url(url: str) -> bool:
+    parsed_url = urlparse(url)
+    domain = parsed_url.netloc.lower()
+    path_parts = [part for part in parsed_url.path.split("/") if part]
+
+    is_linkedin_domain = domain == "linkedin.com" or domain.endswith(".linkedin.com")
+
+    return is_linkedin_domain and len(path_parts) >= 2 and path_parts[0] == "in"
+
+
+def is_ukraine_linkedin_profile_url(url: str) -> bool:
+    parsed_url = urlparse(url)
+    domain = parsed_url.netloc.lower()
+    path_parts = [part for part in parsed_url.path.split("/") if part]
+
+    return domain == "ua.linkedin.com" and len(path_parts) >= 2 and path_parts[0] == "in"
+
+
+def normalized_tavily_score(value: object) -> float:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if score > 1:
+        score = score / 100
+
+    return min(1.0, max(0.0, score))
+
+
+def apply_neutral_score(result: dict) -> dict:
+    matched_fields: list[str] = []
+    score = 0.0
+
+    tavily_score = normalized_tavily_score(result.get("tavily_score"))
+    if tavily_score:
+        score += tavily_score * 80
+        matched_fields.append("tavily_score")
+
+    if is_linkedin_profile_url(result.get("url") or ""):
+        score += 10
+        matched_fields.append("linkedin_profile_url")
+
+    completeness_checks = [
+        result.get("title") and result.get("title") != "unknown",
+        result.get("url"),
+        result.get("snippet"),
+        result.get("source") and result.get("source") != "unknown",
+    ]
+    completeness = sum(1 for item in completeness_checks if item) / len(completeness_checks)
+    if completeness:
+        score += completeness * 10
+        matched_fields.append("data_completeness")
+
+    result["score"] = min(100, round(score))
+    result["is_relevant"] = True
+    result["matched_fields"] = matched_fields
+    result["missing_required_fields"] = []
+    result["relevance_reason"] = (
+        "Score signals: " + ", ".join(matched_fields) + "."
+        if matched_fields
+        else "Returned by Tavily for the submitted query."
+    )
+
+    return result
+
+
 def normalize_tavily_result(result: dict) -> dict:
     raw_title = result.get("title") or ""
     raw_content = result.get("content") or ""
     url = result.get("url") or ""
 
-    return {
+    normalized_result = {
         "name": "unknown",
         "title": raw_title or "unknown",
         "url": url,
@@ -56,100 +120,11 @@ def normalize_tavily_result(result: dict) -> dict:
         "matched_fields": [],
         "missing_required_fields": [],
         "score": 0,
-        "is_relevant": False,
-        "relevance_reason": "",
+        "is_relevant": True,
+        "relevance_reason": "Returned by Tavily for the submitted query.",
     }
 
-
-def contains_term(text: str, term: str) -> bool:
-    normalized_term = term.strip().lower()
-    if not normalized_term:
-        return False
-
-    normalized_text = text.lower()
-    if re.fullmatch(r"[a-z0-9 ]+", normalized_term):
-        pattern = r"\b" + re.escape(normalized_term) + r"\b"
-        return re.search(pattern, normalized_text) is not None
-
-    return normalized_term in normalized_text
-
-
-def score_normalized_result(result: dict, request: SearchRequest) -> dict:
-    search_text = " ".join(
-        [
-            result.get("title") or "",
-            result.get("snippet") or "",
-            result.get("url") or "",
-            result.get("raw_title") or "",
-            result.get("raw_content") or "",
-        ]
-    )
-    matched_fields: list[str] = []
-    missing_required_fields: list[str] = []
-    score = 0.0
-
-    if request.main_anchor.strip():
-        if contains_term(search_text, request.main_anchor):
-            score += 35
-            matched_fields.append("position")
-        else:
-            missing_required_fields.append("position")
-
-    additional_anchors = [item for item in request.additional_anchors if item.strip()]
-    if additional_anchors:
-        matched_additional = [
-            item for item in additional_anchors if contains_term(search_text, item)
-        ]
-        if matched_additional:
-            score += 20 * (len(matched_additional) / len(additional_anchors))
-            matched_fields.append("additional_anchors")
-        else:
-            missing_required_fields.append("additional_anchors")
-
-    stack_terms = [item for item in request.stack if item.strip()]
-    if stack_terms:
-        matched_stack = [item for item in stack_terms if contains_term(search_text, item)]
-        if matched_stack:
-            score += 25 * (len(matched_stack) / len(stack_terms))
-            matched_fields.append("stack")
-        else:
-            missing_required_fields.append("stack")
-
-    if request.location.strip():
-        if contains_term(search_text, request.location):
-            score += 10
-            matched_fields.append("location")
-        else:
-            missing_required_fields.append("location")
-
-    if result.get("source") == "linkedin":
-        score += 5
-        matched_fields.append("linkedin_source")
-
-    completeness_checks = [
-        result.get("name") and result.get("name") != "unknown",
-        result.get("title") and result.get("title") != "unknown",
-        result.get("url"),
-        result.get("snippet"),
-        result.get("source") and result.get("source") != "unknown",
-    ]
-    completeness = sum(1 for item in completeness_checks if item) / len(completeness_checks)
-    if completeness:
-        score += 5 * completeness
-        matched_fields.append("data_completeness")
-
-    is_relevant = not missing_required_fields
-    result["score"] = min(100, round(score))
-    result["is_relevant"] = is_relevant
-    result["matched_fields"] = matched_fields
-    result["missing_required_fields"] = missing_required_fields
-    result["relevance_reason"] = (
-        "Matched " + ", ".join(matched_fields) + "."
-        if is_relevant
-        else "Missing required fields: " + ", ".join(missing_required_fields) + "."
-    )
-
-    return result
+    return apply_neutral_score(normalized_result)
 
 
 @app.get("/")
@@ -211,27 +186,43 @@ async def search(request: SearchRequest) -> dict:
 
     tavily_data = response.json()
     raw_results = tavily_data.get("results", [])
-    normalized_results = [
-        score_normalized_result(normalize_tavily_result(result), request)
-        for result in raw_results
-    ]
-    relevant_results = [
-        result for result in normalized_results if result.get("is_relevant")
-    ]
+    normalized_results = [normalize_tavily_result(result) for result in raw_results]
+    sorted_results = sorted(
+        normalized_results,
+        key=lambda result: result.get("score", 0),
+        reverse=True,
+    )
+    displayed_results = sorted_results
+    if request.linkedin_profiles_only:
+        displayed_results = [
+            result
+            for result in displayed_results
+            if is_linkedin_profile_url(result.get("url") or "")
+        ]
+    hidden_by_profile_filter = len(sorted_results) - len(displayed_results)
+
+    before_ukraine_domain_filter = len(displayed_results)
+    if request.ukraine_linkedin_domain_only:
+        displayed_results = [
+            result
+            for result in displayed_results
+            if is_ukraine_linkedin_profile_url(result.get("url") or "")
+        ]
+    hidden_by_ukraine_domain_filter = before_ukraine_domain_filter - len(displayed_results)
 
     return {
         "query": tavily_data.get("query", query),
         "results": raw_results,
-        "normalized_results": normalized_results,
-        "relevant_results": sorted(
-            relevant_results,
-            key=lambda result: result.get("score", 0),
-            reverse=True,
-        ),
+        "normalized_results": sorted_results,
+        "displayed_results": displayed_results,
+        "relevant_results": displayed_results,
         "counts": {
             "raw": len(raw_results),
             "normalized": len(normalized_results),
-            "relevant": len(relevant_results),
+            "displayed": len(displayed_results),
+            "hidden_by_profile_filter": hidden_by_profile_filter,
+            "hidden_by_ukraine_domain_filter": hidden_by_ukraine_domain_filter,
+            "relevant": len(displayed_results),
         },
         "response_time": tavily_data.get("response_time"),
         "usage": tavily_data.get("usage"),

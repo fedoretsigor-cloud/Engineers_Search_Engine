@@ -5,6 +5,8 @@ const additionalAnchorsInput = document.querySelector("#additional-anchors");
 const stackInput = document.querySelector("#stack");
 const locationInput = document.querySelector("#location");
 const booleanQueryInput = document.querySelector("#boolean-query");
+const profilesOnlyInput = document.querySelector("#profiles-only");
+const ukraineDomainOnlyInput = document.querySelector("#ukraine-domain-only");
 const rebuildQueryButton = document.querySelector("#rebuild-query");
 const resultsStatus = document.querySelector("#results-status");
 const resultsList = document.querySelector("#results-list");
@@ -68,20 +70,56 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function pluralize(count, singular, plural) {
+  return count === 1 ? singular : plural;
+}
+
+function hiddenFilterSummary(counts) {
+  const messages = [];
+  const hiddenProfiles = counts?.hidden_by_profile_filter ?? 0;
+  const hiddenUkraineDomains = counts?.hidden_by_ukraine_domain_filter ?? 0;
+
+  if (hiddenProfiles) {
+    messages.push(
+      `${hiddenProfiles} non-profile ${pluralize(hiddenProfiles, "result", "results")} hidden.`
+    );
+  }
+
+  if (hiddenUkraineDomains) {
+    messages.push(
+      `${hiddenUkraineDomains} non-UA-domain ${pluralize(
+        hiddenUkraineDomains,
+        "result",
+        "results"
+      )} hidden.`
+    );
+  }
+
+  return messages.join(" ");
+}
+
 function renderResults(results, counts) {
   if (!results.length) {
     resultsList.innerHTML = "";
     const rawCount = counts?.raw ?? 0;
+    const hiddenSummary = hiddenFilterSummary(counts);
     resultsStatus.textContent = rawCount
-      ? `${rawCount} raw result${rawCount === 1 ? "" : "s"} returned, but none passed required filters.`
+      ? `${rawCount} raw ${pluralize(rawCount, "result", "results")} returned. ${
+          hiddenSummary || "No normalized results are available."
+        }`
       : "No Tavily results returned.";
     return;
   }
 
   const rawCount = counts?.raw ?? results.length;
-  resultsStatus.textContent = `Showing ${results.length} relevant result${
-    results.length === 1 ? "" : "s"
-  } from ${rawCount} raw Tavily result${rawCount === 1 ? "" : "s"}.`;
+  const hiddenSummary = hiddenFilterSummary(counts);
+  resultsStatus.textContent = `Showing ${results.length} search ${pluralize(
+    results.length,
+    "result",
+    "results"
+  )} from ${rawCount} raw Tavily ${pluralize(rawCount, "result", "results")}.${
+    hiddenSummary ? ` ${hiddenSummary}` : ""
+  }`;
   resultsList.innerHTML = results
     .map((result) => {
       const title = result.title || "Untitled result";
@@ -146,10 +184,8 @@ searchForm.addEventListener("submit", (event) => {
     body: JSON.stringify({
       query,
       max_results: 20,
-      main_anchor: mainAnchorInput.value.trim(),
-      additional_anchors: parseCommaList(additionalAnchorsInput.value),
-      stack: parseCommaList(stackInput.value),
-      location: locationInput.value.trim(),
+      linkedin_profiles_only: profilesOnlyInput.checked,
+      ukraine_linkedin_domain_only: ukraineDomainOnlyInput.checked,
     }),
   })
     .then(async (response) => {
@@ -157,7 +193,7 @@ searchForm.addEventListener("submit", (event) => {
       if (!response.ok) {
         throw new Error(data.detail || "Search request failed.");
       }
-      renderResults(data.relevant_results || [], data.counts);
+      renderResults(data.displayed_results || data.normalized_results || [], data.counts);
     })
     .catch((error) => {
       resultsStatus.textContent = error.message;

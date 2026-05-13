@@ -117,6 +117,31 @@ textarea:focus {
   margin-top: 16px;
 }
 
+.filter-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.toggle-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.toggle-field input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--accent);
+}
+
+.toggle-field span {
+  color: var(--text);
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

@@ -1,5 +1,41 @@
 # Phase 1 POC Findings
 
+## Phase 1.1 update
+
+Phase 1.1 keeps the Phase 1 POC result as historical evidence, but changes the current product behavior.
+
+Current behavior after Phase 1.1:
+
+- Editable Boolean query is the source of truth for search.
+- Form fields only help build the editable query.
+- Backend no longer applies hidden required-condition filtering by role, anchors, stack, or location fields.
+- UI shows `Search results`, not `Relevant results`.
+- Score is neutral and non-filtering.
+- `LinkedIn profiles only` is an explicit toggle, off by default.
+- `Ukraine LinkedIn domain only` is an explicit toggle, off by default.
+
+The Phase 1 numbers below still describe the original POC run with strict required-condition filtering. They should not be read as the current UI behavior after Phase 1.1.
+
+### Phase 1.1 test conclusion
+
+For the same Java/Ukraine target profile, the strongest single query after Phase 1.1 was:
+
+```text
+site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"
+```
+
+With `LinkedIn profiles only` and `Ukraine LinkedIn domain only` enabled, it returned 16 Ukrainian LinkedIn profiles from 20 raw Tavily results.
+
+Across 10 tested query variants, Phase 1.1 found 53 unique `ua.linkedin.com/in/...` profiles. This suggests that Phase 2 should focus on sequential multi-query search with dedupe rather than one broad universal query.
+
+Recommended first multi-query set:
+
+- `site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"`
+- `site:linkedin.com/in AND "Java Programmer" AND "Ukraine"`
+- `site:linkedin.com/in AND ("Java Developer" OR "Java Engineer" OR "Backend Java") AND ("Ukraine" OR "Kyiv" OR "Lviv")`
+
+Expected result based on current tests: approximately 24-30 unique Ukrainian LinkedIn profiles in one pass after dedupe.
+
 ## Test scenario
 
 Recruiter searches for public LinkedIn profiles of Java specialists in Ukraine.
@@ -73,13 +109,13 @@ Examples of relevant results returned by the POC:
 
 ## Recommendation
 
-Treat Phase 1 as successfully completed. Continue from the current implementation, then tune the location rule and query strategy before expanding the product scope.
+Treat Phase 1 as successfully completed and Phase 1.1 as a successful behavior correction. Continue from the current implementation, then move to sequential multi-query search with dedupe before expanding the product scope.
 
-Recommended next adjustment: keep the no-scraping constraint, but consider a less brittle location rule for LinkedIn country domains such as `ua.linkedin.com`.
+Recommended next adjustment: keep the no-scraping constraint and implement multi-query search using visible filters such as `LinkedIn profiles only` and `Ukraine LinkedIn domain only`.
 
 ## Next steps
 
-- Review whether `ua.linkedin.com` should satisfy the Ukraine location condition.
+- Use `ua.linkedin.com/in/...` as an explicit Ukraine-domain signal when the user enables the visible filter.
 - Decide whether name extraction can use a conservative title pattern in a later task.
-- Consider multiple query variations and deduplication if a single Tavily query cannot reliably return 20 relevant candidates in the next iteration.
+- Implement multiple query variations and deduplication because a single Tavily query is not the best strategy for candidate coverage.
 - Keep AI agent, database, shortlist, and multi-source search out of scope until the search engine is proven.

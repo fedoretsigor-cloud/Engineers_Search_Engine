@@ -22,6 +22,24 @@
 
 ---
 
+## Phase 1.1 - POC behavior tuning
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P1.1-001 Сделать editable Boolean query единственным источником поиска
+- [x] P1.1-002 Убрать скрытую backend-фильтрацию по полям формы
+- [x] P1.1-003 Заменить `Relevant results` на `Search results`
+- [x] P1.1-004 Сделать scoring нейтральным и не фильтрующим
+- [x] P1.1-005 Добавить явный toggle `LinkedIn profiles only`
+- [x] P1.1-006 Зафиксировать результаты Phase 1.1 в документах
+- [x] P1.1-007 Добавить видимый фильтр по украинскому LinkedIn-домену
+
+---
+
 ## Task: P1-001 Определить границы POC
 
 ### Context
@@ -443,3 +461,310 @@ Codex должен пересказать задачу, предложить п�
 ### Before implementation
 
 Codex должен пересказать задачу, предложить структуру отчета, убедиться что POC был реально протестирован, и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-001 Сделать editable Boolean query единственным источником поиска
+
+### Context
+
+В Phase 1 поля формы одновременно собирали Boolean query и скрыто влияли на backend-фильтрацию. Это создает неочевидное поведение: пользователь может вручную изменить query, но backend продолжит учитывать старые значения полей.
+
+### Goal
+
+Сделать так, чтобы итоговый editable Boolean query был единственным источником поискового намерения при нажатии `Search`.
+
+### Constraints
+
+- Не менять поисковый движок Tavily.
+- Не добавлять AI генерацию запроса.
+- Не добавлять скрытые фильтры.
+- Не менять смысл кнопки `Rebuild query`: она только пересобирает query из полей формы.
+
+### Expected behavior
+
+Поля формы помогают пользователю собрать query. После ручного редактирования textarea именно текст из textarea отправляется на backend и используется для Tavily search.
+
+### Acceptance criteria
+
+- Frontend при `Search` отправляет итоговый `query`.
+- `main_anchor`, `additional_anchors`, `stack`, `location` не отправляются как backend-фильтры.
+- Ручное изменение textarea влияет на фактический поисковый запрос.
+- `Rebuild query` обновляет textarea из полей формы.
+- Пользовательская логика поиска видна в textarea.
+
+### Before implementation
+
+Codex должен пересказать задачу, показать какие frontend payload поля будут изменены, и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-002 Убрать скрытую backend-фильтрацию по полям формы
+
+### Context
+
+Backend Phase 1 проверяет результаты Tavily по `main_anchor`, `additional_anchors`, `stack`, `location` и скрывает результаты, если обязательные условия не найдены в коротких returned fields. Это может ошибочно исключать кандидатов, потому что Tavily ищет по своему индексу, а backend видит только `title`, `url` и обрезанный `content/snippet`.
+
+### Goal
+
+Убрать скрытое исключение результатов по значениям полей формы после Tavily search.
+
+### Constraints
+
+- Не удалять нормализацию результатов.
+- Не скрывать результаты из-за отсутствия слов из формы в snippet/title/content.
+- Не считать поля формы обязательными условиями backend-фильтрации.
+- Не добавлять новые скрытые правила вместо старых.
+
+### Expected behavior
+
+Backend отправляет editable query в Tavily, получает raw results, нормализует их и возвращает результаты без скрытого required-condition filtering по полям формы.
+
+### Acceptance criteria
+
+- `SearchRequest` не требует `main_anchor`, `additional_anchors`, `stack`, `location` для фильтрации.
+- Backend не формирует `missing_required_fields` на основе полей формы.
+- Результаты не исключаются из UI только потому, что `Ukraine`, `Java`, `Spring`, `Developer` или похожие слова не найдены в коротком snippet/title/content.
+- Counts отражают raw/normalized/displayed results без неявного поля `relevant_results` как основной выдачи.
+- Поведение backend соответствует принципу: query is source of truth.
+
+### Before implementation
+
+Codex должен пересказать задачу, показать какие backend проверки будут удалены или отключены, и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-003 Заменить `Relevant results` на `Search results`
+
+### Context
+
+После удаления скрытой фильтрации UI не должен называть основной список `Relevant results`, потому что backend больше не принимает скрытое решение о релевантности.
+
+### Goal
+
+Сделать wording UI честным: основной список показывает search results, полученные по editable query.
+
+### Constraints
+
+- Не менять дизайн радикально.
+- Не добавлять новые фильтры.
+- Не обещать пользователю релевантность, если результат просто пришел из Tavily.
+
+### Expected behavior
+
+UI показывает заголовок `Search results` и счетчик результатов без misleading формулировки про relevant results.
+
+### Acceptance criteria
+
+- Заголовок блока результатов: `Search results`.
+- Счетчик показывает displayed results и raw Tavily results.
+- Текст не говорит, что результаты прошли скрытую проверку релевантности.
+- Empty/error/loading states остаются понятными.
+
+### Before implementation
+
+Codex должен пересказать задачу, показать новый UI wording и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-004 Сделать scoring нейтральным и не фильтрующим
+
+### Context
+
+Scoring Phase 1 смешивает ранжирование с обязательной фильтрацией. После изменения логики score должен помогать сортировать и понимать качество результата, но не скрывать результаты.
+
+### Goal
+
+Оставить простой нейтральный score без required-condition filtering.
+
+### Constraints
+
+- Не использовать score для скрытого исключения результатов.
+- Не штрафовать результат как нерелевантный только из-за отсутствия слов из формы в snippet.
+- Не добавлять ML, embeddings или LLM scoring.
+- Не делать score непрозрачным.
+
+### Expected behavior
+
+Каждый нормализованный результат может получить score на основе технических сигналов: Tavily score, похожесть URL на LinkedIn profile, полнота данных. Score помогает ранжировать, но не является фильтром.
+
+### Acceptance criteria
+
+- Score не устанавливает `is_relevant: false` из-за полей формы.
+- Score не скрывает результат из списка.
+- В score можно учитывать Tavily score.
+- В score можно учитывать profile-like URL как положительный сигнал.
+- В score можно учитывать data completeness.
+- `relevance_reason` заменен или переосмыслен как нейтральное объяснение score.
+
+### Before implementation
+
+Codex должен пересказать задачу, предложить простую формулу neutral score и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-005 Добавить явный toggle `LinkedIn profiles only`
+
+### Context
+
+Даже при query `site:linkedin.com/in` Tavily может вернуть непрофильные страницы: jobs, company, posts, search pages или другой шум. Такой фильтр нужен, но он должен быть видимым пользовательским выбором, а не скрытой backend-логикой.
+
+### Goal
+
+Добавить на frontend выключенный по умолчанию toggle `LinkedIn profiles only`, который явно включает фильтрацию по profile-like LinkedIn URLs.
+
+### Constraints
+
+- Toggle выключен по умолчанию.
+- Не включать URL/profile filtering скрыто.
+- Не считать URL filter частью Boolean query.
+- Не открывать и не парсить LinkedIn страницы.
+
+### Expected behavior
+
+Если toggle выключен, UI показывает все нормализованные результаты Tavily. Если toggle включен, backend показывает только URL, похожие на личные LinkedIn профили, и честно сообщает сколько результатов скрыто как non-profile.
+
+### Acceptance criteria
+
+- На frontend есть toggle `LinkedIn profiles only`.
+- По умолчанию toggle выключен.
+- При выключенном toggle результаты не фильтруются по profile-like URL.
+- При включенном toggle остаются URL вида `linkedin.com/in/...` и country-subdomain варианты вроде `ua.linkedin.com/in/...`.
+- При включенном toggle исключаются очевидные non-profile URL: `/jobs/`, `/company/`, `/posts/`, `/search/` и похожий шум.
+- UI показывает сколько результатов отображено и сколько скрыто URL/profile filter.
+
+### Before implementation
+
+Codex должен пересказать задачу, показать правило profile-like URL, показать frontend toggle behavior и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-006 Зафиксировать результаты Phase 1.1 в документах
+
+### Context
+
+После реализации Phase 1.1 нужно обновить документы, чтобы они отражали новую архитектурную договоренность: editable query является source of truth, а скрытая field-based фильтрация больше не используется.
+
+### Goal
+
+Обновить Roadmap, Tasks, ProjectStatus и при необходимости findings document после проверки Phase 1.1.
+
+### Constraints
+
+- Не фиксировать задачу как done до реальной проверки.
+- Не переписывать историю Phase 1 так, будто ошибки дизайна не было.
+- Не менять код в рамках этой документационной задачи.
+
+### Expected behavior
+
+Документы ясно показывают, что Phase 1 POC был успешен как доказательство концепции, а Phase 1.1 исправляет поведение POC перед Phase 2.
+
+### Acceptance criteria
+
+- `Roadmap.md` отражает статус Phase 1.1.
+- `Tasks.md` отражает выполненные задачи Phase 1.1.
+- `ProjectStatus.md` содержит актуальный статус, текущие ограничения и следующий шаг.
+- При необходимости обновлен `docs/phase-1-poc-findings.md`.
+- Документы не противоречат фактическому поведению приложения.
+
+### Before implementation
+
+Codex должен пересказать задачу, перечислить документы для обновления и дождаться подтверждения пользователя.
+
+---
+
+## Task: P1.1-007 Добавить видимый фильтр по украинскому LinkedIn-домену
+
+### Контекст
+
+Текущая проверка локации через поисковый запрос недостаточно надежна. Если в Boolean query есть `"Ukraine"`, Tavily может вернуть профиль, где Украина упоминается где-то в опыте, образовании, компании или snippet, но текущая видимая локация человека в LinkedIn может быть не Украина.
+
+Для POC более понятный первый location-сигнал - это украинский LinkedIn subdomain:
+
+- `ua.linkedin.com/in/...`
+
+Это не идеальная гарантия текущей локации, но это более прозрачный и проверяемый технический сигнал, чем скрытая проверка слова `Ukraine` в snippet.
+
+### Цель
+
+Добавить на фронте видимый выключатель, который позволяет пользователю оставить только LinkedIn-профили с украинского LinkedIn-домена.
+
+### UI
+
+Добавить checkbox/toggle:
+
+`[ ] Ukraine LinkedIn domain only`
+
+Состояние по умолчанию: выключен.
+
+### Поведение backend
+
+Если toggle выключен:
+
+- не фильтровать результаты по LinkedIn country subdomain;
+- показывать все нормализованные/displayed результаты, кроме других явно включенных пользователем фильтров.
+
+Если toggle включен:
+
+- оставлять только profile-like URL, где:
+  - domain ровно `ua.linkedin.com`;
+  - path начинается с `/in/`;
+- исключать:
+  - `www.linkedin.com/in/...`;
+  - `linkedin.com/in/...`;
+  - другие country subdomains, например `de.linkedin.com/in/...`, `pl.linkedin.com/in/...`;
+  - не-профильные URL: `/jobs/`, `/company/`, `/posts/`, `/search/`.
+
+### Counts / feedback в UI
+
+Когда toggle включен, UI должен явно показывать, сколько результатов скрыто этим фильтром, например:
+
+`Showing 12 search results from 20 raw Tavily results. 8 non-UA-domain results hidden.`
+
+### Ограничения
+
+- Не делать это скрытым backend-фильтром.
+- Не включать фильтр по умолчанию без отдельного согласования.
+- Не парсить LinkedIn-страницы.
+- Не логиниться в LinkedIn.
+- Не делать scraping LinkedIn.
+- Не считать `ua.linkedin.com/in/...` идеальной гарантией текущей локации.
+- Не удалять существующий toggle `LinkedIn profiles only`.
+- Новый фильтр должен работать вместе с `LinkedIn profiles only`.
+
+### Ожидаемое поведение
+
+Пользователь может явно решить, хочет ли он сузить выдачу до профилей `ua.linkedin.com/in/...`. Это дает более управляемое первое приближение к локации Украина, чем relying только на слово `Ukraine` в Tavily query или snippet.
+
+### Acceptance criteria
+
+- На frontend есть видимый toggle `Ukraine LinkedIn domain only`.
+- Toggle выключен по умолчанию.
+- Frontend отправляет boolean-флаг на backend только как явно выбранный пользователем фильтр.
+- Backend применяет фильтр только если флаг `true`.
+- Если фильтр включен, backend оставляет только URL вида `https://ua.linkedin.com/in/...`.
+- UI показывает количество результатов, скрытых как non-UA-domain.
+- Логика `editable Boolean query = source of truth` остается без изменений.
+- Существующий toggle `LinkedIn profiles only` остается без изменений.
+- Фильтр проверен простым smoke-check/manual test.
+
+### Before implementation
+
+Codex должен пересказать задачу, показать точное frontend/backend поведение и дождаться подтверждения пользователя перед изменением кода.
+
+### Implementation result
+
+- Добавлен frontend toggle `Ukraine LinkedIn domain only`.
+- Toggle выключен по умолчанию.
+- Frontend отправляет `ukraine_linkedin_domain_only`.
+- Backend применяет фильтр только если флаг включен.
+- Фильтр оставляет только `ua.linkedin.com/in/...`.
+- UI показывает счетчик `non-UA-domain results hidden`.
+- Фильтр работает вместе с `LinkedIn profiles only`.
+- Проверено через `python -m compileall app`, `node --check app/static/app.js`, URL-rule smoke-check, backend counts smoke-check и UI check.
+
+### Test notes
+
+- Для запроса `site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"` с включенными `LinkedIn profiles only` и `Ukraine LinkedIn domain only` получено 16 украинских LinkedIn-профилей из 20 raw Tavily results.
+- За 10 тестовых запросов найдено 53 уникальных `ua.linkedin.com/in/...` профиля.
+- Широкий запрос `site:linkedin.com/in AND "Java" AND ("Developer" OR "Engineer") AND ("Java" OR "Spring") AND "Ukraine"` дал 0 украинских LinkedIn-профилей после включения обоих фильтров.
