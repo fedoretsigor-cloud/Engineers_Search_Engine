@@ -1,11 +1,25 @@
 # Engineers_Search_Engine
 AI-powered sourcing search engine
 
-## Phase 1 POC
+## Current Status
 
-Minimal FastAPI skeleton for the Tavily-powered LinkedIn X-ray search POC.
+Planner-based Tavily/LinkedIn X-ray sourcing prototype.
 
-Status: Phase 1 POC completed successfully.
+Status:
+
+- Phase 1 POC completed successfully.
+- Phase 1.1 behavior tuning completed.
+- Phase 2 multi-query search + baseline query planner completed.
+
+Current pipeline:
+
+- structured inputs: `Role Family`, `Technology`, `Stack`, `Location`;
+- `RuleBasedQueryPlanner v1` generates a visible 10-query `QueryPlan`;
+- Tavily executes the generated queries;
+- LinkedIn profile URLs are normalized and deduped;
+- visible `LinkedIn profiles only` and `Location filter` controls are applied;
+- Ukraine location filtering uses current-location classification instead of a finite negative-location blacklist;
+- local structured-search snapshots are saved under `logs/search-runs/` and ignored by git.
 
 ## Local Setup
 

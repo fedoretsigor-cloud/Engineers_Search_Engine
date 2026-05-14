@@ -1,4 +1,7 @@
 from pathlib import Path
+from datetime import datetime, timezone
+import json
+import logging
 import os
 import re
 from urllib.parse import urlparse
@@ -12,7 +15,9 @@ from fastapi.staticfiles import StaticFiles
 
 
 BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
 STATIC_DIR = BASE_DIR / "static"
+SEARCH_RUN_LOG_DIR = PROJECT_DIR / "logs" / "search-runs"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 QUERY_PLANNER_VERSION = "rule_based_v1"
 QUERY_PLAN_MAX_RESULTS = 20
@@ -28,7 +33,7 @@ QUERY_PLAN_REPORTING_FIELDS = [
     "hidden_by_profile_filter",
     "hidden_by_location_filter",
     "rescued_by_header_location",
-    "hidden_by_negative_header_location",
+    "hidden_by_foreign_current_location",
     "weak_location_history_only",
     "unknown_non_country_domain_location",
     "location_filter_report",
@@ -37,6 +42,7 @@ QUERY_PLAN_REPORTING_FIELDS = [
 
 load_dotenv()
 
+logger = logging.getLogger("engineers_search_engine")
 app = FastAPI(title="Engineers Search POC")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -75,7 +81,7 @@ LOCATION_FILTER_CONFIG = {
     "ukraine": {
         "label": "Ukraine",
         "linkedin_domains": ["ua.linkedin.com"],
-        "include_terms": [
+        "target_location_terms": [
             "Ukraine",
             "Kyiv",
             "Kiev",
@@ -90,12 +96,6 @@ LOCATION_FILTER_CONFIG = {
             "Ternopil",
             "Ivano-Frankivsk",
         ],
-        "negative_terms": [
-            "Prague",
-            "Praha",
-            "Czechia",
-            "Czech Republic",
-        ],
     }
 }
 HEADER_LOCATION_SECTION_MARKERS = [
@@ -107,10 +107,28 @@ HEADER_LOCATION_SECTION_MARKERS = [
     "Skills",
     "Projects",
 ]
+CURRENT_LOCATION_SOCIAL_MARKER_PATTERN = re.compile(
+    r"\b(?:\d+(?:[.,]\d+)?\s*[km]?\+?\s+)?(?:followers|connections)\b",
+    flags=re.IGNORECASE,
+)
+LOCATION_QUALIFIER_PATTERN = re.compile(
+    r"\b(area|city|county|district|province|region|state|voivodeship)\b",
+    flags=re.IGNORECASE,
+)
+NON_LOCATION_FRAGMENT_PATTERN = re.compile(
+    r"\b("
+    r"academy|architect|backend|college|company|consultant|developer|education|"
+    r"engineer|frontend|full[- ]?stack|hibernate|inc|institute|java|kafka|lead|"
+    r"llc|ltd|manager|middle|polytechnic|programmer|python|school|senior|"
+    r"software|solutions|spring|systems|technologies|technology|university"
+    r")\b",
+    flags=re.IGNORECASE,
+)
 LOCATION_SIGNAL_STATUSES = [
+    "target_location",
     "country_domain",
     "rescued_header_location",
-    "excluded_negative_header_location",
+    "excluded_foreign_current_location",
     "weak_history_only",
     "unknown_non_country_domain",
 ]
@@ -241,6 +259,159 @@ def extract_header_location_text(raw_result: dict, normalized_result: dict) -> s
         return one_line[: marker_match.start()].strip()
 
     return one_line
+
+
+def header_lines(header_location_text: str) -> list[str]:
+    return [
+        line.strip()
+        for line in header_location_text.replace("\r", "\n").split("\n")
+        if line.strip()
+    ]
+
+
+def contains_social_marker(text: str) -> bool:
+    return bool(CURRENT_LOCATION_SOCIAL_MARKER_PATTERN.search(text))
+
+
+def clean_current_location_fragment(fragment: str) -> str:
+    compact_fragment = compact_spaces(fragment)
+    if not compact_fragment or compact_fragment.endswith(","):
+        return ""
+
+    return compact_fragment.strip(" .;:")
+
+
+def is_plausible_current_location_fragment(
+    fragment: str,
+    target_location_terms: list[str],
+    require_location_shape: bool,
+) -> bool:
+    if not fragment or len(fragment) > 120:
+        return False
+    if fragment.endswith(","):
+        return False
+    if NON_LOCATION_FRAGMENT_PATTERN.search(fragment):
+        return False
+
+    matched_target_terms = match_location_terms(fragment, target_location_terms)
+    if not require_location_shape:
+        return True
+
+    return bool(
+        matched_target_terms
+        or "," in fragment
+        or LOCATION_QUALIFIER_PATTERN.search(fragment)
+    )
+
+
+def extract_one_line_current_location_line(
+    header_location_text: str,
+    target_location_terms: list[str],
+) -> str:
+    one_line = compact_spaces(header_location_text)
+    marker_match = CURRENT_LOCATION_SOCIAL_MARKER_PATTERN.search(one_line)
+    if not marker_match:
+        return ""
+
+    before_marker = one_line[: marker_match.start()].strip()
+    fragments = [
+        fragment.strip()
+        for fragment in re.split(r"\.\s+", before_marker)
+        if fragment.strip()
+    ]
+
+    for fragment in reversed(fragments):
+        current_location_line = clean_current_location_fragment(fragment)
+        if is_plausible_current_location_fragment(
+            current_location_line,
+            target_location_terms,
+            require_location_shape=True,
+        ):
+            return current_location_line
+
+    return ""
+
+
+def extract_current_location_line(
+    header_location_text: str,
+    target_location_terms: list[str],
+) -> str:
+    lines = header_lines(header_location_text)
+    if len(lines) > 1:
+        for index, line in enumerate(lines):
+            if contains_social_marker(line):
+                if index < 2:
+                    return ""
+
+                current_location_line = clean_current_location_fragment(
+                    lines[index - 1]
+                )
+                if is_plausible_current_location_fragment(
+                    current_location_line,
+                    target_location_terms,
+                    require_location_shape=False,
+                ):
+                    return current_location_line
+                return ""
+
+        if len(lines) >= 3:
+            current_location_line = clean_current_location_fragment(lines[2])
+            if is_plausible_current_location_fragment(
+                current_location_line,
+                target_location_terms,
+                require_location_shape=False,
+            ):
+                return current_location_line
+
+        return ""
+
+    return extract_one_line_current_location_line(
+        header_location_text,
+        target_location_terms,
+    )
+
+
+def header_target_terms_can_rescue(
+    header_location_text: str,
+    target_location_terms: list[str],
+) -> bool:
+    if not match_location_terms(header_location_text, target_location_terms):
+        return False
+    if len(header_lines(header_location_text)) > 1:
+        return True
+    if NON_LOCATION_FRAGMENT_PATTERN.search(header_location_text):
+        return False
+
+    return bool(
+        contains_social_marker(header_location_text)
+        or "," in header_location_text
+        or LOCATION_QUALIFIER_PATTERN.search(header_location_text)
+    )
+
+
+def classify_current_location(
+    header_location_text: str,
+    location_config: dict,
+) -> dict:
+    target_location_terms = location_config["target_location_terms"]
+    current_location_line = extract_current_location_line(
+        header_location_text,
+        target_location_terms,
+    )
+    target_terms = match_location_terms(current_location_line, target_location_terms)
+
+    if not current_location_line:
+        classification = "unknown_current_location"
+    elif target_terms:
+        classification = "target_location"
+    else:
+        classification = "foreign_current_location"
+
+    return {
+        "classification": classification,
+        "current_location_line": current_location_line,
+        "target_location_terms": target_terms,
+    }
 
 
 def match_location_terms(text: str, terms: list[str]) -> list[str]:
@@ -385,30 +556,34 @@ def location_signal_for_result(
 ) -> dict:
     header_location_text = extract_header_location_text(raw_result, normalized_result)
     combined_text = combined_public_profile_text(raw_result, normalized_result)
-    header_include_terms = match_location_terms(
+    target_location_terms = location_config["target_location_terms"]
+    current_location_signal = classify_current_location(
         header_location_text,
-        location_config["include_terms"],
+        location_config,
     )
-    header_negative_terms = match_location_terms(
+    header_target_terms = match_location_terms(
         header_location_text,
-        location_config["negative_terms"],
+        target_location_terms,
     )
-    full_include_terms = match_location_terms(
+    full_target_terms = match_location_terms(
         combined_text,
-        location_config["include_terms"],
+        target_location_terms,
     )
     is_country_domain = is_country_linkedin_profile_url(
         normalized_result.get("url") or "",
         location_config,
     )
+    current_location_classification = current_location_signal["classification"]
 
-    if header_negative_terms:
-        status = "excluded_negative_header_location"
+    if current_location_classification == "foreign_current_location":
+        status = "excluded_foreign_current_location"
+    elif current_location_classification == "target_location":
+        status = "target_location"
     elif is_country_domain:
         status = "country_domain"
-    elif header_include_terms:
+    elif header_target_terms_can_rescue(header_location_text, target_location_terms):
         status = "rescued_header_location"
-    elif full_include_terms:
+    elif full_target_terms:
         status = "weak_history_only"
     else:
         status = "unknown_non_country_domain"
@@ -416,8 +591,14 @@ def location_signal_for_result(
     return {
         "status": status,
         "header_location_text": header_location_text,
+        "current_location_line": current_location_signal["current_location_line"],
+        "current_location_classification": current_location_classification,
         "location_signal_terms": sorted(
-            set(header_include_terms + header_negative_terms + full_include_terms)
+            set(
+                current_location_signal["target_location_terms"]
+                + header_target_terms
+                + full_target_terms
+            )
         ),
     }
 
@@ -425,8 +606,10 @@ def location_signal_for_result(
 def final_location_decision(location_signals: list[dict]) -> tuple[str, bool]:
     statuses = {signal["status"] for signal in location_signals}
 
-    if "excluded_negative_header_location" in statuses:
-        return "excluded_negative_header_location", False
+    if "excluded_foreign_current_location" in statuses:
+        return "excluded_foreign_current_location", False
+    if "target_location" in statuses:
+        return "target_location", True
     if "country_domain" in statuses:
         return "country_domain", True
     if "rescued_header_location" in statuses:
@@ -440,16 +623,36 @@ def final_location_decision(location_signals: list[dict]) -> tuple[str, bool]:
 def merge_location_signal_metadata(location_signals: list[dict]) -> dict:
     signal_terms: set[str] = set()
     header_texts: list[str] = []
+    current_location_lines: list[str] = []
+    current_location_classifications: set[str] = set()
 
     for signal in location_signals:
         signal_terms.update(signal.get("location_signal_terms", []))
         header_text = signal.get("header_location_text")
         if header_text and header_text not in header_texts:
             header_texts.append(header_text)
+        current_location_line = signal.get("current_location_line")
+        if (
+            current_location_line
+            and current_location_line not in current_location_lines
+        ):
+            current_location_lines.append(current_location_line)
+        current_location_classification = signal.get(
+            "current_location_classification"
+        )
+        if current_location_classification:
+            current_location_classifications.add(current_location_classification)
 
     return {
         "location_signal_terms": sorted(signal_terms),
         "header_location_text": header_texts[0] if header_texts else "",
+        "current_location_line": (
+            current_location_lines[0] if current_location_lines else ""
+        ),
+        "current_location_lines": current_location_lines,
+        "current_location_classifications": sorted(
+            current_location_classifications
+        ),
     }
 
 
@@ -559,6 +762,15 @@ def build_deduped_results_and_report(
             candidate["header_location_text"] = location_metadata[
                 "header_location_text"
             ]
+            candidate["current_location_line"] = location_metadata[
+                "current_location_line"
+            ]
+            candidate["current_location_lines"] = location_metadata[
+                "current_location_lines"
+            ]
+            candidate["current_location_classifications"] = location_metadata[
+                "current_location_classifications"
+            ]
             candidate["location_filter_displayed"] = is_displayed
             candidate["result"]["location_signal_status"] = final_status
             candidate["result"]["location_signal_terms"] = location_metadata[
@@ -567,10 +779,22 @@ def build_deduped_results_and_report(
             candidate["result"]["header_location_text"] = location_metadata[
                 "header_location_text"
             ]
+            candidate["result"]["current_location_line"] = location_metadata[
+                "current_location_line"
+            ]
+            candidate["result"]["current_location_lines"] = location_metadata[
+                "current_location_lines"
+            ]
+            candidate["result"]["current_location_classifications"] = location_metadata[
+                "current_location_classifications"
+            ]
         else:
             candidate["location_signal_status"] = "not_applied"
             candidate["location_signal_terms"] = []
             candidate["header_location_text"] = ""
+            candidate["current_location_line"] = ""
+            candidate["current_location_lines"] = []
+            candidate["current_location_classifications"] = []
             candidate["location_filter_displayed"] = True
 
     deduped_results: list[dict] = []
@@ -599,6 +823,11 @@ def build_deduped_results_and_report(
                     "location_signal_status": candidate["location_signal_status"],
                     "location_signal_terms": candidate["location_signal_terms"],
                     "header_location_text": candidate["header_location_text"],
+                    "current_location_line": candidate["current_location_line"],
+                    "current_location_lines": candidate["current_location_lines"],
+                    "current_location_classifications": candidate[
+                        "current_location_classifications"
+                    ],
                 }
             )
 
@@ -630,8 +859,8 @@ def build_deduped_results_and_report(
             "rescued_by_header_location": location_occurrence_counts[
                 "rescued_header_location"
             ],
-            "hidden_by_negative_header_location": location_occurrence_counts[
-                "excluded_negative_header_location"
+            "hidden_by_foreign_current_location": location_occurrence_counts[
+                "excluded_foreign_current_location"
             ],
             "weak_location_history_only": location_occurrence_counts[
                 "weak_history_only"
@@ -968,6 +1197,91 @@ class RuleBasedQueryPlannerV1:
         }
 
 
+def snapshot_slug(value: object) -> str:
+    compact_value = compact_spaces(str(value or "")).lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", compact_value).strip("-")
+    return slug or "unknown"
+
+
+def structured_search_snapshot_filename(
+    normalized_request: dict,
+    timestamp: datetime,
+) -> str:
+    timestamp_part = timestamp.strftime("%Y-%m-%dT%H-%M-%SZ")
+    role_part = snapshot_slug(normalized_request.get("role_family"))
+    technology_part = snapshot_slug(normalized_request.get("technology"))
+    location_part = snapshot_slug(normalized_request.get("location"))
+
+    return (
+        f"{timestamp_part}_structured-search_"
+        f"{role_part}-{technology_part}-{location_part}.json"
+    )
+
+
+def query_result_status_summary(query_result: dict) -> dict:
+    return {
+        "query_id": query_result.get("query_id"),
+        "category": query_result.get("category"),
+        "query": query_result.get("query"),
+        "ok": query_result.get("ok"),
+        "raw_count": query_result.get("raw_count"),
+        "response_time": query_result.get("response_time"),
+        "usage": query_result.get("usage"),
+        "request_id": query_result.get("request_id"),
+        "error": query_result.get("error"),
+    }
+
+
+def build_structured_search_snapshot(
+    query_plan: dict,
+    query_results: list[dict],
+    deduped_results: list[dict],
+    report: dict,
+    timestamp: datetime,
+) -> dict:
+    return {
+        "snapshot_type": "structured-search",
+        "timestamp": timestamp.isoformat(),
+        "normalized_request": query_plan.get("input_snapshot"),
+        "query_plan": query_plan,
+        "report": report,
+        "location_filter_report": report.get("location_filter_report"),
+        "deduped_results": deduped_results,
+        "query_results_summary": [
+            query_result_status_summary(query_result)
+            for query_result in query_results
+        ],
+        "query_results": query_results,
+    }
+
+
+def write_structured_search_snapshot(
+    query_plan: dict,
+    query_results: list[dict],
+    deduped_results: list[dict],
+    report: dict,
+) -> Path:
+    timestamp = datetime.now(timezone.utc)
+    snapshot = build_structured_search_snapshot(
+        query_plan,
+        query_results,
+        deduped_results,
+        report,
+        timestamp,
+    )
+    SEARCH_RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    snapshot_path = SEARCH_RUN_LOG_DIR / structured_search_snapshot_filename(
+        query_plan.get("input_snapshot") or {},
+        timestamp,
+    )
+    snapshot_path.write_text(
+        json.dumps(snapshot, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    return snapshot_path
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -1033,6 +1347,15 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
         query_plan,
         query_results,
     )
+    try:
+        write_structured_search_snapshot(
+            query_plan,
+            query_results,
+            deduped_results,
+            report,
+        )
+    except Exception:
+        logger.warning("Failed to write structured search snapshot.", exc_info=True)
 
     return {
         "ok": successful_queries > 0,

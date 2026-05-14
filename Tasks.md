@@ -48,6 +48,8 @@
 
 ### Done
 
+- [x] P2-012 Replace blacklist negative_terms with current location classification
+- [x] P2-013 Improve one-line LinkedIn snippet current-location extraction
 - [x] P2-001 Зафиксировать QueryPlan и baseline planner v1
 - [x] P2-002 Добавить входную модель поиска: Role Family, Technology, Stack, Location
 - [x] P2-003 Реализовать Rule-based Query Planner v1 для Java Backend
@@ -59,6 +61,634 @@
 - [x] P2-009 Прогнать Java/Ukraine baseline и сравнить результаты
 - [x] P2-009.1 Add configurable header/location location filter
 - [x] P2-010 Зафиксировать выводы Phase 2 и подготовить место под AI Planner
+- [x] P2-011 Добавить локальное логирование structured-search результатов для анализа
+
+### Current Phase 2 notes
+
+- `P2-012` supersedes the initial `P2-009.1` blacklist-style `negative_terms` approach.
+- Current Ukraine `Location filter` uses `target_location_terms`, conservative `current_location_line` extraction, and current-location classification.
+- Current display statuses are `target_location`, `country_domain`, `rescued_header_location`, `excluded_foreign_current_location`, `weak_history_only`, and `unknown_non_country_domain`.
+- Current report field for explicit foreign current-location hides is `hidden_by_foreign_current_location`.
+- `hidden_by_negative_header_location` and `excluded_negative_header_location` are historical `P2-009.1` names only.
+- Tavily live runs are variable. Recent `Backend Developer + Java + Spring/Kafka + Ukraine` checks showed roughly `55-60` unique profiles for one wave; 3/5/10-wave experiments showed limited incremental gain.
+
+---
+
+## Task: P2-012 Replace blacklist negative_terms with current location classification
+
+### Context
+
+`P2-009.1` added a configurable `Location filter` for Ukraine. It currently uses:
+
+- `include_terms` for target-location terms such as `Ukraine`, `Kyiv`, `Lviv`;
+- `negative_terms` for explicit foreign current-location terms such as `Prague`, `Czechia`;
+- `ua.linkedin.com/in/...` as a country-domain signal.
+
+The current `negative_terms` approach does not scale. It catches only the foreign locations explicitly listed in config, so candidates with clear current location such as `Warsaw, Mazowieckie, Poland` can still pass when their URL is `ua.linkedin.com/in/...`.
+
+The better product rule is not to list every bad country or city. The filter should determine whether the candidate has an explicit current-location line in the public LinkedIn header. If that current location is clearly not the target location, it should hide the candidate.
+
+### Goal
+
+Replace the blacklist-style `negative_terms` logic with current-location classification:
+
+- `target_location`;
+- `foreign_current_location`;
+- `unknown_current_location`.
+
+The key rule: if the public header has an explicit current location and it does not match the target location, the candidate should be hidden even if the URL is `ua.linkedin.com/in/...`.
+
+### Approval
+
+Задача и предложенные шаги одобрены пользователем.
+
+### Scope
+
+This is an improvement to the existing `Location filter`, not a new search pipeline.
+
+Keep the current planner, Tavily runner, dedupe, query source metadata, frontend flow, local snapshot logging, and overall report structure unless a small report-field addition is needed for the new location classification.
+
+### Proposed steps
+
+1. Зафиксировать проблему: `negative_terms` не масштабируется. `Prague/Czechia` ловит только частные случаи, но пропускает `Warsaw/Poland`, `Berlin/Germany`, etc.
+
+2. Сохранить текущий общий pipeline:
+   - `StructuredSearchRequest`;
+   - `QueryPlanner v1`;
+   - `QueryPlan`;
+   - sequential Tavily runner;
+   - LinkedIn profile filtering;
+   - URL normalization and dedupe;
+   - candidate `query_sources`;
+   - local structured-search snapshot logging.
+
+3. Replace config semantics:
+   - keep target location terms for Ukraine;
+   - stop treating foreign locations as a finite blacklist.
+
+Example target terms:
+
+```python
+"target_location_terms": [
+    "Ukraine",
+    "Kyiv",
+    "Kiev",
+    "Lviv",
+    "Kharkiv",
+    "Odesa",
+    "Odessa",
+    "Dnipro",
+    "Vinnytsia",
+    "Zaporizhzhia",
+    "Chernivtsi",
+    "Ternopil",
+    "Ivano-Frankivsk",
+]
+```
+
+4. Add current-location line extraction from `header_location_text`.
+
+Typical source:
+
+```text
+Name
+Headline
+Current location
+connections/followers
+```
+
+Example:
+
+```text
+Ivan V.
+Java Developer
+Warsaw, Mazowieckie, Poland
+500 connections
+```
+
+Expected current-location line:
+
+```text
+Warsaw, Mazowieckie, Poland
+```
+
+5. Add current-location classification:
+
+```text
+target_location
+foreign_current_location
+unknown_current_location
+```
+
+6. Target-location rule:
+
+If the current-location line contains target Ukraine terms such as `Ukraine`, `Kyiv`, `Lviv`, etc., classify it as `target_location` and allow the candidate.
+
+7. Foreign-current-location rule:
+
+If the current-location line is explicit and looks like a geography line, but it does not contain target Ukraine terms, classify it as `foreign_current_location` and hide the candidate.
+
+Examples that should hide:
+
+```text
+Warsaw, Mazowieckie, Poland
+Berlin, Germany
+Prague, Czechia
+Amsterdam, Netherlands
+```
+
+This rule must beat `ua.linkedin.com/in/...`.
+
+8. Unknown-current-location rule:
+
+If no current-location line can be confidently extracted, fall back to existing softer signals:
+
+- `ua.linkedin.com/in/...` can pass as `country_domain`;
+- non-UA profile with target terms in header can pass as `rescued_header_location`;
+- target terms only in history/education remain hidden as `weak_history_only`;
+- no target terms remain hidden as `unknown_non_country_domain`.
+
+9. Update final display priority:
+
+```text
+foreign_current_location -> hide
+target_location -> show
+country_domain -> show
+rescued_header_location -> show
+weak_history_only -> hide
+unknown_non_country_domain -> hide
+```
+
+10. Update status/report naming.
+
+Add or map a status such as:
+
+```text
+excluded_foreign_current_location
+```
+
+The report should make it clear how many candidates were hidden because their explicit current location did not match the target location.
+
+11. Add smoke checks:
+
+- `ua.linkedin.com` + `Warsaw, Poland` -> hidden;
+- `ua.linkedin.com` + `Kyiv, Ukraine` -> shown;
+- `www.linkedin.com` + `Ukraine` in current-location header -> shown/rescued;
+- `www.linkedin.com` + Ukraine only in education/history -> hidden;
+- no clear current-location line + `ua.linkedin.com` -> shown as `country_domain`;
+- duplicate candidate where one occurrence has foreign current location -> hidden;
+- `location_filter_enabled = false` -> filter skipped.
+
+12. Run one real Java/Ukraine baseline after implementation.
+
+Compare with the current latest snapshot:
+
+- current snapshot displayed `75` unique candidates;
+- at least the known Warsaw/Poland false positives should disappear;
+- success criterion should remain above `20` unique candidates.
+
+13. Update documents with implementation result and measured counts.
+
+### Expected behavior
+
+The location filter stops relying on a finite blacklist of foreign countries/cities. A displayed candidate should not pass just because the URL is `ua.linkedin.com/in/...` when the public header clearly says the current location is outside Ukraine.
+
+### Constraints
+
+- Do not implement LinkedIn login.
+- Do not scrape LinkedIn.
+- Do not open LinkedIn profiles automatically.
+- Use only Tavily returned public `title`, `content`, `snippet`, and URL fields.
+- Do not add a database.
+- Do not change the query planner in this task.
+- Do not change Tavily query generation in this task.
+- Do not expand into Candidate Quality Layer scoring in this task.
+- Do not introduce a new external geocoding/location API.
+
+### Acceptance criteria
+
+- `negative_terms` no longer drives the primary exclusion logic for current-location mismatch.
+- The filter extracts or derives a current-location line from `header_location_text`.
+- Explicit current-location line matching target Ukraine terms passes.
+- Explicit current-location line that looks geographic but does not match Ukraine is hidden.
+- Foreign current location beats `ua.linkedin.com/in/...`.
+- Unknown current location can still fall back to `country_domain` or other existing signals.
+- Candidate-level merge keeps the existing rule that a strong hide signal from any occurrence can hide the deduped candidate.
+- Report exposes a clear count for candidates hidden by foreign current location.
+- Local structured-search snapshots include the new location signal/status metadata.
+- Smoke checks cover target, foreign, unknown, weak-history-only, duplicate-merge, and filter-off cases.
+- One real baseline run is documented after implementation.
+
+### Implementation result
+
+Implemented in `app/main.py` and `app/static/app.js`.
+
+- Runtime location config now uses `target_location_terms`; `negative_terms` no longer drives exclusion.
+- Added current-location extraction from multiline LinkedIn headers and conservative one-line snippets.
+- Added current-location classification: `target_location`, `foreign_current_location`, `unknown_current_location`.
+- Added final location status `excluded_foreign_current_location`; this status hides the candidate before `country_domain` can allow it.
+- Candidate metadata and local structured-search snapshots now include `current_location_line`, `current_location_lines`, and `current_location_classifications`.
+- Frontend report label changed from `Negative location` to `Foreign location`.
+
+### Verification result
+
+- `python -m compileall app` passed.
+- `node --check app/static/app.js` passed.
+- Inline smoke check passed for:
+  - `ua.linkedin.com` + `Warsaw, Poland` -> hidden;
+  - `ua.linkedin.com` + `Kyiv, Ukraine` -> displayed as `target_location`;
+  - `www.linkedin.com` + one-line `Kyiv, Ukraine` header -> displayed as `target_location`;
+  - Ukraine only in education/history one-line text -> hidden as weak/ambiguous;
+  - no clear current-location line + `ua.linkedin.com` -> displayed as `country_domain`;
+  - duplicate candidate with one foreign current-location occurrence -> hidden;
+  - `location_filter_enabled = false` -> filter skipped.
+- Latest local snapshot replayed without a new Tavily request: `2026-05-14T17-12-12Z_structured-search_backend-developer-java-ukraine.json`.
+- Snapshot replay result: `197` raw, `105` displayed occurrences, `73` unique displayed profiles.
+- Displayed unique location statuses: `target_location = 71`, `country_domain = 2`.
+- Known Warsaw/Poland false positives are hidden:
+  - `ua.linkedin.com/in/ivan-vasylenko-java-dev` -> `excluded_foreign_current_location`;
+  - `ua.linkedin.com/in/sviatoslav-konstantyniv-542744179` -> `excluded_foreign_current_location`.
+- No new Tavily baseline was run in this coding pass; verification used the latest local structured-search snapshot to avoid spending extra API credits.
+
+### Before implementation
+
+Codex должен пересказать задачу `P2-012`, предложить точный implementation scope и дождаться явного подтверждения перед изменением кода.
+
+---
+
+## Task: P2-013 Improve one-line LinkedIn snippet current-location extraction
+
+### Context
+
+Во время no-code симуляции `P2-012` на последнем structured-search snapshot обнаружен отдельный parsing gap.
+
+Tavily иногда возвращает LinkedIn public header не как multiline block:
+
+```text
+Name
+Headline
+Current location
+connections/followers
+```
+
+а как compact one-line snippet:
+
+```text
+Serhii Ivanov. Java Software Developer. Kyiv, Kyiv City, Ukraine. 968 followers 500+ connections.
+```
+
+Текущий extraction лучше работает с multiline header. Для compact one-line snippets он может не выделить `current_location_line`, хотя location явно есть. В no-code симуляции это привело к `unknown_current_location = 4`.
+
+### Goal
+
+Улучшить extraction current-location line для compact one-line Tavily snippets, чтобы `Location filter` мог корректно классифицировать target/foreign/unknown location не только в multiline, но и в one-line формате.
+
+Use the conservative parser variant approved after no-code testing:
+
+- only extract one-line current location when the snippet contains social markers such as `followers`, `connections`, or `500+ connections`;
+- do not extract dangling fragments such as `Kyiv,` without enough confidence;
+- keep education/history/company-looking one-line snippets as `unknown_current_location` when current location cannot be isolated confidently.
+
+### Approval
+
+Задача и шаги одобрены пользователем.
+
+### Proposed steps
+
+1. Зафиксировать проблему: one-line snippets могут содержать явную current location, но текущий parser её не выделяет.
+
+2. Собрать реальные примеры из последнего snapshot.
+
+Examples:
+
+```text
+Serhii Ivanov. Java Software Developer. Kyiv, Kyiv City, Ukraine. 968 followers 500+ connections.
+```
+
+```text
+Serhii Avakian. Java Developer. Zappysales. Dnipro, Dnipropetrovsk, Ukraine. 2K followers 500+ connections.
+```
+
+Ambiguous example:
+
+```text
+Volodymyr Maksymenko. Java Software Engineer. Finalto National Technical University of Ukraine 'Kyiv Polytechnic Institute'. Kyiv,
+```
+
+3. Define expected extraction:
+
+```text
+Kyiv, Kyiv City, Ukraine
+Dnipro, Dnipropetrovsk, Ukraine
+unknown / ambiguous when the location cannot be extracted confidently
+```
+
+4. Add a conservative parser path for compact one-line snippets.
+
+If `header_location_text` is not multiline, the parser should first require a social marker such as:
+
+```text
+followers
+connections
+500+ connections
+```
+
+Then it should look for a location fragment before that marker.
+
+If no social marker exists, do not extract one-line current location in this task.
+
+5. Use target location terms as anchors.
+
+For Ukraine, target terms include:
+
+```text
+Ukraine, Kyiv, Kiev, Lviv, Kharkiv, Odesa, Odessa, Dnipro, ...
+```
+
+6. Extract fragment boundaries carefully.
+
+Example input:
+
+```text
+Name. Java Developer. Kyiv, Kyiv City, Ukraine. 968 followers 500+ connections.
+```
+
+Expected location fragment:
+
+```text
+Kyiv, Kyiv City, Ukraine
+```
+
+7. Stay conservative with education/history ambiguity.
+
+Example:
+
+```text
+Finalto National Technical University of Ukraine 'Kyiv Polytechnic Institute'. Kyiv,
+```
+
+Should not be aggressively treated as current location if the parser cannot isolate a clear location fragment.
+
+Also do not classify dangling fragments such as:
+
+```text
+Kyiv,
+```
+
+when they appear after an education/history/company-looking phrase and no social marker confirms the header shape.
+
+8. Preserve multiline behavior.
+
+This must continue to work:
+
+```text
+Name
+Headline
+Kyiv, Ukraine
+500 connections
+```
+
+9. Add smoke checks:
+
+- one-line `Kyiv, Ukraine` -> extracts `Kyiv, Ukraine`;
+- one-line `Dnipro, Ukraine` -> extracts `Dnipro, Ukraine`;
+- one-line `Warsaw, Poland` -> extracts `Warsaw, Poland`;
+- university/history one-line with Ukraine -> stays unknown/ambiguous;
+- multiline header still works;
+- no location text -> unknown.
+
+10. Test on the latest local snapshot.
+
+Current no-code simulation before this task:
+
+```text
+unknown_current_location = 4
+```
+
+Approved conservative no-code simulation:
+
+```text
+before:
+target_location = 69
+unknown_current_location = 4
+foreign_current_location = 2
+
+after conservative parser:
+target_location = 71
+unknown_current_location = 2
+foreign_current_location = 2
+```
+
+The conservative parser safely moved these two candidates from `unknown_current_location` to `target_location`:
+
+- `Serhii Ivanov`: `Kyiv, Kyiv City, Ukraine`
+- `Serhii Avakian`: `Dnipro, Dnipropetrovsk, Ukraine`
+
+The parser intentionally kept the ambiguous `Volodymyr Maksymenko` one-line snippet unknown because `Kyiv` appears near university/history text and cannot be isolated confidently as current location.
+
+11. Update `Tasks.md` with implementation result and measured before/after.
+
+12. Do not change search logic:
+
+- no Tavily query changes;
+- no planner changes;
+- no dedupe changes;
+- no scoring changes;
+- no frontend changes unless explicitly approved.
+
+### Expected behavior
+
+Compact one-line snippets with clear current location are classified more accurately, while ambiguous one-line snippets remain conservative.
+
+### Constraints
+
+- Do not log in to LinkedIn.
+- Do not scrape LinkedIn.
+- Do not open LinkedIn profiles automatically.
+- Use only Tavily returned public fields already present in structured-search response/snapshot.
+- Do not add external geocoding/location APIs.
+- Do not broaden this task into Candidate Quality Layer.
+- Do not change query generation or search execution.
+
+### Acceptance criteria
+
+- One-line snippets with clear Ukraine current location can be extracted as target location.
+- One-line snippets with clear foreign current location can be extracted for `P2-012` classification.
+- Ambiguous one-line snippets stay unknown/ambiguous.
+- One-line extraction requires a social marker such as `followers`, `connections`, or `500+ connections`.
+- Dangling fragments such as `Kyiv,` are not enough for current-location classification.
+- Existing multiline header parsing still works.
+- Smoke checks cover target, foreign, ambiguous education/history, multiline, and no-location cases.
+- Latest snapshot simulation should match the approved conservative expectation: `unknown_current_location` decreases from `4` to `2` without classifying the ambiguous university/history example as target location.
+
+### Implementation result
+
+Implemented in `app/main.py`.
+
+- Added one-line current-location extraction only when a compact snippet contains a social marker such as `followers` or `connections`.
+- The parser chooses the last plausible location fragment before the social marker.
+- Dangling fragments such as `Kyiv,` are rejected.
+- Education/history/company-looking fragments are not treated as current location.
+- Existing multiline header extraction remains supported.
+
+### Verification result
+
+- Inline smoke check passed for:
+  - `Serhii Ivanov. Java Software Developer. Kyiv, Kyiv City, Ukraine. 968 followers 500+ connections.` -> `Kyiv, Kyiv City, Ukraine`;
+  - `Serhii Avakian. Java Developer. Zappysales. Dnipro, Dnipropetrovsk, Ukraine. 2K followers 500+ connections.` -> `Dnipro, Dnipropetrovsk, Ukraine`;
+  - `Ivan V. Java Developer. Warsaw, Mazowieckie, Poland. 500 connections.` -> `foreign_current_location`;
+  - multiline `Warsaw, Mazowieckie, Poland` header -> `foreign_current_location`;
+  - `Volodymyr Maksymenko... National Technical University of Ukraine... Kyiv,` -> `unknown_current_location` with empty `current_location_line`.
+- Latest local snapshot replay produced displayed unique statuses: `target_location = 71`, `country_domain = 2`.
+- The ambiguous university/history one-line example remained unknown for current-location extraction.
+
+### Before implementation
+
+Codex должен пересказать задачу `P2-013`, предложить точный implementation scope и дождаться явного подтверждения перед изменением кода.
+
+---
+
+## Task: P2-011 Добавить локальное логирование structured-search результатов для анализа
+
+### Context
+
+После запуска `POST /api/structured-search` результаты сейчас доступны в response и frontend, но не сохраняются локально как audit/debug snapshot.
+
+Из-за этого нельзя надежно вернуться к последнему поиску и проверить:
+
+- все ли показанные кандидаты действительно имеют Ukraine location signal;
+- какие кандидаты прошли по `country_domain`;
+- какие были rescued by header/location;
+- какие были hidden by foreign current-location;
+- какие query sources нашли конкретного кандидата;
+- какие counts/report были у конкретного прогона.
+
+Повторять Tavily-запрос только ради анализа нежелательно, потому что это тратит credits и может вернуть немного другую выдачу.
+
+### Goal
+
+Добавить локальное логирование результатов structured-search запусков, чтобы Codex и пользователь могли анализировать последний или выбранный search run без повторного Tavily-запроса.
+
+### Approval
+
+Задача одобрена пользователем.
+
+### Scope
+
+Это локальное debug/audit логирование для POC и разработки, не production logging.
+
+Логи должны сохраняться только локально и не коммититься в git.
+
+### Proposed behavior
+
+После каждого успешного или частично успешного `POST /api/structured-search` backend сохраняет JSON snapshot локально.
+
+Snapshot должен включать:
+
+- timestamp;
+- normalized request summary;
+- `query_plan`;
+- `report`;
+- `location_filter_report`;
+- `deduped_results`;
+- candidate-level `query_sources`;
+- candidate-level location signal metadata;
+- per-query status summary;
+- enough raw/public Tavily fields to audit title, snippet/content, URL, score, and source.
+
+Snapshot не должен включать:
+
+- API keys;
+- `.env` values;
+- secrets;
+- unrelated machine/user data.
+
+### Proposed local storage
+
+Preferred directory:
+
+```text
+logs/search-runs/
+```
+
+Example filename:
+
+```text
+2026-05-14T12-30-15_structured-search_backend-developer-java-ukraine.json
+```
+
+Add the log directory to `.gitignore`.
+
+### Expected behavior
+
+После выполнения задачи можно открыть последний локальный run и проверить выдачу без нового Tavily-запроса.
+
+Минимальный удобный анализ:
+
+- найти latest snapshot;
+- посмотреть summary counts;
+- увидеть список displayed/deduped candidates;
+- увидеть URL, title, snippet/content;
+- увидеть `location_signal_status`;
+- увидеть `location_signal_terms`;
+- увидеть `query_sources`;
+- понять, почему кандидат был показан или скрыт location filter.
+
+### Constraints
+
+- Не отправлять логи во внешние сервисы.
+- Не сохранять secrets.
+- Не коммитить generated logs.
+- Не менять логику поиска, planner, scoring или фильтров в рамках этой задачи.
+- Не добавлять базу данных.
+- Не добавлять production observability stack.
+- Не открывать LinkedIn profiles.
+- Не логиниться в LinkedIn.
+- Не скрейпить LinkedIn.
+
+### Acceptance criteria
+
+- В проекте есть локальная директория/механизм для structured-search snapshots.
+- Generated logs игнорируются git.
+- Каждый `POST /api/structured-search` может сохранить JSON snapshot результата.
+- Snapshot содержит request summary, query plan, report, location filter report, deduped candidates, location signal metadata, and query sources.
+- Snapshot не содержит API keys или secrets.
+- Есть понятный способ найти последний search run.
+- Логирование не меняет поисковую выдачу.
+- Если запись snapshot не удалась, сам search response не должен падать только из-за logging failure; ошибка логирования должна быть безопасной и диагностируемой.
+
+### Before implementation
+
+Codex должен пересказать задачу `P2-011`, предложить точный implementation scope и дождаться явного подтверждения перед изменением кода.
+
+### Implementation result
+
+`P2-011` выполнена.
+
+Добавлено:
+
+- локальная директория snapshots: `logs/search-runs/`;
+- `.gitignore` правило для generated structured-search logs;
+- backend helper `write_structured_search_snapshot(...)`;
+- JSON snapshot после `POST /api/structured-search`;
+- snapshot fields: timestamp, normalized request, `query_plan`, `report`, `location_filter_report`, `deduped_results`, `query_results_summary`, and `query_results`;
+- safe logging behavior: failure to write a snapshot does not fail the search response.
+
+Не добавлено в рамках `P2-011`:
+
+- production logging;
+- external log shipping;
+- database storage;
+- frontend changes;
+- search, planner, filter, or scoring changes.
+
+Checks passed:
+
+- `.venv\Scripts\python.exe -m compileall app`;
+- `node --check app/static/app.js`;
+- mocked structured-search smoke created a local snapshot without Tavily credits;
+- snapshot did not contain the test API key value;
+- generated snapshot is ignored by git.
 
 ---
 
@@ -102,8 +732,10 @@ Final measured result:
 - `200` raw Tavily results;
 - `58` unique candidates after filters and dedupe;
 - `9` unique non-UA profiles rescued by header/location signal;
-- `2` unique profiles excluded by explicit negative header/location signal;
+- historical `P2-009.1`: `2` unique profiles excluded by explicit negative header/location signal;
 - Phase 2 success criterion passed: `58` unique vs target `20`.
+
+Current note after `P2-012`/`P2-013`: the old explicit negative term logic is superseded by current-location classification. The current hide status is `excluded_foreign_current_location`, and the current report field is `hidden_by_foreign_current_location`.
 
 ### Conclusions
 
@@ -111,7 +743,9 @@ Final measured result:
 - `QueryPlan` is the right architectural contract: it lets us replace `RuleBasedQueryPlanner` with `AIQueryPlanner` later without rewriting executor, dedupe, report, or frontend.
 - `Location filter` should stay visible and configurable, not hidden backend behavior.
 - Country-domain LinkedIn URL is useful, but only one signal.
+- Explicit foreign current location must beat country-domain signals.
 - Tavily snippets are enough for a working baseline, but not enough for high-confidence final candidate qualification.
+- Tavily live result sets vary between runs; use local snapshots for deterministic analysis.
 - Phase 2 should not be expanded further before choosing the next product direction.
 
 ### Known limitations carried forward
@@ -1897,11 +2531,11 @@ Code changes:
 - unsupported location with enabled location filter returns validation error;
 - frontend disables/prevents enabled location filter for unsupported locations in the current UI;
 - location signals are collected per occurrence and merged by normalized LinkedIn profile URL before final display decision;
-- candidate-level negative header/location signal wins over country-domain and rescued-header signals;
-- report now exposes `hidden_by_location_filter`, `rescued_by_header_location`, `hidden_by_negative_header_location`, `weak_location_history_only`, `unknown_non_country_domain_location`, and `location_filter_report`;
+- candidate-level explicit foreign current-location signal wins over country-domain and rescued-header signals after `P2-012`;
+- report now exposes `hidden_by_location_filter`, `rescued_by_header_location`, `hidden_by_foreign_current_location`, `weak_location_history_only`, `unknown_non_country_domain_location`, and `location_filter_report`;
 - frontend report shows the new location filter counts.
 
-Real baseline after implementation:
+Historical real baseline after initial `P2-009.1` implementation:
 
 ```json
 {
@@ -1941,6 +2575,15 @@ Conclusion:
 - `9` unique non-UA LinkedIn profiles were rescued because header/location contained Ukraine terms.
 - `2` unique profiles were excluded because header/location contained explicit negative current-location terms.
 - Weak history-only Ukraine matches remain hidden from the main display list but visible in diagnostics.
+
+Current note after `P2-012`/`P2-013`:
+
+- `negative_terms` no longer drives runtime exclusion.
+- Runtime config uses `target_location_terms`.
+- Explicit foreign current location is classified as `foreign_current_location` and hidden as `excluded_foreign_current_location`.
+- The frontend report label is `Foreign location`.
+- Saved snapshot replay after the current-location classifier produced `73` unique displayed profiles with `target_location = 71` and `country_domain = 2`.
+- Recent live Tavily one-wave runs for `Backend Developer + Java + Spring/Kafka + Ukraine` produce roughly `55-60` unique profiles; counts vary because Tavily returns different result pools.
 
 Checks passed:
 

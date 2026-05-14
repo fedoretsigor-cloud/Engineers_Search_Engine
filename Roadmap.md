@@ -45,7 +45,7 @@ POC прототип с легким фронтом и одним поисков
 
 Фаза 2 - Multi-query Search + Baseline Query Planner
 
-Статус Phase 2: завершена. Phase 2 закрыта как рабочий baseline search engine: structured inputs -> QueryPlanner v1 -> 10 focused Tavily queries -> dedupe -> report -> frontend diagnostic UI -> configurable Location filter.
+Статус Phase 2: завершена. Phase 2 закрыта как рабочий baseline search engine: structured inputs -> QueryPlanner v1 -> 10 focused Tavily queries -> dedupe -> report -> frontend diagnostic UI -> configurable Location filter -> local structured-search snapshots.
 
 Цель Phase 2: построить multi-query pipeline, где поисковые запросы не вводятся как один ручной Boolean query и не хардкодятся как один Java/Ukraine список, а генерируются через `QueryPlanner v1` из клиентских вводных.
 
@@ -73,15 +73,17 @@ POC прототип с легким фронтом и одним поисков
 - Выбранные stack-технологии использовать в отдельных stack-focused query slots и далее в scoring/reporting.
 - Не добавлять seniority вроде `Senior`, `Middle`, `Lead`, если клиент явно не выбрал seniority.
 
-Текущий экспериментальный ориентир: исправленный 10-query шаблон для `Java + Ukraine + Spring/AWS/Kafka` дал 60 уникальных `ua.linkedin.com/in/...` профилей после dedupe. Это не финальный хардкод, а baseline для сравнения будущих улучшений.
+Текущий экспериментальный ориентир: 10-query шаблон для `Backend Developer + Java + Ukraine` стабильно проходит критерий успеха, но Tavily выдача не детерминирована. Последние live single-wave прогоны для `Spring/Kafka` дают примерно `55-60` unique profiles, replay сохраненного snapshot после `P2-012/P2-013` дал `73` unique profiles, а multi-wave эксперименты дали ограниченный дополнительный прирост.
 
 Фактический Phase 2 baseline run для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 51 уникальный `ua.linkedin.com/in/...` профиль из 190 raw Tavily results. Критерий успеха Phase 2 пройден: 51 unique против целевых 20. Важное ограничение: `ua.linkedin.com/in/...` является сигналом домена/страны профиля, но не гарантирует текущую физическую локацию кандидата.
 
-Дополнительная настройка `P2-009.1`: strict `Ukraine LinkedIn domain only` в structured pipeline заменен на общий `Location filter`. Для Ukraine фильтр использует configurable pattern: `ua.linkedin.com/in/...` как country-domain signal, rescue non-UA профилей по Ukraine/Kyiv/Lviv/etc. в header/location Tavily snippet, исключение explicit negative header/location вроде `Prague`/`Czechia`, и скрытие weak history-only matches. Реальный baseline для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 58 unique profiles из 200 raw Tavily results: 49 unique country-domain, 9 unique rescued by header/location, 2 unique excluded by negative header/location.
+Дополнительная настройка `P2-009.1`: strict `Ukraine LinkedIn domain only` в structured pipeline заменен на общий `Location filter`. Изначально фильтр использовал pattern с country-domain signal, rescue non-UA профилей по Ukraine/Kyiv/Lviv/etc. в header/location Tavily snippet, explicit negative terms и скрытие weak history-only matches. Реальный baseline для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 58 unique profiles из 200 raw Tavily results.
 
-Итог Phase 2: критерий успеха пройден с запасом (`58` unique candidates против цели `20`). Главное архитектурное достижение - `QueryPlan` contract: теперь можно менять planner logic, не переписывая executor, dedupe, report и frontend.
+Уточнение `P2-012`/`P2-013`: blacklist-style `negative_terms` заменены на current-location classification. Для Ukraine runtime config хранит `target_location_terms`; фильтр извлекает `current_location_line` из public LinkedIn header/snippet и классифицирует `target_location`, `foreign_current_location` или `unknown_current_location`. Explicit foreign current location скрывается как `excluded_foreign_current_location` даже для `ua.linkedin.com/in/...`; unknown current location может fallback-иться на `country_domain`, `rescued_header_location`, `weak_history_only` или `unknown_non_country_domain`.
 
-Ограничения, которые переносим дальше: Tavily snippets неполные, `name` extraction слабый, location confidence эвристический, stack/seniority fit пока не является полноценным ranking layer, AI planner еще не реализован.
+Итог Phase 2: критерий успеха пройден с запасом (`55-73` observed unique candidates в последних проверках против цели `20`). Главное архитектурное достижение - `QueryPlan` contract: теперь можно менять planner logic, не переписывая executor, dedupe, report и frontend.
+
+Ограничения, которые переносим дальше: Tavily snippets неполные, Tavily live выдача меняется между запусками, `name` extraction слабый, location confidence эвристический, stack/seniority fit пока не является полноценным ranking layer, AI planner еще не реализован.
 
 Порядок реализации:
 
@@ -95,6 +97,8 @@ POC прототип с легким фронтом и одним поисков
 - Потом frontend режим planner-based search: показать generated queries и общий deduped список.
 - Потом scoring для multi-query результатов.
 - Потом pattern-based `Location filter` вместо жесткого country-domain-only фильтра.
+- Потом локальное snapshot-логирование structured-search результатов.
+- Потом current-location classification вместо blacklist-style `negative_terms`.
 - Потом итоговый Phase 2 baseline прогон и документирование результатов.
 
 Критерий успеха Phase 2:
@@ -126,8 +130,9 @@ POC прототип с легким фронтом и одним поисков
 
 - Backend URL/profile filter should be visible to the user as a frontend toggle, not hidden backend behavior.
 - Location rule: treat country-specific LinkedIn profile domains such as `ua.linkedin.com/in/...` as a location signal for Ukraine.
-- Future country support must extend the location config with country domains, include terms, and negative current-location terms instead of rewriting the filter logic.
+- Future country support must extend the location config with country domains and `target_location_terms`, then reuse current-location classification instead of building finite negative-location blacklists.
 - Sequential multi-query search: run several focused Tavily queries, merge results, dedupe by normalized LinkedIn URL, then apply visible filters.
+- Multi-wave search should stop based on incremental unique gain. Recent experiments: 1 wave gave 60 unique, 3 waves gave 64 cumulative unique, one 5-wave block gave 61 cumulative unique, and one 10-wave block gave 60 cumulative unique.
 
 ### Planned
 

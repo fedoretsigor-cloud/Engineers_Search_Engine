@@ -8,7 +8,7 @@ Phase 1.1 - POC behavior tuning is completed.
 
 Phase 2 - Multi-query Search + Baseline Query Planner is completed.
 
-Completed through `P2-010`: Phase 2 conclusions are documented. Next decision: choose Phase 3 direction between `AI Query Planner v0` and `Candidate Quality Layer`.
+Completed through `P2-013`: Phase 2 conclusions are documented, local structured-search snapshots are available, and the Ukraine `Location filter` now uses current-location classification instead of a finite foreign-location blacklist. Next decision: choose Phase 3 direction between `AI Query Planner v0` and `Candidate Quality Layer`.
 
 ## What was built in Phase 1
 
@@ -53,9 +53,12 @@ Implemented:
 - Tavily receives only the generated queries from the visible `QueryPlan`.
 - `LinkedIn profiles only` is an explicit visible filter.
 - `Location filter` is an explicit visible filter and currently has the first config for `Ukraine`.
-- `ua.linkedin.com/in/...` is treated as one location signal, not the only location signal and not a perfect current-location guarantee.
-- Non-UA LinkedIn profiles can be rescued only when the Tavily public header/location text contains Ukraine location terms.
-- Profiles with explicit negative header/location terms such as `Prague`/`Czechia` are hidden when the location filter is enabled.
+- `ua.linkedin.com/in/...` is treated as a country-domain signal, not a guaranteed current physical-location signal.
+- The Ukraine `Location filter` uses `target_location_terms` and extracts a conservative `current_location_line` from Tavily public LinkedIn header/snippet text.
+- Current-location classification is `target_location`, `foreign_current_location`, or `unknown_current_location`.
+- Explicit foreign current location, for example `Warsaw, Mazowieckie, Poland`, hides the candidate even if the URL is `ua.linkedin.com/in/...`.
+- Unknown current location can still fall back to softer signals: `country_domain`, `rescued_header_location`, `weak_history_only`, or `unknown_non_country_domain`.
+- Non-UA LinkedIn profiles can be rescued only when the Tavily public header/current-location signal contains supported Ukraine target-location terms.
 
 ## Phase 1.1 test results
 
@@ -156,6 +159,15 @@ Important limitation:
 
 `P2-009.1` replaced the hard `Ukraine LinkedIn domain only` structured contract with `location_filter_enabled`.
 
+`P2-012` and `P2-013` then superseded the initial blacklist-style `negative_terms` logic. The current runtime behavior is:
+
+- config stores Ukraine `target_location_terms`, not a finite list of bad countries/cities;
+- the filter extracts a conservative `current_location_line` from multiline and one-line Tavily snippets;
+- `target_location` is displayed;
+- `foreign_current_location` becomes `excluded_foreign_current_location` and is hidden before `country_domain` can allow it;
+- `unknown_current_location` falls back to country-domain/header/weak/unknown signals;
+- frontend report shows `Foreign location` via `hidden_by_foreign_current_location`.
+
 Current baseline input:
 
 - Role Family: `Backend Developer`
@@ -165,7 +177,7 @@ Current baseline input:
 - `LinkedIn profiles only`: on
 - `Location filter`: on
 
-Measured result from one `POST /api/structured-search` run:
+Historical `P2-009.1` measured result from one `POST /api/structured-search` run before `P2-012`:
 
 - Queries total: 10
 - Queries succeeded: 10
@@ -190,7 +202,24 @@ Location filter unique breakdown:
 - `weak_history_only`: 18
 - `unknown_non_country_domain`: 21
 
-Conclusion: the new `Location filter` improved Phase 2 quality compared with strict domain-only filtering because it kept the Ukraine-domain signal, rescued strong non-UA profiles with Ukraine in header/location, and excluded explicit foreign-current-location matches.
+Conclusion from `P2-009.1`: the first `Location filter` improved Phase 2 quality compared with strict domain-only filtering because it kept the Ukraine-domain signal, rescued strong non-UA profiles with Ukraine in header/location, and excluded some explicit foreign-current-location matches.
+
+Current `P2-012`/`P2-013` replay on local snapshot `2026-05-14T17-12-12Z_structured-search_backend-developer-java-ukraine.json`:
+
+- Raw Tavily results: 197
+- Displayed occurrences: 105
+- Unique profiles after dedupe: 73
+- Displayed unique status breakdown: `target_location = 71`, `country_domain = 2`
+- Known `ua.linkedin.com` false positives with `Warsaw, Mazowieckie, Poland` are hidden as `excluded_foreign_current_location`
+
+Live Tavily runs are not stable. Recent runs for `Backend Developer + Java + Spring/Kafka + Ukraine` produced roughly `55-60` unique profiles in a single wave. Multi-wave experiments showed limited incremental gain:
+
+- 1 wave: 60 cumulative unique profiles
+- 3 waves: 64 cumulative unique profiles
+- 5 waves: 61 cumulative unique profiles in one fresh block
+- 10 waves: 60 cumulative unique profiles in one fresh block
+
+Conclusion: multi-wave can add candidates, but returns diminish quickly. A future implementation should stop based on incremental unique gain rather than always running a fixed high number of waves.
 
 ## Phase 2 final conclusion
 
@@ -204,13 +233,12 @@ What Phase 2 proved:
 - Visible filters are the right product behavior; hidden backend filtering caused confusion earlier.
 - Location should be treated as a confidence signal, not a single hard URL-domain rule.
 
-Final baseline numbers:
+Final baseline numbers remain above the Phase 2 success criterion:
 
-- Raw Tavily results: 200
-- Unique candidates: 58
-- Rescued by header/location: 9 unique profiles
-- Excluded by negative header/location: 2 unique profiles
-- Success criterion: passed, 58 unique candidates vs target 20
+- Historical `P2-009.1` single run: 58 unique candidates vs target 20
+- Current `P2-012`/`P2-013` local replay: 73 unique candidates vs target 20
+- Recent live single-wave runs: roughly 55-60 unique candidates vs target 20
+- The exact Tavily count is not stable and should not be treated as a deterministic product guarantee
 
 Recommended next decision:
 
@@ -234,6 +262,10 @@ No Phase 3 direction has been selected yet.
 - Phase 2 `P2-009.1` browser smoke: `Location filter` toggle, generated `QueryPlan`, frontend report metrics, and no console errors.
 - Phase 2 `P2-009.1` real baseline run: 58 unique profiles with the new location filter.
 - Phase 2 `P2-010` documentation closeout completed.
+- Phase 2 `P2-011` local structured-search snapshots added under `logs/search-runs/`.
+- Phase 2 `P2-012` current-location classification smoke passed: target, foreign, unknown, weak-history-only, duplicate-merge, and filter-off cases.
+- Phase 2 `P2-013` conservative one-line current-location extraction smoke passed.
+- Phase 2 multi-wave Tavily experiments completed for 1, 3, 5, and 10 waves.
 
 ## Current known limitations
 
@@ -242,9 +274,10 @@ No Phase 3 direction has been selected yet.
 - Tavily search behavior can vary between runs.
 - `LinkedIn profiles only` filters by URL pattern only.
 - `Location filter` currently has only the first country config: `Ukraine`.
-- Future countries need their own country-domain, include-term, and negative-term mapping.
+- Future countries need their own country-domain and `target_location_terms` mapping; they should reuse current-location classification instead of introducing finite negative-location blacklists.
 - Header/location detection uses Tavily public snippets/content only and is not equivalent to verified profile enrichment.
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
+- Current-location extraction is conservative and can keep ambiguous snippets unknown.
 - `RuleBasedQueryPlanner v1` is still the active planner; AI planner is not implemented yet.
 - Candidate ranking is still baseline-quality and should not be treated as final recruiting quality.
 - No database, shortlist, authentication, AI agent, LinkedIn login, scraping, or direct LinkedIn automation is included.

@@ -191,7 +191,7 @@ function renderReport(report) {
     ["Profile filter", report.hidden_by_profile_filter],
     ["Location filter", report.hidden_by_location_filter],
     ["Rescued", report.rescued_by_header_location],
-    ["Negative location", report.hidden_by_negative_header_location],
+    ["Foreign location", report.hidden_by_foreign_current_location],
     ["Weak location", report.weak_location_history_only],
     ["Unknown location", report.unknown_non_country_domain_location],
     ["Failed queries", report.queries_failed],
