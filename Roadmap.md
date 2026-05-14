@@ -123,8 +123,14 @@ POC прототип с легким фронтом и одним поисков
 
 - Phase 3 - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking. В Phase 3 также добавить adaptive multi-wave runner как supporting capability для quality evaluation: несколько волн одного `QueryPlan`, dedupe across waves, stop по incremental unique gain.
 - Phase 4 - `AI Query Planner v0`: сохранить `QueryPlan` contract, но заменить rule-based planner на AI planner, который предлагает query slots и объясняет логику.
+- Phase 5 - `Recruiter Chat + Search Brief`: добавить внутренний чат, где рекрутер живым диалогом описывает задачу, AI собирает structured `Search Brief`, задает уточняющие вопросы и просит подтверждение перед запуском поиска.
+- Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в agent loop: AI получает цель, планирует шаги, вызывает доступные инструменты (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг с approval для дорогих или важных действий.
+- Phase 7 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
+- Phase 8 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
 Phase 3 выбрана как следующий этап. AI Query Planner перенесен в Phase 4.
+
+Фазы 5-8 описывают путь к настоящему AI Agent внутри приложения. Agent здесь означает не просто чат, а AI-модель с целью, контекстом, инструментами, approval flow и циклом действий: понять задачу, собрать brief, запустить инструменты, оценить результат, уточнить план и вернуть кандидатов в виде таблицы.
 
 ### Ideas
 
@@ -138,6 +144,10 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 
 - Phase 3: `Candidate Quality Layer`.
 - Phase 4: `AI Query Planner v0`.
+- Phase 5: `Recruiter Chat + Search Brief`.
+- Phase 6: `Tool-Calling Agent Runtime`.
+- Phase 7: `Candidate Workspace/Table + Shortlist`.
+- Phase 8: `Persistent Memory + Saved Searches`.
 
 ### In Progress
 
