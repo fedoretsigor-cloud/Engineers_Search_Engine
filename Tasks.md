@@ -76,22 +76,509 @@
 
 ## Phase 3 - Candidate Quality Layer
 
-### Backlog
+### Approved
 
 - [ ] P3-001 Define Candidate Quality model
 - [ ] P3-002 Improve name/headline extraction
-- [ ] P3-003 Add role fit signals
-- [ ] P3-004 Add technology and stack fit signals
-- [ ] P3-005 Add seniority detection
-- [ ] P3-006 Add explainable candidate quality score
-- [ ] P3-007 Add review flags
-- [ ] P3-008 Update frontend candidate quality view
-- [ ] P3-009 Run Java/Ukraine quality baseline
-- [ ] P3-010 Add adaptive multi-wave runner for quality evaluation
+- [ ] P3-003 Extract role query config and role_phrase metadata
+- [ ] P3-004 Add role fit signals
+
+### Backlog
+
+- [ ] P3-005 Add technology and stack fit signals
+- [ ] P3-006 Add seniority detection
+- [ ] P3-007 Add explainable candidate quality score
+- [ ] P3-008 Add review flags
+- [ ] P3-009 Update frontend candidate quality view
+- [ ] P3-010 Run Java/Ukraine quality baseline
+- [ ] P3-011 Add adaptive multi-wave runner for quality evaluation
 
 ### In Progress
 
 ### Done
+
+---
+
+## Task: P3-001 Define Candidate Quality model
+
+### Context
+
+Phase 2 can find and dedupe LinkedIn candidates, apply the visible `Location filter`, and show query/source metadata. The next problem is candidate quality: the recruiter needs a readable table that explains what was actually found for each candidate.
+
+The first Phase 3 task should define the Candidate Quality model before implementing extraction, scoring, or frontend changes.
+
+### Goal
+
+Define the candidate-facing quality fields and their display rules.
+
+Important product rule: table cells should show extracted values, not abstract internal labels such as `strong`, `weak`, or `missing`, when a useful value can be extracted.
+
+### Proposed candidate table fields
+
+- `Name`
+- `Headline`
+- `LinkedIn URL`
+- `Location`
+- `Role`
+- `Tech`
+- `Stack`
+- `Seniority`
+- `Quality score`
+- `Review flags`
+- `Evidence`
+- `Found by query/wave`
+
+### Display rules
+
+#### Location
+
+- If city and country are found, display `City, Country`.
+  - Example: `Kyiv, Ukraine`.
+  - Example: `Lviv, Ukraine`.
+- If only country is found, display only the country.
+  - Example: `Ukraine`.
+- Normalize noisy public header variants when possible.
+  - Example: `Kyiv, Kyiv City, Ukraine` should display as `Kyiv, Ukraine`.
+- If location is only inferred from country-domain and no current-location line is extracted, display the best available country-level signal and add a review flag such as `location_by_country_domain_only`.
+
+#### Role
+
+- If a target or close role is found, display the extracted role/title value.
+  - Example: `Backend Developer`.
+  - Example: `Java Developer`.
+  - Example: `Java Software Engineer`.
+- If there is no full target-role match but a similar role-like title can be extracted, display that value rather than a generic `unknown`.
+  - Example: `Software Engineer`.
+  - Example: `Application Developer`.
+- Keep the internal fit classification separate from the visible table value if needed.
+
+#### Tech
+
+- If the selected technology is found, display it.
+  - Example: `Java`.
+- If the selected technology is not found but a related technology can be extracted, display the extracted related value and mark it for review.
+  - Example: `Scala`.
+  - Example: `Kotlin`.
+- If no useful technology evidence is found, display `n/a`.
+
+#### Stack
+
+- If selected stack items are found, display the matched stack values.
+  - Example: `Spring`.
+  - Example: `Kafka`.
+  - Example: `Spring, Kafka`.
+- If selected stack items are not found but related stack evidence can be extracted, display the extracted values and mark them for review.
+  - Example: `Hibernate`.
+  - Example: `REST`.
+  - Example: `Microservices`.
+  - Example: `AWS`.
+- If no useful stack evidence is found, display `n/a`.
+- Do not display unclear labels like `missing Spring/Kafka` as the primary table value. Missing selected stack can be represented as a review flag or detail text.
+
+#### Seniority
+
+- If seniority is found, display the extracted seniority.
+  - Example: `Junior`.
+  - Example: `Middle`.
+  - Example: `Senior`.
+  - Example: `Lead`.
+- If seniority is not found, display `n/a`.
+
+### Internal metadata
+
+The model may still keep internal machine-readable fields for ranking and diagnostics:
+
+- `role_fit`
+- `technology_fit`
+- `stack_fit`
+- `location_fit`
+- `quality_score`
+- `review_flags`
+- `evidence`
+
+These internal values should support sorting, filtering, explanations, and later AI/chat workflows, but the first visible table should prefer extracted human-readable values.
+
+### Constraints
+
+- Do not implement extraction code in this task unless separately approved.
+- Do not change Tavily queries.
+- Do not change `QueryPlanner v1`.
+- Do not change location filter behavior.
+- Do not add AI model calls.
+- Do not add database storage.
+- Use only existing public fields from structured-search results/snapshots when examples are needed.
+
+### Acceptance criteria
+
+- Candidate Quality model fields are documented.
+- Location display rule is documented: `City, Country` when city exists, otherwise country.
+- Role/Tech/Stack display rules prefer extracted values over abstract fit labels.
+- Seniority display rule is documented: extracted seniority or `n/a`.
+- Missing selected stack is not shown as the primary cell value; it becomes a review flag/detail.
+- Internal fit/scoring metadata is separated from recruiter-facing display values.
+- Follow-up implementation tasks can reference this contract.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P3-002 Improve name/headline extraction
+
+### Context
+
+Current normalized candidates often keep `name = unknown` or mix the candidate name with the LinkedIn title/headline. For a recruiter-facing Candidate Quality table, `Name` and `Headline` must be readable and separated.
+
+Examples from recent snapshots:
+
+- `Serhii Ivanov - Java Software Developer - LinkedIn`
+- `Andrii Malyna - Lead Java Software Engineer at Geniusee - LinkedIn`
+- `Illia Sytnyk - Java Developer in B&B Solutions | LinkedIn`
+- `Serhii Ivanov. Java Software Developer. Kyiv, Kyiv City, Ukraine. 968 followers 500+ connections.`
+
+### Goal
+
+Extract candidate-facing `name` and `headline` from existing Tavily/LinkedIn public fields without using AI calls or new Tavily searches.
+
+Expected shape:
+
+```json
+{
+  "name": "Serhii Ivanov",
+  "headline": "Java Software Developer"
+}
+```
+
+### Proposed extraction sources
+
+1. Prefer Tavily/LinkedIn `title`.
+2. Fall back to top public header/snippet text.
+3. If neither source is confident:
+   - `name = "unknown"`;
+   - `headline = "n/a"`.
+
+### Parsing patterns
+
+Support common public LinkedIn/Tavily title/header formats:
+
+- `Name - Headline - LinkedIn`
+- `Name – Headline | LinkedIn`
+- `Name | Headline | Location | connections`
+- `Name. Headline. Location. followers/connections`
+
+### Cleanup rules
+
+- Remove trailing `LinkedIn`, `| LinkedIn`, and `- LinkedIn`.
+- Decode/normalize common HTML entities such as `&amp;`.
+- Trim separators and repeated whitespace.
+- Do not let `LinkedIn` appear in either `name` or `headline`.
+- Do not move company text out of `headline` if it is part of the public title.
+  - Example: `Lead Java Software Engineer at Geniusee`.
+
+### Examples
+
+Input:
+
+```text
+Serhii Ivanov - Java Software Developer - LinkedIn
+```
+
+Output:
+
+```json
+{
+  "name": "Serhii Ivanov",
+  "headline": "Java Software Developer"
+}
+```
+
+Input:
+
+```text
+Andrii Malyna - Lead Java Software Engineer at Geniusee - LinkedIn
+```
+
+Output:
+
+```json
+{
+  "name": "Andrii Malyna",
+  "headline": "Lead Java Software Engineer at Geniusee"
+}
+```
+
+Input:
+
+```text
+Illia Sytnyk - Java Developer in B&B Solutions | LinkedIn
+```
+
+Output:
+
+```json
+{
+  "name": "Illia Sytnyk",
+  "headline": "Java Developer in B&B Solutions"
+}
+```
+
+Input:
+
+```text
+Serhii Ivanov. Java Software Developer. Kyiv, Kyiv City, Ukraine. 968 followers 500+ connections.
+```
+
+Output:
+
+```json
+{
+  "name": "Serhii Ivanov",
+  "headline": "Java Software Developer"
+}
+```
+
+### Constraints
+
+- Do not use AI model calls.
+- Do not run Tavily.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not change `QueryPlanner v1`.
+- Do not change location filter behavior.
+- Use the latest local structured-search snapshots for verification examples.
+
+### Acceptance criteria
+
+- `name` is extracted when title/snippet clearly contains a person name.
+- `headline` is extracted separately from `name`.
+- `LinkedIn` suffixes do not appear in `name` or `headline`.
+- Hyphen, en dash, pipe, and one-line snippet patterns are handled.
+- Ambiguous cases remain `unknown` / `n/a` instead of inventing data.
+- Verification uses local snapshots without new Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P3-003 Extract role query config and role_phrase metadata
+
+### Context
+
+`RuleBasedQueryPlannerV1` currently hardcodes Java Backend role phrases directly inside the planner body:
+
+- `Java Developer`;
+- `Java Software Engineer`;
+- `Java Backend Engineer`;
+- `Java Engineer`;
+- `Java Programmer`;
+- `Java Application Developer`;
+- stack-focused repeats of several of those phrases.
+
+These phrases are already the search-time role variants. Phase 3 role quality should not introduce a second independent role alias list. Instead, the role quality layer should be able to reuse the same role phrases that the `QueryPlan` used for search.
+
+Current issue: `role_phrase` is only embedded inside the final Tavily query string, for example:
+
+```json
+{
+  "id": "Q02",
+  "category": "role_based",
+  "query": "site:linkedin.com/in AND \"Java Software Engineer\" AND \"Ukraine\""
+}
+```
+
+That makes later role matching parse a query string or invent its own list. Both are brittle.
+
+### Goal
+
+Move rule-based role query phrases out of hardcoded planner calls into a small config, and include explicit `role_phrase` metadata in each `QueryPlan` query slot.
+
+The output should keep the same generated query strings for the current baseline, but add structured metadata:
+
+```json
+{
+  "id": "Q02",
+  "category": "role_based",
+  "role_phrase": "Java Software Engineer",
+  "query": "site:linkedin.com/in AND \"Java Software Engineer\" AND \"Ukraine\""
+}
+```
+
+### Proposed config shape
+
+Use a config keyed by the current supported planner inputs:
+
+```python
+ROLE_QUERY_CONFIG = {
+    "Backend Developer": {
+        "Java": {
+            "role_based": [
+                {
+                    "role_phrase": "Java Developer",
+                    "purpose": "Find broad Java Developer profiles for the selected location.",
+                },
+                {
+                    "role_phrase": "Java Software Engineer",
+                    "purpose": "Find Java Software Engineer profiles for the selected location.",
+                },
+            ],
+            "stack_focused": [
+                {
+                    "role_phrase": "Java Developer",
+                    "purpose": "Find Java Developer profiles that mention selected stack signals.",
+                },
+            ],
+        }
+    }
+}
+```
+
+The exact config can be simpler if it follows existing project style, but it must remove the role phrase list from the body of `RuleBasedQueryPlannerV1.build()`.
+
+### Proposed steps
+
+1. Add a local role query config for `Backend Developer + Java`.
+2. Move the current 10 role phrase/purpose/category definitions into that config.
+3. Update `build_query_slot(...)` to include `role_phrase` in the returned query slot.
+4. Update `RuleBasedQueryPlannerV1.build(...)` to iterate over config entries instead of manually listing 10 `build_query_slot(...)` calls.
+5. Preserve current query IDs, categories, purposes, query strings, stack usage, and max results.
+6. Add/adjust smoke checks to confirm the generated `QueryPlan` is behaviorally unchanged except for the new `role_phrase` field.
+7. Document that `role_phrase` is the future source for `P3-004` role matching.
+
+### Constraints
+
+- Do not change the actual Tavily query strings for the current baseline.
+- Do not change query count.
+- Do not change planner validation.
+- Do not implement role fit scoring in this task.
+- Do not add AI planner behavior.
+- Do not run Tavily for verification.
+- Do not change frontend unless needed to tolerate the additional `role_phrase` field.
+
+### Acceptance criteria
+
+- `RuleBasedQueryPlannerV1` no longer hardcodes the role phrase list in the method body.
+- Generated `QueryPlan.queries[]` includes `role_phrase`.
+- Current baseline still generates 10 query slots.
+- Current query strings remain unchanged for `Backend Developer + Java + Ukraine`.
+- `role_phrase` is available for later Candidate Quality role matching.
+- Verification uses `/api/query-plan` or direct planner smoke checks without Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P3-004 Add role fit signals
+
+### Context
+
+After `P3-003`, every query slot should expose the search-time `role_phrase` that was used to find candidates. `P3-004` should use that metadata to detect and explain candidate role relevance without creating a second independent role alias list.
+
+For example, if a candidate headline is:
+
+```text
+Lead Java Software Engineer at Geniusee
+```
+
+the recruiter-facing table should show:
+
+```text
+Role: Lead Java Software Engineer
+```
+
+It should not show only an abstract internal label such as `strong`, `weak`, or `missing`.
+
+### Goal
+
+Add role fit signals to normalized candidates so the product can show a readable role value and keep a separate internal fit classification for later ranking/scoring.
+
+### Proposed inputs
+
+Use existing local candidate fields only:
+
+- candidate `title`;
+- extracted `headline` from `P3-002`;
+- public snippet/header text already returned by Tavily;
+- `query_plan.queries[*].role_phrase` from `P3-003`;
+- candidate `query_sources` metadata.
+
+### Proposed output fields
+
+Add role quality fields to each normalized/deduped candidate:
+
+```json
+{
+  "role_display": "Lead Java Software Engineer",
+  "role_fit": "target_or_close_role",
+  "role_evidence": [
+    {
+      "source": "headline",
+      "value": "Lead Java Software Engineer at Geniusee"
+    }
+  ],
+  "review_flags": []
+}
+```
+
+Exact field names can follow the existing project style, but the model should separate recruiter-facing display text from internal fit labels.
+
+### Proposed steps
+
+1. Use `role_phrase` values from the current `QueryPlan` as the search-time role context.
+2. Read candidate role evidence from title, extracted headline, and public snippet/header text.
+3. Extract the best visible role/title value from candidate text.
+4. Set recruiter-facing `role_display` to the extracted role when available.
+5. Set internal `role_fit` separately from the display value.
+6. Use conservative fit classes such as:
+   - `target_or_close_role`;
+   - `similar_role`;
+   - `missing_role`.
+7. Add evidence metadata that explains where the role signal came from.
+8. Add review flags for ambiguous cases, for example:
+   - `role_from_snippet_only`;
+   - `role_similar_only`;
+   - `role_missing`.
+9. Verify against local structured-search snapshots without new Tavily calls.
+
+### Display rules
+
+- If a target or close role is found, display the extracted role/title value.
+  - Example: `Backend Developer`.
+  - Example: `Java Developer`.
+  - Example: `Java Software Engineer`.
+  - Example: `Lead Java Software Engineer`.
+- If no full target-role match exists but a similar role-like title can be extracted, display that value.
+  - Example: `Software Engineer`.
+  - Example: `Application Developer`.
+- If no useful role evidence is found, display `n/a`.
+- Do not show internal labels such as `strong`, `weak`, or `missing` as the primary table value.
+
+### Constraints
+
+- Do not create a second independent role alias list.
+- Do not parse final Tavily query strings when structured `role_phrase` metadata is available.
+- Do not change Tavily queries.
+- Do not run Tavily for verification.
+- Do not change location filtering.
+- Do not implement technology, stack, seniority, quality score, or frontend table changes in this task.
+- Do not add AI model calls.
+
+### Acceptance criteria
+
+- Candidates can carry a visible role display value.
+- Internal `role_fit` is separate from recruiter-facing display text.
+- Role matching uses `QueryPlan` role metadata from `P3-003`.
+- Candidate headlines like `Lead Java Software Engineer at Geniusee` produce a useful visible role value.
+- Ambiguous or similar roles get review flags instead of being silently treated as exact matches.
+- Verification uses local snapshots or direct unit/smoke checks without Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
 ---
 
@@ -112,7 +599,7 @@
 
 ---
 
-## Task: P3-010 Add adaptive multi-wave runner for quality evaluation
+## Task: P3-011 Add adaptive multi-wave runner for quality evaluation
 
 ### Context
 
