@@ -44,10 +44,6 @@
 
 ### Backlog
 
-- [ ] P2-010 Зафиксировать выводы Phase 2 и подготовить место под AI Planner
-
-Note: Detailed task steps are currently defined only for `P2-001` through `P2-009.1`. Do not expand `P2-010` until separately agreed.
-
 ### In Progress
 
 ### Done
@@ -62,6 +58,104 @@ Note: Detailed task steps are currently defined only for `P2-001` through `P2-00
 - [x] P2-008 Обновить frontend под planner-based search
 - [x] P2-009 Прогнать Java/Ukraine baseline и сравнить результаты
 - [x] P2-009.1 Add configurable header/location location filter
+- [x] P2-010 Зафиксировать выводы Phase 2 и подготовить место под AI Planner
+
+---
+
+## Task: P2-010 Зафиксировать выводы Phase 2 и подготовить место под AI Planner
+
+### Context
+
+Phase 2 довела продукт от одного ручного запроса до planner-based multi-query pipeline:
+
+- structured inputs;
+- `QueryPlanner v1`;
+- 10 focused Tavily queries;
+- sequential executor;
+- normalization and dedupe by normalized LinkedIn profile URL;
+- query source metadata;
+- report/counts;
+- frontend diagnostic panel;
+- configurable `Location filter`.
+
+### Goal
+
+Закрыть Phase 2 как завершенную фазу и зафиксировать, что следующий шаг должен быть выбран осознанно: либо идти в AI Query Planner, либо сначала улучшать качество кандидатов.
+
+### Final Phase 2 result
+
+Baseline input:
+
+```json
+{
+  "role_family": "Backend Developer",
+  "technology": "Java",
+  "stack": ["Spring", "Kafka", "AWS"],
+  "location": "Ukraine",
+  "linkedin_profiles_only": true,
+  "location_filter_enabled": true
+}
+```
+
+Final measured result:
+
+- `200` raw Tavily results;
+- `58` unique candidates after filters and dedupe;
+- `9` unique non-UA profiles rescued by header/location signal;
+- `2` unique profiles excluded by explicit negative header/location signal;
+- Phase 2 success criterion passed: `58` unique vs target `20`.
+
+### Conclusions
+
+- Multi-query search is better than one broad universal query for the tested Java/Ukraine scenario.
+- `QueryPlan` is the right architectural contract: it lets us replace `RuleBasedQueryPlanner` with `AIQueryPlanner` later without rewriting executor, dedupe, report, or frontend.
+- `Location filter` should stay visible and configurable, not hidden backend behavior.
+- Country-domain LinkedIn URL is useful, but only one signal.
+- Tavily snippets are enough for a working baseline, but not enough for high-confidence final candidate qualification.
+- Phase 2 should not be expanded further before choosing the next product direction.
+
+### Known limitations carried forward
+
+- `name` extraction remains weak and often returns `unknown`.
+- Location confidence is heuristic and based only on Tavily public snippets/content.
+- Stack fit is not yet scored deeply.
+- Seniority is not modeled.
+- No database, shortlist, export, CRM workflow, auth, or saved searches.
+- No AI planner yet.
+- No LinkedIn login, scraping, bypass, or direct profile automation.
+
+### Next phase options
+
+Option A: `Phase 3A - AI Query Planner v0`
+
+- Keep the existing `QueryPlan` contract.
+- Add an AI planner that proposes query slots from structured inputs.
+- Require explanation/debug metadata for generated queries.
+- Compare AI-generated plans against `RuleBasedQueryPlanner v1`.
+
+Option B: `Phase 3B - Candidate Quality Layer`
+
+- Improve name extraction.
+- Improve location confidence.
+- Add stack/seniority scoring.
+- Improve ranking and candidate diagnostics.
+- Keep query generation rule-based for now.
+
+### Decision
+
+Phase 2 is closed. The next implementation phase is not selected yet.
+
+### Implementation result
+
+`P2-010` выполнена как документационное закрытие Phase 2.
+
+Updated documents:
+
+- `Tasks.md`: `P2-010` moved to Done and documented.
+- `Roadmap.md`: Phase 2 marked as completed, final result and Phase 3 options added.
+- `ProjectStatus.md`: current phase updated to Phase 2 completed, with final conclusions and next decision point.
+
+No code changes were made for `P2-010`.
 
 ---
 

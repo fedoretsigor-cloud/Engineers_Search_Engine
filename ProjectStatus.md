@@ -6,9 +6,9 @@ Phase 1 POC completed successfully and was accepted as a proof of concept.
 
 Phase 1.1 - POC behavior tuning is completed.
 
-Phase 2 - Multi-query Search + Baseline Query Planner is in progress.
+Phase 2 - Multi-query Search + Baseline Query Planner is completed.
 
-Completed through `P2-009.1`: the Java/Ukraine planner-based baseline now uses a configurable `Location filter` instead of a hard Ukraine-domain-only filter. Next task: `P2-010` to document Phase 2 conclusions and prepare the place for future AI Planner work.
+Completed through `P2-010`: Phase 2 conclusions are documented. Next decision: choose Phase 3 direction between `AI Query Planner v0` and `Candidate Quality Layer`.
 
 ## What was built in Phase 1
 
@@ -192,6 +192,33 @@ Location filter unique breakdown:
 
 Conclusion: the new `Location filter` improved Phase 2 quality compared with strict domain-only filtering because it kept the Ukraine-domain signal, rescued strong non-UA profiles with Ukraine in header/location, and excluded explicit foreign-current-location matches.
 
+## Phase 2 final conclusion
+
+Phase 2 is completed successfully.
+
+What Phase 2 proved:
+
+- Multi-query search gives stronger coverage than one broad query for the tested Java/Ukraine scenario.
+- `QueryPlan` is the right architectural contract for the next product steps.
+- The executor, dedupe, report, and frontend can stay stable while planner logic evolves.
+- Visible filters are the right product behavior; hidden backend filtering caused confusion earlier.
+- Location should be treated as a confidence signal, not a single hard URL-domain rule.
+
+Final baseline numbers:
+
+- Raw Tavily results: 200
+- Unique candidates: 58
+- Rescued by header/location: 9 unique profiles
+- Excluded by negative header/location: 2 unique profiles
+- Success criterion: passed, 58 unique candidates vs target 20
+
+Recommended next decision:
+
+- Option A: `Phase 3A - AI Query Planner v0`, focused on replacing rule-based query generation while preserving the `QueryPlan` contract.
+- Option B: `Phase 3B - Candidate Quality Layer`, focused on name extraction, location confidence, stack/seniority scoring, and ranking quality.
+
+No Phase 3 direction has been selected yet.
+
 ## Verification
 
 - `python -m compileall app`
@@ -206,6 +233,7 @@ Conclusion: the new `Location filter` improved Phase 2 quality compared with str
 - Phase 2 `P2-009.1` backend smoke: `location_filter_enabled` contract, no legacy `location_domain_only`, rescue/weak/negative signals, and candidate-level URL merge.
 - Phase 2 `P2-009.1` browser smoke: `Location filter` toggle, generated `QueryPlan`, frontend report metrics, and no console errors.
 - Phase 2 `P2-009.1` real baseline run: 58 unique profiles with the new location filter.
+- Phase 2 `P2-010` documentation closeout completed.
 
 ## Current known limitations
 
@@ -217,6 +245,8 @@ Conclusion: the new `Location filter` improved Phase 2 quality compared with str
 - Future countries need their own country-domain, include-term, and negative-term mapping.
 - Header/location detection uses Tavily public snippets/content only and is not equivalent to verified profile enrichment.
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
+- `RuleBasedQueryPlanner v1` is still the active planner; AI planner is not implemented yet.
+- Candidate ranking is still baseline-quality and should not be treated as final recruiting quality.
 - No database, shortlist, authentication, AI agent, LinkedIn login, scraping, or direct LinkedIn automation is included.
 
 ## Reference documents

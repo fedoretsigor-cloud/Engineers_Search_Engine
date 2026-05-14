@@ -45,6 +45,8 @@ POC прототип с легким фронтом и одним поисков
 
 Фаза 2 - Multi-query Search + Baseline Query Planner
 
+Статус Phase 2: завершена. Phase 2 закрыта как рабочий baseline search engine: structured inputs -> QueryPlanner v1 -> 10 focused Tavily queries -> dedupe -> report -> frontend diagnostic UI -> configurable Location filter.
+
 Цель Phase 2: построить multi-query pipeline, где поисковые запросы не вводятся как один ручной Boolean query и не хардкодятся как один Java/Ukraine список, а генерируются через `QueryPlanner v1` из клиентских вводных.
 
 Главная гипотеза: для поиска кандидатов лучше работает набор коротких focused queries, сгенерированных по понятному плану, чем один широкий универсальный query. При этом Phase 2 должна готовить архитектуру к будущему AI planner, но сама еще не реализует AI agent.
@@ -76,6 +78,10 @@ POC прототип с легким фронтом и одним поисков
 Фактический Phase 2 baseline run для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 51 уникальный `ua.linkedin.com/in/...` профиль из 190 raw Tavily results. Критерий успеха Phase 2 пройден: 51 unique против целевых 20. Важное ограничение: `ua.linkedin.com/in/...` является сигналом домена/страны профиля, но не гарантирует текущую физическую локацию кандидата.
 
 Дополнительная настройка `P2-009.1`: strict `Ukraine LinkedIn domain only` в structured pipeline заменен на общий `Location filter`. Для Ukraine фильтр использует configurable pattern: `ua.linkedin.com/in/...` как country-domain signal, rescue non-UA профилей по Ukraine/Kyiv/Lviv/etc. в header/location Tavily snippet, исключение explicit negative header/location вроде `Prague`/`Czechia`, и скрытие weak history-only matches. Реальный baseline для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 58 unique profiles из 200 raw Tavily results: 49 unique country-domain, 9 unique rescued by header/location, 2 unique excluded by negative header/location.
+
+Итог Phase 2: критерий успеха пройден с запасом (`58` unique candidates против цели `20`). Главное архитектурное достижение - `QueryPlan` contract: теперь можно менять planner logic, не переписывая executor, dedupe, report и frontend.
+
+Ограничения, которые переносим дальше: Tavily snippets неполные, `name` extraction слабый, location confidence эвристический, stack/seniority fit пока не является полноценным ranking layer, AI planner еще не реализован.
 
 Порядок реализации:
 
@@ -109,6 +115,13 @@ POC прототип с легким фронтом и одним поисков
 - Multi-source search beyond Tavily.
 - Автоматическое открытие и парсинг LinkedIn-профилей.
 
+Следующая развилка после Phase 2:
+
+- Phase 3A - `AI Query Planner v0`: сохранить `QueryPlan` contract, но заменить rule-based planner на AI planner, который предлагает query slots и объясняет логику.
+- Phase 3B - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking.
+
+Решение по Phase 3 еще не принято.
+
 ### Ideas
 
 - Backend URL/profile filter should be visible to the user as a frontend toggle, not hidden backend behavior.
@@ -118,6 +131,10 @@ POC прототип с легким фронтом и одним поисков
 
 ### Planned
 
+- Выбрать направление Phase 3: `AI Query Planner v0` или `Candidate Quality Layer`.
+
 ### In Progress
 
 ### Done
+
+- Phase 2 - Multi-query Search + Baseline Query Planner.
