@@ -119,12 +119,12 @@ POC прототип с легким фронтом и одним поисков
 - Multi-source search beyond Tavily.
 - Автоматическое открытие и парсинг LinkedIn-профилей.
 
-Следующая развилка после Phase 2:
+Следующий порядок после Phase 2:
 
-- Phase 3A - `AI Query Planner v0`: сохранить `QueryPlan` contract, но заменить rule-based planner на AI planner, который предлагает query slots и объясняет логику.
-- Phase 3B - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking.
+- Phase 3 - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking. В Phase 3 также добавить adaptive multi-wave runner как supporting capability для quality evaluation: несколько волн одного `QueryPlan`, dedupe across waves, stop по incremental unique gain.
+- Phase 4 - `AI Query Planner v0`: сохранить `QueryPlan` contract, но заменить rule-based planner на AI planner, который предлагает query slots и объясняет логику.
 
-Решение по Phase 3 еще не принято.
+Phase 3 выбрана как следующий этап. AI Query Planner перенесен в Phase 4.
 
 ### Ideas
 
@@ -132,11 +132,12 @@ POC прототип с легким фронтом и одним поисков
 - Location rule: treat country-specific LinkedIn profile domains such as `ua.linkedin.com/in/...` as a location signal for Ukraine.
 - Future country support must extend the location config with country domains and `target_location_terms`, then reuse current-location classification instead of building finite negative-location blacklists.
 - Sequential multi-query search: run several focused Tavily queries, merge results, dedupe by normalized LinkedIn URL, then apply visible filters.
-- Multi-wave search should stop based on incremental unique gain. Recent experiments: 1 wave gave 60 unique, 3 waves gave 64 cumulative unique, one 5-wave block gave 61 cumulative unique, and one 10-wave block gave 60 cumulative unique.
+- Phase 3 multi-wave search should stop based on incremental unique gain. Recent experiments: 1 wave gave 60 unique, 3 waves gave 64 cumulative unique, one 5-wave block gave 61 cumulative unique, and one 10-wave block gave 60 cumulative unique.
 
 ### Planned
 
-- Выбрать направление Phase 3: `AI Query Planner v0` или `Candidate Quality Layer`.
+- Phase 3: `Candidate Quality Layer`.
+- Phase 4: `AI Query Planner v0`.
 
 ### In Progress
 

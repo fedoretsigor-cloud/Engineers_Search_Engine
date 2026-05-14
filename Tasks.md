@@ -74,6 +74,111 @@
 
 ---
 
+## Phase 3 - Candidate Quality Layer
+
+### Backlog
+
+- [ ] P3-001 Define Candidate Quality model
+- [ ] P3-002 Improve name/headline extraction
+- [ ] P3-003 Add role fit signals
+- [ ] P3-004 Add technology and stack fit signals
+- [ ] P3-005 Add seniority detection
+- [ ] P3-006 Add explainable candidate quality score
+- [ ] P3-007 Add review flags
+- [ ] P3-008 Update frontend candidate quality view
+- [ ] P3-009 Run Java/Ukraine quality baseline
+- [ ] P3-010 Add adaptive multi-wave runner for quality evaluation
+
+### In Progress
+
+### Done
+
+---
+
+## Phase 4 - AI Query Planner v0
+
+### Backlog
+
+- [ ] P4-001 Define AI QueryPlanner contract
+- [ ] P4-002 Add planner mode: rule_based or ai
+- [ ] P4-003 Create AI planner prompt and examples
+- [ ] P4-004 Add AI QueryPlan validation and fallback
+- [ ] P4-005 Compare AI planner vs rule-based baseline
+- [ ] P4-006 Add frontend planner mode indicator/control
+
+### In Progress
+
+### Done
+
+---
+
+## Task: P3-010 Add adaptive multi-wave runner for quality evaluation
+
+### Context
+
+Recent Tavily experiments showed that live result sets vary between runs. Repeating the same `QueryPlan` can return a slightly different candidate pool, but the incremental gain drops quickly.
+
+Measured experiments for `Backend Developer + Java + Spring/Kafka + Ukraine`:
+
+- 1 wave: `60` cumulative unique profiles;
+- 3 waves: `64` cumulative unique profiles;
+- 5 waves: `61` cumulative unique profiles in one fresh block;
+- 10 waves: `60` cumulative unique profiles in one fresh block.
+
+The conclusion is not to always run many waves. The useful product idea is an adaptive multi-wave runner that stops when extra waves stop adding enough new unique profiles.
+
+### Goal
+
+Add multi-wave execution as a supporting Phase 3 capability so Candidate Quality Layer evaluation can use a more stable candidate pool when needed.
+
+The runner should repeat the same validated `QueryPlan`, dedupe across waves by normalized LinkedIn URL, and stop based on incremental unique gain.
+
+### Proposed behavior
+
+- Input uses the same structured search request and generated `QueryPlan` as the current pipeline.
+- Each wave runs the same 10 query slots through Tavily.
+- Each returned candidate keeps `wave_id`, `query_id`, and existing `query_sources` metadata.
+- Results are deduped across waves by normalized LinkedIn profile URL.
+- The report includes per-wave and cumulative metrics:
+  - `waves_run`;
+  - `raw_total`;
+  - `unique_profiles_per_wave`;
+  - `new_unique_profiles_per_wave`;
+  - `cumulative_unique_profiles`;
+  - `duplicates_across_waves`;
+  - `hidden_by_profile_filter`;
+  - `hidden_by_location_filter`;
+  - `hidden_by_foreign_current_location`.
+- Stop condition should be configurable. Initial conservative proposal:
+  - `max_waves = 5`;
+  - stop after `2` consecutive waves with fewer than `3` new unique displayed profiles.
+
+### Constraints
+
+- Do not change `QueryPlanner v1` in this task.
+- Do not add AI planner behavior in this task.
+- Do not change Candidate Quality scoring in this task.
+- Do not bypass visible filters.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not make multi-wave the default until cost/benefit is confirmed.
+
+### Acceptance criteria
+
+- Multi-wave execution can run the same `QueryPlan` for multiple waves.
+- Deduping works across waves, not only inside one wave.
+- Report shows per-wave new unique gain and cumulative unique profiles.
+- Runner can stop early when incremental unique gain is low.
+- Candidate metadata preserves enough evidence to explain which wave/query found the candidate.
+- Local structured-search snapshots include multi-wave report data.
+- Frontend or API clearly marks multi-wave mode as experimental/supporting, not the default Phase 2 search path.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
 ## Task: P2-012 Replace blacklist negative_terms with current location classification
 
 ### Context
@@ -758,26 +863,27 @@ Current note after `P2-012`/`P2-013`: the old explicit negative term logic is su
 - No AI planner yet.
 - No LinkedIn login, scraping, bypass, or direct profile automation.
 
-### Next phase options
+### Next phase order
 
-Option A: `Phase 3A - AI Query Planner v0`
+Phase 3: `Candidate Quality Layer`
+
+- Improve name extraction.
+- Improve location confidence.
+- Add stack/seniority scoring.
+- Improve ranking and candidate diagnostics.
+- Add adaptive multi-wave runner for quality evaluation.
+- Keep query generation rule-based for now.
+
+Phase 4: `AI Query Planner v0`
 
 - Keep the existing `QueryPlan` contract.
 - Add an AI planner that proposes query slots from structured inputs.
 - Require explanation/debug metadata for generated queries.
 - Compare AI-generated plans against `RuleBasedQueryPlanner v1`.
 
-Option B: `Phase 3B - Candidate Quality Layer`
-
-- Improve name extraction.
-- Improve location confidence.
-- Add stack/seniority scoring.
-- Improve ranking and candidate diagnostics.
-- Keep query generation rule-based for now.
-
 ### Decision
 
-Phase 2 is closed. The next implementation phase is not selected yet.
+Phase 2 is closed. Phase 3 is selected as Candidate Quality Layer. AI Query Planner is deferred to Phase 4.
 
 ### Implementation result
 
@@ -786,8 +892,8 @@ Phase 2 is closed. The next implementation phase is not selected yet.
 Updated documents:
 
 - `Tasks.md`: `P2-010` moved to Done and documented.
-- `Roadmap.md`: Phase 2 marked as completed, final result and Phase 3 options added.
-- `ProjectStatus.md`: current phase updated to Phase 2 completed, with final conclusions and next decision point.
+- `Roadmap.md`: Phase 2 marked as completed, final result and next phase order added.
+- `ProjectStatus.md`: current phase updated to Phase 2 completed, with Phase 3 selected and AI Query Planner deferred to Phase 4.
 
 No code changes were made for `P2-010`.
 

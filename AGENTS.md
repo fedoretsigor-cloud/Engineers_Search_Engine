@@ -42,10 +42,10 @@ Phase 2 closed as a working planner-based multi-query search pipeline:
 
 The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` passed: 58 unique candidates vs a target of 20. After `P2-012`/`P2-013`, the current location filter replayed a saved `Spring/Kafka` snapshot at 73 unique candidates, while recent live Tavily single-wave runs are around 55-60 unique candidates.
 
-The next product decision is not selected yet:
+The next product direction is selected:
 
-- Phase 3A: `AI Query Planner v0`
-- Phase 3B: `Candidate Quality Layer`
+- Phase 3: `Candidate Quality Layer`, including adaptive multi-wave runner as a supporting quality-evaluation capability
+- Phase 4: `AI Query Planner v0`
 
 ## Product Rules
 

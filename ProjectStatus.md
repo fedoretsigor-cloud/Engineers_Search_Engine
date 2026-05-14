@@ -8,7 +8,11 @@ Phase 1.1 - POC behavior tuning is completed.
 
 Phase 2 - Multi-query Search + Baseline Query Planner is completed.
 
-Completed through `P2-013`: Phase 2 conclusions are documented, local structured-search snapshots are available, and the Ukraine `Location filter` now uses current-location classification instead of a finite foreign-location blacklist. Next decision: choose Phase 3 direction between `AI Query Planner v0` and `Candidate Quality Layer`.
+Completed through `P2-013`: Phase 2 conclusions are documented, local structured-search snapshots are available, and the Ukraine `Location filter` now uses current-location classification instead of a finite foreign-location blacklist.
+
+Next phase: `Phase 3 - Candidate Quality Layer`.
+
+Later phase: `Phase 4 - AI Query Planner v0`.
 
 ## What was built in Phase 1
 
@@ -240,12 +244,12 @@ Final baseline numbers remain above the Phase 2 success criterion:
 - Recent live single-wave runs: roughly 55-60 unique candidates vs target 20
 - The exact Tavily count is not stable and should not be treated as a deterministic product guarantee
 
-Recommended next decision:
+Recommended next steps:
 
-- Option A: `Phase 3A - AI Query Planner v0`, focused on replacing rule-based query generation while preserving the `QueryPlan` contract.
-- Option B: `Phase 3B - Candidate Quality Layer`, focused on name extraction, location confidence, stack/seniority scoring, and ranking quality.
+- Phase 3: `Candidate Quality Layer`, focused on name extraction, location confidence, stack/seniority scoring, ranking quality, and an adaptive multi-wave runner for quality evaluation.
+- Phase 4: `AI Query Planner v0`, focused on replacing rule-based query generation while preserving the `QueryPlan` contract.
 
-No Phase 3 direction has been selected yet.
+Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is deferred to Phase 4.
 
 ## Verification
 
