@@ -3,75 +3,139 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Engineers Search POC</title>
+    <title>Engineers Search</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Phase 1 POC</p>
+          <p class="eyebrow">Phase 2 Baseline</p>
           <h1>Engineers Search</h1>
         </div>
         <div class="status" id="app-status">Frontend script loading...</div>
       </header>
 
       <section class="workspace" aria-label="Search workspace">
-        <form class="search-form" id="search-form">
-          <div class="form-grid">
-            <label>
-              Main anchor
-              <input id="main-anchor" name="mainAnchor" value="Java" autocomplete="off" />
-            </label>
+        <section class="left-column">
+          <form class="search-form" id="search-form">
+            <div class="form-grid">
+              <label>
+                Role family
+                <select id="role-family" name="roleFamily">
+                  <option value="Backend Developer">Backend Developer</option>
+                </select>
+              </label>
 
-            <label>
-              Additional anchors
-              <input
-                id="additional-anchors"
-                name="additionalAnchors"
-                value="Developer, Engineer"
-                autocomplete="off"
-              />
-            </label>
+              <label>
+                Technology
+                <select id="technology" name="technology">
+                  <option value="Java">Java</option>
+                  <option value="Python" disabled>Python</option>
+                  <option value="Node.js" disabled>Node.js</option>
+                  <option value="C#" disabled>C#</option>
+                  <option value="Go" disabled>Go</option>
+                  <option value="PHP" disabled>PHP</option>
+                </select>
+              </label>
 
-            <label>
-              Stack
-              <input id="stack" name="stack" value="Java, Spring" autocomplete="off" />
-            </label>
+              <label>
+                Location
+                <input id="location" name="location" value="Ukraine" autocomplete="off" />
+              </label>
+            </div>
 
-            <label>
-              Location
-              <input id="location" name="location" value="Ukraine" autocomplete="off" />
-            </label>
-          </div>
+            <fieldset class="stack-fieldset">
+              <legend>Java stack</legend>
+              <div class="stack-options" id="stack-options">
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Spring" checked />
+                  <span>Spring</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Spring Boot" />
+                  <span>Spring Boot</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Hibernate" />
+                  <span>Hibernate</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Kafka" checked />
+                  <span>Kafka</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="PostgreSQL" />
+                  <span>PostgreSQL</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="AWS" />
+                  <span>AWS</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Docker" />
+                  <span>Docker</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Kubernetes" />
+                  <span>Kubernetes</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="Microservices" />
+                  <span>Microservices</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" name="stack" value="REST" />
+                  <span>REST</span>
+                </label>
+              </div>
+              <p class="field-message" id="stack-message"></p>
+            </fieldset>
 
-          <label class="query-label">
-            Editable X-ray Boolean query
-            <textarea id="boolean-query" name="booleanQuery" rows="5"></textarea>
-          </label>
+            <div class="filter-toggles" aria-label="Result filters">
+              <label class="toggle-field">
+                <input id="profiles-only" name="profilesOnly" type="checkbox" checked />
+                <span>LinkedIn profiles only</span>
+              </label>
 
-          <div class="filter-toggles" aria-label="Result filters">
-            <label class="toggle-field">
-              <input id="profiles-only" name="profilesOnly" type="checkbox" />
-              <span>LinkedIn profiles only</span>
-            </label>
+              <label class="toggle-field">
+                <input id="location-filter-enabled" name="locationFilterEnabled" type="checkbox" checked />
+                <span>Location filter</span>
+              </label>
+            </div>
 
-            <label class="toggle-field">
-              <input id="ukraine-domain-only" name="ukraineDomainOnly" type="checkbox" />
-              <span>Ukraine LinkedIn domain only</span>
-            </label>
-          </div>
+            <div class="actions">
+              <button class="secondary-button" id="refresh-plan" type="button">Refresh plan</button>
+              <button class="primary-button" type="submit">Search</button>
+            </div>
+          </form>
 
-          <div class="actions">
-            <button class="secondary-button" id="rebuild-query" type="button">Rebuild query</button>
-            <button class="primary-button" type="submit">Search</button>
-          </div>
-        </form>
+          <section class="plan-panel" aria-live="polite">
+            <div class="panel-header">
+              <h2>Generated QueryPlan</h2>
+              <p id="plan-status">Building plan...</p>
+            </div>
+            <div class="query-list" id="query-list"></div>
+          </section>
+        </section>
 
-        <section class="results-panel" aria-live="polite">
-          <h2>Search results</h2>
-          <p id="results-status">Run a search to see Tavily results.</p>
-          <div class="results-list" id="results-list"></div>
+        <section class="right-column">
+          <section class="report-panel" aria-live="polite">
+            <div class="panel-header">
+              <h2>Report</h2>
+              <p id="report-status">Run a search to see counts.</p>
+            </div>
+            <div class="report-grid" id="report-grid"></div>
+            <div class="contribution-list" id="contribution-list"></div>
+          </section>
+
+          <section class="results-panel" aria-live="polite">
+            <div class="panel-header">
+              <h2>Results</h2>
+              <p id="results-status">Run a search to see deduped candidates.</p>
+            </div>
+            <div class="results-list" id="results-list"></div>
+          </section>
         </section>
       </section>
     </main>

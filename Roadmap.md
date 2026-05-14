@@ -43,41 +43,61 @@ POC прототип с легким фронтом и одним поисков
 
 
 
-Фаза 2
+Фаза 2 - Multi-query Search + Baseline Query Planner
 
-Multi-query search engine.
+Цель Phase 2: построить multi-query pipeline, где поисковые запросы не вводятся как один ручной Boolean query и не хардкодятся как один Java/Ukraine список, а генерируются через `QueryPlanner v1` из клиентских вводных.
 
-Цель Phase 2: перейти от одного ручного Boolean-запроса к поисковому движку, который по одному сценарию запускает несколько точных Tavily-запросов, объединяет результаты, убирает дубли и показывает один список кандидатов.
+Главная гипотеза: для поиска кандидатов лучше работает набор коротких focused queries, сгенерированных по понятному плану, чем один широкий универсальный query. При этом Phase 2 должна готовить архитектуру к будущему AI planner, но сама еще не реализует AI agent.
 
-Главная гипотеза: несколько focused queries дают лучшее покрытие кандидатов, чем один широкий универсальный query.
+Базовый сценарий Phase 2: рекрутер ищет `Backend Developer`, выбирает `Technology = Java`, от 1 до 3 Java-related stack технологий и локацию. Для проверки baseline используем Java-программиста в Украине.
 
-Базовый сценарий Phase 2: Java programmer in Ukraine.
+Ключевые понятия Phase 2:
 
-Рекомендуемый первый набор запросов:
+- `SearchRequest`: клиентские вводные, например `Role Family`, `Technology`, `Stack`, `Location`.
+- `QueryPlan`: список Tavily queries с IDs, purpose/category, исходными вводными, фильтрами и параметрами выполнения.
+- `QueryPlanner v1`: rule-based baseline planner, который строит 10 focused queries по правилам для Java Backend.
+- `Search Executor`: последовательно запускает queries из `QueryPlan`.
+- `Result Merger`: нормализует результаты, объединяет их и делает dedupe по normalized LinkedIn profile URL.
+- `Search Report`: показывает counts, query source metadata и вклад каждого query.
 
-- U02: `site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"`
-- U10: `site:linkedin.com/in AND "Java Programmer" AND "Ukraine"`
-- U08: `site:linkedin.com/in AND ("Java Developer" OR "Java Engineer" OR "Backend Java") AND ("Ukraine" OR "Kyiv" OR "Lviv")`
+Смысл baseline planner v1:
 
-Ожидаемый результат по текущим тестам: примерно 24-30 уникальных украинских LinkedIn-профилей за один multi-query проход после dedupe. Простая сумма U02 + U10 + U08 равна 38, но часть кандидатов повторяется между запросами.
+- Не хранить финальный хардкод `Java + Ukraine`.
+- Генерировать queries из выбранных клиентом полей.
+- Всегда использовать `site:linkedin.com/in`.
+- Всегда учитывать выбранную локацию в query.
+- Для Java Backend использовать несколько role-based query slots.
+- Java-related stack является обязательным сигналом: клиент выбирает минимум 1 и максимум 3 значения.
+- Выбранные stack-технологии использовать в отдельных stack-focused query slots и далее в scoring/reporting.
+- Не добавлять seniority вроде `Senior`, `Middle`, `Lead`, если клиент явно не выбрал seniority.
+
+Текущий экспериментальный ориентир: исправленный 10-query шаблон для `Java + Ukraine + Spring/AWS/Kafka` дал 60 уникальных `ua.linkedin.com/in/...` профилей после dedupe. Это не финальный хардкод, а baseline для сравнения будущих улучшений.
+
+Фактический Phase 2 baseline run для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 51 уникальный `ua.linkedin.com/in/...` профиль из 190 raw Tavily results. Критерий успеха Phase 2 пройден: 51 unique против целевых 20. Важное ограничение: `ua.linkedin.com/in/...` является сигналом домена/страны профиля, но не гарантирует текущую физическую локацию кандидата.
+
+Дополнительная настройка `P2-009.1`: strict `Ukraine LinkedIn domain only` в structured pipeline заменен на общий `Location filter`. Для Ukraine фильтр использует configurable pattern: `ua.linkedin.com/in/...` как country-domain signal, rescue non-UA профилей по Ukraine/Kyiv/Lviv/etc. в header/location Tavily snippet, исключение explicit negative header/location вроде `Prague`/`Czechia`, и скрытие weak history-only matches. Реальный baseline для `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` дал 58 unique profiles из 200 raw Tavily results: 49 unique country-domain, 9 unique rescued by header/location, 2 unique excluded by negative header/location.
 
 Порядок реализации:
 
-- Сначала backend multi-query runner: последовательно выполнить несколько Tavily queries.
-- Потом нормализация и объединение результатов.
-- Потом dedupe по normalized LinkedIn URL.
-- Потом применение видимых фильтров `LinkedIn profiles only` и `Ukraine LinkedIn domain only`.
-- Потом вывод одного общего списка кандидатов во frontend.
-- Потом counts: raw total, displayed, unique profiles, duplicates removed, hidden by profile filter, hidden by Ukraine domain filter.
-- Потом query source metadata: показывать, из какого query найден кандидат; если кандидат найден несколькими query, сохранить все query sources.
-- Потом scoring для multi-query: бонус за совпадение в нескольких query sources.
-- Потом итоговый Phase 2 прогон и документирование результатов.
+- Сначала зафиксировать контракт `QueryPlan` и правила `QueryPlanner v1`.
+- Потом добавить входную модель поиска: `Role Family`, `Technology`, `Stack`, `Location`.
+- Потом реализовать rule-based query planner v1 для Java Backend.
+- Потом backend multi-query runner: последовательно выполнить queries из `QueryPlan`.
+- Потом нормализация, объединение и dedupe по normalized LinkedIn URL.
+- Потом query source metadata: сохранить, из каких query найден кандидат.
+- Потом counts/report: raw total, unique profiles, duplicates removed, displayed, hidden by filters, query contribution.
+- Потом frontend режим planner-based search: показать generated queries и общий deduped список.
+- Потом scoring для multi-query результатов.
+- Потом pattern-based `Location filter` вместо жесткого country-domain-only фильтра.
+- Потом итоговый Phase 2 baseline прогон и документирование результатов.
 
 Критерий успеха Phase 2:
 
-- По базовому Java/Ukraine сценарию получить не менее 20 уникальных украинских LinkedIn-профилей за один multi-query проход.
+- По базовому Java/Ukraine сценарию получить не менее 20 уникальных украинских LinkedIn-профилей за один planner-based multi-query проход.
+- Пользователь должен видеть, какие queries были сгенерированы.
 - Пользователь должен видеть, какие фильтры включены и сколько результатов они скрыли.
 - Пользователь должен видеть итоговый deduped список, а не разрозненные результаты по каждому query.
+- Архитектура должна позволять позже заменить `RuleBasedQueryPlanner` на `AIQueryPlanner` без переписывания executor/dedupe/report.
 
 Не входит в Phase 2 без отдельного согласования:
 
@@ -85,7 +105,7 @@ Multi-query search engine.
 - Scraping или обход ограничений LinkedIn.
 - База данных.
 - Shortlist.
-- AI agent.
+- AI agent или AI query planner implementation.
 - Multi-source search beyond Tavily.
 - Автоматическое открытие и парсинг LinkedIn-профилей.
 
@@ -93,6 +113,7 @@ Multi-query search engine.
 
 - Backend URL/profile filter should be visible to the user as a frontend toggle, not hidden backend behavior.
 - Location rule: treat country-specific LinkedIn profile domains such as `ua.linkedin.com/in/...` as a location signal for Ukraine.
+- Future country support must extend the location config with country domains, include terms, and negative current-location terms instead of rewriting the filter logic.
 - Sequential multi-query search: run several focused Tavily queries, merge results, dedupe by normalized LinkedIn URL, then apply visible filters.
 
 ### Planned

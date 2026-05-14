@@ -6,7 +6,9 @@ Phase 1 POC completed successfully and was accepted as a proof of concept.
 
 Phase 1.1 - POC behavior tuning is completed.
 
-Recommended next phase: Phase 2 - sequential multi-query search with dedupe.
+Phase 2 - Multi-query Search + Baseline Query Planner is in progress.
+
+Completed through `P2-009.1`: the Java/Ukraine planner-based baseline now uses a configurable `Location filter` instead of a hard Ukraine-domain-only filter. Next task: `P2-010` to document Phase 2 conclusions and prepare the place for future AI Planner work.
 
 ## What was built in Phase 1
 
@@ -46,12 +48,14 @@ Implemented:
 
 ## Current product rule
 
-- Editable Boolean query is the source of truth for search.
-- Tavily receives exactly the submitted query.
-- Backend normalizes and scores results without hidden role/stack/location filtering.
-- Visible user-selected filters are allowed.
-- Hidden field-based filters are not allowed.
-- `ua.linkedin.com/in/...` is treated as a useful Ukraine-domain signal, not a perfect current-location guarantee.
+- Phase 2 search is driven by structured inputs: `Role Family`, `Technology`, `Stack`, and `Location`.
+- `QueryPlanner v1` builds a visible 10-query `QueryPlan` from those inputs.
+- Tavily receives only the generated queries from the visible `QueryPlan`.
+- `LinkedIn profiles only` is an explicit visible filter.
+- `Location filter` is an explicit visible filter and currently has the first config for `Ukraine`.
+- `ua.linkedin.com/in/...` is treated as one location signal, not the only location signal and not a perfect current-location guarantee.
+- Non-UA LinkedIn profiles can be rescued only when the Tavily public header/location text contains Ukraine location terms.
+- Profiles with explicit negative header/location terms such as `Prague`/`Czechia` are hidden when the location filter is enabled.
 
 ## Phase 1.1 test results
 
@@ -113,6 +117,81 @@ Recommended first multi-query set:
 
 Expected result based on current tests: approximately 24-30 unique Ukrainian LinkedIn profiles in one pass. The simple sum is 38, but duplicates are expected across queries.
 
+## Phase 2 baseline result
+
+Baseline input:
+
+- Role Family: `Backend Developer`
+- Technology: `Java`
+- Stack: `Spring`, `Kafka`, `AWS`
+- Location: `Ukraine`
+- `LinkedIn profiles only`: on
+- `Ukraine LinkedIn domain only`: on
+
+Measured result from one `POST /api/structured-search` run:
+
+- Queries total: 10
+- Queries succeeded: 10
+- Queries failed: 0
+- Raw Tavily results: 190
+- Normalized results: 190
+- Displayed before dedupe: 75
+- Unique profiles after dedupe: 51
+- Duplicates removed: 24
+- Hidden by profile filter: 40
+- Hidden by location-domain filter: 75
+
+Phase 2 baseline criterion passed: 51 unique `ua.linkedin.com/in/...` profiles vs target 20.
+
+Best query contributor:
+
+- Q02 `site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"` added 13 new unique profiles.
+
+Important limitation:
+
+- `ua.linkedin.com/in/...` remains a useful Ukraine-domain signal, not a guaranteed current-location signal. At least one top result had a Ukraine-domain URL while the public snippet showed `Prague, Czechia`.
+- Future work should add explicit location quality logic instead of relying only on country-specific LinkedIn subdomains.
+
+## Phase 2 location filter result
+
+`P2-009.1` replaced the hard `Ukraine LinkedIn domain only` structured contract with `location_filter_enabled`.
+
+Current baseline input:
+
+- Role Family: `Backend Developer`
+- Technology: `Java`
+- Stack: `Spring`, `Kafka`, `AWS`
+- Location: `Ukraine`
+- `LinkedIn profiles only`: on
+- `Location filter`: on
+
+Measured result from one `POST /api/structured-search` run:
+
+- Queries total: 10
+- Queries succeeded: 10
+- Queries failed: 0
+- Raw Tavily results: 200
+- Normalized results: 200
+- Displayed before dedupe: 85
+- Unique profiles after dedupe: 58
+- Duplicates removed: 27
+- Hidden by profile filter: 53
+- Hidden by location filter: 62
+- Rescued by header/location: 13 occurrences, 9 unique profiles
+- Hidden by negative header/location: 3 occurrences, 2 unique profiles
+- Weak history-only location signal: 26 occurrences, 18 unique profiles
+- Unknown non-country-domain location: 33 occurrences, 21 unique profiles
+
+Location filter unique breakdown:
+
+- `country_domain`: 49
+- `rescued_header_location`: 9
+- `excluded_negative_header_location`: 2
+- `weak_history_only`: 18
+- `unknown_non_country_domain`: 21
+
+Conclusion: the new `Location filter` improved Phase 2 quality compared with strict domain-only filtering because it kept the Ukraine-domain signal, rescued strong non-UA profiles with Ukraine in header/location, and excluded explicit foreign-current-location matches.
+
 ## Verification
 
 - `python -m compileall app`
@@ -122,6 +201,11 @@ Expected result based on current tests: approximately 24-30 unique Ukrainian Lin
 - Backend smoke-check for LinkedIn profile URL detection and toggle request field.
 - Backend smoke-check for Ukraine LinkedIn domain URL detection and counts.
 - UI check: `Search results`, `LinkedIn profiles only`, and `Ukraine LinkedIn domain only` are visible; both toggles are off by default.
+- Phase 2 `/api/query-plan` smoke: 10 generated queries.
+- Phase 2 `/api/structured-search` baseline run: 51 unique profiles.
+- Phase 2 `P2-009.1` backend smoke: `location_filter_enabled` contract, no legacy `location_domain_only`, rescue/weak/negative signals, and candidate-level URL merge.
+- Phase 2 `P2-009.1` browser smoke: `Location filter` toggle, generated `QueryPlan`, frontend report metrics, and no console errors.
+- Phase 2 `P2-009.1` real baseline run: 58 unique profiles with the new location filter.
 
 ## Current known limitations
 
@@ -129,7 +213,9 @@ Expected result based on current tests: approximately 24-30 unique Ukrainian Lin
 - LinkedIn public snippets remain incomplete and inconsistent.
 - Tavily search behavior can vary between runs.
 - `LinkedIn profiles only` filters by URL pattern only.
-- `Ukraine LinkedIn domain only` filters by URL domain only.
+- `Location filter` currently has only the first country config: `Ukraine`.
+- Future countries need their own country-domain, include-term, and negative-term mapping.
+- Header/location detection uses Tavily public snippets/content only and is not equivalent to verified profile enrichment.
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
 - No database, shortlist, authentication, AI agent, LinkedIn login, scraping, or direct LinkedIn automation is included.
 
