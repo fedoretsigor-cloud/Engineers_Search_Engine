@@ -388,6 +388,54 @@ code {
   line-height: 1.25;
 }
 
+.candidate-card {
+  gap: 12px;
+}
+
+.candidate-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.candidate-identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.candidate-identity p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.candidate-score {
+  display: grid;
+  justify-items: center;
+  min-width: 74px;
+  padding: 10px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.candidate-score span {
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.candidate-score strong {
+  color: var(--accent-strong);
+  font-size: 24px;
+  line-height: 1;
+}
+
 .result-item a {
   color: var(--accent);
   overflow-wrap: anywhere;
@@ -422,6 +470,117 @@ code {
   color: var(--accent-strong);
   font-size: 12px;
   font-weight: 800;
+}
+
+.quality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quality-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.quality-field span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.quality-field strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.flag-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.flag-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 8px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flag-badge.severity-high {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff8f6;
+  color: var(--danger);
+}
+
+.flag-badge.severity-medium {
+  border-color: rgba(168, 85, 0, 0.24);
+  background: #fff8eb;
+  color: #8a4b00;
+}
+
+.flag-badge.severity-low {
+  border-color: rgba(15, 118, 110, 0.18);
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--accent-strong);
+}
+
+.flag-badge.severity-info {
+  background: var(--subtle);
+}
+
+.score-details {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.score-line {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) auto;
+  gap: 4px 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.score-line span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.score-line strong {
+  color: var(--accent-strong);
+}
+
+.score-line p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.score-line.is-penalty strong {
+  color: var(--danger);
 }
 
 details {
@@ -462,8 +621,14 @@ summary {
   }
 
   .form-grid,
-  .report-grid {
+  .report-grid,
+  .quality-grid,
+  .candidate-header {
     grid-template-columns: 1fr;
+  }
+
+  .candidate-score {
+    justify-items: start;
   }
 
   .actions {

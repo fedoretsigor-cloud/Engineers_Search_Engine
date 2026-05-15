@@ -10,9 +10,19 @@ Phase 2 - Multi-query Search + Baseline Query Planner is completed.
 
 Completed through `P2-013`: Phase 2 conclusions are documented, local structured-search snapshots are available, and the Ukraine `Location filter` now uses current-location classification instead of a finite foreign-location blacklist.
 
-Next phase: `Phase 3 - Candidate Quality Layer`.
+Current phase: `Phase 3 - Candidate Quality Layer`.
 
 Later phase: `Phase 4 - AI Query Planner v0`.
+
+Completed through `P3-009`: backend candidates now include seniority, normalized review flag details, explainable `quality_score`, and the frontend renders a hybrid candidate quality view. Next recommended task: `P3-010 Run Java/Ukraine quality baseline`.
+
+Latest Phase 3 UI verification run used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
+
+- Queries succeeded: 10/10
+- Raw Tavily results: 199
+- Displayed occurrences: 101
+- Unique candidates: 57
+- Duplicates removed: 44
 
 ## What was built in Phase 1
 
@@ -270,10 +280,11 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - Phase 2 `P2-012` current-location classification smoke passed: target, foreign, unknown, weak-history-only, duplicate-merge, and filter-off cases.
 - Phase 2 `P2-013` conservative one-line current-location extraction smoke passed.
 - Phase 2 multi-wave Tavily experiments completed for 1, 3, 5, and 10 waves.
+- Phase 3 local smoke checks passed for seniority detection, review flag taxonomy, and quality score.
+- Phase 3 browser verification passed for the hybrid candidate quality view on desktop and mobile viewport.
 
 ## Current known limitations
 
-- `name` is still `unknown` because reliable name extraction has not been implemented.
 - LinkedIn public snippets remain incomplete and inconsistent.
 - Tavily search behavior can vary between runs.
 - `LinkedIn profiles only` filters by URL pattern only.
@@ -283,7 +294,7 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
 - Current-location extraction is conservative and can keep ambiguous snippets unknown.
 - `RuleBasedQueryPlanner v1` is still the active planner; AI planner is not implemented yet.
-- Candidate ranking is still baseline-quality and should not be treated as final recruiting quality.
+- Candidate quality score is a deterministic v1 signal and should not be treated as final recruiting quality.
 - No database, shortlist, authentication, AI agent, LinkedIn login, scraping, or direct LinkedIn automation is included.
 
 ## Reference documents

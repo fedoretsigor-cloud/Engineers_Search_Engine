@@ -142,7 +142,6 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 
 ### Planned
 
-- Phase 3: `Candidate Quality Layer`.
 - Phase 4: `AI Query Planner v0`.
 - Phase 5: `Recruiter Chat + Search Brief`.
 - Phase 6: `Tool-Calling Agent Runtime`.
@@ -150,6 +149,8 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 - Phase 8: `Persistent Memory + Saved Searches`.
 
 ### In Progress
+
+- Phase 3: `Candidate Quality Layer` - completed through `P3-009`; next measurement task is `P3-010 Run Java/Ukraine quality baseline`.
 
 ### Done
 

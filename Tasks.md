@@ -80,10 +80,6 @@
 
 ### Backlog
 
-- [ ] P3-006 Add seniority detection
-- [ ] P3-008 Normalize review flags taxonomy
-- [ ] P3-007 Add explainable candidate quality score
-- [ ] P3-009 Update frontend candidate quality view
 - [ ] P3-010 Run Java/Ukraine quality baseline
 - [ ] P3-011 Add adaptive multi-wave runner for quality evaluation
 
@@ -96,6 +92,10 @@
 - [x] P3-003 Extract role query config and role_phrase metadata
 - [x] P3-004 Add role fit signals
 - [x] P3-005 Add technology and stack fit signals
+- [x] P3-006 Add seniority detection
+- [x] P3-008 Normalize review flags taxonomy
+- [x] P3-007 Add explainable candidate quality score
+- [x] P3-009 Update frontend candidate quality view
 
 ### Current Phase 3 implementation order note
 
@@ -1080,6 +1080,24 @@ Initial conservative config:
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
+### Implementation result
+
+- Added config-driven seniority detection.
+- Added candidate fields:
+  - `seniority_display`;
+  - `seniority_fit`;
+  - `seniority_evidence`.
+- `Lead`, `Team Lead`, and `Tech Lead` are stored as `leadership` evidence, not as a higher `Senior` level.
+- Combined signals such as `Senior Team Lead` display as `Senior Lead` while preserving both evidence items.
+- Missing seniority adds `seniority_missing` but does not hide candidates.
+
+### Verification result
+
+- Local smoke checks passed:
+  - `Senior Java Developer` -> `Senior`;
+  - `Senior Team Lead Java Developer` -> `Senior Lead`;
+  - plain `Java Developer` -> `n/a` with `seniority_missing`.
+
 ---
 
 ## Task: P3-007 Add explainable candidate quality score
@@ -1241,6 +1259,27 @@ Implement after `P3-008 Normalize review flags taxonomy`.
 
 Rationale: `quality_score` penalties and breakdown should reuse normalized flag metadata instead of introducing ad hoc scoring rules that later need to be rewritten.
 
+### Implementation result
+
+- Added separate `quality_score` without replacing existing neutral `score`.
+- Added:
+  - `quality_score_version = "candidate_quality_v1"`;
+  - `quality_score_breakdown`;
+  - `quality_score_penalties`.
+- Score is deterministic and bounded `0-100`.
+- Score does not filter candidates and does not change backend sorting.
+- Location is marked as `not_evaluated` when location filter is off.
+- Seniority is an optional bonus signal; `seniority_missing` does not reduce score.
+- Penalties are grouped to avoid double-counting the same issue.
+
+### Verification result
+
+- Local smoke checks passed for:
+  - strong Java/Spring senior candidate;
+  - `Senior Team Lead` combined evidence;
+  - missing seniority without penalty;
+  - JavaScript false-positive case with technology penalty.
+
 ---
 
 ## Task: P3-008 Normalize review flags taxonomy
@@ -1385,11 +1424,158 @@ Location/data quality can be added later when we decide which existing location 
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
+### Implementation result
+
+- Added shared review flag taxonomy.
+- Existing role, technology, stack, and seniority flags now map to:
+  - `category`;
+  - `severity`;
+  - `label`;
+  - `description`;
+  - `affects_quality_score`;
+  - optional `score_penalty_group`.
+- Candidate results keep compact `review_flags` and add display-ready `review_flag_details`.
+- Flags are deduped and ordered by taxonomy; unknown flags are preserved at the end with `category = "unknown"` and `severity = "info"`.
+- Flags remain metadata and do not filter candidates.
+
+### Verification result
+
+- Local smoke checks confirmed:
+  - known flags receive taxonomy details;
+  - unknown flags are preserved safely;
+  - quality score penalties can reuse taxonomy `score_penalty_group`.
+
 ### Implementation order note
 
 Implement before `P3-007 Add explainable candidate quality score`.
 
 Rationale: `P3-007` should use normalized review flag taxonomy for score penalties and breakdown.
+
+---
+
+## Task: P3-009 Update frontend candidate quality view
+
+### Context
+
+After `P3-006`, `P3-008`, and `P3-007`, backend structured-search results should include stable candidate-quality fields: identity, role, technology, stack, seniority, review flags/details, and quality score.
+
+The current frontend is still mostly a diagnostic POC view. `P3-009` should turn the candidate results area into a more recruiter-facing quality view while keeping diagnostics available.
+
+### Goal
+
+Update the frontend to show candidate-quality data clearly.
+
+This is a UI-only task. It must not change backend search logic, query generation, filters, scoring rules, Tavily calls, dedupe, or location filtering.
+
+### Proposed candidate view
+
+Show each candidate with:
+
+- Name;
+- Headline;
+- LinkedIn URL;
+- Location signal / current location when available;
+- Role;
+- Technology;
+- Stack;
+- Seniority;
+- Quality score;
+- Review flags;
+- Found by query/source metadata.
+
+Preferred first layout: hybrid candidate rows/cards, not a wide dense table.
+
+Rationale: name, headline, evidence, flags, and query source metadata can become too cramped in a pure table. A hybrid layout can show the main candidate identity and score first, then role/technology/stack/seniority/location as compact fields, with flags and query details available in a collapsed or secondary area.
+
+### Diagnostics
+
+Keep diagnostics available but visually separate from the recruiter-facing candidate list:
+
+- generated queries;
+- report counts;
+- hidden by filters;
+- query contribution;
+- location filter report.
+
+### Proposed steps
+
+1. Wait until `P3-006`, `P3-008`, and `P3-007` are implemented.
+2. Inventory the final backend fields returned by `/api/structured-search`.
+3. Design a compact hybrid candidate row/card layout.
+4. Display quality fields without changing backend contracts.
+5. Display review flags as readable badges or compact details.
+6. Display query/source metadata in a compact way.
+7. Keep diagnostics/report available separately.
+8. Do not add shortlist/database behavior.
+9. Do not add AI/chat behavior.
+10. Verify in browser against local structured-search output.
+11. Update `Tasks.md` with implementation and verification notes after coding.
+
+### Constraints
+
+- UI-only task.
+- Do not change backend search logic.
+- Do not change Tavily queries.
+- Do not change filters or location logic.
+- Do not change scoring formulas.
+- Do not add database, shortlist, authentication, AI chat, or agent behavior.
+- Do not make quality score hide candidates.
+
+### Acceptance criteria
+
+- Frontend shows candidate-quality fields from backend.
+- Candidate view is readable for recruiter review.
+- Review flags/details are visible without overwhelming the candidate list.
+- Generated queries and diagnostic report remain available.
+- Backend search logic is unchanged.
+- No candidate is hidden by frontend quality score.
+- Browser verification is completed.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact UI changes, and wait for explicit approval before changing code.
+
+### Approval status
+
+Approved and completed after `P3-006`, `P3-008`, and `P3-007`.
+
+### Implementation order note
+
+Implement after `P3-006`, `P3-008`, and `P3-007`.
+
+Rationale: frontend should render stable backend quality fields instead of guessing final field names or layout too early.
+
+### Implementation result
+
+- Updated frontend header to Phase 3 quality.
+- Reworked result rendering into hybrid candidate rows/cards.
+- Candidate card now shows:
+  - name;
+  - headline;
+  - LinkedIn URL;
+  - quality score;
+  - location;
+  - role;
+  - technology;
+  - stack;
+  - seniority;
+  - source;
+  - review flag badges;
+  - query source badges.
+- Added expandable quality details with score breakdown, penalties, snippet, and query source metadata.
+- Backend search logic, query generation, filters, scoring formulas, Tavily calls, dedupe, and location filtering were not changed by the UI task.
+
+### Verification result
+
+- `node --check app/static/app.js` passed.
+- Browser verification completed on local app with a real UI structured-search run using default `Spring/Kafka` stack:
+  - queries succeeded: `10/10`;
+  - raw Tavily results: `199`;
+  - displayed occurrences: `101`;
+  - unique candidates: `57`;
+  - duplicates removed: `44`;
+  - no browser console errors.
+- Desktop and mobile viewport checks confirmed the hybrid candidate card renders without visible overlap.
 
 ---
 

@@ -33,6 +33,14 @@ function pluralize(count, singular, plural) {
   return count === 1 ? singular : plural;
 }
 
+function displayValue(value, fallback = "n/a") {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+
+  return value;
+}
+
 function selectedStack() {
   return stackInputs.filter((input) => input.checked).map((input) => input.value);
 }
@@ -227,6 +235,87 @@ function renderReport(report) {
     .join("");
 }
 
+function renderQualityField(label, value, modifier = "") {
+  return `
+    <div class="quality-field ${modifier}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(displayValue(value))}</strong>
+    </div>
+  `;
+}
+
+function renderFlagBadges(flagDetails = []) {
+  if (!flagDetails.length) {
+    return `<span class="flag-badge severity-info">No review flags</span>`;
+  }
+
+  return flagDetails
+    .map(
+      (flag) => `
+        <span
+          class="flag-badge severity-${escapeHtml(flag.severity || "info")}"
+          title="${escapeHtml(flag.description || flag.code)}"
+        >
+          ${escapeHtml(flag.label || flag.code)}
+        </span>
+      `
+    )
+    .join("");
+}
+
+function renderScoreBreakdown(result) {
+  const breakdown = result.quality_score_breakdown || [];
+  const penalties = result.quality_score_penalties || [];
+
+  if (!breakdown.length && !penalties.length) {
+    return `<p class="result-snippet">No quality score details returned.</p>`;
+  }
+
+  return `
+    <div class="score-details">
+      ${breakdown
+        .map(
+          (item) => `
+            <div class="score-line">
+              <span>${escapeHtml(item.component)}</span>
+              <strong>${escapeHtml(item.points)} / ${escapeHtml(item.max_points)}</strong>
+              <p>${escapeHtml(item.reason)}</p>
+            </div>
+          `
+        )
+        .join("")}
+      ${penalties
+        .map(
+          (item) => `
+            <div class="score-line is-penalty">
+              <span>${escapeHtml(item.flag)}</span>
+              <strong>${escapeHtml(item.points)}</strong>
+              <p>${escapeHtml(item.reason)}</p>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderQuerySourceDetails(sources = []) {
+  if (!sources.length) {
+    return `<p class="result-snippet">No query source metadata returned.</p>`;
+  }
+
+  return sources
+    .map(
+      (source) => `
+        <p class="result-snippet">
+          <strong>${escapeHtml(source.id)}</strong>
+          ${escapeHtml(source.role_phrase || source.category || "")}: ${escapeHtml(source.query)}
+        </p>
+      `
+    )
+    .join("");
+}
+
 function renderResults(dedupedResults, report) {
   if (!dedupedResults.length) {
     resultsList.innerHTML = "";
@@ -252,39 +341,60 @@ function renderResults(dedupedResults, report) {
       const title = result.title || "Untitled result";
       const url = result.url || item.normalized_url || "";
       const content = result.snippet || result.content || "No snippet returned.";
-      const score = result.score ?? "n/a";
       const name = result.name || "unknown";
+      const headline = result.headline || title;
+      const qualityScore = result.quality_score ?? "n/a";
+      const locationDisplay =
+        result.current_location_line ||
+        item.current_location_line ||
+        result.location_signal_status ||
+        item.location_signal_status ||
+        "n/a";
+      const flagDetails = result.review_flag_details || [];
       const sources = item.query_sources || [];
       const sourceBadges = sources
-        .map((source) => `<span>${escapeHtml(source.id)}</span>`)
+        .map((source) => `<span title="${escapeHtml(source.role_phrase || source.query)}">${escapeHtml(source.id)}</span>`)
         .join("");
 
       return `
-        <article class="result-item">
-          <h3>${escapeHtml(title)}</h3>
-          <p class="result-meta">
-            <span>Name: ${escapeHtml(name)}</span>
-            <span>Score: ${escapeHtml(score)}</span>
-            <span>Source: ${escapeHtml(result.source || "unknown")}</span>
-          </p>
+        <article class="result-item candidate-card">
+          <div class="candidate-header">
+            <div class="candidate-identity">
+              <h3>${escapeHtml(name)}</h3>
+              <p>${escapeHtml(headline)}</p>
+            </div>
+            <div class="candidate-score" aria-label="Quality score">
+              <span>Quality</span>
+              <strong>${escapeHtml(qualityScore)}</strong>
+            </div>
+          </div>
           ${
             url
               ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`
               : ""
           }
-          <p class="result-snippet">${escapeHtml(content)}</p>
-          <div class="source-badges" aria-label="Query sources">${sourceBadges}</div>
+          <div class="quality-grid">
+            ${renderQualityField("Location", locationDisplay)}
+            ${renderQualityField("Role", result.role_display)}
+            ${renderQualityField("Tech", result.technology_display)}
+            ${renderQualityField("Stack", result.stack_display)}
+            ${renderQualityField("Seniority", result.seniority_display)}
+            ${renderQualityField("Source", result.source || "unknown")}
+          </div>
+          <div class="flag-badges" aria-label="Review flags">
+            ${renderFlagBadges(flagDetails)}
+          </div>
+          <div class="source-badges" aria-label="Query sources">
+            ${sourceBadges}
+          </div>
+          <details>
+            <summary>Quality details</summary>
+            ${renderScoreBreakdown(result)}
+            <p class="result-snippet">${escapeHtml(content)}</p>
+          </details>
           <details>
             <summary>Query sources</summary>
-            ${(sources || [])
-              .map(
-                (source) => `
-                  <p class="result-snippet">
-                    ${escapeHtml(source.id)}: ${escapeHtml(source.query)}
-                  </p>
-                `
-              )
-              .join("")}
+            ${renderQuerySourceDetails(sources)}
           </details>
         </article>
       `;

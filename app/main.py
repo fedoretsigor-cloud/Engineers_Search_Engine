@@ -22,6 +22,7 @@ SEARCH_RUN_LOG_DIR = PROJECT_DIR / "logs" / "search-runs"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 QUERY_PLANNER_VERSION = "rule_based_v1"
 QUERY_PLAN_MAX_RESULTS = 20
+CANDIDATE_QUALITY_SCORE_VERSION = "candidate_quality_v1"
 QUERY_PLAN_REPORTING_FIELDS = [
     "queries_total",
     "queries_succeeded",
@@ -179,6 +180,130 @@ SEARCH_DOMAIN_CONFIG = {
                 },
             },
         },
+    },
+}
+CANDIDATE_SENIORITY_CONFIG = {
+    "junior": {
+        "display": "Junior",
+        "terms": ["Junior", "Jr", "Trainee", "Intern"],
+    },
+    "middle": {
+        "display": "Middle",
+        "terms": ["Middle", "Mid", "Mid-level"],
+    },
+    "senior": {
+        "display": "Senior",
+        "terms": ["Senior", "Sr"],
+    },
+    "leadership": {
+        "display": "Lead",
+        "terms": ["Team Lead", "Tech Lead", "Lead"],
+    },
+}
+REVIEW_FLAG_TAXONOMY = {
+    "role_missing": {
+        "category": "role",
+        "severity": "medium",
+        "label": "Role not confirmed",
+        "description": "Target or similar role was not found in candidate public text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "role_fit",
+    },
+    "role_similar_only": {
+        "category": "role",
+        "severity": "low",
+        "label": "Similar role only",
+        "description": "Candidate role looks close, but it is not a direct target-role phrase.",
+        "affects_quality_score": True,
+        "score_penalty_group": "role_fit",
+    },
+    "role_from_snippet_only": {
+        "category": "role",
+        "severity": "low",
+        "label": "Role from snippet",
+        "description": "Role evidence was found only in lower-confidence snippet text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "low_confidence_source",
+    },
+    "technology_missing": {
+        "category": "technology",
+        "severity": "medium",
+        "label": "Technology not confirmed",
+        "description": "Selected technology was not directly found in candidate public text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_fit",
+    },
+    "technology_related_only": {
+        "category": "technology",
+        "severity": "low",
+        "label": "Related technology only",
+        "description": "Only a configured related technology signal was found.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_fit",
+    },
+    "technology_ambiguous": {
+        "category": "technology",
+        "severity": "high",
+        "label": "Technology ambiguous",
+        "description": "Technology evidence may indicate a false positive.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_false_positive",
+    },
+    "possible_technology_false_positive": {
+        "category": "technology",
+        "severity": "high",
+        "label": "Possible technology false positive",
+        "description": "Candidate text includes an exclude term that can look like the selected technology.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_false_positive",
+    },
+    "selected_stack_missing": {
+        "category": "stack",
+        "severity": "medium",
+        "label": "Stack not confirmed",
+        "description": "Selected stack was not directly found in candidate public text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "stack_fit",
+    },
+    "stack_from_query_source_only": {
+        "category": "stack",
+        "severity": "low",
+        "label": "Stack only from query source",
+        "description": "Candidate came from a stack-focused OR query, but no specific stack term was directly observed.",
+        "affects_quality_score": True,
+        "score_penalty_group": "stack_fit",
+    },
+    "stack_related_only": {
+        "category": "stack",
+        "severity": "low",
+        "label": "Related stack only",
+        "description": "Only a configured related stack signal was found.",
+        "affects_quality_score": True,
+        "score_penalty_group": "stack_fit",
+    },
+    "seniority_missing": {
+        "category": "seniority",
+        "severity": "info",
+        "label": "Seniority not found",
+        "description": "Seniority was not found in candidate public text.",
+        "affects_quality_score": False,
+        "score_penalty_group": None,
+    },
+    "seniority_ambiguous": {
+        "category": "seniority",
+        "severity": "low",
+        "label": "Seniority ambiguous",
+        "description": "Multiple seniority signals were found and should be reviewed.",
+        "affects_quality_score": True,
+        "score_penalty_group": "low_confidence_seniority",
+    },
+    "seniority_from_snippet_only": {
+        "category": "seniority",
+        "severity": "low",
+        "label": "Seniority from snippet",
+        "description": "Seniority was found only in lower-confidence snippet text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "low_confidence_source",
     },
 }
 LOCATION_FILTER_CONFIG = {
@@ -1199,8 +1324,326 @@ def build_stack_quality(
     }
 
 
+def collect_seniority_evidence(
+    sources: list[dict[str, str]],
+    seniority_config: dict,
+) -> list[dict[str, str]]:
+    evidence: list[dict[str, str]] = []
+    seen_levels: set[str] = set()
+
+    for source in sources:
+        value = source["value"]
+        for level, config in seniority_config.items():
+            if level in seen_levels:
+                continue
+
+            terms = sorted(config.get("terms", []), key=len, reverse=True)
+            for term in terms:
+                if find_term_match(value, term):
+                    seen_levels.add(level)
+                    evidence.append(
+                        {
+                            "term": term,
+                            "level": level,
+                            "display": config["display"],
+                            "source": source["source"],
+                            "value": value,
+                        }
+                    )
+                    break
+
+    return evidence
+
+
+def seniority_display_from_evidence(evidence: list[dict]) -> str:
+    found_levels = {item["level"] for item in evidence}
+    experience_order = ["junior", "middle", "senior"]
+    experience_levels = [
+        level for level in experience_order if level in found_levels
+    ]
+    has_leadership = "leadership" in found_levels
+
+    display_parts: list[str] = []
+    if experience_levels:
+        highest_experience_level = experience_levels[-1]
+        display_parts.append(
+            CANDIDATE_SENIORITY_CONFIG[highest_experience_level]["display"]
+        )
+    if has_leadership:
+        display_parts.append(CANDIDATE_SENIORITY_CONFIG["leadership"]["display"])
+
+    return " ".join(display_parts) if display_parts else "n/a"
+
+
+def build_seniority_quality(result: dict) -> dict:
+    sources = candidate_text_sources(result)
+    seniority_evidence = collect_seniority_evidence(
+        sources,
+        CANDIDATE_SENIORITY_CONFIG,
+    )
+
+    if not seniority_evidence:
+        return {
+            "seniority_display": "n/a",
+            "seniority_fit": "missing",
+            "seniority_evidence": [],
+            "review_flags": ["seniority_missing"],
+        }
+
+    found_levels = {item["level"] for item in seniority_evidence}
+    experience_levels = found_levels.intersection({"junior", "middle", "senior"})
+    review_flags: list[str] = []
+    if len(experience_levels) > 1:
+        review_flags.append("seniority_ambiguous")
+    if all(item["source"] not in {"headline", "title"} for item in seniority_evidence):
+        review_flags.append("seniority_from_snippet_only")
+
+    return {
+        "seniority_display": seniority_display_from_evidence(seniority_evidence),
+        "seniority_fit": "ambiguous" if "seniority_ambiguous" in review_flags else "found",
+        "seniority_evidence": seniority_evidence,
+        "review_flags": review_flags,
+    }
+
+
 def merge_review_flags(existing_flags: list[str], new_flags: list[str]) -> list[str]:
     return ordered_unique(existing_flags + new_flags)
+
+
+def review_flag_detail(flag_code: str) -> dict:
+    flag_config = REVIEW_FLAG_TAXONOMY.get(flag_code)
+    if not flag_config:
+        return {
+            "code": flag_code,
+            "category": "unknown",
+            "severity": "info",
+            "label": flag_code.replace("_", " ").title(),
+            "description": "Unknown review flag preserved for compatibility.",
+            "affects_quality_score": False,
+            "score_penalty_group": None,
+        }
+
+    return {"code": flag_code, **flag_config}
+
+
+def normalize_review_flags(review_flags: list[str]) -> tuple[list[str], list[dict]]:
+    unique_flags = ordered_unique(review_flags)
+    known_flags = [
+        flag_code for flag_code in REVIEW_FLAG_TAXONOMY if flag_code in unique_flags
+    ]
+    unknown_flags = [
+        flag_code for flag_code in unique_flags if flag_code not in REVIEW_FLAG_TAXONOMY
+    ]
+    normalized_flags = known_flags + unknown_flags
+    return normalized_flags, [review_flag_detail(flag) for flag in normalized_flags]
+
+
+def score_component(
+    component: str,
+    points: int,
+    max_points: int,
+    status: str,
+    reason: str,
+    optional: bool = False,
+) -> dict:
+    return {
+        "component": component,
+        "points": points,
+        "max_points": max_points,
+        "status": status,
+        "reason": reason,
+        "optional": optional,
+    }
+
+
+def build_location_score_component(result: dict) -> dict:
+    status = result.get("location_signal_status") or "not_applied"
+    if status == "not_applied":
+        return score_component(
+            "location",
+            0,
+            0,
+            "not_evaluated",
+            "Location filter was not evaluated.",
+        )
+
+    score_by_status = {
+        "target_location": (
+            25,
+            "Current-location text contains the target location.",
+        ),
+        "rescued_header_location": (
+            20,
+            "Header/location text supports the target location.",
+        ),
+        "country_domain": (
+            16,
+            "Country-specific LinkedIn domain supports the target location.",
+        ),
+    }
+    points, reason = score_by_status.get(
+        status,
+        (0, "Location confidence is weak or not displayed by the filter."),
+    )
+    return score_component("location", points, 25, status, reason)
+
+
+def build_role_score_component(result: dict) -> dict:
+    role_fit = result.get("role_fit") or "missing_role"
+    score_by_fit = {
+        "target_or_close_role": (
+            25,
+            "Target or close role matched candidate text.",
+        ),
+        "similar_role": (
+            16,
+            "Similar role matched candidate text.",
+        ),
+    }
+    points, reason = score_by_fit.get(
+        role_fit,
+        (0, "Target or similar role was not confirmed."),
+    )
+    return score_component("role", points, 25, role_fit, reason)
+
+
+def build_technology_score_component(result: dict) -> dict:
+    technology_fit = result.get("technology_fit") or "missing"
+    score_by_fit = {
+        "exact": (
+            20,
+            "Selected technology was directly found.",
+        ),
+        "related_only": (
+            10,
+            "Only a configured related technology was found.",
+        ),
+    }
+    points, reason = score_by_fit.get(
+        technology_fit,
+        (0, "Selected technology was not confidently confirmed."),
+    )
+    return score_component("technology", points, 20, technology_fit, reason)
+
+
+def build_stack_score_component(result: dict) -> dict:
+    stack_fit = result.get("stack_fit") or "missing"
+    score_by_fit = {
+        "selected_stack_found": (
+            20,
+            "Selected stack was directly found in candidate text.",
+        ),
+        "related_stack_only": (
+            8,
+            "Only configured related stack evidence was found.",
+        ),
+        "stack_query_source_only": (
+            6,
+            "Candidate came from a stack-focused query, but no specific OR term was directly observed.",
+        ),
+    }
+    points, reason = score_by_fit.get(
+        stack_fit,
+        (0, "Selected stack was not directly confirmed."),
+    )
+    return score_component("stack", points, 20, stack_fit, reason)
+
+
+def build_identity_score_component(result: dict) -> dict:
+    name_found = bool(result.get("name") and result.get("name") != "unknown")
+    headline_found = bool(result.get("headline") and result.get("headline") != "n/a")
+    points = (3 if name_found else 0) + (2 if headline_found else 0)
+    return score_component(
+        "identity",
+        points,
+        5,
+        "complete" if points == 5 else "partial",
+        "Candidate name/headline extraction completeness.",
+    )
+
+
+def build_seniority_score_component(result: dict) -> dict:
+    seniority_fit = result.get("seniority_fit") or "missing"
+    score_by_fit = {
+        "found": (
+            5,
+            "Seniority signal was found as a bonus signal.",
+        ),
+        "ambiguous": (
+            2,
+            "Seniority signal was found but needs review.",
+        ),
+    }
+    points, reason = score_by_fit.get(
+        seniority_fit,
+        (0, "Seniority was not found and is not penalized without a requirement."),
+    )
+    return score_component("seniority", points, 5, seniority_fit, reason, optional=True)
+
+
+def build_quality_score_penalties(result: dict) -> list[dict]:
+    review_flag_details = result.get("review_flag_details") or []
+    penalty_by_group = {
+        "technology_false_positive": {
+            "points": -10,
+            "reason": "Technology evidence may be a false positive.",
+        },
+        "low_confidence_source": {
+            "points": -3,
+            "reason": "Important evidence came only from lower-confidence snippet text.",
+        },
+        "low_confidence_seniority": {
+            "points": -2,
+            "reason": "Seniority evidence is ambiguous.",
+        },
+    }
+    applied_groups: set[str] = set()
+    penalties: list[dict] = []
+
+    for flag_detail in review_flag_details:
+        group = flag_detail.get("score_penalty_group")
+        if group not in penalty_by_group or group in applied_groups:
+            continue
+
+        applied_groups.add(group)
+        penalty_config = penalty_by_group[group]
+        penalties.append(
+            {
+                "flag": flag_detail["code"],
+                "group": group,
+                "points": penalty_config["points"],
+                "reason": penalty_config["reason"],
+            }
+        )
+
+    return penalties
+
+
+def build_quality_score(result: dict) -> dict:
+    breakdown = [
+        build_location_score_component(result),
+        build_role_score_component(result),
+        build_technology_score_component(result),
+        build_stack_score_component(result),
+        build_identity_score_component(result),
+        build_seniority_score_component(result),
+    ]
+    required_components = [item for item in breakdown if not item.get("optional")]
+    optional_components = [item for item in breakdown if item.get("optional")]
+    available_points = sum(item["max_points"] for item in required_components)
+    earned_points = sum(item["points"] for item in required_components)
+    optional_points = sum(item["points"] for item in optional_components)
+    base_score = round((earned_points / available_points) * 95) if available_points else 0
+    penalties = build_quality_score_penalties(result)
+    penalty_points = sum(item["points"] for item in penalties)
+    quality_score = min(100, max(0, base_score + optional_points + penalty_points))
+
+    return {
+        "quality_score": quality_score,
+        "quality_score_version": CANDIDATE_QUALITY_SCORE_VERSION,
+        "quality_score_breakdown": breakdown,
+        "quality_score_penalties": penalties,
+    }
 
 
 def build_candidate_quality(
@@ -1220,6 +1663,7 @@ def build_candidate_quality(
         build_role_quality(result, query_sources, query_plan, domain_config),
         build_technology_quality(result, domain_config),
         build_stack_quality(result, query_sources, query_plan, domain_config),
+        build_seniority_quality(result),
     ):
         review_flags = merge_review_flags(
             review_flags,
@@ -1227,7 +1671,10 @@ def build_candidate_quality(
         )
         quality.update(quality_part)
 
-    quality["review_flags"] = review_flags
+    normalized_flags, flag_details = normalize_review_flags(review_flags)
+    quality["review_flags"] = normalized_flags
+    quality["review_flag_details"] = flag_details
+    quality.update(build_quality_score({**result, **quality}))
     return quality
 
 
