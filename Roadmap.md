@@ -122,15 +122,47 @@ POC прототип с легким фронтом и одним поисков
 Следующий порядок после Phase 2:
 
 - Phase 3 - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking. В Phase 3 также добавить adaptive multi-wave runner как supporting capability для quality evaluation: несколько волн одного `QueryPlan`, dedupe across waves, stop по incremental unique gain.
-- Phase 4 - `AI Query Planner v0`: сохранить `QueryPlan` contract, но заменить rule-based planner на AI planner, который предлагает query slots и объясняет логику.
-- Phase 5 - `Recruiter Chat + Search Brief`: добавить внутренний чат, где рекрутер живым диалогом описывает задачу, AI собирает structured `Search Brief`, задает уточняющие вопросы и просит подтверждение перед запуском поиска.
+- Phase 4 - `AI Agent Foundation`: сохранить текущий deterministic engine как безопасный tool layer, добавить `Search Brief`, AI-assisted planning, agent action/tool boundaries, explanation и approval перед Tavily execution.
+- Phase 5 - `Recruiter Chat UX + Search Brief conversation`: добавить внутренний чат, где рекрутер живым диалогом описывает задачу, AI уточняет brief, задает вопросы и готовит действия через Phase 4 agent foundation.
 - Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в agent loop: AI получает цель, планирует шаги, вызывает доступные инструменты (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг с approval для дорогих или важных действий.
 - Phase 7 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 8 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
-Phase 3 выбрана как следующий этап. AI Query Planner перенесен в Phase 4.
+Phase 3 завершена как baseline `Candidate Quality Layer`. Следующий этап - Phase 4 `AI Agent Foundation`.
+
+Фаза 4 - AI Agent Foundation
+
+Цель Phase 4: двигаться к настоящему AI Agent на базе уже построенного search engine, не выбрасывая deterministic pipeline. Текущий движок становится безопасным набором инструментов: `QueryPlan`, rule-based planner fallback, search executor, multi-wave runner, dedupe, visible filters, Candidate Quality Layer, reports и snapshots.
+
+AI в Phase 4 должен планировать и объяснять, а backend должен валидировать, ограничивать и требовать approval для дорогих действий.
+
+Порядок задач Phase 4:
+
+- `P4-001 Define AI Agent Foundation contract`
+- `P4-002 Define Search Brief schema`
+- `P4-003 Add Search Brief validation and adapter`
+- `P4-004 Define Agent tools contract`
+- `P4-005 Add AI Query Planner v0 behind explicit mode`
+- `P4-006 Add AI QueryPlan validation and fallback`
+- `P4-007 Add planner explanation UI`
+- `P4-008 Add approval before Tavily execution`
+- `P4-009 Compare AI planner vs rule-based baseline`
+- `P4-010 Close Phase 4 with decision`
+
+Не входит в Phase 4 без отдельного согласования: persistent memory/database, shortlist, export, LinkedIn login, scraping, restriction bypass, fully autonomous tool-calling loop, multi-source search beyond Tavily.
 
 Фазы 5-8 описывают путь к настоящему AI Agent внутри приложения. Agent здесь означает не просто чат, а AI-модель с целью, контекстом, инструментами, approval flow и циклом действий: понять задачу, собрать brief, запустить инструменты, оценить результат, уточнить план и вернуть кандидатов в виде таблицы.
+
+Ориентир по пути к AI Agent:
+
+- Минимум до AI Agent v0: Phase 4 + Phase 5 + Phase 6.
+- Phase 4 дает foundation: `Search Brief`, AI planner, agent tools contract, approval gates и объяснения.
+- Phase 5 делает агентный UX через recruiter chat и согласованный `Search Brief`.
+- Phase 6 добавляет настоящий tool loop: агент планирует следующий шаг, вызывает доступные инструменты после approval, анализирует результат и предлагает итерацию.
+- Для реально удобного recruiter workflow нужна еще Phase 7: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
+- Phase 8 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
+
+Вывод: через 3 фазы после Phase 3 можно получить AI Agent v0; через 4 фазы - agent-based sourcing workflow, которым уже можно пользоваться как рабочим продуктом.
 
 ### Ideas
 
@@ -143,10 +175,10 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 - For selected stack terms that are not visible in Tavily public snippets, the UI now says `Not visible`; query-source-only stack evidence says `Not confirmed`.
 - Real `P3-012` multi-wave evaluation produced 67 unique candidates after 4 waves and 40 Tavily queries; incremental gain over wave 1 was +7 unique candidates, so multi-wave should not become default yet.
 - `P3-013` keeps single-wave as default and exposes multi-wave only through an explicit frontend toggle that is off by default.
+- `P3-014` closes Phase 3 and prepares the handoff to Phase 4. Phase 4 is now `AI Agent Foundation`: it should preserve the `QueryPlan` contract, visible filters, existing executor/dedupe/report pipeline, Candidate Quality Layer, and add `Search Brief`, agent tool boundaries, AI planner mode, explanations, and approval gates.
 
 ### Planned
 
-- Phase 4: `AI Query Planner v0`.
 - Phase 5: `Recruiter Chat + Search Brief`.
 - Phase 6: `Tool-Calling Agent Runtime`.
 - Phase 7: `Candidate Workspace/Table + Shortlist`.
@@ -154,8 +186,9 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 
 ### In Progress
 
-- Phase 3: `Candidate Quality Layer` - completed through `P3-013`; next task should be reviewed before implementation.
+- Phase 4: `AI Agent Foundation` - next task to review is `P4-001 Define AI Agent Foundation contract`.
 
 ### Done
 
 - Phase 2 - Multi-query Search + Baseline Query Planner.
+- Phase 3 - Candidate Quality Layer.

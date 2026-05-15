@@ -10,11 +10,13 @@ Phase 2 - Multi-query Search + Baseline Query Planner is completed.
 
 Completed through `P2-013`: Phase 2 conclusions are documented, local structured-search snapshots are available, and the Ukraine `Location filter` now uses current-location classification instead of a finite foreign-location blacklist.
 
-Current phase: `Phase 3 - Candidate Quality Layer`.
+Phase 3 - Candidate Quality Layer is completed.
 
-Later phase: `Phase 4 - AI Query Planner v0`.
+Current phase: `Phase 4 - AI Query Planner v0`.
 
-Completed through `P3-013`: backend candidates now include seniority, normalized review flag details, explainable `quality_score`, the frontend renders a hybrid candidate quality view, the first real Java/Ukraine quality baseline is documented, the `missing_selected_stack` group has been reviewed, stack evidence display labels are clearer, an experimental multi-wave API runner exists, the first real adaptive multi-wave evaluation is documented, and the frontend has a visible `Multi-wave` toggle off by default.
+Completed through `P3-014`: Phase 3 is closed as the Candidate Quality Layer baseline. Backend candidates now include seniority, normalized review flag details, explainable `quality_score`; the frontend renders a hybrid candidate quality view; the first real Java/Ukraine quality baseline is documented; the `missing_selected_stack` group has been reviewed; stack evidence display labels are clearer; an experimental multi-wave API runner exists; the first real adaptive multi-wave evaluation is documented; and the frontend has a visible `Multi-wave` toggle off by default.
+
+Next task to review: `P4-001 Define AI QueryPlanner contract`.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -38,6 +40,8 @@ Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for rank
 `P3-012` evaluated the multi-wave runner with one real Tavily run. It ran 4 waves, executed 40 queries, stopped on `low_incremental_gain`, and produced 67 final unique candidates. Compared with wave 1 inside the same run, multi-wave added 7 unique candidates, including 3 high-quality candidates and 1 direct-stack candidate, after 30 extra Tavily queries. Recommendation: do not make multi-wave default; keep it backend-only for now or consider an explicit advanced/deeper-search control in `P3-013`.
 
 `P3-013` added the explicit frontend control: default Search remains single-wave through `/api/structured-search`; enabling the `Multi-wave` toggle calls `/api/structured-search/multi-wave` with approved defaults and shows waves, executed queries, stop reason, and new candidates per wave when returned.
+
+`P3-014` closed Phase 3 as a docs-only handoff. Phase 4 should preserve the `QueryPlan` contract, structured request, visible filters, executor/dedupe/report pipeline, snapshots, and Candidate Quality Layer while exploring AI-assisted query planning.
 
 ## What was built in Phase 1
 
@@ -274,7 +278,7 @@ Recommended next steps:
 - Phase 3: `Candidate Quality Layer`, focused on name extraction, location confidence, stack/seniority scoring, ranking quality, and an adaptive multi-wave runner for quality evaluation.
 - Phase 4: `AI Query Planner v0`, focused on replacing rule-based query generation while preserving the `QueryPlan` contract.
 
-Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is deferred to Phase 4.
+Phase 3 is completed as Candidate Quality Layer. AI Query Planner is now the active Phase 4 direction.
 
 ## Verification
 
@@ -303,6 +307,7 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - Phase 3 `P3-011` no-Tavily smoke passed for multi-wave validation, early stop, cross-wave dedupe, `wave_sources`, snapshot type, and unchanged single-wave endpoint behavior.
 - Phase 3 `P3-012` real adaptive multi-wave evaluation completed: 4 waves, 40 queries, 67 unique candidates, stopped by low incremental gain.
 - Phase 3 `P3-013` frontend smoke passed for default single-wave endpoint, toggle-on multi-wave endpoint, multi-wave defaults payload, and report metric rendering.
+- Phase 3 `P3-014` docs-only closeout completed and Phase 4 handoff prepared.
 
 ## Current known limitations
 

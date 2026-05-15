@@ -99,6 +99,7 @@
 - [x] P3-011 Add experimental multi-wave API runner
 - [x] P3-012 Evaluate adaptive multi-wave results
 - [x] P3-013 Add visible Multi-wave frontend toggle
+- [x] P3-014 Close Phase 3 and prepare Phase 4 handoff
 
 ### Current Phase 3 implementation order note
 
@@ -1987,20 +1988,192 @@ Verification:
 
 ---
 
-## Phase 4 - AI Query Planner v0
+## Phase 4 - AI Agent Foundation
 
 ### Backlog
 
-- [ ] P4-001 Define AI QueryPlanner contract
-- [ ] P4-002 Add planner mode: rule_based or ai
-- [ ] P4-003 Create AI planner prompt and examples
-- [ ] P4-004 Add AI QueryPlan validation and fallback
-- [ ] P4-005 Compare AI planner vs rule-based baseline
-- [ ] P4-006 Add frontend planner mode indicator/control
+- [ ] P4-001 Define AI Agent Foundation contract
+- [ ] P4-002 Define Search Brief schema
+- [ ] P4-003 Add Search Brief validation and adapter
+- [ ] P4-004 Define Agent tools contract
+- [ ] P4-005 Add AI Query Planner v0 behind explicit mode
+- [ ] P4-006 Add AI QueryPlan validation and fallback
+- [ ] P4-007 Add planner explanation UI
+- [ ] P4-008 Add approval before Tavily execution
+- [ ] P4-009 Compare AI planner vs rule-based baseline
+- [ ] P4-010 Close Phase 4 with decision
 
 ### In Progress
 
 ### Done
+
+### Current Phase 4 strategy note
+
+Phase 4 should move the product toward an AI Agent, but without throwing away the deterministic engine built in Phase 2 and Phase 3.
+
+The current engine should become the agent's safe tool layer:
+
+- structured search request;
+- `QueryPlan`;
+- rule-based planner fallback;
+- search executor;
+- multi-wave runner;
+- URL normalization and dedupe;
+- visible profile/location filters;
+- Candidate Quality Layer;
+- reports and snapshots.
+
+AI should plan and explain, while backend validation, visible controls, and approval gates keep search behavior inspectable and safe.
+
+Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
+
+1. Turn recruiter intent into a structured `Search Brief`.
+2. Let AI propose a validated `QueryPlan`.
+3. Show explanations before execution.
+4. Require approval before Tavily calls.
+5. Run search through the existing engine.
+6. Analyze results and suggest the next iteration.
+
+Do not include in Phase 4 without separate approval:
+
+- persistent memory or database;
+- shortlist;
+- export workflow;
+- LinkedIn login;
+- scraping or restriction bypass;
+- fully autonomous tool-calling loop;
+- multi-source search beyond Tavily.
+
+---
+
+## Task: P4-001 Define AI Agent Foundation contract
+
+### Context
+
+The project already has a working deterministic sourcing engine:
+
+- `StructuredSearchRequest`;
+- `QueryPlan`;
+- rule-based planner;
+- sequential Tavily runner;
+- dedupe by normalized LinkedIn profile URL;
+- visible filters;
+- Candidate Quality Layer;
+- multi-wave runner;
+- reports and local snapshots.
+
+The next product direction is not only an AI-generated query list, but an AI Agent foundation built on top of the existing engine.
+
+### Goal
+
+Define the first AI Agent foundation contract before writing code.
+
+The contract should describe how recruiter intent becomes a structured brief, how the AI planner proposes actions, which backend tools are available, and where user approval is required.
+
+### Proposed concepts
+
+#### Search Brief
+
+Structured recruiter task extracted from user intent.
+
+Initial fields:
+
+- `role_family`;
+- `technology`;
+- `stack`;
+- `location`;
+- `seniority`;
+- `must_have`;
+- `nice_to_have`;
+- `exclusions`;
+- `search_depth`;
+- `notes`.
+
+#### Agent Plan
+
+A human-readable plan produced before execution.
+
+It should explain:
+
+- what the agent understood;
+- what it will search for;
+- which planner mode it wants to use;
+- whether it recommends single-wave or multi-wave;
+- expected cost/latency tradeoff;
+- what requires approval.
+
+#### Agent Action
+
+A proposed action that may or may not call backend tools.
+
+Examples:
+
+- build query plan;
+- run single-wave search;
+- run multi-wave search;
+- analyze candidates;
+- suggest next iteration.
+
+#### Tool Call
+
+Validated backend operation available to the agent.
+
+The agent should not bypass existing backend contracts. Tool calls should reuse existing APIs and internal models where possible.
+
+#### Approval Gate
+
+Any expensive or externally visible action must wait for user approval.
+
+At minimum, Tavily execution and multi-wave execution require explicit approval.
+
+#### Agent Response
+
+The agent's explanation back to the user.
+
+It should be readable and grounded in:
+
+- Search Brief;
+- QueryPlan;
+- report metrics;
+- candidate quality signals;
+- known limitations.
+
+### Proposed steps
+
+1. Define Phase 4 scope as `AI Agent Foundation`, not only `AI Query Planner`.
+2. Define the first `Search Brief` contract.
+3. Define `Agent Plan`, `Agent Action`, `Tool Call`, `Approval Gate`, and `Agent Response`.
+4. Map current deterministic engine capabilities into agent tools.
+5. Define which actions require approval.
+6. Define what the AI is not allowed to do in Phase 4.
+7. Define how AI-generated `QueryPlan` must be validated.
+8. Define fallback behavior to `RuleBasedQueryPlanner`.
+9. Define baseline evaluation for Java Backend Ukraine.
+10. Decide what belongs to later phases: chat, memory, shortlist, autonomous loop, database.
+
+### Constraints
+
+- Do not implement AI calls in this task.
+- Do not change current search runtime in this task.
+- Do not remove `RuleBasedQueryPlanner`.
+- Do not make AI planner default.
+- Do not run Tavily.
+- Do not add LinkedIn login, scraping, or restriction bypass.
+- Do not add database, shortlist, export, or persistent memory.
+
+### Acceptance criteria
+
+- Phase 4 is documented as `AI Agent Foundation`.
+- `Search Brief` concept is defined.
+- Agent tool boundary is defined.
+- Approval gates are defined.
+- Existing deterministic engine is preserved as the safe execution layer.
+- `QueryPlan` remains the contract between planner and executor.
+- P4 follow-up tasks can be reviewed one by one before coding.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
 ---
 
@@ -2435,6 +2608,98 @@ Verification:
   - toggle-on endpoint is `/api/structured-search/multi-wave`;
   - toggle-on request includes multi-wave defaults;
   - multi-wave report metrics render.
+
+---
+
+## Task: P3-014 Close Phase 3 and prepare Phase 4 handoff
+
+### Context
+
+Phase 3 has delivered the first Candidate Quality Layer on top of the Phase 2 multi-query search engine.
+
+Completed Phase 3 capabilities:
+
+- candidate-facing name/headline extraction;
+- role fit signals;
+- technology and stack fit signals;
+- seniority detection;
+- normalized review flag taxonomy;
+- explainable `quality_score`;
+- hybrid frontend candidate quality view;
+- Java/Ukraine quality baseline;
+- review of `missing_selected_stack` behavior;
+- clearer stack display semantics;
+- experimental adaptive multi-wave runner;
+- real multi-wave evaluation;
+- visible `Multi-wave` frontend toggle, off by default.
+
+### Goal
+
+Close Phase 3 as a completed phase and prepare the handoff into Phase 4: `AI Agent Foundation`.
+
+### Phase 3 final conclusion
+
+Phase 3 is successful as a Candidate Quality Layer baseline.
+
+It does not make Tavily/LinkedIn public snippets complete or deterministic, but it makes the current evidence visible, ranked, explainable, and reviewable.
+
+Main conclusion: the application is ready to explore an AI Agent foundation because the downstream pipeline is now stable enough:
+
+- structured search request;
+- `QueryPlan` contract;
+- sequential query execution;
+- URL normalization and dedupe;
+- visible profile/location filters;
+- candidate quality fields;
+- explainable score;
+- query source metadata;
+- optional multi-wave execution.
+
+### Important limitations carried into Phase 4
+
+- Tavily live results vary between runs.
+- LinkedIn public snippets are incomplete.
+- Selected stack evidence can be missing from snippets even for relevant candidates.
+- `Location filter` remains heuristic and currently has only Ukraine config.
+- Multi-wave search can add candidates, but should remain explicit and off by default.
+- Candidate quality score is deterministic v1 ranking support, not final recruiting judgment.
+
+### Phase 4 handoff rules
+
+Phase 4 may add AI-assisted planning and agent-style orchestration, but it should preserve these contracts:
+
+- AI planner must output a validated `QueryPlan`;
+- executor, dedupe, report, filters, snapshots, and candidate quality layer should not be rewritten for P4-001;
+- AI planner suggestions should be inspectable before execution;
+- visible filters remain user-controlled;
+- no LinkedIn login, scraping, restriction bypass, database, shortlist, or full agent runtime unless separately approved.
+
+### Next recommended task
+
+`P4-001 Define AI Agent Foundation contract`
+
+Before coding Phase 4, review and approve the AI Agent foundation contract:
+
+- `Search Brief`;
+- `Agent Plan`;
+- `Agent Action`;
+- agent tool boundaries;
+- approval gates;
+- required `QueryPlan` output fields for AI planner actions;
+- validation rules;
+- fallback to `RuleBasedQueryPlanner`;
+- approval/visibility behavior before Tavily execution;
+- examples for Java Backend Ukraine baseline.
+
+### Implementation result
+
+Docs-only task completed:
+
+- `Tasks.md` marks `P3-014` as done and records Phase 3 closeout.
+- `Roadmap.md` marks Phase 3 completed and Phase 4 as the active next phase.
+- `ProjectStatus.md` marks Phase 3 completed through `P3-014` and names `P4-001` as the next task to review.
+
+No code changes.
 
 ---
 
@@ -3133,16 +3398,17 @@ Phase 3: `Candidate Quality Layer`
 - Add adaptive multi-wave runner for quality evaluation.
 - Keep query generation rule-based for now.
 
-Phase 4: `AI Query Planner v0`
+Phase 4: `AI Agent Foundation`
 
 - Keep the existing `QueryPlan` contract.
-- Add an AI planner that proposes query slots from structured inputs.
+- Add an AI planner that proposes query slots from structured inputs as one agent tool.
+- Add a `Search Brief` and approval flow before Tavily execution.
 - Require explanation/debug metadata for generated queries.
 - Compare AI-generated plans against `RuleBasedQueryPlanner v1`.
 
 ### Decision
 
-Phase 2 is closed. Phase 3 is selected as Candidate Quality Layer. AI Query Planner is deferred to Phase 4.
+Phase 2 is closed. Phase 3 is selected as Candidate Quality Layer. AI Agent Foundation is deferred to Phase 4.
 
 ### Implementation result
 
