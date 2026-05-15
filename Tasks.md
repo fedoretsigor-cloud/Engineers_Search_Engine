@@ -81,8 +81,8 @@
 ### Backlog
 
 - [ ] P3-006 Add seniority detection
+- [ ] P3-008 Normalize review flags taxonomy
 - [ ] P3-007 Add explainable candidate quality score
-- [ ] P3-008 Add review flags
 - [ ] P3-009 Update frontend candidate quality view
 - [ ] P3-010 Run Java/Ukraine quality baseline
 - [ ] P3-011 Add adaptive multi-wave runner for quality evaluation
@@ -96,6 +96,16 @@
 - [x] P3-003 Extract role query config and role_phrase metadata
 - [x] P3-004 Add role fit signals
 - [x] P3-005 Add technology and stack fit signals
+
+### Current Phase 3 implementation order note
+
+Recommended implementation order:
+
+1. `P3-006 Add seniority detection`
+2. `P3-008 Normalize review flags taxonomy`
+3. `P3-007 Add explainable candidate quality score`
+
+Rationale: `P3-007` should use normalized review flag taxonomy for penalties/breakdown instead of creating ad hoc scoring logic that later needs to be rewritten.
 
 ---
 
@@ -956,6 +966,430 @@ Codex must restate the task scope, propose exact implementation steps, and wait 
   - `role_fit`: `target_or_close_role = 41`, `similar_role = 10`, `missing_role = 4`;
   - `technology_fit`: `exact = 46`, `missing = 9`;
   - `stack_fit`: `selected_stack_found = 11`, `stack_query_source_only = 4`, `missing_selected_stack = 40`.
+
+---
+
+## Task: P3-006 Add seniority detection
+
+### Context
+
+After `P3-002` through `P3-005`, candidates can carry readable identity, role, technology, and stack quality fields. The next missing candidate-quality field is seniority.
+
+Seniority should be extracted from public Tavily/LinkedIn fields already present in the candidate result. It should be a visible quality signal, not a hidden filter.
+
+### Goal
+
+Add seniority signals to normalized/deduped candidates so the product can show readable seniority values and keep separate internal evidence for later scoring.
+
+### Proposed output fields
+
+```json
+{
+  "seniority_display": "Senior",
+  "seniority_fit": "found",
+  "seniority_evidence": [
+    {
+      "term": "Senior",
+      "level": "senior",
+      "source": "headline",
+      "value": "Senior Java Developer"
+    }
+  ],
+  "review_flags": []
+}
+```
+
+### Proposed config
+
+Keep seniority terms config-driven instead of hardcoding them inside matcher logic.
+
+Initial conservative config:
+
+- `junior`: `Junior`, `Jr`, `Trainee`, `Intern`
+- `middle`: `Middle`, `Mid`, `Mid-level`
+- `senior`: `Senior`, `Sr`
+- `leadership`: `Lead`, `Team Lead`, `Tech Lead`
+
+`Principal`, `Staff`, `Architect`, and broader leadership/management labels are deferred until real results justify adding them.
+
+### Important Lead rule
+
+`Lead` should be treated as a leadership signal, not simply as a higher version of `Senior`.
+
+- `Senior` means experience level.
+- `Lead`, `Team Lead`, and `Tech Lead` mean leadership responsibility.
+- If both are found, for example `Senior Team Lead`, the display value may combine them as `Senior Lead`, but evidence must preserve both matched signals.
+- This keeps the first version simple while preparing for later quality scoring and filters.
+
+### Proposed steps
+
+1. Add seniority config near the existing Candidate Quality/domain config.
+2. Add a generic seniority matcher that reads config terms.
+3. Search for evidence in ordered candidate sources:
+   - extracted `headline`;
+   - candidate `title`;
+   - public `snippet/content/raw_content`.
+4. Match by token/phrase boundaries so accidental word fragments do not count.
+5. Set recruiter-facing `seniority_display`:
+   - matched value such as `Junior`, `Middle`, `Senior`, `Lead`, `Senior Lead`;
+   - otherwise `n/a`.
+6. Set internal `seniority_fit`:
+   - `found`;
+   - `missing`;
+   - `ambiguous`.
+7. Preserve all matched evidence, especially when both experience and leadership signals appear.
+8. Add review flags without overwriting existing flags:
+   - `seniority_missing`;
+   - `seniority_ambiguous`;
+   - `seniority_from_snippet_only`.
+9. Do not use seniority as a filter.
+10. Verify with local smoke checks before any Tavily baseline.
+11. Update `Tasks.md` with implementation and verification notes after coding.
+
+### Display rules
+
+- `Senior Java Developer` -> `Senior`.
+- `Middle Java Software Engineer` -> `Middle`.
+- `Team Lead Java Developer` -> `Lead`.
+- `Senior Team Lead Java Developer` -> `Senior Lead`, with both signals in evidence.
+- If seniority is not found, display `n/a`.
+- Do not display internal labels such as `found`, `missing`, or `ambiguous` as the primary table value.
+
+### Constraints
+
+- Do not run Tavily for initial verification.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Do not change query generation.
+- Do not change location filtering.
+- Do not implement final quality score in this task.
+- Do not implement frontend table changes unless separately approved.
+
+### Acceptance criteria
+
+- Candidates can carry `seniority_display`, `seniority_fit`, and `seniority_evidence`.
+- Seniority detection is config-driven.
+- `Lead` is stored as a leadership signal, not merely as a higher seniority level.
+- Combined values such as `Senior Lead` preserve both evidence signals.
+- Missing seniority does not hide candidates.
+- Seniority review flags are merged with existing candidate review flags.
+- Verification uses local smoke checks without Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P3-007 Add explainable candidate quality score
+
+### Context
+
+After `P3-002` through `P3-006`, candidates can carry readable identity, role, technology, stack, seniority, evidence, and review flags.
+
+The next step is an explainable candidate quality score. This score must not become a magic ranking layer. It should be a transparent deterministic summary of already extracted signals.
+
+### Goal
+
+Add a separate `quality_score` v1 to normalized/deduped candidates.
+
+The score should help later sorting, review, and frontend display, but it must not hide candidates or replace existing technical `score`.
+
+### Proposed output fields
+
+```json
+{
+  "quality_score": 78,
+  "quality_score_version": "candidate_quality_v1",
+  "quality_score_breakdown": [
+    {
+      "component": "role",
+      "points": 25,
+      "reason": "Target or close role matched candidate headline."
+    }
+  ],
+  "quality_score_penalties": [
+    {
+      "flag": "selected_stack_missing",
+      "points": -8,
+      "reason": "Selected stack was not directly found in candidate text."
+    }
+  ]
+}
+```
+
+Exact field names can follow implementation style, but score, version, breakdown, and penalties must remain separate.
+
+### Guardrails
+
+1. `quality_score` must not replace existing neutral `score`.
+2. `quality_score` must not filter candidates.
+3. `quality_score` must not change sorting in this task unless separately approved.
+4. Do not double-penalize the same issue. For example, `technology_fit = "missing"` and `technology_missing` flag describe the same problem and should not subtract twice.
+5. `seniority_missing` must not reduce score while the user has no explicit seniority requirement.
+6. Tavily score should not drive candidate quality. If used at all, it must have minimal weight because it is search confidence, not recruiter quality.
+7. If `Location filter` is off, location score component should be `not_evaluated`, not treated as a bad location.
+8. Score must be deterministic, bounded `0-100`, and explainable.
+9. No AI, ML, embeddings, or hidden model calls in this task.
+
+### Proposed scoring inputs
+
+Use only existing candidate metadata:
+
+- `location_signal_status`;
+- `role_fit`;
+- `technology_fit`;
+- `stack_fit`;
+- `seniority_fit`;
+- `review_flags`;
+- direct evidence fields already created by earlier Phase 3 tasks.
+
+### Proposed scoring shape
+
+Initial v1 should be simple and conservative:
+
+- Location confidence: positive only when location was evaluated and passed with a strong signal.
+- Role fit: strongest positive weight for `target_or_close_role`, weaker for `similar_role`, no positive for missing.
+- Technology fit: strong positive for exact selected technology, weaker for related-only, penalty/low confidence for ambiguous or missing.
+- Stack fit: strongest positive for direct selected stack match, weak positive for `stack_query_source_only`, no direct-display credit for query-source-only OR evidence.
+- Seniority: bonus/evidence only when found; no penalty for missing.
+- Review flags: apply explainable penalties by category, but avoid double counting the same underlying issue.
+
+### Proposed penalty groups
+
+Serious:
+
+- `possible_technology_false_positive`;
+- `technology_ambiguous`.
+
+Medium:
+
+- `technology_missing`;
+- `role_missing`;
+- `selected_stack_missing`.
+
+Light:
+
+- `role_similar_only`;
+- `role_from_snippet_only`;
+- `seniority_ambiguous`;
+- `seniority_from_snippet_only`.
+
+No penalty in v1:
+
+- `seniority_missing`.
+
+### Proposed steps
+
+1. Add a score version constant, for example `candidate_quality_v1`.
+2. Add a deterministic score builder that reads existing candidate quality fields.
+3. Build score components from location, role, technology, stack, seniority, and review flags.
+4. Add breakdown items for every positive component.
+5. Add penalty items for review flags that affect score.
+6. Prevent double penalties for the same underlying issue.
+7. Clamp final `quality_score` to `0-100`.
+8. Add fields to each deduped candidate result:
+   - `quality_score`;
+   - `quality_score_version`;
+   - `quality_score_breakdown`;
+   - `quality_score_penalties`.
+9. Do not change result filtering.
+10. Do not change frontend sorting or display unless separately approved.
+11. Verify with local smoke checks before any Tavily baseline.
+12. Update `Tasks.md` with implementation and verification notes after coding.
+
+### Display rules
+
+- Frontend can later show `quality_score`, but this task only prepares backend data.
+- Breakdown should be readable enough for a recruiter/product reviewer to understand why score was assigned.
+- Internal labels may exist in breakdown metadata, but visible reason text should be human-readable.
+
+### Constraints
+
+- Do not run Tavily for initial verification.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Do not change query generation.
+- Do not change location filtering.
+- Do not replace existing neutral `score`.
+- Do not change default sorting.
+- Do not implement frontend table changes unless separately approved.
+
+### Acceptance criteria
+
+- Candidates can carry `quality_score`, `quality_score_version`, `quality_score_breakdown`, and `quality_score_penalties`.
+- Score is deterministic and bounded `0-100`.
+- Score is separate from existing neutral `score`.
+- Score does not filter candidates.
+- Score does not change sorting in this task.
+- `seniority_missing` does not reduce score.
+- Location component is `not_evaluated` when location filter is off.
+- Direct stack evidence scores stronger than query-source-only stack evidence.
+- Query-source-only stack evidence does not pretend that a specific OR term was directly observed.
+- Review flag penalties are explainable and do not double-count the same issue.
+- Verification uses local smoke checks without Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation order note
+
+Implement after `P3-008 Normalize review flags taxonomy`.
+
+Rationale: `quality_score` penalties and breakdown should reuse normalized flag metadata instead of introducing ad hoc scoring rules that later need to be rewritten.
+
+---
+
+## Task: P3-008 Normalize review flags taxonomy
+
+### Context
+
+Review flags already exist or are planned across Phase 3:
+
+- role flags from `P3-004`;
+- technology and stack flags from `P3-005`;
+- seniority flags from `P3-006`;
+- quality-score penalties from `P3-007`;
+- location/data-quality flags may be useful later.
+
+Without a shared taxonomy, flags can become noisy, duplicated, or hard to display. `P3-008` should normalize this layer before frontend candidate-quality display.
+
+### Goal
+
+Create a shared review flags taxonomy and normalized flag output for candidates.
+
+Flags should mark uncertainty and review needs. They should not hide candidates and should not become another hidden filter.
+
+### Why flags exist
+
+Review flags let the product keep recall high while being honest about weak evidence.
+
+Examples:
+
+- `selected_stack_missing`: selected stack was not directly found in public candidate text.
+- `stack_from_query_source_only`: candidate came from a stack-focused OR query, but no specific stack term was directly observed.
+- `technology_ambiguous`: candidate may be a false positive, for example JavaScript vs Java.
+- `role_similar_only`: role looks close, but it is not a direct target-role match.
+- `seniority_from_snippet_only`: seniority was found only in lower-confidence snippet text.
+
+### Proposed output fields
+
+Keep the compact machine-readable list:
+
+```json
+{
+  "review_flags": ["selected_stack_missing", "role_similar_only"]
+}
+```
+
+Add display-ready details:
+
+```json
+{
+  "review_flag_details": [
+    {
+      "code": "selected_stack_missing",
+      "category": "stack",
+      "severity": "medium",
+      "label": "Stack not confirmed",
+      "description": "Selected stack was not directly found in candidate public text.",
+      "affects_quality_score": true
+    }
+  ]
+}
+```
+
+### Proposed taxonomy fields
+
+Each known flag should have:
+
+- `code`;
+- `category`: `role`, `technology`, `stack`, `seniority`, `location`, `data_quality`;
+- `severity`: `info`, `low`, `medium`, `high`;
+- `label`;
+- `description`;
+- `affects_quality_score`;
+- optional `score_penalty_group`.
+
+### Proposed first taxonomy
+
+Role:
+
+- `role_missing`: medium
+- `role_similar_only`: low
+- `role_from_snippet_only`: low
+
+Technology:
+
+- `technology_missing`: medium
+- `technology_related_only`: low
+- `technology_ambiguous`: high
+- `possible_technology_false_positive`: high
+
+Stack:
+
+- `selected_stack_missing`: medium
+- `stack_from_query_source_only`: low
+- `stack_related_only`: low
+
+Seniority:
+
+- `seniority_missing`: info
+- `seniority_ambiguous`: low
+- `seniority_from_snippet_only`: low
+
+Location/data quality can be added later when we decide which existing location signals should become review flags.
+
+### Proposed steps
+
+1. Add a shared review flag taxonomy config.
+2. Add a normalizer that:
+   - dedupes flags;
+   - keeps stable order;
+   - preserves unknown flag codes and maps them to `category = "unknown"` and `severity = "info"` details;
+   - does not overwrite flags from different quality layers.
+3. Add `review_flag_details` to candidate result output.
+4. Ensure `review_flags` remains a simple list of codes for machine use.
+5. Align `P3-007` quality-score penalties with taxonomy metadata instead of scattered ad hoc severity logic where possible.
+6. Do not change filtering.
+7. Do not change Tavily queries.
+8. Verify with local smoke checks.
+9. Update `Tasks.md` with implementation and verification notes after coding.
+
+### Constraints
+
+- Do not run Tavily for initial verification.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Do not change query generation.
+- Do not change location filtering.
+- Do not make flags hide candidates.
+- Do not implement frontend table changes unless separately approved.
+
+### Acceptance criteria
+
+- A shared review flag taxonomy exists.
+- Existing Phase 3 flags map to category, severity, label, and description.
+- Candidate results can include `review_flag_details`.
+- `review_flags` remains a compact list of codes.
+- Flags are deduped and ordered stably.
+- Unknown flags do not crash the API and are preserved with `unknown/info` details.
+- Flags do not filter candidates.
+- Verification uses local smoke checks without Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation order note
+
+Implement before `P3-007 Add explainable candidate quality score`.
+
+Rationale: `P3-007` should use normalized review flag taxonomy for score penalties and breakdown.
 
 ---
 
