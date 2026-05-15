@@ -139,6 +139,8 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 - Future country support must extend the location config with country domains and `target_location_terms`, then reuse current-location classification instead of building finite negative-location blacklists.
 - Sequential multi-query search: run several focused Tavily queries, merge results, dedupe by normalized LinkedIn URL, then apply visible filters.
 - Phase 3 multi-wave search should stop based on incremental unique gain. Recent experiments: 1 wave gave 60 unique, 3 waves gave 64 cumulative unique, one 5-wave block gave 61 cumulative unique, and one 10-wave block gave 60 cumulative unique.
+- Phase 3 quality baseline confirms the quality layer is useful for ranking/review, but selected stack evidence is still weak in public Tavily/LinkedIn snippets.
+- For selected stack terms that are not visible in Tavily public snippets, the UI now says `Not visible`; query-source-only stack evidence says `Not confirmed`.
 
 ### Planned
 
@@ -150,7 +152,7 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 
 ### In Progress
 
-- Phase 3: `Candidate Quality Layer` - completed through `P3-009`; next measurement task is `P3-010 Run Java/Ukraine quality baseline`.
+- Phase 3: `Candidate Quality Layer` - completed through `P3-010.2`; next task is `P3-011 Add adaptive multi-wave runner for quality evaluation`.
 
 ### Done
 

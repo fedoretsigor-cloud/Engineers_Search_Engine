@@ -80,7 +80,6 @@
 
 ### Backlog
 
-- [ ] P3-010 Run Java/Ukraine quality baseline
 - [ ] P3-011 Add adaptive multi-wave runner for quality evaluation
 
 ### In Progress
@@ -96,6 +95,9 @@
 - [x] P3-008 Normalize review flags taxonomy
 - [x] P3-007 Add explainable candidate quality score
 - [x] P3-009 Update frontend candidate quality view
+- [x] P3-010 Run Java/Ukraine quality baseline
+- [x] P3-010.1 Review `missing_selected_stack` candidates from Java/Ukraine baseline
+- [x] P3-010.2 Improve stack evidence display and scoring semantics
 
 ### Current Phase 3 implementation order note
 
@@ -1576,6 +1578,411 @@ Rationale: frontend should render stable backend quality fields instead of guess
   - duplicates removed: `44`;
   - no browser console errors.
 - Desktop and mobile viewport checks confirmed the hybrid candidate card renders without visible overlap.
+
+---
+
+## Task: P3-010 Run Java/Ukraine quality baseline
+
+### Context
+
+`P3-006`, `P3-008`, `P3-007`, and `P3-009` added the first Phase 3 Candidate Quality Layer:
+
+- seniority detection;
+- normalized review flag details;
+- explainable deterministic `quality_score`;
+- hybrid frontend candidate quality view.
+
+The next step is to measure whether this layer is useful on the real Java/Ukraine sourcing scenario.
+
+### Goal
+
+Run a real Java/Ukraine quality baseline and document the results.
+
+This is a test/measurement/acceptance task, not a feature task.
+
+### Baseline input
+
+Use the current Java/Ukraine scenario:
+
+- Role family: `Backend Developer`
+- Technology: `Java`
+- Stack: current agreed test stack, for example `Spring`, `Kafka`, `AWS` or current UI default `Spring`, `Kafka`
+- Location: `Ukraine`
+- `LinkedIn profiles only`: on
+- `Location filter`: on
+
+Record the exact stack used in the result notes.
+
+### What to measure
+
+Search counts:
+
+- queries succeeded/failed;
+- raw Tavily results;
+- displayed occurrences;
+- unique candidates;
+- duplicates removed;
+- hidden by profile filter;
+- hidden by location filter;
+- hidden by foreign current location.
+
+Quality distributions:
+
+- `role_fit`;
+- `technology_fit`;
+- `stack_fit`;
+- `seniority_fit`;
+- review flag distribution;
+- `quality_score` distribution.
+
+Manual review sample:
+
+- inspect top 10-20 candidates;
+- check whether names/headlines are readable;
+- check whether role/technology/stack/seniority display values are honest;
+- check whether review flags are useful or noisy;
+- check whether `quality_score` feels explainable.
+
+### Expected output
+
+Update docs with baseline findings:
+
+- `Tasks.md` implementation/result notes;
+- `ProjectStatus.md` summary;
+- optional dedicated doc such as `docs/phase-3-quality-baseline.md` if the findings are long enough.
+
+### Constraints
+
+- Tavily run is allowed and expected.
+- Do not change backend code inside this task.
+- Do not change frontend code inside this task.
+- Do not change query generation.
+- Do not change filters or location logic.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- If baseline reveals a bug or quality issue, create a separate follow-up task instead of silently fixing it inside `P3-010`.
+- Tavily live numbers are not deterministic; record exact date/time and input.
+
+### Acceptance criteria
+
+- Real Java/Ukraine baseline run completed.
+- Search count metrics are recorded.
+- Candidate quality distributions are recorded.
+- Top candidate sample is reviewed manually.
+- Findings are documented.
+- Any discovered follow-up issues are captured as separate tasks or notes.
+
+### Before implementation
+
+Codex must restate the measurement scope, exact input, and expected documentation updates before running the baseline.
+
+### Approval status
+
+Approved as a test/measurement task.
+
+### Run result
+
+Completed on 2026-05-15, 13:56:08-13:56:15 local Europe/Kiev time.
+
+Exact input:
+
+- Role family: `Backend Developer`
+- Technology: `Java`
+- Stack: `Spring`, `Kafka`
+- Location: `Ukraine`
+- `LinkedIn profiles only`: on
+- `Location filter`: on
+
+Search counts:
+
+- Queries succeeded: 10/10
+- Raw Tavily results: 200
+- Normalized results: 200
+- Displayed occurrences: 102
+- Unique candidates: 57
+- Duplicates removed: 45
+- Hidden by profile filter: 13
+- Hidden by location filter: 85
+- Hidden by foreign current location: 74
+
+Quality summary:
+
+- Role fit: 43 `target_or_close_role`, 11 `similar_role`, 3 `missing_role`
+- Technology fit: 52 `exact`, 5 `missing`
+- Stack fit: 13 `selected_stack_found`, 5 `stack_query_source_only`, 39 `missing_selected_stack`
+- Seniority fit: 30 `found`, 26 `missing`, 1 `ambiguous`
+- Quality score buckets: 2 candidates in `0-39`, 4 in `40-59`, 27 in `60-79`, 24 in `80-100`
+- Quality score average: 76.3
+
+Manual review conclusion:
+
+- Phase 3 quality layer is useful: top quality-score candidates generally have stronger role, technology, stack, and seniority evidence.
+- Review flags are useful and explain uncertainty, especially `selected_stack_missing`, `seniority_from_snippet_only`, `role_from_snippet_only`, and `stack_from_query_source_only`.
+- Stack remains the weakest evidence area because Tavily public LinkedIn snippets often do not expose selected stack terms.
+- No code changes were made inside `P3-010`.
+
+Dedicated notes: `docs/phase-3-quality-baseline.md`.
+
+---
+
+## Task: P3-010.1 Review `missing_selected_stack` candidates from Java/Ukraine baseline
+
+### Context
+
+`P3-010` showed that stack evidence is the weakest part of the current Candidate Quality Layer.
+
+For the baseline input `Backend Developer + Java + Spring/Kafka + Ukraine`:
+
+- 57 unique candidates were found;
+- 13 candidates had direct selected-stack evidence;
+- 5 candidates had only weak query-source stack evidence;
+- 39 candidates had `missing_selected_stack`.
+
+For those 39 candidates, the frontend currently shows `Stack: n/a` and the review flag `selected_stack_missing`.
+
+### Goal
+
+Review the `missing_selected_stack` group before changing code, and decide what product behavior we actually want.
+
+This is a review/analysis task, not a coding task.
+
+### Questions to answer
+
+1. Are these candidates mostly still useful Java candidates, or mostly weak/noisy results?
+2. Is `Stack: n/a` clear enough for the recruiter, or does it look like a data bug?
+3. Should `selected_stack_missing` lower ranking strongly, mildly, or only flag for review?
+4. Should the UI show `Stack not visible in snippet` instead of plain `n/a` for this case?
+5. Should stack be treated differently when it is selected by the user but not visible in public Tavily evidence?
+
+### Proposed steps
+
+1. Use the exact `P3-010` snapshot: `logs/search-runs/2026-05-15T10-56-15Z_structured-search_backend-developer-java-ukraine.json`.
+2. Do not rerun Tavily for this task unless the snapshot is missing or unreadable.
+3. Extract a balanced sample of at least 10 candidates with `stack_fit = missing_selected_stack`:
+   - top quality-score candidates;
+   - middle quality-score candidates;
+   - low quality-score candidates;
+   - candidates from different query sources.
+4. For each sampled candidate, record:
+   - name;
+   - headline;
+   - URL;
+   - quality score;
+   - role display;
+   - technology display;
+   - current stack display;
+   - review flags;
+   - query sources.
+   - short public evidence text from Tavily title/snippet/content.
+5. Compare the sampled candidates against top candidates with direct stack evidence.
+6. Document whether the current `Stack: n/a` behavior is acceptable or should be changed.
+7. Document the recommended scoring direction for `selected_stack_missing`.
+8. Record the result in `Tasks.md`.
+9. If the conclusion affects future product behavior, also update `docs/phase-3-quality-baseline.md`.
+
+### Constraints
+
+- Do not change backend code in this task.
+- Do not change frontend code in this task.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Use only Tavily/public fields already returned by our search pipeline.
+
+### Acceptance criteria
+
+- At least 10 `missing_selected_stack` candidates are reviewed.
+- The sample includes top, middle, low, and different query-source examples.
+- The task answers whether these candidates are useful or mostly noisy.
+- The task gives a clear recommendation for UI wording.
+- The task gives a clear recommendation for quality-score penalty strength.
+- The conclusion is recorded in `Tasks.md`.
+- Any implementation changes are deferred to `P3-010.2`.
+
+### Before implementation
+
+Codex must restate the review scope, exact data source, and no-code constraint before running this analysis.
+
+### Run result
+
+Completed using exact snapshot `logs/search-runs/2026-05-15T10-56-15Z_structured-search_backend-developer-java-ukraine.json`.
+
+No Tavily rerun was made. No backend or frontend code was changed. No LinkedIn profiles were opened.
+
+#### Group summary
+
+`missing_selected_stack` candidates are not mostly noise. They are mostly useful Java candidates with missing public stack evidence:
+
+- Count: 39 of 57 unique candidates.
+- Quality score: min 25, max 80, average 69.3.
+- Role fit: 28 `target_or_close_role`, 8 `similar_role`, 3 `missing_role`.
+- Technology fit: 34 `exact`, 5 `missing`.
+- Seniority fit: 18 `found`, 20 `missing`, 1 `ambiguous`.
+- Location status: 37 `target_location`, 2 `country_domain`.
+
+Direct selected-stack candidates are clearly stronger:
+
+- Count: 13 of 57 unique candidates.
+- Quality score: min 86, max 100, average 96.2.
+- Role fit: 12 `target_or_close_role`, 1 `similar_role`.
+- Technology fit: 13 `exact`.
+- Seniority fit: 9 `found`, 4 `missing`.
+
+Query-source-only stack candidates sit in the middle:
+
+- Count: 5 of 57 unique candidates.
+- Quality score: min 69, max 86, average 79.2.
+- All 5 had exact Java technology evidence, but stack was not directly confirmed.
+
+#### Reviewed `missing_selected_stack` sample
+
+| Candidate | Score | Headline | Role / Tech / Stack | Flags | Queries | Public evidence summary |
+| --- | ---: | --- | --- | --- | --- | --- |
+| [Kate Tyshko](https://ua.linkedin.com/in/kateryna-tyshko) | 80 | Senior Java Software Engineer | Senior Java Software Engineer / Java / n/a | `selected_stack_missing` | Q03 | Title/header confirms Senior Java Software Engineer in Ukraine, but does not show Spring or Kafka. |
+| [Lyubomyr Shaydariv](https://ua.linkedin.com/in/lyubomyr-shaydariv) | 80 | Senior Java developer and tech lead | Senior Java developer / Java / n/a | `selected_stack_missing` | Q01, Q04, Q05 | Header confirms Senior Java developer and tech lead in Lviv, but selected stack is not visible. |
+| [Oleksandr Nazarenko](https://ua.linkedin.com/in/oleksandr-nazarenko-7b9a573a) | 80 | Senior Software Java Engineer | Senior Software Java Engineer / Java / n/a | `selected_stack_missing` | Q04 | Snippet says Java developer with 15 years of backend experience, but no selected stack terms. |
+| [Polina Serhiienko](https://ua.linkedin.com/in/polina-serhiienko-a050851b3) | 80 | Senior Java Backend Engineer - Levi9 Ukraine | Senior Java Backend Engineer / Java / n/a | `selected_stack_missing` | Q03, Q04 | Header confirms Java Backend Engineer in Kyiv, but Spring/Kafka are not visible. |
+| [Artem Sobolenko](https://ua.linkedin.com/in/art-sobolenko) | 75 | Java Software Engineer \| Java Backend Developer \| Web Developer - DRAWER AI | Java Software Engineer / Java / n/a | `selected_stack_missing`, `seniority_missing` | Q02, Q03, Q06 | Header confirms Java Software Engineer and Java Backend Developer, but selected stack is not visible. |
+| [Illia Sytnyk](https://ua.linkedin.com/in/illia-sytnyk-127b2b214) | 75 | Java Developer in B&B Solutions | Java Developer / Java / n/a | `selected_stack_missing`, `seniority_missing` | Q01 | Header confirms Java Developer in Kyiv; snippet says experienced Java developer, but no Spring/Kafka. |
+| [Serhii Avakian](https://ua.linkedin.com/in/serhii-avakian-306980168/en) | 75 | Java Developer | Java Developer / Java / n/a | `selected_stack_missing`, `seniority_missing` | Q05 | Header confirms Java Developer in Dnipro, but selected stack is not visible. |
+| [Tetiana Koval](https://ua.linkedin.com/in/hehetenya) | 75 | Java Software Engineer | Java Software Engineer / Java / n/a | `selected_stack_missing`, `seniority_missing` | Q04, Q05 | Header confirms Java Software Engineer in Lviv; snippet mentions Java Developer experience, but no selected stack. |
+| [Alexander Stepanov](https://ua.linkedin.com/in/avstepanov) | 46 | Full Stack Web Developer. - DrugCards | Developer / n/a / n/a | `role_similar_only`, `technology_missing`, `selected_stack_missing`, `seniority_missing` | Q03 | Header points to Full Stack Web Developer; Java and selected stack are not confirmed. This is weak/noisy. |
+| [Danish Mukhammad](https://ua.linkedin.com/in/danishm21) | 46 | Middle+ / Senior Backend Engineer \| Node.js \| Fintech - Superlogic | Senior Backend Engineer / n/a / n/a | `role_similar_only`, `technology_missing`, `selected_stack_missing`, `seniority_ambiguous` | Q03 | Header points to Node.js Backend Engineer in Odesa. This is not a good Java match. |
+| [Roman Zherebetskyi](https://ua.linkedin.com/in/roman-zherebetskyi-80b774b9) | 25 | n/a | n/a / n/a / n/a | `role_missing`, `technology_missing`, `selected_stack_missing`, `seniority_missing` | Q03 | Header has person/company/location but no useful role, Java, or stack evidence. This is noise. |
+| [Andriy Pavlyuk](https://ua.linkedin.com/in/andriy-pavlyuk-56890080) | 25 | n/a | n/a / n/a / n/a | `role_missing`, `technology_missing`, `selected_stack_missing`, `seniority_missing` | Q06 | Header has person/company/location but no useful role, Java, or stack evidence. This is noise. |
+
+#### Comparison with direct stack evidence
+
+Top direct-stack candidates look significantly stronger because the public evidence explicitly includes Spring/Kafka or related selected stack terms:
+
+- [Andriy Paliychuk](https://ua.linkedin.com/in/andriy-paliychuk), score 100, `Stack: Spring`.
+- [Vyacheslav Vasyanovich](https://ua.linkedin.com/in/viacheslav-vasianovych), score 100, `Stack: Spring, Kafka`.
+- [Alexander Kuziv](https://ua.linkedin.com/in/alexander-kuziv), score 97, `Stack: Spring, Kafka`.
+- [Andrii Didukh](https://ua.linkedin.com/in/andrii-didukh-b83029218), score 97, `Stack: Spring`.
+- [Andrii Mykytyn](https://ua.linkedin.com/in/andriimykytyn), score 97, `Stack: Spring`.
+
+#### Conclusion
+
+- `missing_selected_stack` mostly means "selected stack is not visible in the public Tavily snippet", not "candidate does not know Spring/Kafka".
+- The current backend behavior is honest because it does not display selected stack terms as facts unless direct evidence exists.
+- The current frontend wording `Stack: n/a` is too blunt and can look like missing product data.
+- Recommended UI wording for `P3-010.2`: show `Stack: Not visible` when selected stack was requested but not found in candidate public text.
+- Recommended scoring direction: keep `selected_stack_missing` as a meaningful ranking penalty, but not a hard filter. The current score behavior is acceptable for now because strong Java candidates can still score 75-80, while direct stack candidates rise to 86-100.
+- Keep `stack_query_source_only` as weak evidence and keep the visible review flag; query source should not be treated as direct stack proof.
+
+---
+
+## Task: P3-010.2 Improve stack evidence display and scoring semantics
+
+### Context
+
+`P3-010` and `P3-010.1` focus attention on a specific product issue: selected stack terms such as `Spring` and `Kafka` are important to the recruiter, but Tavily public LinkedIn snippets often do not expose stack evidence.
+
+The current behavior is honest but may be too blunt:
+
+- direct stack evidence shows as `Stack: Spring`, `Stack: Kafka`, or `Stack: Spring, Kafka`;
+- query-source-only stack evidence is weak and flagged;
+- missing selected stack shows as `Stack: n/a` with `selected_stack_missing`.
+
+The product needs clearer semantics so the recruiter understands the difference between "not found in public snippet" and "candidate does not know this stack".
+
+### Goal
+
+Improve stack evidence semantics in the Candidate Quality Layer without pretending that query terms are confirmed candidate skills.
+
+### Proposed behavior
+
+Keep these principles:
+
+1. Do not display selected stack terms as facts unless they were directly found in candidate text.
+2. Keep `stack_query_source_only` as weak evidence, not as confirmed stack.
+3. Keep `selected_stack_missing` visible as a review flag.
+4. Replace recruiter-facing `Stack: n/a` with clearer wording when selected stack was requested but not visible.
+5. Keep the current quality-score penalty unchanged in this task; `P3-010.1` showed the current penalty separates direct-stack candidates from missing-stack candidates without hiding useful Java candidates.
+
+Final stack display states:
+
+- Direct evidence: show actual matched stack terms, for example `Spring`, `Kafka`, or `Spring, Kafka`.
+- Missing selected stack: show `Not visible`.
+- Query-source-only stack signal: show `Not confirmed`.
+- No stack requested, if this exists in a future flow: show `N/A`.
+
+### Proposed steps
+
+1. Review `P3-010.1` conclusions before changing code.
+2. Define final stack display states:
+   - direct selected stack found -> matched terms, for example `Spring`, `Kafka`, or `Spring, Kafka`;
+   - related stack found -> matched related terms, if already supported by backend evidence;
+   - query-source-only stack signal -> `Not confirmed`;
+   - selected stack not visible in public snippet -> `Not visible`;
+   - no stack requested -> `N/A`.
+3. Update backend quality metadata only if needed to support clearer frontend semantics.
+4. Update frontend stack display wording if approved.
+5. Keep quality-score penalty unchanged and document why.
+6. Keep review flags visible and normalized.
+7. Add or update smoke checks for stack display and scoring.
+8. Verify with a real or snapshot Java/Ukraine run.
+9. Document the result in `Tasks.md`, `ProjectStatus.md`, and, if useful, `docs/phase-3-quality-baseline.md`.
+
+### Constraints
+
+- Do not treat query-source stack as direct candidate evidence.
+- Do not hide candidates only because selected stack is missing from public snippet.
+- Do not add hidden filters.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Do not change `QueryPlanner v1` unless separately approved.
+
+### Acceptance criteria
+
+- Recruiter-facing stack display is clearer than plain `n/a` for selected-but-not-visible stack.
+- `missing_selected_stack` displays as `Not visible`.
+- `stack_query_source_only` displays as `Not confirmed`.
+- Direct stack evidence still displays actual matched terms such as `Spring`, `Kafka`, or `Spring, Kafka`.
+- Future no-stack-requested state is reserved as `N/A`.
+- Direct stack evidence remains clearly separated from query-source-only evidence.
+- `selected_stack_missing` remains visible and explainable.
+- Quality-score formula remains unchanged and this decision is documented.
+- Existing Phase 3 quality fields remain backward-compatible unless a breaking change is explicitly approved.
+
+### Before implementation
+
+Codex must restate the proposed stack semantics, exact UI/backend changes, and scoring change before applying code.
+
+### Implementation result
+
+Implemented as a focused frontend display-semantics change.
+
+Changed:
+
+- `selected_stack_found` keeps showing direct evidence terms such as `Spring`, `Kafka`, or `Spring, Kafka`.
+- `missing_selected_stack` now displays `Not visible`.
+- `stack_query_source_only` now displays `Not confirmed`.
+- future `missing` / no-stack-requested state displays `N/A`.
+
+Not changed:
+
+- backend search logic;
+- `QueryPlanner v1`;
+- filters;
+- quality-score formula;
+- review flag taxonomy.
+
+Reasoning:
+
+- `P3-010.1` showed that `missing_selected_stack` is usually missing public snippet evidence, not proof that the candidate lacks the selected stack.
+- The previous frontend value `Stack: n/a` was too blunt.
+- The current scoring already separates direct-stack candidates from missing-stack candidates without hiding useful Java candidates.
+
+Verification:
+
+- `node --check app/static/app.js`
+- frontend stack mapping smoke passed;
+- snapshot stack-state smoke passed for `selected_stack_found`, `missing_selected_stack`, and `stack_query_source_only`;
+- render smoke passed for `Spring, Kafka`, `Not visible`, `Not confirmed`, and `N/A`;
+- `python -m compileall app`
 
 ---
 

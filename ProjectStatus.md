@@ -14,15 +14,24 @@ Current phase: `Phase 3 - Candidate Quality Layer`.
 
 Later phase: `Phase 4 - AI Query Planner v0`.
 
-Completed through `P3-009`: backend candidates now include seniority, normalized review flag details, explainable `quality_score`, and the frontend renders a hybrid candidate quality view. Next recommended task: `P3-010 Run Java/Ukraine quality baseline`.
+Completed through `P3-010.2`: backend candidates now include seniority, normalized review flag details, explainable `quality_score`, the frontend renders a hybrid candidate quality view, the first real Java/Ukraine quality baseline is documented, the `missing_selected_stack` group has been reviewed, and stack evidence display labels are clearer. Next recommended task: `P3-011 Add adaptive multi-wave runner for quality evaluation`.
 
-Latest Phase 3 UI verification run used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
+Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
 - Queries succeeded: 10/10
-- Raw Tavily results: 199
-- Displayed occurrences: 101
+- Raw Tavily results: 200
+- Displayed occurrences: 102
 - Unique candidates: 57
-- Duplicates removed: 44
+- Duplicates removed: 45
+- Hidden by profile filter: 13
+- Hidden by location filter: 85
+- Quality score average: 76.3
+
+Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for ranking and review, but selected stack evidence remains weak in public Tavily/LinkedIn snippets. See `docs/phase-3-quality-baseline.md`.
+
+`P3-010.1` conclusion: `missing_selected_stack` mostly means the selected stack is not visible in Tavily public snippets, not that the candidate lacks the stack. The current backend behavior is honest, but the frontend wording `Stack: n/a` was too blunt. The agreed display label is now `Not visible` for selected-but-unconfirmed stack while keeping `selected_stack_missing` as a ranking penalty, not a hard filter.
+
+`P3-010.2` implemented the agreed frontend display semantics: direct evidence shows actual stack terms, `missing_selected_stack` shows `Not visible`, `stack_query_source_only` shows `Not confirmed`, and future no-stack-requested state is reserved as `N/A`. Quality scoring and backend search/filter logic were not changed.
 
 ## What was built in Phase 1
 
@@ -282,6 +291,9 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - Phase 2 multi-wave Tavily experiments completed for 1, 3, 5, and 10 waves.
 - Phase 3 local smoke checks passed for seniority detection, review flag taxonomy, and quality score.
 - Phase 3 browser verification passed for the hybrid candidate quality view on desktop and mobile viewport.
+- Phase 3 `P3-010` real Java/Ukraine quality baseline completed: 57 unique candidates from 200 raw Tavily results.
+- Phase 3 `P3-010.1` no-code review completed for `missing_selected_stack` candidates from the exact baseline snapshot.
+- Phase 3 `P3-010.2` frontend stack display semantics passed syntax, mapping, snapshot-state, render, and compile checks.
 
 ## Current known limitations
 
@@ -302,3 +314,4 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - `Roadmap.md`
 - `Tasks.md`
 - `docs/phase-1-poc-findings.md`
+- `docs/phase-3-quality-baseline.md`

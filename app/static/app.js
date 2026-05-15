@@ -244,6 +244,22 @@ function renderQualityField(label, value, modifier = "") {
   `;
 }
 
+function stackDisplayValue(result = {}) {
+  if (result.stack_fit === "missing_selected_stack") {
+    return "Not visible";
+  }
+
+  if (result.stack_fit === "stack_query_source_only") {
+    return "Not confirmed";
+  }
+
+  if (result.stack_fit === "missing") {
+    return "N/A";
+  }
+
+  return displayValue(result.stack_display, "N/A");
+}
+
 function renderFlagBadges(flagDetails = []) {
   if (!flagDetails.length) {
     return `<span class="flag-badge severity-info">No review flags</span>`;
@@ -377,7 +393,7 @@ function renderResults(dedupedResults, report) {
             ${renderQualityField("Location", locationDisplay)}
             ${renderQualityField("Role", result.role_display)}
             ${renderQualityField("Tech", result.technology_display)}
-            ${renderQualityField("Stack", result.stack_display)}
+            ${renderQualityField("Stack", stackDisplayValue(result))}
             ${renderQualityField("Seniority", result.seniority_display)}
             ${renderQualityField("Source", result.source || "unknown")}
           </div>
