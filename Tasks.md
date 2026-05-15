@@ -80,8 +80,6 @@
 
 ### Backlog
 
-- [ ] P3-011 Add adaptive multi-wave runner for quality evaluation
-
 ### In Progress
 
 ### Done
@@ -98,6 +96,9 @@
 - [x] P3-010 Run Java/Ukraine quality baseline
 - [x] P3-010.1 Review `missing_selected_stack` candidates from Java/Ukraine baseline
 - [x] P3-010.2 Improve stack evidence display and scoring semantics
+- [x] P3-011 Add experimental multi-wave API runner
+- [x] P3-012 Evaluate adaptive multi-wave results
+- [x] P3-013 Add visible Multi-wave frontend toggle
 
 ### Current Phase 3 implementation order note
 
@@ -2003,7 +2004,7 @@ Verification:
 
 ---
 
-## Task: P3-011 Add adaptive multi-wave runner for quality evaluation
+## Task: P3-011 Add experimental multi-wave API runner
 
 ### Context
 
@@ -2020,18 +2021,46 @@ The conclusion is not to always run many waves. The useful product idea is an ad
 
 ### Goal
 
-Add multi-wave execution as a supporting Phase 3 capability so Candidate Quality Layer evaluation can use a more stable candidate pool when needed.
+Add an experimental backend API runner for multi-wave execution so Candidate Quality Layer evaluation can use a larger candidate pool when explicitly requested.
 
 The runner should repeat the same validated `QueryPlan`, dedupe across waves by normalized LinkedIn URL, and stop based on incremental unique gain.
 
+This task should not add frontend controls yet.
+
 ### Proposed behavior
 
+- Add a new experimental endpoint instead of changing the current stable single-wave `/api/structured-search` behavior:
+  - `/api/structured-search/multi-wave`.
 - Input uses the same structured search request and generated `QueryPlan` as the current pipeline.
+- Extract or reuse an internal helper for one `QueryPlan` execution wave so the new endpoint does not duplicate Tavily execution logic from the single-wave endpoint.
+- Additional explicit request fields:
+  - `max_waves`;
+  - `min_new_unique_per_wave`;
+  - `patience`.
+- Safety defaults:
+  - default `max_waves = 5`;
+  - maximum allowed `max_waves = 7`;
+  - default `min_new_unique_per_wave = 3`;
+  - default `patience = 2`.
+- Validation:
+  - `max_waves` minimum `1`, maximum `7`;
+  - `min_new_unique_per_wave` minimum `0`;
+  - `patience` minimum `1`;
+  - invalid values return validation errors using the existing structured-search validation style.
 - Each wave runs the same 10 query slots through Tavily.
-- Each returned candidate keeps `wave_id`, `query_id`, and existing `query_sources` metadata.
+- Keep the existing `query_sources` structure unchanged because Candidate Quality already uses it.
+- Add a separate `wave_sources` array for multi-wave evidence:
+  - `wave_id`;
+  - `query_id`;
+  - `query`;
+  - `role_phrase`;
+  - `uses_stack`.
 - Results are deduped across waves by normalized LinkedIn profile URL.
 - The report includes per-wave and cumulative metrics:
   - `waves_run`;
+  - `planned_max_waves`;
+  - `stop_reason`;
+  - `queries_executed`;
   - `raw_total`;
   - `unique_profiles_per_wave`;
   - `new_unique_profiles_per_wave`;
@@ -2040,9 +2069,10 @@ The runner should repeat the same validated `QueryPlan`, dedupe across waves by 
   - `hidden_by_profile_filter`;
   - `hidden_by_location_filter`;
   - `hidden_by_foreign_current_location`.
-- Stop condition should be configurable. Initial conservative proposal:
-  - `max_waves = 5`;
-  - stop after `2` consecutive waves with fewer than `3` new unique displayed profiles.
+- Stop condition:
+  - compute new unique profiles after visible filters and normalized-url cross-wave dedupe;
+  - stop after `patience` consecutive waves where new unique profiles are lower than `min_new_unique_per_wave`;
+  - always stop at `max_waves`.
 
 ### Constraints
 
@@ -2050,23 +2080,361 @@ The runner should repeat the same validated `QueryPlan`, dedupe across waves by 
 - Do not add AI planner behavior in this task.
 - Do not change Candidate Quality scoring in this task.
 - Do not bypass visible filters.
+- Do not change current single-wave `/api/structured-search` behavior.
+- If shared internal code is extracted, it must preserve the current single-wave API response and snapshot behavior.
+- Do not change the existing `query_sources` contract.
+- Do not add frontend controls in this task.
 - Do not open LinkedIn profiles.
 - Do not scrape LinkedIn.
 - Do not make multi-wave the default until cost/benefit is confirmed.
 
 ### Acceptance criteria
 
-- Multi-wave execution can run the same `QueryPlan` for multiple waves.
+- A separate experimental API path can run the same `QueryPlan` for multiple waves.
 - Deduping works across waves, not only inside one wave.
 - Report shows per-wave new unique gain and cumulative unique profiles.
 - Runner can stop early when incremental unique gain is low.
 - Candidate metadata preserves enough evidence to explain which wave/query found the candidate.
-- Local structured-search snapshots include multi-wave report data.
-- Frontend or API clearly marks multi-wave mode as experimental/supporting, not the default Phase 2 search path.
+- Local snapshots for this endpoint use `snapshot_type = "structured-search-multi-wave"` and include multi-wave report data.
+- API clearly marks multi-wave mode as experimental/supporting, not the default Phase 2 search path.
+- The stable single-wave search endpoint remains unchanged.
+- Smoke checks cover validation, cross-wave dedupe, stop condition, snapshot shape, and unchanged single-wave endpoint behavior without requiring a real Tavily run.
 
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+Implemented as a backend-only experimental API runner.
+
+Added:
+
+- new endpoint: `/api/structured-search/multi-wave`;
+- `MultiWaveStructuredSearchRequest` with:
+  - `max_waves`;
+  - `min_new_unique_per_wave`;
+  - `patience`;
+- safety defaults:
+  - default `max_waves = 5`;
+  - maximum allowed `max_waves = 7`;
+  - default `min_new_unique_per_wave = 3`;
+  - default `patience = 2`;
+- validation for `max_waves`, `min_new_unique_per_wave`, and `patience`;
+- shared internal `run_query_plan_wave(...)` helper used by both single-wave and multi-wave flows;
+- cross-wave dedupe by normalized LinkedIn profile URL;
+- separate `wave_sources` metadata while preserving existing `query_sources`;
+- multi-wave report fields:
+  - `experimental`;
+  - `mode`;
+  - `multi_wave_settings`;
+  - `waves_run`;
+  - `planned_max_waves`;
+  - `stop_reason`;
+  - `queries_executed`;
+  - `unique_profiles_per_wave`;
+  - `new_unique_profiles_per_wave`;
+  - `cumulative_unique_profiles`;
+  - `duplicates_across_waves`;
+  - `wave_reports`;
+- multi-wave snapshot support with `snapshot_type = "structured-search-multi-wave"`.
+
+Not changed:
+
+- `/api/structured-search` external response shape;
+- `QueryPlanner v1`;
+- Candidate Quality scoring;
+- visible filters;
+- frontend controls.
+
+Verification:
+
+- `python -m compileall app`;
+- `node --check app/static/app.js`;
+- `git diff --check`;
+- no-Tavily multi-wave endpoint smoke:
+  - validation rejects `max_waves = 8`;
+  - endpoint stops early after `patience = 2` low-gain waves;
+  - cross-wave dedupe produces expected cumulative unique counts;
+  - `wave_sources` is present only in multi-wave results;
+  - single-wave `/api/structured-search` remains non-experimental and does not include `wave_sources`;
+  - multi-wave snapshot type is `structured-search-multi-wave`.
+
+Real Tavily evaluation is intentionally deferred to `P3-012`.
+
+---
+
+## Task: P3-012 Evaluate adaptive multi-wave results
+
+### Context
+
+`P3-011` adds an experimental backend multi-wave API runner. Before exposing it in the frontend, we need to measure whether it actually improves candidate quality or only spends more Tavily requests.
+
+### Goal
+
+Run controlled multi-wave experiments and decide whether the adaptive runner is useful enough to expose to users.
+
+This is a measurement/documentation task, not a feature task.
+
+### Proposed steps
+
+1. Use the same baseline input as `P3-010`:
+   - Role family: `Backend Developer`;
+   - Technology: `Java`;
+   - Stack: `Spring`, `Kafka`;
+   - Location: `Ukraine`;
+   - `LinkedIn profiles only`: on;
+   - `Location filter`: on.
+2. Run one primary real request against the experimental multi-wave endpoint with the approved default settings:
+   - `max_waves = 5`;
+   - `min_new_unique_per_wave = 3`;
+   - `patience = 2`.
+3. Do not run a second Tavily experiment unless the first result is clearly contradictory or broken and the user separately approves another run.
+4. Compare against:
+   - the historical `P3-010` single-wave baseline;
+   - wave 1 inside the same multi-wave run;
+   - final cumulative multi-wave result.
+5. Measure search/cost metrics:
+   - unique candidates;
+   - new unique candidates per wave;
+   - `waves_run`;
+   - `stop_reason`;
+   - `queries_executed`;
+   - hidden by filters.
+6. Measure quality of the cumulative result and incremental candidates:
+   - quality-score distribution;
+   - new high-quality candidates with `quality_score >= 80`;
+   - direct stack evidence count;
+   - missing stack count;
+   - seniority found/missing;
+   - technology missing count;
+   - low/noisy candidates.
+7. Document whether multi-wave improves candidate quality enough to justify the extra Tavily cost.
+8. Record the result in `Tasks.md`, `ProjectStatus.md`, and a dedicated doc if useful.
+9. Provide a recommendation for `P3-013`, but do not implement or approve frontend behavior inside this task.
+
+### Constraints
+
+- Do not change code in this task unless a bug blocks the measurement and is separately approved.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Do not expose frontend controls in this task.
+- Do not treat Tavily live counts as deterministic.
+- Do not run repeated Tavily experiments without separate approval.
+- Do not make a final frontend decision in this task; provide a recommendation for `P3-013`.
+
+### Acceptance criteria
+
+- At least one real adaptive multi-wave run is completed.
+- Results are compared with the historical `P3-010` single-wave baseline.
+- Results are compared with wave 1 from the same multi-wave run.
+- Final cumulative multi-wave result is documented.
+- Extra cost is described through `waves_run`, `stop_reason`, `new_unique_profiles_per_wave`, and `queries_executed`.
+- Quality of incremental candidates is reviewed.
+- Recommendation for `P3-013` is documented: expose, keep backend-only, tune, or drop.
+
+### Before implementation
+
+Codex must restate the measurement scope, exact input, run settings, and documentation updates before running the experiment.
+
+### Run result
+
+Completed one real adaptive multi-wave run on 2026-05-15, 16:37:00-16:37:53 local time.
+
+Input:
+
+- Role family: `Backend Developer`
+- Technology: `Java`
+- Stack: `Spring`, `Kafka`
+- Location: `Ukraine`
+- `LinkedIn profiles only`: on
+- `Location filter`: on
+- `max_waves = 5`
+- `min_new_unique_per_wave = 3`
+- `patience = 2`
+
+Snapshot:
+
+- `logs/search-runs/2026-05-15T13-37-53Z_structured-search-multi-wave_backend-developer-java-ukraine.json`
+
+Run summary:
+
+- Waves run: 4 of planned 5
+- Stop reason: `low_incremental_gain`
+- Queries executed: 40
+- Queries succeeded: 40
+- Queries failed: 0
+- Raw Tavily results: 754
+- Displayed occurrences: 457
+- Final unique candidates: 67
+- Duplicates removed: 390
+- Duplicates across waves: 176
+- Hidden by profile filter: 41
+- Hidden by location filter: 256
+- Hidden by foreign current location: 216
+
+Per-wave unique gain:
+
+| Wave | Raw | Displayed | Wave unique | New unique | Cumulative unique |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 176 | 109 | 60 | 60 | 60 |
+| 2 | 179 | 109 | 60 | 6 | 66 |
+| 3 | 199 | 119 | 62 | 1 | 67 |
+| 4 | 200 | 120 | 61 | 0 | 67 |
+
+Comparison:
+
+- Historical `P3-010` single-wave baseline: 57 unique candidates from 200 raw Tavily results.
+- Wave 1 inside this multi-wave run: 60 unique candidates from 176 raw Tavily results.
+- Final cumulative multi-wave result: 67 unique candidates from 754 raw Tavily results.
+- Incremental gain over same-run wave 1: +7 unique candidates for +30 extra Tavily queries.
+
+Cumulative quality:
+
+- Quality score average: 76.6
+- Quality score buckets: 1 in `0-39`, 6 in `40-59`, 32 in `60-79`, 28 in `80-100`
+- Role fit: 51 `target_or_close_role`, 15 `similar_role`, 1 `missing_role`
+- Technology fit: 61 `exact`, 6 `missing`
+- Stack fit: 13 `selected_stack_found`, 7 `stack_query_source_only`, 47 `missing_selected_stack`
+- Seniority fit: 35 `found`, 31 `missing`, 1 `ambiguous`
+
+Incremental candidates after wave 1:
+
+- Total new incremental candidates: 7
+- New high-quality candidates with `quality_score >= 80`: 3
+- New direct-stack candidates: 1
+- New query-source-only stack candidates: 1
+- New missing-stack candidates: 5
+- New technology-missing candidates: 3
+- New low-score candidates under 60: 3
+
+Conclusion:
+
+- Multi-wave works technically and stops correctly.
+- It added candidates, but the incremental gain was modest: +7 unique candidates after 30 additional Tavily queries.
+- Quality did improve slightly in absolute candidate count: +3 high-quality candidates and +1 direct-stack candidate after wave 1.
+- Cost/gain is mixed: 4x query cost compared with one wave for about +11.7% unique candidates over the same-run wave 1.
+- Recommendation for `P3-013`: do not make multi-wave default. Keep it backend-only for now or consider a clearly labeled advanced/deeper-search control with cost/latency warning.
+
+---
+
+## Task: P3-013 Add visible Multi-wave frontend toggle
+
+### Context
+
+`P3-011` added the backend experimental runner. `P3-012` measured the cost/gain tradeoff: multi-wave can add candidates, but the incremental gain is modest and should not be default.
+
+User decision: expose multi-wave as an explicit frontend toggle, off by default.
+
+### Goal
+
+Add a visible frontend `Multi-wave` toggle.
+
+Default behavior remains single-wave search through `/api/structured-search`.
+
+If the user enables `Multi-wave` and clicks Search, frontend should call `/api/structured-search/multi-wave`.
+
+### Proposed behavior
+
+- Add visible toggle label: `Multi-wave`.
+- Toggle is off by default.
+- If toggle is off:
+  - call existing `/api/structured-search`;
+  - current single-wave behavior remains unchanged.
+- If toggle is on:
+  - call `/api/structured-search/multi-wave`;
+  - send default multi-wave settings:
+    - `max_waves = 5`;
+    - `min_new_unique_per_wave = 3`;
+    - `patience = 2`.
+- Show that multi-wave mode was used.
+- Show multi-wave report fields when present:
+  - `waves_run`;
+  - `queries_executed`;
+  - `stop_reason`;
+  - `new_unique_profiles_per_wave`.
+- Keep wave/source metadata inside existing details; do not redesign candidate cards in this task.
+
+### Proposed steps
+
+1. Add a checkbox/toggle input to the form.
+2. Keep it unchecked by default.
+3. Add frontend request builder logic:
+   - single-wave payload unchanged when toggle is off;
+   - multi-wave payload includes the approved default settings when toggle is on.
+4. Update Search submit logic to choose endpoint based on the toggle.
+5. Update loading/status copy so multi-wave feels slower/explicit.
+6. Update report rendering to include multi-wave metrics only when response report has `mode = multi_wave` or `experimental = true`.
+7. Add frontend smoke checks for:
+   - default endpoint remains `/api/structured-search`;
+   - toggle-on endpoint becomes `/api/structured-search/multi-wave`;
+   - multi-wave settings are sent;
+   - report renders multi-wave metrics.
+8. Verify syntax and compile checks.
+9. Update `Tasks.md`, `ProjectStatus.md`, and `Roadmap.md`.
+
+### Constraints
+
+- Multi-wave must remain off by default.
+- Do not hide Tavily cost/latency implications.
+- Do not change backend runner behavior in this task unless separately approved.
+- Do not add AI planner behavior.
+- Do not change Candidate Quality scoring.
+- Do not change `QueryPlanner v1`.
+- Do not run a new Tavily evaluation in this task unless separately approved.
+
+### Acceptance criteria
+
+- A visible `Multi-wave` toggle exists.
+- Toggle is off by default.
+- Search uses `/api/structured-search` when toggle is off.
+- Search uses `/api/structured-search/multi-wave` when toggle is on.
+- Multi-wave request sends approved default settings.
+- UI shows key multi-wave metrics when available.
+- Existing single-wave behavior remains unchanged.
+
+### Before implementation
+
+Approved by user after confirming the intended behavior.
+
+### Implementation result
+
+Implemented the approved frontend control.
+
+Changed:
+
+- Added visible `Multi-wave` toggle to the search form.
+- Toggle is unchecked by default.
+- When toggle is off, Search uses `/api/structured-search`.
+- When toggle is on, Search uses `/api/structured-search/multi-wave`.
+- Multi-wave request sends approved defaults:
+  - `max_waves = 5`;
+  - `min_new_unique_per_wave = 3`;
+  - `patience = 2`.
+- Report status now labels `Single-wave` or `Multi-wave`.
+- Multi-wave report adds visible metrics when present:
+  - `Waves`;
+  - `Executed queries`;
+  - `Stop reason`;
+  - `New per wave`.
+
+Not changed:
+
+- backend runner behavior;
+- `QueryPlanner v1`;
+- Candidate Quality scoring;
+- default single-wave behavior.
+
+Verification:
+
+- `node --check app/static/app.js`;
+- `python -m compileall app`;
+- frontend smoke confirmed:
+  - default endpoint is `/api/structured-search`;
+  - toggle-on endpoint is `/api/structured-search/multi-wave`;
+  - toggle-on request includes multi-wave defaults;
+  - multi-wave report metrics render.
 
 ---
 

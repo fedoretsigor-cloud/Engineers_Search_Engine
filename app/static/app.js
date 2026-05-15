@@ -5,6 +5,7 @@ const technologySelect = document.querySelector("#technology");
 const locationInput = document.querySelector("#location");
 const profilesOnlyInput = document.querySelector("#profiles-only");
 const locationFilterInput = document.querySelector("#location-filter-enabled");
+const multiWaveInput = document.querySelector("#multi-wave-enabled");
 const refreshPlanButton = document.querySelector("#refresh-plan");
 const stackMessage = document.querySelector("#stack-message");
 const planStatus = document.querySelector("#plan-status");
@@ -19,6 +20,12 @@ const stackInputs = Array.from(document.querySelectorAll('input[name="stack"]'))
 
 let planRefreshTimer = null;
 let locationFilterTouched = false;
+
+const MULTI_WAVE_DEFAULTS = {
+  max_waves: 5,
+  min_new_unique_per_wave: 3,
+  patience: 2,
+};
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -58,6 +65,25 @@ function buildStructuredRequest() {
     linkedin_profiles_only: profilesOnlyInput.checked,
     location_filter_enabled: locationFilterInput.checked,
   };
+}
+
+function buildSearchRequest() {
+  const request = buildStructuredRequest();
+
+  if (!multiWaveInput.checked) {
+    return request;
+  }
+
+  return {
+    ...request,
+    ...MULTI_WAVE_DEFAULTS,
+  };
+}
+
+function searchEndpoint() {
+  return multiWaveInput.checked
+    ? "/api/structured-search/multi-wave"
+    : "/api/structured-search";
 }
 
 function validationMessage(errors) {
@@ -184,7 +210,8 @@ function renderReport(report) {
     return;
   }
 
-  reportStatus.textContent = `${report.queries_succeeded} of ${report.queries_total} ${pluralize(
+  const reportMode = report.mode === "multi_wave" ? "Multi-wave" : "Single-wave";
+  reportStatus.textContent = `${reportMode}: ${report.queries_succeeded} of ${report.queries_total} ${pluralize(
     report.queries_total,
     "query",
     "queries"
@@ -204,6 +231,14 @@ function renderReport(report) {
     ["Unknown location", report.unknown_non_country_domain_location],
     ["Failed queries", report.queries_failed],
   ];
+  if (report.mode === "multi_wave" || report.experimental) {
+    fields.push(
+      ["Waves", report.waves_run],
+      ["Executed queries", report.queries_executed],
+      ["Stop reason", report.stop_reason],
+      ["New per wave", (report.new_unique_profiles_per_wave || []).join(", ")]
+    );
+  }
 
   reportGrid.innerHTML = fields
     .map(
@@ -427,19 +462,23 @@ async function runStructuredSearch() {
 
   searchButton.disabled = true;
   refreshPlanButton.disabled = true;
-  resultsStatus.textContent = "Searching Tavily...";
-  reportStatus.textContent = "Running query plan...";
+  resultsStatus.textContent = multiWaveInput.checked
+    ? "Searching Tavily with multi-wave..."
+    : "Searching Tavily...";
+  reportStatus.textContent = multiWaveInput.checked
+    ? "Running multi-wave query plan..."
+    : "Running query plan...";
   resultsList.innerHTML = "";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
 
   try {
-    const response = await fetch("/api/structured-search", {
+    const response = await fetch(searchEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildStructuredRequest()),
+      body: JSON.stringify(buildSearchRequest()),
     });
     const data = await response.json();
 

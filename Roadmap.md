@@ -141,6 +141,8 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 - Phase 3 multi-wave search should stop based on incremental unique gain. Recent experiments: 1 wave gave 60 unique, 3 waves gave 64 cumulative unique, one 5-wave block gave 61 cumulative unique, and one 10-wave block gave 60 cumulative unique.
 - Phase 3 quality baseline confirms the quality layer is useful for ranking/review, but selected stack evidence is still weak in public Tavily/LinkedIn snippets.
 - For selected stack terms that are not visible in Tavily public snippets, the UI now says `Not visible`; query-source-only stack evidence says `Not confirmed`.
+- Real `P3-012` multi-wave evaluation produced 67 unique candidates after 4 waves and 40 Tavily queries; incremental gain over wave 1 was +7 unique candidates, so multi-wave should not become default yet.
+- `P3-013` keeps single-wave as default and exposes multi-wave only through an explicit frontend toggle that is off by default.
 
 ### Planned
 
@@ -152,7 +154,7 @@ Phase 3 выбрана как следующий этап. AI Query Planner пе
 
 ### In Progress
 
-- Phase 3: `Candidate Quality Layer` - completed through `P3-010.2`; next task is `P3-011 Add adaptive multi-wave runner for quality evaluation`.
+- Phase 3: `Candidate Quality Layer` - completed through `P3-013`; next task should be reviewed before implementation.
 
 ### Done
 

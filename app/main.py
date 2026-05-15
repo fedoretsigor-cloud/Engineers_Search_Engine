@@ -23,6 +23,10 @@ TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 QUERY_PLANNER_VERSION = "rule_based_v1"
 QUERY_PLAN_MAX_RESULTS = 20
 CANDIDATE_QUALITY_SCORE_VERSION = "candidate_quality_v1"
+MULTI_WAVE_DEFAULT_MAX_WAVES = 5
+MULTI_WAVE_MAX_ALLOWED_WAVES = 7
+MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE = 3
+MULTI_WAVE_DEFAULT_PATIENCE = 2
 QUERY_PLAN_REPORTING_FIELDS = [
     "queries_total",
     "queries_succeeded",
@@ -379,6 +383,12 @@ class StructuredSearchRequest(BaseModel):
     location: str | None = None
     linkedin_profiles_only: bool | None = None
     location_filter_enabled: bool | None = None
+
+
+class MultiWaveStructuredSearchRequest(StructuredSearchRequest):
+    max_waves: int | None = None
+    min_new_unique_per_wave: int | None = None
+    patience: int | None = None
 
 
 def detect_source(url: str) -> str:
@@ -899,11 +909,32 @@ def query_source_from_result(query_result: dict) -> dict:
     }
 
 
+def wave_source_from_result(query_result: dict) -> dict:
+    return {
+        "wave_id": query_result["wave_id"],
+        "query_id": query_result["query_id"],
+        "query": query_result["query"],
+        "role_phrase": query_result.get("role_phrase"),
+        "uses_stack": query_result.get("uses_stack", []),
+    }
+
+
 def append_unique_query_source(query_sources: list[dict], query_source: dict) -> None:
     if any(source["id"] == query_source["id"] for source in query_sources):
         return
 
     query_sources.append(query_source)
+
+
+def append_unique_wave_source(wave_sources: list[dict], wave_source: dict) -> None:
+    if any(
+        source["wave_id"] == wave_source["wave_id"]
+        and source["query_id"] == wave_source["query_id"]
+        for source in wave_sources
+    ):
+        return
+
+    wave_sources.append(wave_source)
 
 
 def search_domain_config_for(role_family: str, technology: str) -> dict:
@@ -1792,6 +1823,7 @@ def merge_location_signal_metadata(location_signals: list[dict]) -> dict:
 def build_deduped_results_and_report(
     query_plan: dict,
     query_results: list[dict],
+    include_wave_sources: bool = False,
 ) -> tuple[list[dict], dict]:
     filters = query_plan["filters"]
     candidates_by_url: dict[str, dict] = {}
@@ -1823,6 +1855,8 @@ def build_deduped_results_and_report(
             "ok": query_result.get("ok", False),
             "error": query_result.get("error"),
         }
+        if "wave_id" in query_result:
+            contribution["wave_id"] = query_result["wave_id"]
 
         if not query_result.get("ok"):
             query_contribution.append(contribution)
@@ -1853,12 +1887,18 @@ def build_deduped_results_and_report(
                 location_occurrence_counts[location_signal["status"]] += 1
 
             query_source = query_source_from_result(query_result)
+            wave_source = (
+                wave_source_from_result(query_result)
+                if include_wave_sources and "wave_id" in query_result
+                else None
+            )
             current_item = candidates_by_url.get(normalized_url)
             if current_item is None:
                 candidates_by_url[normalized_url] = {
                     "normalized_url": normalized_url,
                     "result": normalized_result,
                     "query_sources": [query_source],
+                    "wave_sources": [wave_source] if wave_source else [],
                     "location_signals": [location_signal] if location_signal else [],
                 }
             else:
@@ -1867,6 +1907,8 @@ def build_deduped_results_and_report(
                     normalized_result,
                 )
                 append_unique_query_source(current_item["query_sources"], query_source)
+                if wave_source:
+                    append_unique_wave_source(current_item["wave_sources"], wave_source)
                 if location_signal:
                     current_item["location_signals"].append(location_signal)
 
@@ -1956,21 +1998,22 @@ def build_deduped_results_and_report(
         else:
             contribution["new_unique_profiles"] += 1
             seen_urls.add(normalized_url)
-            deduped_results.append(
-                {
-                    "normalized_url": normalized_url,
-                    "result": candidate["result"],
-                    "query_sources": candidate["query_sources"],
-                    "location_signal_status": candidate["location_signal_status"],
-                    "location_signal_terms": candidate["location_signal_terms"],
-                    "header_location_text": candidate["header_location_text"],
-                    "current_location_line": candidate["current_location_line"],
-                    "current_location_lines": candidate["current_location_lines"],
-                    "current_location_classifications": candidate[
-                        "current_location_classifications"
-                    ],
-                }
-            )
+            deduped_item = {
+                "normalized_url": normalized_url,
+                "result": candidate["result"],
+                "query_sources": candidate["query_sources"],
+                "location_signal_status": candidate["location_signal_status"],
+                "location_signal_terms": candidate["location_signal_terms"],
+                "header_location_text": candidate["header_location_text"],
+                "current_location_line": candidate["current_location_line"],
+                "current_location_lines": candidate["current_location_lines"],
+                "current_location_classifications": candidate[
+                    "current_location_classifications"
+                ],
+            }
+            if include_wave_sources:
+                deduped_item["wave_sources"] = candidate.get("wave_sources", [])
+            deduped_results.append(deduped_item)
 
     unique_profiles = len(deduped_results)
     location_filter_report = {
@@ -2121,6 +2164,57 @@ def normalize_structured_search_request(
     )
 
 
+def normalize_multi_wave_search_request(
+    request: MultiWaveStructuredSearchRequest,
+) -> tuple[dict | None, dict | None, list[dict[str, str]]]:
+    normalized_request, errors = normalize_structured_search_request(request)
+
+    max_waves = (
+        MULTI_WAVE_DEFAULT_MAX_WAVES
+        if request.max_waves is None
+        else request.max_waves
+    )
+    min_new_unique_per_wave = (
+        MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE
+        if request.min_new_unique_per_wave is None
+        else request.min_new_unique_per_wave
+    )
+    patience = (
+        MULTI_WAVE_DEFAULT_PATIENCE
+        if request.patience is None
+        else request.patience
+    )
+
+    if max_waves < 1 or max_waves > MULTI_WAVE_MAX_ALLOWED_WAVES:
+        add_validation_error(
+            errors,
+            "max_waves",
+            f"max_waves must be between 1 and {MULTI_WAVE_MAX_ALLOWED_WAVES}.",
+        )
+    if min_new_unique_per_wave < 0:
+        add_validation_error(
+            errors,
+            "min_new_unique_per_wave",
+            "min_new_unique_per_wave must be 0 or greater.",
+        )
+    if patience < 1:
+        add_validation_error(errors, "patience", "patience must be 1 or greater.")
+
+    if errors:
+        return None, None, errors
+
+    return (
+        normalized_request,
+        {
+            "max_waves": max_waves,
+            "max_allowed_waves": MULTI_WAVE_MAX_ALLOWED_WAVES,
+            "min_new_unique_per_wave": min_new_unique_per_wave,
+            "patience": patience,
+        },
+        errors,
+    )
+
+
 def quote_query_value(value: str) -> str:
     escaped_value = value.replace('"', '\\"')
     return f'"{escaped_value}"'
@@ -2243,6 +2337,21 @@ async def run_query_slot(query_slot: dict) -> dict:
     }
 
 
+async def run_query_plan_wave(
+    query_plan: dict,
+    wave_id: int | None = None,
+) -> list[dict]:
+    query_results = []
+
+    for query_slot in query_plan["queries"]:
+        query_result = await run_query_slot(query_slot)
+        if wave_id is not None:
+            query_result["wave_id"] = wave_id
+        query_results.append(query_result)
+
+    return query_results
+
+
 class RuleBasedQueryPlannerV1:
     version = QUERY_PLANNER_VERSION
 
@@ -2291,6 +2400,7 @@ def snapshot_slug(value: object) -> str:
 def structured_search_snapshot_filename(
     normalized_request: dict,
     timestamp: datetime,
+    snapshot_type: str = "structured-search",
 ) -> str:
     timestamp_part = timestamp.strftime("%Y-%m-%dT%H-%M-%SZ")
     role_part = snapshot_slug(normalized_request.get("role_family"))
@@ -2298,13 +2408,13 @@ def structured_search_snapshot_filename(
     location_part = snapshot_slug(normalized_request.get("location"))
 
     return (
-        f"{timestamp_part}_structured-search_"
+        f"{timestamp_part}_{snapshot_type}_"
         f"{role_part}-{technology_part}-{location_part}.json"
     )
 
 
 def query_result_status_summary(query_result: dict) -> dict:
-    return {
+    summary = {
         "query_id": query_result.get("query_id"),
         "category": query_result.get("category"),
         "role_phrase": query_result.get("role_phrase"),
@@ -2317,6 +2427,10 @@ def query_result_status_summary(query_result: dict) -> dict:
         "request_id": query_result.get("request_id"),
         "error": query_result.get("error"),
     }
+    if "wave_id" in query_result:
+        summary["wave_id"] = query_result["wave_id"]
+
+    return summary
 
 
 def build_structured_search_snapshot(
@@ -2325,9 +2439,10 @@ def build_structured_search_snapshot(
     deduped_results: list[dict],
     report: dict,
     timestamp: datetime,
+    snapshot_type: str = "structured-search",
 ) -> dict:
     return {
-        "snapshot_type": "structured-search",
+        "snapshot_type": snapshot_type,
         "timestamp": timestamp.isoformat(),
         "normalized_request": query_plan.get("input_snapshot"),
         "query_plan": query_plan,
@@ -2347,6 +2462,7 @@ def write_structured_search_snapshot(
     query_results: list[dict],
     deduped_results: list[dict],
     report: dict,
+    snapshot_type: str = "structured-search",
 ) -> Path:
     timestamp = datetime.now(timezone.utc)
     snapshot = build_structured_search_snapshot(
@@ -2355,11 +2471,13 @@ def write_structured_search_snapshot(
         deduped_results,
         report,
         timestamp,
+        snapshot_type,
     )
     SEARCH_RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
     snapshot_path = SEARCH_RUN_LOG_DIR / structured_search_snapshot_filename(
         query_plan.get("input_snapshot") or {},
         timestamp,
+        snapshot_type,
     )
     snapshot_path.write_text(
         json.dumps(snapshot, ensure_ascii=False, indent=2),
@@ -2367,6 +2485,99 @@ def write_structured_search_snapshot(
     )
 
     return snapshot_path
+
+
+async def run_multi_wave_query_plan(
+    query_plan: dict,
+    settings: dict,
+) -> tuple[list[dict], dict, list[dict]]:
+    all_query_results: list[dict] = []
+    wave_reports: list[dict] = []
+    cumulative_unique_urls: set[str] = set()
+    low_gain_streak = 0
+    stop_reason = "max_waves_reached"
+
+    for wave_id in range(1, settings["max_waves"] + 1):
+        wave_query_results = await run_query_plan_wave(query_plan, wave_id)
+        all_query_results.extend(wave_query_results)
+
+        wave_deduped_results, wave_report = build_deduped_results_and_report(
+            query_plan,
+            wave_query_results,
+            include_wave_sources=True,
+        )
+        wave_unique_urls = {
+            result["normalized_url"] for result in wave_deduped_results
+        }
+        new_unique_urls = wave_unique_urls - cumulative_unique_urls
+        duplicates_across_waves = len(wave_unique_urls & cumulative_unique_urls)
+        cumulative_unique_urls.update(wave_unique_urls)
+
+        new_unique_count = len(new_unique_urls)
+        if new_unique_count < settings["min_new_unique_per_wave"]:
+            low_gain_streak += 1
+        else:
+            low_gain_streak = 0
+
+        wave_reports.append(
+            {
+                "wave_id": wave_id,
+                "queries_succeeded": wave_report["queries_succeeded"],
+                "queries_failed": wave_report["queries_failed"],
+                "raw_total": wave_report["raw_total"],
+                "displayed": wave_report["displayed"],
+                "unique_profiles": wave_report["unique_profiles"],
+                "new_unique_profiles": new_unique_count,
+                "cumulative_unique_profiles": len(cumulative_unique_urls),
+                "duplicates_across_waves": duplicates_across_waves,
+                "hidden_by_profile_filter": wave_report[
+                    "hidden_by_profile_filter"
+                ],
+                "hidden_by_location_filter": wave_report[
+                    "hidden_by_location_filter"
+                ],
+                "hidden_by_foreign_current_location": wave_report[
+                    "hidden_by_foreign_current_location"
+                ],
+            }
+        )
+
+        if low_gain_streak >= settings["patience"]:
+            stop_reason = "low_incremental_gain"
+            break
+
+    deduped_results, report = build_deduped_results_and_report(
+        query_plan,
+        all_query_results,
+        include_wave_sources=True,
+    )
+    report["queries_total"] = len(all_query_results)
+    report.update(
+        {
+            "experimental": True,
+            "mode": "multi_wave",
+            "multi_wave_settings": settings,
+            "waves_run": len(wave_reports),
+            "planned_max_waves": settings["max_waves"],
+            "stop_reason": stop_reason,
+            "queries_executed": len(all_query_results),
+            "unique_profiles_per_wave": [
+                wave["unique_profiles"] for wave in wave_reports
+            ],
+            "new_unique_profiles_per_wave": [
+                wave["new_unique_profiles"] for wave in wave_reports
+            ],
+            "cumulative_unique_profiles": [
+                wave["cumulative_unique_profiles"] for wave in wave_reports
+            ],
+            "duplicates_across_waves": sum(
+                wave["duplicates_across_waves"] for wave in wave_reports
+            ),
+            "wave_reports": wave_reports,
+        }
+    )
+
+    return deduped_results, report, all_query_results
 
 
 @app.get("/")
@@ -2424,10 +2635,7 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
         }
 
     query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
-    query_results = []
-
-    for query_slot in query_plan["queries"]:
-        query_results.append(await run_query_slot(query_slot))
+    query_results = await run_query_plan_wave(query_plan)
 
     successful_queries = sum(1 for result in query_results if result["ok"])
     deduped_results, report = build_deduped_results_and_report(
@@ -2446,6 +2654,55 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
 
     return {
         "ok": successful_queries > 0,
+        "query_plan": query_plan,
+        "query_results": query_results,
+        "deduped_results": deduped_results,
+        "report": report,
+    }
+
+
+@app.post("/api/structured-search/multi-wave")
+async def structured_search_multi_wave(
+    request: MultiWaveStructuredSearchRequest,
+) -> dict:
+    normalized_request, settings, errors = normalize_multi_wave_search_request(request)
+
+    if errors:
+        return {"ok": False, "errors": errors}
+
+    if not os.getenv("TAVILY_API_KEY"):
+        return {
+            "ok": False,
+            "errors": [
+                {
+                    "field": "tavily_api_key",
+                    "message": "TAVILY_API_KEY is not configured.",
+                }
+            ],
+        }
+
+    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    deduped_results, report, query_results = await run_multi_wave_query_plan(
+        query_plan,
+        settings,
+    )
+    try:
+        write_structured_search_snapshot(
+            query_plan,
+            query_results,
+            deduped_results,
+            report,
+            "structured-search-multi-wave",
+        )
+    except Exception:
+        logger.warning(
+            "Failed to write structured search multi-wave snapshot.",
+            exc_info=True,
+        )
+
+    return {
+        "ok": report["queries_succeeded"] > 0,
+        "experimental": True,
         "query_plan": query_plan,
         "query_results": query_results,
         "deduped_results": deduped_results,

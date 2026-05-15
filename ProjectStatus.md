@@ -14,7 +14,7 @@ Current phase: `Phase 3 - Candidate Quality Layer`.
 
 Later phase: `Phase 4 - AI Query Planner v0`.
 
-Completed through `P3-010.2`: backend candidates now include seniority, normalized review flag details, explainable `quality_score`, the frontend renders a hybrid candidate quality view, the first real Java/Ukraine quality baseline is documented, the `missing_selected_stack` group has been reviewed, and stack evidence display labels are clearer. Next recommended task: `P3-011 Add adaptive multi-wave runner for quality evaluation`.
+Completed through `P3-013`: backend candidates now include seniority, normalized review flag details, explainable `quality_score`, the frontend renders a hybrid candidate quality view, the first real Java/Ukraine quality baseline is documented, the `missing_selected_stack` group has been reviewed, stack evidence display labels are clearer, an experimental multi-wave API runner exists, the first real adaptive multi-wave evaluation is documented, and the frontend has a visible `Multi-wave` toggle off by default.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -32,6 +32,12 @@ Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for rank
 `P3-010.1` conclusion: `missing_selected_stack` mostly means the selected stack is not visible in Tavily public snippets, not that the candidate lacks the stack. The current backend behavior is honest, but the frontend wording `Stack: n/a` was too blunt. The agreed display label is now `Not visible` for selected-but-unconfirmed stack while keeping `selected_stack_missing` as a ranking penalty, not a hard filter.
 
 `P3-010.2` implemented the agreed frontend display semantics: direct evidence shows actual stack terms, `missing_selected_stack` shows `Not visible`, `stack_query_source_only` shows `Not confirmed`, and future no-stack-requested state is reserved as `N/A`. Quality scoring and backend search/filter logic were not changed.
+
+`P3-011` added `/api/structured-search/multi-wave` as an experimental backend endpoint. It repeats the same validated `QueryPlan`, dedupes across waves, preserves existing `query_sources`, adds separate `wave_sources`, stops on low incremental unique gain, and writes `structured-search-multi-wave` snapshots. The normal `/api/structured-search` endpoint remains the stable single-wave path.
+
+`P3-012` evaluated the multi-wave runner with one real Tavily run. It ran 4 waves, executed 40 queries, stopped on `low_incremental_gain`, and produced 67 final unique candidates. Compared with wave 1 inside the same run, multi-wave added 7 unique candidates, including 3 high-quality candidates and 1 direct-stack candidate, after 30 extra Tavily queries. Recommendation: do not make multi-wave default; keep it backend-only for now or consider an explicit advanced/deeper-search control in `P3-013`.
+
+`P3-013` added the explicit frontend control: default Search remains single-wave through `/api/structured-search`; enabling the `Multi-wave` toggle calls `/api/structured-search/multi-wave` with approved defaults and shows waves, executed queries, stop reason, and new candidates per wave when returned.
 
 ## What was built in Phase 1
 
@@ -294,6 +300,9 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - Phase 3 `P3-010` real Java/Ukraine quality baseline completed: 57 unique candidates from 200 raw Tavily results.
 - Phase 3 `P3-010.1` no-code review completed for `missing_selected_stack` candidates from the exact baseline snapshot.
 - Phase 3 `P3-010.2` frontend stack display semantics passed syntax, mapping, snapshot-state, render, and compile checks.
+- Phase 3 `P3-011` no-Tavily smoke passed for multi-wave validation, early stop, cross-wave dedupe, `wave_sources`, snapshot type, and unchanged single-wave endpoint behavior.
+- Phase 3 `P3-012` real adaptive multi-wave evaluation completed: 4 waves, 40 queries, 67 unique candidates, stopped by low incremental gain.
+- Phase 3 `P3-013` frontend smoke passed for default single-wave endpoint, toggle-on multi-wave endpoint, multi-wave defaults payload, and report metric rendering.
 
 ## Current known limitations
 
@@ -315,3 +324,4 @@ Phase 3 direction is selected: Candidate Quality Layer. AI Query Planner is defe
 - `Tasks.md`
 - `docs/phase-1-poc-findings.md`
 - `docs/phase-3-quality-baseline.md`
+- `docs/phase-3-multi-wave-evaluation.md`
