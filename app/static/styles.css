@@ -288,6 +288,99 @@ button:disabled {
   gap: 12px;
 }
 
+.planner-meta {
+  display: grid;
+  gap: 12px;
+}
+
+.planner-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planner-badges span {
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.planner-section h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.planner-section p,
+.planner-note,
+.planner-notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.brief-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.brief-grid div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.brief-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.brief-grid strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.planner-notice {
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.planner-errors {
+  border-color: rgba(180, 35, 24, 0.3);
+  background: #fff8f6;
+}
+
+.planner-errors strong {
+  color: var(--danger);
+}
+
 .query-item,
 .result-item,
 .contribution-item {
@@ -622,6 +715,7 @@ summary {
 
   .form-grid,
   .report-grid,
+  .brief-grid,
   .quality-grid,
   .candidate-header {
     grid-template-columns: 1fr;

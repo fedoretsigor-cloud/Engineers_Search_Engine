@@ -3,6 +3,7 @@ const searchForm = document.querySelector("#search-form");
 const roleFamilySelect = document.querySelector("#role-family");
 const technologySelect = document.querySelector("#technology");
 const locationInput = document.querySelector("#location");
+const plannerModeSelect = document.querySelector("#planner-mode");
 const profilesOnlyInput = document.querySelector("#profiles-only");
 const locationFilterInput = document.querySelector("#location-filter-enabled");
 const multiWaveInput = document.querySelector("#multi-wave-enabled");
@@ -67,6 +68,48 @@ function buildStructuredRequest() {
   };
 }
 
+function buildSearchBrief() {
+  const stack = selectedStack();
+  const roleFamily = roleFamilySelect.value;
+  const technology = technologySelect.value;
+  const location = locationInput.value.trim();
+  const missingFields = [];
+  const clarifyingQuestions = [];
+
+  if (!stack.length) {
+    missingFields.push("stack");
+    clarifyingQuestions.push(
+      "Which Java stack signals are important for this search: Spring, Kafka, AWS, Hibernate, or something else?"
+    );
+  }
+
+  return {
+    source_text: `${roleFamily} with ${technology} in ${location}`,
+    brief_status: missingFields.length ? "needs_clarification" : "ready_for_planning",
+    role_family: roleFamily,
+    technology,
+    stack,
+    location,
+    seniority: null,
+    must_have: technology ? [technology] : [],
+    nice_to_have: stack,
+    exclusions: [],
+    search_depth: multiWaveInput.checked ? "deep" : "standard",
+    profile_sources: ["linkedin_public"],
+    notes: null,
+    missing_fields: missingFields,
+    clarifying_questions: clarifyingQuestions,
+    assumptions: [],
+  };
+}
+
+function buildAgentQueryPlanRequest() {
+  return {
+    planner_mode: plannerModeSelect.value,
+    search_brief: buildSearchBrief(),
+  };
+}
+
 function buildSearchRequest() {
   const request = buildStructuredRequest();
 
@@ -93,6 +136,121 @@ function validationMessage(errors) {
 function renderPlanErrors(errors) {
   planStatus.textContent = validationMessage(errors);
   queryList.innerHTML = "";
+}
+
+function displayList(values = [], fallback = "none") {
+  return values.length ? values.join(", ") : fallback;
+}
+
+function plannerLabel(value) {
+  const labels = {
+    rule_based: "Rule-based",
+    ai: "AI draft",
+    ai_with_fallback: "AI with fallback",
+    validated_not_executable: "Validated, not executable",
+    rejected: "Rejected",
+    rule_based_fallback: "Rule-based fallback",
+    needs_clarification: "Needs clarification",
+  };
+
+  return labels[value] || displayValue(value);
+}
+
+function renderBriefSummary(brief = {}) {
+  if (!brief || !Object.keys(brief).length) {
+    return "";
+  }
+
+  const fields = [
+    ["Role", brief.role_family],
+    ["Technology", brief.technology],
+    ["Stack", displayList(brief.stack || [])],
+    ["Location", brief.location],
+    ["Depth", brief.search_depth],
+  ];
+
+  return `
+    <div class="planner-section">
+      <h3>Search Brief</h3>
+      <div class="brief-grid">
+        ${fields
+          .map(
+            ([label, value]) => `
+              <div>
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(displayValue(value))}</strong>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+      ${
+        brief.clarifying_questions?.length
+          ? `<p class="planner-note">${escapeHtml(brief.clarifying_questions.join(" "))}</p>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderValidationErrors(errors = []) {
+  if (!errors.length) {
+    return "";
+  }
+
+  return `
+    <div class="planner-section planner-errors">
+      <h3>Validation</h3>
+      ${errors
+        .map(
+          (error) => `
+            <p>
+              <strong>${escapeHtml(error.code || error.field || "error")}</strong>
+              ${escapeHtml(error.field ? `${error.field}: ` : "")}${escapeHtml(error.message || "")}
+            </p>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPlannerDetails(data = {}) {
+  const warnings = data.warnings || [];
+  const assumptions = data.assumptions || [];
+  const mode = data.planner_mode || plannerModeSelect.value;
+  const status = data.plan_status || "draft_query_plan";
+
+  return `
+    <div class="planner-meta">
+      <div class="planner-badges">
+        <span>${escapeHtml(plannerLabel(mode))}</span>
+        <span>${escapeHtml(plannerLabel(status))}</span>
+      </div>
+      ${renderBriefSummary(data.normalized_brief)}
+      ${
+        data.explanation || data.fallback_reason || warnings.length || assumptions.length
+          ? `
+            <div class="planner-section">
+              <h3>Planner explanation</h3>
+              ${data.explanation ? `<p>${escapeHtml(data.explanation)}</p>` : ""}
+              ${data.fallback_reason ? `<p>${escapeHtml(data.fallback_reason)}</p>` : ""}
+              ${warnings.length ? `<p>Warnings: ${escapeHtml(warnings.join(", "))}</p>` : ""}
+              ${assumptions.length ? `<p>Assumptions: ${escapeHtml(assumptions.join(", "))}</p>` : ""}
+            </div>
+          `
+          : ""
+      }
+      ${renderValidationErrors(data.validation_errors || data.errors || [])}
+      ${
+        data.approval_notice || data.approval_required
+          ? `<p class="planner-notice">${escapeHtml(
+              data.approval_notice || "This plan is not executed yet. Search execution requires approval."
+            )}</p>`
+          : ""
+      }
+    </div>
+  `;
 }
 
 function renderSearchErrors(errors) {
@@ -136,19 +294,25 @@ function updateStackState() {
   return true;
 }
 
-function renderQueryPlan(queryPlan) {
+function renderQueryPlan(queryPlan, plannerData = null) {
   const queries = queryPlan.queries || [];
-  planStatus.textContent = `${queryPlan.planner_version} generated ${queries.length} ${pluralize(
+  const modeText = plannerData?.planner_mode
+    ? `${plannerLabel(plannerData.planner_mode)}: `
+    : "";
+  planStatus.textContent = `${modeText}${queryPlan.planner_version} generated ${queries.length} ${pluralize(
     queries.length,
     "query",
     "queries"
   )}.`;
 
-  queryList.innerHTML = queries
+  const queryMarkup = queries
     .map((querySlot) => {
       const stack = querySlot.uses_stack?.length
         ? querySlot.uses_stack.join(", ")
         : "none";
+      const rolePhrase = querySlot.role_phrase
+        ? `<p class="query-stack">Role phrase: ${escapeHtml(querySlot.role_phrase)}</p>`
+        : "";
 
       return `
         <article class="query-item">
@@ -158,11 +322,26 @@ function renderQueryPlan(queryPlan) {
           </div>
           <p>${escapeHtml(querySlot.purpose)}</p>
           <code>${escapeHtml(querySlot.query)}</code>
+          ${rolePhrase}
           <p class="query-stack">Stack: ${escapeHtml(stack)}</p>
         </article>
       `;
     })
     .join("");
+
+  queryList.innerHTML = `${plannerData ? renderPlannerDetails(plannerData) : ""}${queryMarkup}`;
+}
+
+function renderAgentQueryPlan(data) {
+  const queryPlan = data.query_plan || data.fallback_query_plan || data.draft_query_plan;
+
+  if (!queryPlan) {
+    planStatus.textContent = plannerLabel(data.plan_status || "rejected");
+    queryList.innerHTML = renderPlannerDetails(data);
+    return;
+  }
+
+  renderQueryPlan(queryPlan, data);
 }
 
 async function refreshQueryPlan() {
@@ -172,12 +351,12 @@ async function refreshQueryPlan() {
   queryList.innerHTML = "";
 
   try {
-    const response = await fetch("/api/query-plan", {
+    const response = await fetch("/api/agent/query-plan", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildStructuredRequest()),
+      body: JSON.stringify(buildAgentQueryPlanRequest()),
     });
     const data = await response.json();
 
@@ -190,7 +369,7 @@ async function refreshQueryPlan() {
       return;
     }
 
-    renderQueryPlan(data.query_plan);
+    renderAgentQueryPlan(data);
   } catch (error) {
     planStatus.textContent = error.message;
     queryList.innerHTML = "";
@@ -454,6 +633,13 @@ function renderResults(dedupedResults, report) {
 }
 
 async function runStructuredSearch() {
+  if (plannerModeSelect.value !== "rule_based") {
+    resultsStatus.textContent =
+      "AI planner previews cannot be executed yet. Switch Planner mode to Rule-based to run the current search.";
+    reportStatus.textContent = "Search execution still requires the future approval flow.";
+    return;
+  }
+
   if (!updateStackState()) {
     resultsStatus.textContent = "Select at least one stack item before searching.";
     resultsList.innerHTML = "";
@@ -491,7 +677,9 @@ async function runStructuredSearch() {
       return;
     }
 
-    renderQueryPlan(data.query_plan);
+    renderQueryPlan(data.query_plan, {
+      planner_mode: "rule_based",
+    });
     renderReport(data.report);
     renderResults(data.deduped_results || [], data.report);
   } catch (error) {
@@ -515,7 +703,7 @@ locationFilterInput.addEventListener("change", () => {
   schedulePlanRefresh();
 });
 
-[roleFamilySelect, technologySelect, locationInput, profilesOnlyInput].forEach((input) => {
+[roleFamilySelect, technologySelect, locationInput, profilesOnlyInput, plannerModeSelect].forEach((input) => {
   input.addEventListener("input", schedulePlanRefresh);
   input.addEventListener("change", schedulePlanRefresh);
 });

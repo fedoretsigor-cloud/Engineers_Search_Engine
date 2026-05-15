@@ -27,6 +27,50 @@ MULTI_WAVE_DEFAULT_MAX_WAVES = 5
 MULTI_WAVE_MAX_ALLOWED_WAVES = 7
 MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE = 3
 MULTI_WAVE_DEFAULT_PATIENCE = 2
+OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION = "needs_clarification"
+SEARCH_BRIEF_STATUS_READY_FOR_PLANNING = "ready_for_planning"
+SEARCH_BRIEF_STATUSES = {
+    SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
+    SEARCH_BRIEF_STATUS_READY_FOR_PLANNING,
+}
+SEARCH_DEPTH_STANDARD = "standard"
+SEARCH_DEPTH_DEEP = "deep"
+SEARCH_DEPTH_VALUES = {SEARCH_DEPTH_STANDARD, SEARCH_DEPTH_DEEP}
+PROFILE_SOURCE_LINKEDIN_PUBLIC = "linkedin_public"
+PROFILE_SOURCE_VALUES = {PROFILE_SOURCE_LINKEDIN_PUBLIC}
+PLANNER_MODE_RULE_BASED = "rule_based"
+PLANNER_MODE_AI = "ai"
+PLANNER_MODE_AI_WITH_FALLBACK = "ai_with_fallback"
+PLANNER_MODES = {
+    PLANNER_MODE_RULE_BASED,
+    PLANNER_MODE_AI,
+    PLANNER_MODE_AI_WITH_FALLBACK,
+}
+FORBIDDEN_AI_QUERY_TERMS = [
+    "linkedin.com/login",
+    "login",
+    "password",
+    "scrape",
+    "scraping",
+    "crawler",
+    "bypass",
+    "restriction bypass",
+    "inmail",
+    "send message",
+    "message candidate",
+    "contact candidate",
+    "account",
+]
+PLAN_STATUS_NEEDS_CLARIFICATION = "needs_clarification"
+PLAN_STATUS_DRAFT = "draft_query_plan"
+PLAN_STATUS_VALIDATED_NOT_EXECUTABLE = "validated_not_executable"
+PLAN_STATUS_REJECTED = "rejected"
+PLAN_STATUS_RULE_BASED_FALLBACK = "rule_based_fallback"
+AGENT_TOOL_APPROVAL_NOT_REQUIRED = "not_required"
+AGENT_TOOL_APPROVAL_REQUIRED = "required"
+AGENT_TOOL_APPROVAL_APPROVED = "approved"
+AGENT_TOOL_APPROVAL_REJECTED = "rejected"
 QUERY_PLAN_REPORTING_FIELDS = [
     "queries_total",
     "queries_succeeded",
@@ -389,6 +433,41 @@ class MultiWaveStructuredSearchRequest(StructuredSearchRequest):
     max_waves: int | None = None
     min_new_unique_per_wave: int | None = None
     patience: int | None = None
+
+
+class SearchBrief(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_text: str | None = None
+    brief_status: str | None = None
+    role_family: str | None = None
+    technology: str | None = None
+    stack: list[str] | None = None
+    location: str | None = None
+    seniority: str | None = None
+    must_have: list[str] | None = None
+    nice_to_have: list[str] | None = None
+    exclusions: list[str] | None = None
+    search_depth: str | None = None
+    profile_sources: list[str] | None = None
+    notes: str | None = None
+    missing_fields: list[str] | None = None
+    clarifying_questions: list[str] | None = None
+    assumptions: list[str] | None = None
+
+
+class AgentQueryPlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    planner_mode: str = PLANNER_MODE_RULE_BASED
+    search_brief: SearchBrief
+
+
+class AIQueryPlanValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    search_brief: SearchBrief
+    draft_query_plan: dict | None = None
 
 
 def detect_source(url: str) -> str:
@@ -2215,6 +2294,282 @@ def normalize_multi_wave_search_request(
     )
 
 
+def normalize_text_value(value: str | None) -> str | None:
+    normalized_value = compact_spaces(value or "")
+    return normalized_value or None
+
+
+def normalize_text_list(values: list[str] | None) -> list[str]:
+    if not values:
+        return []
+
+    normalized_values: list[str] = []
+    seen_values: set[str] = set()
+    for value in values:
+        normalized_value = normalize_text_value(value)
+        if not normalized_value:
+            continue
+        value_key = normalized_value.lower()
+        if value_key in seen_values:
+            continue
+        seen_values.add(value_key)
+        normalized_values.append(normalized_value)
+
+    return normalized_values
+
+
+def clarifying_question_for_missing_field(field: str) -> str:
+    questions = {
+        "role_family": "What role family should the search target?",
+        "technology": "What main technology should the candidate have?",
+        "stack": (
+            "Which Java stack signals are important for this search: "
+            "Spring, Kafka, AWS, Hibernate, or something else?"
+        ),
+        "location": "What target location should the search use?",
+        "search_depth": "Should this be a standard or deep search?",
+        "profile_sources": "Which public profile source should be used?",
+    }
+    return questions.get(field, f"Please clarify {field}.")
+
+
+def normalize_brief_stack_items(
+    stack: list[str] | None,
+) -> tuple[list[str], list[dict[str, str]]]:
+    errors: list[dict[str, str]] = []
+    normalized_stack: list[str] = []
+    seen_stack_values: set[str] = set()
+
+    for item in stack or []:
+        canonical_stack_item = canonical_value(item, JAVA_STACK_VALUES)
+        if not canonical_stack_item:
+            add_validation_error(errors, "stack", "Unsupported Java stack item.")
+            continue
+
+        if canonical_stack_item not in seen_stack_values:
+            seen_stack_values.add(canonical_stack_item)
+            normalized_stack.append(canonical_stack_item)
+
+    if len(normalized_stack) > 3:
+        add_validation_error(errors, "stack", "Java stack supports up to 3 selected items.")
+
+    return normalized_stack, errors
+
+
+def build_structured_request_from_brief(normalized_brief: dict) -> StructuredSearchRequest:
+    return StructuredSearchRequest(
+        role_family=normalized_brief.get("role_family"),
+        technology=normalized_brief.get("technology"),
+        stack=normalized_brief.get("stack") or [],
+        location=normalized_brief.get("location"),
+        linkedin_profiles_only=True,
+        location_filter_enabled=(
+            location_filter_config_for(normalized_brief.get("location") or "") is not None
+        ),
+    )
+
+
+def validate_and_normalize_search_brief(
+    brief: SearchBrief,
+) -> tuple[dict, list[dict[str, str]]]:
+    errors: list[dict[str, str]] = []
+
+    brief_status = normalize_text_value(brief.brief_status)
+    if not brief_status:
+        brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
+    if brief_status not in SEARCH_BRIEF_STATUSES:
+        add_validation_error(errors, "brief_status", "Unsupported brief status.")
+        brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
+
+    role_family = canonical_value(brief.role_family, CANONICAL_ROLE_FAMILIES)
+    if brief.role_family and not role_family:
+        add_validation_error(errors, "role_family", "Unsupported role family.")
+
+    technology = canonical_value(brief.technology, KNOWN_BACKEND_TECHNOLOGIES)
+    if brief.technology and not technology:
+        add_validation_error(errors, "technology", "Unsupported technology.")
+    elif technology and technology not in IMPLEMENTED_BACKEND_TECHNOLOGIES:
+        add_validation_error(
+            errors,
+            "technology",
+            "Technology is known but planner is not implemented yet.",
+        )
+
+    location = normalize_text_value(brief.location)
+    if location and not location_filter_config_for(location):
+        add_validation_error(errors, "location", "Location is not supported yet.")
+
+    search_depth = normalize_text_value(brief.search_depth) or SEARCH_DEPTH_STANDARD
+    if search_depth not in SEARCH_DEPTH_VALUES:
+        add_validation_error(errors, "search_depth", "Unsupported search depth.")
+        search_depth = SEARCH_DEPTH_STANDARD
+
+    profile_sources = normalize_text_list(brief.profile_sources) or [
+        PROFILE_SOURCE_LINKEDIN_PUBLIC
+    ]
+    unsupported_profile_sources = [
+        source for source in profile_sources if source not in PROFILE_SOURCE_VALUES
+    ]
+    if unsupported_profile_sources:
+        add_validation_error(errors, "profile_sources", "Unsupported profile source.")
+
+    normalized_stack, stack_errors = normalize_brief_stack_items(brief.stack)
+    errors.extend(stack_errors)
+
+    missing_fields: set[str] = set()
+    required_for_planning = [
+        "role_family",
+        "technology",
+        "stack",
+        "location",
+        "search_depth",
+        "profile_sources",
+    ]
+    field_values = {
+        "role_family": role_family,
+        "technology": technology,
+        "stack": normalized_stack,
+        "location": location,
+        "search_depth": search_depth,
+        "profile_sources": profile_sources,
+    }
+
+    for field in required_for_planning:
+        value = field_values[field]
+        if not value:
+            missing_fields.add(field)
+
+    clarifying_questions = []
+    if missing_fields:
+        clarifying_questions = normalize_text_list(brief.clarifying_questions)
+        for field in sorted(missing_fields):
+            question = clarifying_question_for_missing_field(field)
+            if question not in clarifying_questions:
+                clarifying_questions.append(question)
+
+    if missing_fields:
+        brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
+    elif brief_status == SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION:
+        brief_status = SEARCH_BRIEF_STATUS_READY_FOR_PLANNING
+
+    normalized_brief = {
+        "source_text": normalize_text_value(brief.source_text),
+        "brief_status": brief_status,
+        "role_family": role_family,
+        "technology": technology,
+        "stack": normalized_stack,
+        "location": location,
+        "seniority": normalize_text_value(brief.seniority),
+        "must_have": normalize_text_list(brief.must_have),
+        "nice_to_have": normalize_text_list(brief.nice_to_have),
+        "exclusions": normalize_text_list(brief.exclusions),
+        "search_depth": search_depth,
+        "profile_sources": profile_sources,
+        "notes": normalize_text_value(brief.notes),
+        "missing_fields": sorted(missing_fields),
+        "clarifying_questions": clarifying_questions,
+        "assumptions": normalize_text_list(brief.assumptions),
+    }
+
+    return normalized_brief, errors
+
+
+def adapt_search_brief_to_structured_request(
+    normalized_brief: dict,
+) -> tuple[dict | None, list[dict[str, str]]]:
+    if normalized_brief.get("brief_status") != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        return None, [
+            {
+                "field": "brief_status",
+                "message": "Search Brief needs clarification before planning.",
+            }
+        ]
+
+    structured_request = build_structured_request_from_brief(normalized_brief)
+    return normalize_structured_search_request(structured_request)
+
+
+def search_brief_validation_response(brief: SearchBrief) -> dict:
+    normalized_brief, errors = validate_and_normalize_search_brief(brief)
+    adapted_request = None
+    adapter_errors: list[dict[str, str]] = []
+
+    if not errors and normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        adapted_request, adapter_errors = adapt_search_brief_to_structured_request(
+            normalized_brief
+        )
+
+    all_errors = errors + adapter_errors
+
+    return {
+        "ok": not all_errors,
+        "normalized_brief": normalized_brief,
+        "errors": all_errors,
+        "missing_fields": normalized_brief.get("missing_fields", []),
+        "clarifying_questions": normalized_brief.get("clarifying_questions", []),
+        "adapted_structured_request": adapted_request,
+    }
+
+
+AGENT_TOOLS_V0 = {
+    "validate_search_brief": {
+        "requires_approval": False,
+        "description": "Validate and normalize Search Brief v0.",
+    },
+    "adapt_brief_to_structured_request": {
+        "requires_approval": False,
+        "description": "Adapt a ready Search Brief into StructuredSearchRequest.",
+    },
+    "build_query_plan": {
+        "requires_approval": False,
+        "description": "Build a QueryPlan without executing search.",
+    },
+    "validate_query_plan": {
+        "requires_approval": False,
+        "description": "Validate a QueryPlan deterministically before execution.",
+    },
+    "run_single_wave_search": {
+        "requires_approval": True,
+        "description": "Run single-wave Tavily search through the backend pipeline.",
+    },
+    "run_multi_wave_search": {
+        "requires_approval": True,
+        "description": "Run explicit multi-wave search through the backend pipeline.",
+    },
+    "analyze_candidate_quality": {
+        "requires_approval": False,
+        "description": "Analyze already returned candidate quality signals.",
+    },
+    "summarize_search_results": {
+        "requires_approval": False,
+        "description": "Summarize already available report and result data.",
+    },
+    "suggest_next_iteration": {
+        "requires_approval": False,
+        "description": "Suggest the next sourcing iteration without executing it.",
+    },
+}
+
+
+def agent_tool_contract() -> dict:
+    return {
+        "tools": AGENT_TOOLS_V0,
+        "approval_statuses": [
+            AGENT_TOOL_APPROVAL_NOT_REQUIRED,
+            AGENT_TOOL_APPROVAL_REQUIRED,
+            AGENT_TOOL_APPROVAL_APPROVED,
+            AGENT_TOOL_APPROVAL_REJECTED,
+        ],
+        "absolute_boundaries": [
+            "no_direct_web_search_bypass",
+            "no_linkedin_login",
+            "no_linkedin_scraping_or_bypass",
+            "no_automatic_candidate_messaging",
+            "no_account_actions",
+        ],
+    }
+
+
 def quote_query_value(value: str) -> str:
     escaped_value = value.replace('"', '\\"')
     return f'"{escaped_value}"'
@@ -2389,6 +2744,530 @@ class RuleBasedQueryPlannerV1:
             },
             "reporting": QUERY_PLAN_REPORTING_FIELDS,
         }
+
+
+def planner_explanation_for_rule_based() -> str:
+    return "Using tested Java Backend rule-based planner baseline."
+
+
+def build_agent_rule_based_plan_response(
+    normalized_brief: dict,
+    normalized_request: dict,
+) -> dict:
+    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    return {
+        "ok": True,
+        "planner_mode": PLANNER_MODE_RULE_BASED,
+        "plan_status": PLAN_STATUS_VALIDATED_NOT_EXECUTABLE,
+        "execution_allowed": False,
+        "normalized_brief": normalized_brief,
+        "adapted_structured_request": normalized_request,
+        "explanation": planner_explanation_for_rule_based(),
+        "query_plan": query_plan,
+        "draft_query_plan": None,
+        "validation_errors": [],
+        "warnings": [],
+        "assumptions": normalized_brief.get("assumptions", []),
+        "approval_required": False,
+        "execution_approval_required": True,
+        "approval_notice": "This plan is not executed yet. Search execution requires approval.",
+    }
+
+
+def build_rule_based_fallback_response(
+    normalized_brief: dict,
+    normalized_request: dict,
+    fallback_reason: str,
+    validation_errors: list[dict] | None = None,
+) -> dict:
+    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    return {
+        "ok": True,
+        "planner_mode": PLAN_STATUS_RULE_BASED_FALLBACK,
+        "plan_status": PLAN_STATUS_RULE_BASED_FALLBACK,
+        "execution_allowed": False,
+        "normalized_brief": normalized_brief,
+        "adapted_structured_request": normalized_request,
+        "explanation": planner_explanation_for_rule_based(),
+        "fallback_reason": fallback_reason,
+        "query_plan": query_plan,
+        "draft_query_plan": None,
+        "validation_errors": validation_errors or [],
+        "warnings": [],
+        "assumptions": normalized_brief.get("assumptions", []),
+        "approval_required": False,
+        "execution_approval_required": True,
+        "approval_notice": "This fallback plan is not executed yet. Search execution requires approval.",
+    }
+
+
+def ai_query_planner_system_prompt() -> str:
+    return (
+        "You are an AI Query Planner for a recruiter sourcing search engine. "
+        "Return only valid JSON. You may propose a draft QueryPlan, but you must not "
+        "execute searches, browse the web, scrape LinkedIn, log in to LinkedIn, send "
+        "messages, or act on accounts. Build LinkedIn public profile X-ray queries only "
+        "inside the approved QueryPlan contract."
+    )
+
+
+def ai_query_planner_user_prompt(
+    normalized_brief: dict,
+    normalized_request: dict,
+) -> str:
+    return json.dumps(
+        {
+            "task": "Create a draft QueryPlan for recruiter sourcing.",
+            "required_output": {
+                "planner_version": "ai_query_planner_v0",
+                "planner_mode": "ai",
+                "explanation": "Short explanation of the planning logic.",
+                "draft_query_plan": {
+                    "planner_version": "ai_query_planner_v0",
+                    "planner_mode": "ai",
+                    "input_snapshot": normalized_request,
+                    "queries": [
+                        {
+                            "id": "Q01",
+                            "category": "role_based",
+                            "purpose": "Why this query exists.",
+                            "role_phrase": "Role phrase used in query.",
+                            "query": "site:linkedin.com/in AND \"Role\" AND \"Location\"",
+                            "uses_stack": [],
+                            "max_results": QUERY_PLAN_MAX_RESULTS,
+                        }
+                    ],
+                    "filters": {
+                        "linkedin_profiles_only": normalized_request[
+                            "linkedin_profiles_only"
+                        ],
+                        "location_filter_enabled": normalized_request[
+                            "location_filter_enabled"
+                        ],
+                    },
+                    "execution": {
+                        "mode": "sequential",
+                        "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
+                    },
+                    "reporting": QUERY_PLAN_REPORTING_FIELDS,
+                },
+                "warnings": [],
+                "assumptions": [],
+            },
+            "search_brief": normalized_brief,
+            "normalized_structured_request": normalized_request,
+            "hard_limits": {
+                "max_queries": 10,
+                "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
+                "allowed_source_scope": "site:linkedin.com/in",
+                "allowed_profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
+                "default_planner_remains": PLANNER_MODE_RULE_BASED,
+            },
+            "safety_rules": [
+                "Every query must include site:linkedin.com/in.",
+                "Every query must include the target location.",
+                "Every query must include a role or technology signal from the brief.",
+                "Do not include arbitrary domains.",
+                "Do not include LinkedIn login, scraping, bypass, messaging, or account-action behavior.",
+                "Do not change filters, scoring, dedupe, location filtering, or execution behavior.",
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+async def run_openai_json_planner(
+    normalized_brief: dict,
+    normalized_request: dict,
+) -> tuple[dict | None, list[dict[str, str]]]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("OPENAI_MODEL")
+    if not api_key:
+        return None, [{"field": "openai_api_key", "message": "OPENAI_API_KEY is not configured."}]
+    if not model:
+        return None, [{"field": "openai_model", "message": "OPENAI_MODEL is not configured."}]
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": ai_query_planner_system_prompt()},
+            {
+                "role": "user",
+                "content": ai_query_planner_user_prompt(
+                    normalized_brief,
+                    normalized_request,
+                ),
+            },
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            response = await client.post(
+                os.getenv("OPENAI_CHAT_COMPLETIONS_URL", OPENAI_CHAT_COMPLETIONS_URL),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        return None, [
+            {
+                "field": "openai",
+                "message": f"OpenAI planner request failed with status {exc.response.status_code}.",
+            }
+        ]
+    except httpx.HTTPError:
+        return None, [{"field": "openai", "message": "OpenAI planner request failed."}]
+
+    data = response.json()
+    content = (
+        data.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content")
+    )
+    if not content:
+        return None, [{"field": "openai", "message": "OpenAI planner returned no content."}]
+
+    try:
+        parsed_content = json.loads(content)
+    except json.JSONDecodeError:
+        return None, [{"field": "openai", "message": "OpenAI planner returned invalid JSON."}]
+
+    return parsed_content, []
+
+
+def add_plan_validation_error(
+    errors: list[dict[str, str]],
+    field: str,
+    code: str,
+    message: str,
+) -> None:
+    errors.append({"field": field, "code": code, "message": message})
+
+
+def query_site_scopes(query: str) -> list[str]:
+    return re.findall(r"(?i)\bsite:([^\s)]+)", query or "")
+
+
+def query_has_forbidden_terms(query: str) -> bool:
+    lowered_query = (query or "").lower()
+    return any(term in lowered_query for term in FORBIDDEN_AI_QUERY_TERMS)
+
+
+def query_has_allowed_scope_only(query: str) -> bool:
+    scopes = [scope.lower().strip('"') for scope in query_site_scopes(query)]
+    return bool(scopes) and all(scope == "linkedin.com/in" for scope in scopes)
+
+
+def query_has_brief_signal(query: str, normalized_request: dict) -> bool:
+    technology = normalized_request.get("technology")
+    role_family = normalized_request.get("role_family")
+    if technology and find_term_match(query, technology):
+        return True
+    if role_family and all(
+        find_term_match(query, term)
+        for term in re.findall(r"[A-Za-z][A-Za-z+#.]*", role_family)
+    ):
+        return True
+    return False
+
+
+def validate_ai_query_plan(
+    draft_plan: dict | None,
+    normalized_brief: dict,
+    normalized_request: dict,
+) -> tuple[dict | None, list[dict[str, str]]]:
+    errors: list[dict[str, str]] = []
+    if not isinstance(draft_plan, dict):
+        add_plan_validation_error(
+            errors,
+            "draft_query_plan",
+            "invalid_plan_shape",
+            "AI draft plan must be an object.",
+        )
+        return None, errors
+
+    for field in [
+        "planner_version",
+        "planner_mode",
+        "input_snapshot",
+        "queries",
+        "filters",
+        "execution",
+        "reporting",
+    ]:
+        if field not in draft_plan:
+            add_plan_validation_error(
+                errors,
+                field,
+                "missing_required_field",
+                f"QueryPlan is missing {field}.",
+            )
+
+    queries = draft_plan.get("queries")
+    if not isinstance(queries, list) or not queries:
+        add_plan_validation_error(
+            errors,
+            "queries",
+            "invalid_queries",
+            "QueryPlan must contain at least one query.",
+        )
+        queries = []
+
+    if len(queries) > 10:
+        add_plan_validation_error(
+            errors,
+            "queries",
+            "too_many_queries",
+            "Standard AI QueryPlan must not exceed 10 queries.",
+        )
+
+    planner_mode = draft_plan.get("planner_mode")
+    if planner_mode != PLANNER_MODE_AI:
+        add_plan_validation_error(
+            errors,
+            "planner_mode",
+            "invalid_planner_mode",
+            "AI QueryPlan must declare planner_mode as ai.",
+        )
+
+    seen_query_ids: set[str] = set()
+    for index, query_slot in enumerate(queries):
+        field_prefix = f"queries[{index}]"
+        if not isinstance(query_slot, dict):
+            add_plan_validation_error(
+                errors,
+                field_prefix,
+                "invalid_query_slot",
+                "Query slot must be an object.",
+            )
+            continue
+
+        for field in [
+            "id",
+            "category",
+            "purpose",
+            "role_phrase",
+            "query",
+            "uses_stack",
+            "max_results",
+        ]:
+            if field not in query_slot:
+                add_plan_validation_error(
+                    errors,
+                    f"{field_prefix}.{field}",
+                    "missing_required_field",
+                    f"Query slot is missing {field}.",
+                )
+
+        query_id = query_slot.get("id")
+        if query_id in seen_query_ids:
+            add_plan_validation_error(
+                errors,
+                f"{field_prefix}.id",
+                "duplicate_query_id",
+                "Query IDs must be unique.",
+            )
+        elif query_id:
+            seen_query_ids.add(query_id)
+
+        query = query_slot.get("query") or ""
+        if not query:
+            add_plan_validation_error(
+                errors,
+                f"{field_prefix}.query",
+                "empty_query",
+                "Query string must not be empty.",
+            )
+        else:
+            if not query_has_allowed_scope_only(query):
+                add_plan_validation_error(
+                    errors,
+                    f"{field_prefix}.query",
+                    "invalid_source_scope",
+                    "Query must use only site:linkedin.com/in.",
+                )
+            if query_has_forbidden_terms(query):
+                add_plan_validation_error(
+                    errors,
+                    f"{field_prefix}.query",
+                    "forbidden_query_behavior",
+                    "Query contains forbidden behavior terms.",
+                )
+            location = normalized_request.get("location")
+            if location and not find_term_match(query, location):
+                add_plan_validation_error(
+                    errors,
+                    f"{field_prefix}.query",
+                    "missing_target_location",
+                    f"Query does not include target location {location}.",
+                )
+            if not query_has_brief_signal(query, normalized_request):
+                add_plan_validation_error(
+                    errors,
+                    f"{field_prefix}.query",
+                    "missing_role_or_technology_signal",
+                    "Query must include a role or technology signal from the brief.",
+                )
+
+        max_results = query_slot.get("max_results")
+        if not isinstance(max_results, int) or max_results > QUERY_PLAN_MAX_RESULTS:
+            add_plan_validation_error(
+                errors,
+                f"{field_prefix}.max_results",
+                "invalid_max_results",
+                f"max_results must be an integer no greater than {QUERY_PLAN_MAX_RESULTS}.",
+            )
+
+        uses_stack = query_slot.get("uses_stack")
+        if uses_stack is not None and not isinstance(uses_stack, list):
+            add_plan_validation_error(
+                errors,
+                f"{field_prefix}.uses_stack",
+                "invalid_uses_stack",
+                "uses_stack must be a list.",
+            )
+
+    filters = draft_plan.get("filters") or {}
+    if filters:
+        if filters.get("linkedin_profiles_only") is False:
+            add_plan_validation_error(
+                errors,
+                "filters.linkedin_profiles_only",
+                "filter_override_not_allowed",
+                "AI plan must not disable LinkedIn profiles only filter.",
+            )
+        if filters.get("location_filter_enabled") is False:
+            add_plan_validation_error(
+                errors,
+                "filters.location_filter_enabled",
+                "filter_override_not_allowed",
+                "AI plan must not disable location filter.",
+            )
+
+    execution = draft_plan.get("execution") or {}
+    if execution and execution.get("mode") not in {None, "sequential"}:
+        add_plan_validation_error(
+            errors,
+            "execution.mode",
+            "unsupported_execution_mode",
+            "AI plan execution mode must remain sequential.",
+        )
+
+    if errors:
+        return None, errors
+
+    validated_plan = {
+        **draft_plan,
+        "planner_version": draft_plan.get("planner_version") or "ai_query_planner_v0",
+        "planner_mode": PLANNER_MODE_AI,
+        "input_snapshot": normalized_request,
+        "filters": {
+            "linkedin_profiles_only": normalized_request["linkedin_profiles_only"],
+            "location_filter_enabled": normalized_request["location_filter_enabled"],
+        },
+        "execution": {
+            "mode": "sequential",
+            "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
+        },
+        "reporting": QUERY_PLAN_REPORTING_FIELDS,
+    }
+
+    return validated_plan, []
+
+
+async def build_ai_query_plan_response(
+    normalized_brief: dict,
+    normalized_request: dict,
+    planner_mode: str,
+) -> dict:
+    ai_output, ai_errors = await run_openai_json_planner(
+        normalized_brief,
+        normalized_request,
+    )
+    if ai_errors:
+        if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK:
+            return build_rule_based_fallback_response(
+                normalized_brief,
+                normalized_request,
+                "AI planner request failed.",
+                ai_errors,
+            )
+        return {
+            "ok": False,
+            "planner_mode": PLANNER_MODE_AI,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "adapted_structured_request": normalized_request,
+            "errors": ai_errors,
+            "validation_errors": ai_errors,
+            "fallback_available": True,
+            "fallback_reason": "AI planner request failed.",
+            "fallback_query_plan": RuleBasedQueryPlannerV1().build(normalized_request),
+            "approval_required": False,
+            "execution_approval_required": True,
+            "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
+        }
+
+    draft_plan = ai_output.get("draft_query_plan") if ai_output else None
+    validated_plan, validation_errors = validate_ai_query_plan(
+        draft_plan,
+        normalized_brief,
+        normalized_request,
+    )
+    if validation_errors:
+        if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK:
+            return build_rule_based_fallback_response(
+                normalized_brief,
+                normalized_request,
+                "AI plan failed validation.",
+                validation_errors,
+            )
+        return {
+            "ok": False,
+            "planner_mode": PLANNER_MODE_AI,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "adapted_structured_request": normalized_request,
+            "explanation": ai_output.get("explanation"),
+            "draft_query_plan": draft_plan,
+            "validation_errors": validation_errors,
+            "errors": validation_errors,
+            "warnings": ai_output.get("warnings", []),
+            "assumptions": ai_output.get("assumptions", []),
+            "fallback_available": True,
+            "fallback_reason": "AI plan failed validation.",
+            "fallback_query_plan": RuleBasedQueryPlannerV1().build(normalized_request),
+            "approval_required": False,
+            "execution_approval_required": True,
+            "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
+        }
+
+    return {
+        "ok": True,
+        "planner_mode": PLANNER_MODE_AI,
+        "plan_status": PLAN_STATUS_VALIDATED_NOT_EXECUTABLE,
+        "execution_allowed": False,
+        "normalized_brief": normalized_brief,
+        "adapted_structured_request": normalized_request,
+        "explanation": ai_output.get("explanation"),
+        "query_plan": validated_plan,
+        "draft_query_plan": draft_plan,
+        "validation_errors": [],
+        "warnings": ai_output.get("warnings", []),
+        "assumptions": ai_output.get("assumptions", []),
+        "approval_required": False,
+        "execution_approval_required": True,
+        "approval_notice": "This AI plan is validated but not executed yet. Search execution requires approval.",
+    }
 
 
 def snapshot_slug(value: object) -> str:
@@ -2604,6 +3483,16 @@ def validate_structured_search(request: StructuredSearchRequest) -> dict:
     return {"ok": True, "normalized_request": normalized_request}
 
 
+@app.post("/api/search-brief/validate")
+def validate_search_brief_endpoint(request: SearchBrief) -> dict:
+    return search_brief_validation_response(request)
+
+
+@app.get("/api/agent/tools")
+def get_agent_tools() -> dict:
+    return {"ok": True, "agent_tools": agent_tool_contract()}
+
+
 @app.post("/api/query-plan")
 def create_query_plan(request: StructuredSearchRequest) -> dict:
     normalized_request, errors = normalize_structured_search_request(request)
@@ -2614,6 +3503,132 @@ def create_query_plan(request: StructuredSearchRequest) -> dict:
     query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
 
     return {"ok": True, "query_plan": query_plan}
+
+
+@app.post("/api/agent/query-plan")
+async def create_agent_query_plan(request: AgentQueryPlanRequest) -> dict:
+    planner_mode = request.planner_mode
+    if planner_mode not in PLANNER_MODES:
+        return {
+            "ok": False,
+            "errors": [
+                {
+                    "field": "planner_mode",
+                    "message": "Unsupported planner mode.",
+                }
+            ],
+        }
+
+    brief_response = search_brief_validation_response(request.search_brief)
+    normalized_brief = brief_response["normalized_brief"]
+    if brief_response["errors"]:
+        return {
+            "ok": False,
+            "planner_mode": planner_mode,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "errors": brief_response["errors"],
+            "validation_errors": brief_response["errors"],
+            "clarifying_questions": brief_response["clarifying_questions"],
+        }
+
+    if normalized_brief["brief_status"] != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        return {
+            "ok": True,
+            "planner_mode": planner_mode,
+            "plan_status": PLAN_STATUS_NEEDS_CLARIFICATION,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "adapted_structured_request": None,
+            "query_plan": None,
+            "validation_errors": [],
+            "clarifying_questions": normalized_brief.get("clarifying_questions", []),
+            "approval_required": False,
+            "execution_approval_required": False,
+        }
+
+    normalized_request = brief_response["adapted_structured_request"]
+    if not normalized_request:
+        return {
+            "ok": False,
+            "planner_mode": planner_mode,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "errors": brief_response["errors"],
+            "validation_errors": brief_response["errors"],
+        }
+
+    if planner_mode == PLANNER_MODE_RULE_BASED:
+        return build_agent_rule_based_plan_response(normalized_brief, normalized_request)
+
+    return await build_ai_query_plan_response(
+        normalized_brief,
+        normalized_request,
+        planner_mode,
+    )
+
+
+@app.post("/api/ai-query-plan/validate")
+def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> dict:
+    brief_response = search_brief_validation_response(request.search_brief)
+    normalized_brief = brief_response["normalized_brief"]
+    if brief_response["errors"]:
+        return {
+            "ok": False,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "errors": brief_response["errors"],
+            "validation_errors": brief_response["errors"],
+        }
+
+    normalized_request = brief_response["adapted_structured_request"]
+    if not normalized_request:
+        return {
+            "ok": False,
+            "plan_status": PLAN_STATUS_NEEDS_CLARIFICATION,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "errors": [
+                {
+                    "field": "brief_status",
+                    "code": "brief_not_ready",
+                    "message": "Search Brief must be ready before validating a QueryPlan.",
+                }
+            ],
+            "validation_errors": [],
+        }
+
+    validated_plan, validation_errors = validate_ai_query_plan(
+        request.draft_query_plan,
+        normalized_brief,
+        normalized_request,
+    )
+    if validation_errors:
+        return {
+            "ok": False,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "validation_errors": validation_errors,
+            "fallback_available": True,
+            "fallback_query_plan": RuleBasedQueryPlannerV1().build(normalized_request),
+        }
+
+    return {
+        "ok": True,
+        "planner_mode": PLANNER_MODE_AI,
+        "plan_status": PLAN_STATUS_VALIDATED_NOT_EXECUTABLE,
+        "execution_allowed": False,
+        "normalized_brief": normalized_brief,
+        "query_plan": validated_plan,
+        "validation_errors": [],
+        "approval_required": False,
+        "execution_approval_required": True,
+        "approval_notice": "This plan is not executed yet. Search execution requires approval.",
+    }
 
 
 @app.post("/api/structured-search")
