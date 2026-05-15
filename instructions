@@ -6,3 +6,11 @@ For this project, Codex must follow these rules:
 2. Agree on any logic, plan, or approach with the user before implementation.
 3. Thoughtfully and critically evaluate every proposal before presenting it.
 4. Restate every user request as understood, then wait for the user's approval before applying changes.
+
+Absolute product boundaries:
+
+5. The in-app AI agent must never perform direct web-search outside the approved backend search pipeline.
+6. The product must never implement LinkedIn login.
+7. The product must never scrape LinkedIn or bypass LinkedIn restrictions.
+8. The product must never automatically send messages to candidates.
+9. The product must never perform actions with user accounts or third-party accounts.

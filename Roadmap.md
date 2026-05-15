@@ -136,6 +136,8 @@ Phase 3 завершена как baseline `Candidate Quality Layer`. Следу
 
 AI в Phase 4 должен планировать и объяснять, а backend должен валидировать, ограничивать и требовать approval для дорогих действий.
 
+Важное решение Phase 4: продукт должен использовать LLM/ChatGPT layer для живого общения с рекрутером, понимания intent, сборки `Search Brief`, уточняющих вопросов, планирования и объяснений. Это не заменяет backend engine. AI думает и общается; backend валидирует, ограничивает и выполняет через проверенный pipeline.
+
 Порядок задач Phase 4:
 
 - `P4-001 Define AI Agent Foundation contract`
@@ -149,14 +151,87 @@ AI в Phase 4 должен планировать и объяснять, а back
 - `P4-009 Compare AI planner vs rule-based baseline`
 - `P4-010 Close Phase 4 with decision`
 
-Не входит в Phase 4 без отдельного согласования: persistent memory/database, shortlist, export, LinkedIn login, scraping, restriction bypass, fully autonomous tool-calling loop, multi-source search beyond Tavily.
+Статус `P4-001`: approved as contract. Утверждено:
+
+- Phase 4 = `AI Agent Foundation`, а не только `AI Query Planner`.
+- `Search Brief v0` является структурой диалога: recruiter intent, missing fields, clarifying questions, assumptions, explicit user constraints.
+- `target_titles` остаются в planner, а не в `Search Brief`.
+- Если brief неполный, AI задает уточняющие вопросы, а не строит план на догадках.
+- `search_depth` v0: `standard` и `deep`; `deep` может предложить multi-wave, но только через approval.
+- Agent workflow: `Search Brief -> Agent Plan -> Agent Action -> optional Approval Gate -> validated Tool Call -> Agent Response`.
+- Agent tools v0: `validate_search_brief`, `adapt_brief_to_structured_request`, `build_query_plan`, `validate_query_plan`, `run_single_wave_search`, `run_multi_wave_search`, `analyze_candidate_quality`, `summarize_search_results`, `suggest_next_iteration`.
+- Без approval AI может понимать intent, собирать/валидировать brief, задавать вопросы, строить/валидировать plan, объяснять, анализировать уже полученные результаты и предлагать next iteration.
+- Approval обязателен для `run_single_wave_search`, `run_multi_wave_search`, `deep search`, выполнения AI-generated `QueryPlan`, повторного запуска поиска, увеличения `max_results` и изменения depth с `standard` на `deep`.
+- AI-generated `QueryPlan` проходит deterministic backend validation; если validation fails, search не выполняется и предлагается visible fallback к `RuleBasedQueryPlanner`.
+- Baseline evaluation Phase 4 проверяет весь agent flow на сценарии `Backend Developer + Java + Spring/Kafka + Ukraine`, а не только candidate count.
+
+Статус `P4-002`: approved as `Search Brief v0` schema contract. Утверждено:
+
+- `Search Brief v0` является dialogue state, а не копией формы.
+- Schema поддерживает `needs_clarification` и `ready_for_planning`.
+- `source_text`, `missing_fields`, `clarifying_questions` и `assumptions` входят в contract.
+- `stack` не обязателен для существования brief object, но обязателен для `ready_for_planning` в текущем Java flow.
+- `target_titles` не входят в brief; их генерирует planner.
+- `exclusions` заполняются только из explicit recruiter constraints и не используются как location blacklist.
+- Baseline brief: `Backend Developer + Java + Spring/Kafka + Ukraine`.
+
+Статус `P4-003`: approved as Search Brief validation/adapter contract. Утверждено:
+
+- Bridge flow: `Search Brief -> Search Brief validation/normalization -> StructuredSearchRequest adapter -> existing structured-search validation`.
+- Backend не доверяет blindly `brief_status` от AI/client.
+- Incomplete brief не адаптируется в `StructuredSearchRequest`.
+- Adapter переиспользует `normalize_structured_search_request(...)` как authoritative validation для role/technology/stack/location/filter defaults.
+- `search_depth` остается metadata; `deep` не запускает multi-wave automatically.
+- `target_titles` rejected if sent; planner owns target-title generation.
+- No LLM calls, no Tavily calls, no query-plan generation, no search execution in this task.
+
+Статус `P4-004`: approved as Agent Tools v0 contract. Утверждено:
+
+- Allowlisted tools: `validate_search_brief`, `adapt_brief_to_structured_request`, `build_query_plan`, `validate_query_plan`, `run_single_wave_search`, `run_multi_wave_search`, `analyze_candidate_quality`, `summarize_search_results`, `suggest_next_iteration`.
+- Planning/validation/analysis/suggestion tools do not require approval.
+- `run_single_wave_search` and `run_multi_wave_search` require explicit approval.
+- Tool calls/results use stable envelopes with `tool_name`, `input`, `requires_approval`, `approval_status`, `reason`, `result`, `errors`, and `next_actions`.
+- Agent can call only allowlisted tools and cannot bypass backend contracts.
+
+Статус `P4-005`: approved as AI Query Planner v0 behind explicit mode. Утверждено:
+
+- Это первая Phase 4 задача, где может появиться реальный LLM/ChatGPT call.
+- LLM используется только для planning и explanation.
+- Default planner остается `rule_based`.
+- AI planner включается только через explicit planner mode.
+- AI output является `draft_query_plan`, не executable plan.
+- AI planner не запускает Tavily, не вызывает search execution tools и не меняет filters/scoring/dedupe/location logic.
+- Missing LLM/API config должен давать graceful error без поломки rule-based mode.
+- `P4-006` отвечает за deterministic validation/fallback, а `P4-008` за approval before execution.
+
+Статус `P4-006`: approved as deterministic AI QueryPlan validation/fallback contract. Утверждено:
+
+- Validator uses `normalized_brief + normalized_structured_request` as source of truth.
+- AI output is not authoritative for filters, execution settings, or supported domain rules.
+- Valid AI plans are marked `validated_not_executable` with `execution_allowed = false`.
+- Validation checks structure, limits, safety, brief alignment, source scope, target location, role/technology signal, and forbidden behavior.
+- Validation errors are structured with `field`, `code`, and `message`.
+- Fallback to `RuleBasedQueryPlanner` is visible with `planner_mode = rule_based_fallback` and `fallback_reason`.
+- Fallback also remains non-executable until approval.
+- No Tavily execution in this task.
+
+Статус `P4-007`: approved as planner explanation UI contract. Утверждено:
+
+- Extend existing `Generated QueryPlan` preview instead of building full recruiter chat UI.
+- Show planner mode/status, Search Brief summary, planner explanation, warnings, assumptions, validation state, validation errors, fallback reason, and approval-needed notice when fields are present.
+- Keep existing rule-based QueryPlan preview backward-compatible when those fields are absent.
+- Do not run Tavily, do not implement approval execution flow, and do not make AI plans executable in this task.
+
+Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
+
+Не входит в Phase 4: persistent memory/database, shortlist, export, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Chat UI относится к Phase 5, tool-calling runtime к Phase 6, candidate workspace/shortlist/export к Phase 7, persistence/memory/saved searches к Phase 8.
 
 Фазы 5-8 описывают путь к настоящему AI Agent внутри приложения. Agent здесь означает не просто чат, а AI-модель с целью, контекстом, инструментами, approval flow и циклом действий: понять задачу, собрать brief, запустить инструменты, оценить результат, уточнить план и вернуть кандидатов в виде таблицы.
 
 Ориентир по пути к AI Agent:
 
 - Минимум до AI Agent v0: Phase 4 + Phase 5 + Phase 6.
-- Phase 4 дает foundation: `Search Brief`, AI planner, agent tools contract, approval gates и объяснения.
+- Phase 4 дает foundation: `Search Brief`, LLM-assisted planning, AI planner mode, agent tools contract, deterministic validation, approval gates, fallback и объяснения.
 - Phase 5 делает агентный UX через recruiter chat и согласованный `Search Brief`.
 - Phase 6 добавляет настоящий tool loop: агент планирует следующий шаг, вызывает доступные инструменты после approval, анализирует результат и предлагает итерацию.
 - Для реально удобного recruiter workflow нужна еще Phase 7: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
@@ -186,7 +261,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 
 ### In Progress
 
-- Phase 4: `AI Agent Foundation` - next task to review is `P4-001 Define AI Agent Foundation contract`.
+- Phase 4: `AI Agent Foundation` - `P4-001` through `P4-007` are approved as contracts; next task to review is `P4-008 Add approval before Tavily execution`.
 
 ### Done
 

@@ -12,11 +12,11 @@ Completed through `P2-013`: Phase 2 conclusions are documented, local structured
 
 Phase 3 - Candidate Quality Layer is completed.
 
-Current phase: `Phase 4 - AI Query Planner v0`.
+Current phase: `Phase 4 - AI Agent Foundation`.
 
 Completed through `P3-014`: Phase 3 is closed as the Candidate Quality Layer baseline. Backend candidates now include seniority, normalized review flag details, explainable `quality_score`; the frontend renders a hybrid candidate quality view; the first real Java/Ukraine quality baseline is documented; the `missing_selected_stack` group has been reviewed; stack evidence display labels are clearer; an experimental multi-wave API runner exists; the first real adaptive multi-wave evaluation is documented; and the frontend has a visible `Multi-wave` toggle off by default.
 
-Next task to review: `P4-001 Define AI QueryPlanner contract`.
+Next task to review: `P4-008 Add approval before Tavily execution`.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -41,7 +41,21 @@ Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for rank
 
 `P3-013` added the explicit frontend control: default Search remains single-wave through `/api/structured-search`; enabling the `Multi-wave` toggle calls `/api/structured-search/multi-wave` with approved defaults and shows waves, executed queries, stop reason, and new candidates per wave when returned.
 
-`P3-014` closed Phase 3 as a docs-only handoff. Phase 4 should preserve the `QueryPlan` contract, structured request, visible filters, executor/dedupe/report pipeline, snapshots, and Candidate Quality Layer while exploring AI-assisted query planning.
+`P3-014` closed Phase 3 as a docs-only handoff. Phase 4 should preserve the `QueryPlan` contract, structured request, visible filters, executor/dedupe/report pipeline, snapshots, and Candidate Quality Layer while adding the AI Agent Foundation: `Search Brief`, agent tool boundaries, AI-assisted planning, explanations, and approval gates before Tavily execution.
+
+`P4-001` is approved as the AI Agent Foundation contract. Phase 4 should use an LLM/ChatGPT layer for recruiter intent understanding, Search Brief creation, planning, clarification, and explanations, while keeping execution inside the existing validated backend pipeline. The approved flow is `Search Brief -> Agent Plan -> Agent Action -> optional Approval Gate -> validated Tool Call -> Agent Response`.
+
+`P4-002` is approved as the `Search Brief v0` schema contract. The brief is a dialogue state, not just a form copy. It supports `needs_clarification` and `ready_for_planning`, keeps `source_text`, `missing_fields`, `clarifying_questions`, and `assumptions`, leaves `target_titles` to the planner, and uses `exclusions` only for explicit recruiter constraints, not location blacklists.
+
+`P4-003` is approved as the Search Brief validation/adapter contract. It should bridge `Search Brief -> Search Brief validation/normalization -> StructuredSearchRequest adapter -> existing structured-search validation`, reuse `normalize_structured_search_request(...)` as the authoritative search validation layer, reject `target_titles`, preserve `search_depth` as metadata, and avoid LLM calls, Tavily calls, query-plan generation, or search execution.
+
+`P4-004` is approved as the Agent Tools v0 contract. The approved tools are `validate_search_brief`, `adapt_brief_to_structured_request`, `build_query_plan`, `validate_query_plan`, `run_single_wave_search`, `run_multi_wave_search`, `analyze_candidate_quality`, `summarize_search_results`, and `suggest_next_iteration`. Planning/analysis tools do not require approval; search execution tools require explicit approval.
+
+`P4-005` is approved as the AI Query Planner v0 contract behind explicit mode. A real LLM/ChatGPT call may be introduced for planning/explanation only, with `rule_based` remaining default. AI output is a non-executable `draft_query_plan` until deterministic validation (`P4-006`) and execution approval (`P4-008`) are implemented.
+
+`P4-006` is approved as the deterministic AI QueryPlan validation/fallback contract. Validation uses `normalized_brief + normalized_structured_request` as source of truth, marks valid AI plans as `validated_not_executable`, returns structured errors for rejected plans, and provides visible fallback to `RuleBasedQueryPlanner` when supported. No Tavily execution is introduced.
+
+`P4-007` is approved as the planner explanation UI contract. It should extend the existing `Generated QueryPlan` preview with planner mode, Search Brief summary, planner explanation, validation/fallback state, structured errors/warnings, and an approval-needed notice, while remaining backward-compatible with the current rule-based QueryPlan preview.
 
 ## What was built in Phase 1
 
@@ -276,9 +290,9 @@ Final baseline numbers remain above the Phase 2 success criterion:
 Recommended next steps:
 
 - Phase 3: `Candidate Quality Layer`, focused on name extraction, location confidence, stack/seniority scoring, ranking quality, and an adaptive multi-wave runner for quality evaluation.
-- Phase 4: `AI Query Planner v0`, focused on replacing rule-based query generation while preserving the `QueryPlan` contract.
+- Phase 4: `AI Agent Foundation`, focused on `Search Brief`, agent tool boundaries, AI-assisted planning, explanations, approval gates, and an AI Query Planner mode while preserving the `QueryPlan` contract.
 
-Phase 3 is completed as Candidate Quality Layer. AI Query Planner is now the active Phase 4 direction.
+Phase 3 is completed as Candidate Quality Layer. AI Agent Foundation is now the active Phase 4 direction.
 
 ## Verification
 
@@ -321,7 +335,8 @@ Phase 3 is completed as Candidate Quality Layer. AI Query Planner is now the act
 - Current-location extraction is conservative and can keep ambiguous snippets unknown.
 - `RuleBasedQueryPlanner v1` is still the active planner; AI planner is not implemented yet.
 - Candidate quality score is a deterministic v1 signal and should not be treated as final recruiting quality.
-- No database, shortlist, authentication, AI agent, LinkedIn login, scraping, or direct LinkedIn automation is included.
+- No database, shortlist, authentication, fully autonomous AI agent runtime, LinkedIn login, scraping, or direct LinkedIn automation is included.
+- Absolute product boundaries: no direct web-search bypass outside the approved backend pipeline, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no actions with user or third-party accounts.
 
 ## Reference documents
 

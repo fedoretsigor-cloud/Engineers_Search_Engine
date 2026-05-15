@@ -1990,7 +1990,7 @@ Verification:
 
 ## Phase 4 - AI Agent Foundation
 
-### Backlog
+### Approved
 
 - [ ] P4-001 Define AI Agent Foundation contract
 - [ ] P4-002 Define Search Brief schema
@@ -1999,6 +1999,9 @@ Verification:
 - [ ] P4-005 Add AI Query Planner v0 behind explicit mode
 - [ ] P4-006 Add AI QueryPlan validation and fallback
 - [ ] P4-007 Add planner explanation UI
+
+### Backlog
+
 - [ ] P4-008 Add approval before Tavily execution
 - [ ] P4-009 Compare AI planner vs rule-based baseline
 - [ ] P4-010 Close Phase 4 with decision
@@ -2048,35 +2051,40 @@ Do not include in Phase 4 without separate approval:
 
 ## Task: P4-001 Define AI Agent Foundation contract
 
-### Context
+### Контекст
 
-The project already has a working deterministic sourcing engine:
+В проекте уже есть рабочий deterministic sourcing engine:
 
 - `StructuredSearchRequest`;
 - `QueryPlan`;
 - rule-based planner;
 - sequential Tavily runner;
-- dedupe by normalized LinkedIn profile URL;
-- visible filters;
+- dedupe по normalized LinkedIn profile URL;
+- видимые фильтры;
 - Candidate Quality Layer;
 - multi-wave runner;
-- reports and local snapshots.
+- reports и local snapshots.
 
-The next product direction is not only an AI-generated query list, but an AI Agent foundation built on top of the existing engine.
+Следующее направление продукта - не просто AI-generated query list, а фундамент AI Agent поверх уже построенного engine.
 
-### Goal
+### Цель
 
-Define the first AI Agent foundation contract before writing code.
+Зафиксировать первый контракт AI Agent Foundation до написания кода.
 
-The contract should describe how recruiter intent becomes a structured brief, how the AI planner proposes actions, which backend tools are available, and where user approval is required.
+Контракт должен описать:
 
-### Proposed concepts
+- как intent рекрутера превращается в structured brief;
+- как AI предлагает план и действия;
+- какие backend tools доступны агенту;
+- где обязательно нужен approval пользователя.
+
+### Основные понятия
 
 #### Search Brief
 
-Structured recruiter task extracted from user intent.
+Структурированная задача рекрутера, извлеченная из user intent.
 
-Initial fields:
+Первичные поля:
 
 - `role_family`;
 - `technology`;
@@ -2091,46 +2099,46 @@ Initial fields:
 
 #### Agent Plan
 
-A human-readable plan produced before execution.
+Читаемый человеком план, который создается до выполнения действий.
 
-It should explain:
+Он должен объяснять:
 
-- what the agent understood;
-- what it will search for;
-- which planner mode it wants to use;
-- whether it recommends single-wave or multi-wave;
-- expected cost/latency tradeoff;
-- what requires approval.
+- что агент понял;
+- кого и где он собирается искать;
+- какой planner mode он предлагает использовать;
+- рекомендует ли single-wave или multi-wave;
+- ожидаемый tradeoff по cost/latency;
+- какие действия требуют approval.
 
 #### Agent Action
 
-A proposed action that may or may not call backend tools.
+Предложенное действие агента. Оно может быть чисто аналитическим или может требовать backend tool call.
 
-Examples:
+Примеры:
 
-- build query plan;
-- run single-wave search;
-- run multi-wave search;
-- analyze candidates;
-- suggest next iteration.
+- построить query plan;
+- запустить single-wave search;
+- запустить multi-wave search;
+- проанализировать кандидатов;
+- предложить следующую итерацию поиска.
 
 #### Tool Call
 
-Validated backend operation available to the agent.
+Валидированная backend operation, доступная агенту.
 
-The agent should not bypass existing backend contracts. Tool calls should reuse existing APIs and internal models where possible.
+Агент не должен обходить существующие backend contracts. Tool calls должны переиспользовать текущие API и внутренние модели там, где это возможно.
 
 #### Approval Gate
 
-Any expensive or externally visible action must wait for user approval.
+Любое дорогое или externally visible действие должно ждать approval пользователя.
 
-At minimum, Tavily execution and multi-wave execution require explicit approval.
+Минимально approval нужен перед Tavily execution и multi-wave execution.
 
 #### Agent Response
 
-The agent's explanation back to the user.
+Объяснение агента для пользователя.
 
-It should be readable and grounded in:
+Оно должно быть читаемым и опираться на:
 
 - Search Brief;
 - QueryPlan;
@@ -2138,42 +2146,1048 @@ It should be readable and grounded in:
 - candidate quality signals;
 - known limitations.
 
-### Proposed steps
+### Шаги
 
-1. Define Phase 4 scope as `AI Agent Foundation`, not only `AI Query Planner`.
-2. Define the first `Search Brief` contract.
-3. Define `Agent Plan`, `Agent Action`, `Tool Call`, `Approval Gate`, and `Agent Response`.
-4. Map current deterministic engine capabilities into agent tools.
-5. Define which actions require approval.
-6. Define what the AI is not allowed to do in Phase 4.
-7. Define how AI-generated `QueryPlan` must be validated.
-8. Define fallback behavior to `RuleBasedQueryPlanner`.
-9. Define baseline evaluation for Java Backend Ukraine.
-10. Decide what belongs to later phases: chat, memory, shortlist, autonomous loop, database.
+1. Зафиксировать scope Phase 4 как `AI Agent Foundation`, а не только `AI Query Planner`.
+2. Определить первый контракт `Search Brief`.
+3. Определить сущности `Agent Plan`, `Agent Action`, `Tool Call`, `Approval Gate` и `Agent Response`.
+4. Сопоставить текущие deterministic engine capabilities с agent tools.
+5. Определить, какие действия требуют approval.
+6. Определить, что AI не имеет права делать в Phase 4.
+7. Определить, как должен валидироваться AI-generated `QueryPlan`.
+8. Определить fallback behavior к `RuleBasedQueryPlanner`.
+9. Определить baseline evaluation для Java Backend Ukraine.
+10. Отделить то, что относится к следующим фазам: chat, memory, shortlist, autonomous loop, database.
+
+### Утвержденные решения
+
+- Step 1 approved: scope Phase 4 зафиксирован как `AI Agent Foundation`, а не только `AI Query Planner`.
+- Phase 4 строит фундамент агента: `Search Brief`, AI-assisted planning, explanations, backend validation и approval gates.
+- Existing deterministic engine остается safe execution layer: `QueryPlan`, planner fallback, search runner, multi-wave runner, dedupe, filters, Candidate Quality Layer, reports и snapshots.
+- AI Query Planner остается отдельной задачей внутри Phase 4, но не является всей фазой.
+- Fully autonomous agent loop, chat UI, persistent memory/database, shortlist/export, LinkedIn login/scraping и multi-source search остаются вне Phase 4 без отдельного approval.
+- Step 2 approved: `Search Brief v0` является структурой диалога, а не копией текущей формы.
+- `Search Brief v0` хранит recruiter intent, missing fields, clarifying questions, assumptions и явные ограничения пользователя.
+- `target_titles` не хранятся в `Search Brief`; их генерирует planner.
+- Если `stack` не указан, агент задает уточняющий вопрос, а не строит план на догадках.
+- `seniority` входит в `Search Brief v0` как optional field.
+- `must_have` и `nice_to_have` входят в `Search Brief v0`.
+- `exclusions` заполняются только из явных слов рекрутера, например "не Android" или "исключить frontend"; по умолчанию они пустые.
+- Location не обрабатывается через manual blacklist exclusions. Для location сохраняется current-location matching: если текущая локация явно не совпадает с target location, кандидат скрывается или помечается по существующим правилам.
+- `search_depth` для v0 имеет значения `standard` и `deep`; `deep` может предложить deeper search или multi-wave, но только через approval.
+- Если brief неполный, агент задает уточняющие вопросы до planner execution.
+- Baseline для проверки `Search Brief v0`: `Backend Developer + Java + Spring/Kafka + Ukraine`.
+- Step 3 approved: agent workflow строится как `Agent Plan -> Agent Action -> optional Approval Gate -> validated Tool Call -> Agent Response`.
+- `Agent Plan` описывает, что агент понял, какой поиск предлагает, какой planner mode/depth хочет использовать, какие инструменты будут задействованы и что требует approval.
+- `Agent Action` описывает следующий шаг агента: задать уточняющий вопрос, предложить query plan, запустить single-wave search, запустить multi-wave search, проанализировать результаты или предложить следующую итерацию.
+- `Tool Call` является только валидированной backend operation из разрешенного списка; агент не вызывает произвольные backend действия и не обходит существующие contracts.
+- `Approval Gate` обязателен перед Tavily execution, multi-wave execution, deep search и выполнением AI-generated QueryPlan.
+- `Agent Response` должен быть читаемым и grounded в `Search Brief`, `QueryPlan`, report metrics, candidate quality signals и known limitations.
+- Step 4 approved: current deterministic engine становится `Agent Tools v0`.
+- Утвержденные `Agent Tools v0`: `validate_search_brief`, `adapt_brief_to_structured_request`, `build_query_plan`, `validate_query_plan`, `run_single_wave_search`, `run_multi_wave_search`, `analyze_candidate_quality`, `summarize_search_results`, `suggest_next_iteration`.
+- Агент может предлагать `multi-wave`, но не запускать его без approval.
+- `run_single_wave_search`, `run_multi_wave_search` и `deep search` всегда требуют approval.
+- `build_query_plan` можно выполнять без approval, потому что он не запускает Tavily.
+- `validate_search_brief`, `adapt_brief_to_structured_request`, `validate_query_plan`, `analyze_candidate_quality`, `summarize_search_results` и `suggest_next_iteration` можно выполнять без approval.
+- Все agent tools работают только поверх текущего backend pipeline.
+- Запрещены прямые web-search вызовы агентом, LinkedIn scraping, restriction bypass и произвольные HTTP-запросы.
+- Step 5 approved: approval rules делятся на `без approval`, `approval required` и `запрещено вообще`.
+- Без approval агент может понимать intent, собирать и валидировать `Search Brief`, задавать уточняющие вопросы, адаптировать brief в `StructuredSearchRequest`, строить/валидировать `QueryPlan`, объяснять план, анализировать уже полученные результаты и предлагать следующую итерацию.
+- Approval required для `run_single_wave_search`, `run_multi_wave_search`, `deep search`, выполнения AI-generated `QueryPlan`, повторного запуска поиска, увеличения `max_results` и изменения depth с `standard` на `deep`.
+- Перед approval агент должен показать `Search Brief`, execution mode, примерный query count, single-wave/multi-wave mode, включенные filters, cost/latency implications и понятный вопрос на запуск.
+- Запрещено вообще: direct web-search агентом в обход backend, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
+- Step 6 approved: Phase 4-specific AI boundaries зафиксированы отдельно от absolute product boundaries в `instructions`.
+- В Phase 4 AI не может запускать поиск без approval.
+- AI planner не становится default mode.
+- AI не может обходить backend validation.
+- AI не может изменять или отключать visible filters без явного решения пользователя.
+- AI не может самостоятельно менять scoring, location или dedupe logic.
+- AI не может скрывать кандидатов только по AI opinion без explainable deterministic reason.
+- Phase 4 не добавляет persistent memory/database, shortlist/export workflow, fully autonomous agent loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources или сохранение sensitive user/account data.
+- Step 7 approved: AI-generated `QueryPlan` можно только предлагать; backend deterministic validator решает, можно ли его выполнять.
+- AI-generated `QueryPlan` должен соответствовать тому же contract, что и rule-based `QueryPlan`: `planner_version`, `input_snapshot`, `queries`, `filters`, `execution`, `reporting`.
+- Validator проверяет structure: non-empty queries, unique query IDs, non-empty query strings, required `category`, `purpose`, `query`, `max_results`, and max results within limit.
+- Validator проверяет safety: only approved backend/search scope, LinkedIn public profiles scope, no LinkedIn login/scraping/bypass terms, no hidden filter bypass, no unsupported locations, no arbitrary web-search.
+- Validator проверяет соответствие `Search Brief`: role, technology, stack/nice-to-have, location, search_depth и explicit exclusions не должны противоречить brief.
+- `standard` не увеличивает query count beyond the current plan contract; `deep` может предложить multi-wave через тот же validated `QueryPlan`, но не произвольные extra queries.
+- Даже valid AI-generated `QueryPlan` требует approval перед Tavily execution.
+- Если validation fails, search не выполняется; response должен вернуть validation errors и предложить fallback к `RuleBasedQueryPlanner`.
+- Step 8 approved: fallback к `RuleBasedQueryPlanner` является visible safe mode, а не скрытым откатом.
+- Fallback включается, если AI model недоступна, AI call вернул error/timeout, AI вернул невалидную структуру, AI-generated `QueryPlan` не прошел validation, AI plan нарушает safety rules, пользователь выбрал rule-based mode, или supported brief можно надежно обработать deterministic planner.
+- Fallback строит `QueryPlan` через текущий path: `Search Brief -> StructuredSearchRequest -> RuleBasedQueryPlanner -> QueryPlan`.
+- Пользователь должен видеть `planner_mode = rule_based_fallback` и `fallback_reason`.
+- Fallback plan не запускается автоматически; Tavily execution все равно требует approval.
+- Если brief не поддерживается текущим `RuleBasedQueryPlanner`, fallback должен вернуть понятное сообщение, что deterministic fallback недоступен для этого brief.
+- Agent Response должен объяснить, почему AI plan не использован, доступен ли fallback, что fallback сделает, какие ограничения у fallback, и что нужно approval перед запуском.
+- Step 9 approved: Phase 4 baseline evaluation проверяет весь agent flow, а не только candidate count.
+- Baseline scenario остается `Backend Developer + Java + Spring/Kafka + Ukraine`.
+- Evaluation проверяет extraction живого recruiter text в корректный `Search Brief`.
+- Если brief неполный, evaluation ожидает clarifying question, а не silent plan generation.
+- `Agent Plan` должен быть понятен до запуска и объяснять target, location, depth, single-wave/multi-wave recommendation, tools и approval requirements.
+- Tavily execution не должен происходить до approval.
+- AI-generated `QueryPlan` должен либо пройти deterministic validation, либо быть отклонен с validation errors.
+- Fallback к `RuleBasedQueryPlanner` должен быть видим пользователю и работать для supported brief.
+- Approved search должен идти через текущий Phase 3 pipeline: visible filters, executor, dedupe, Candidate Quality Layer, reports и snapshots.
+- Evaluation должна подтвердить no forbidden behavior: no direct web-search bypass, no LinkedIn login/scraping/bypass, no auto-messaging, no account actions.
+- Step 10 approved: Phase 4 остается foundation phase, а chat/memory/shortlist/autonomous runtime выносятся в следующие фазы.
+- В Phase 4 входят `Search Brief` contract, LLM-assisted brief/plan generation, agent tool boundaries, AI Query Planner mode, deterministic validation, rule-based fallback, approval gates, explanations и baseline evaluation.
+- Полноценный recruiter chat UI относится к Phase 5.
+- Tool-calling agent runtime относится к Phase 6.
+- Candidate workspace, shortlist, notes/statuses и export workflow относятся к Phase 7.
+- Persistent memory/database, saved searches, saved sessions/runs/candidates и long-term memory относятся к Phase 8.
+- Multi-source search beyond Tavily, private/personal data sources, candidate outreach и account actions не входят в Phase 4; outreach/account actions запрещены absolute product boundaries.
+- `P4-001` approved: все 10 шагов AI Agent Foundation contract согласованы как постановка задачи; кодинг требует отдельного явного approval.
+
+### Ограничения
+
+- Не реализовывать AI calls в этой задаче.
+- Не менять current search runtime в этой задаче.
+- Не удалять `RuleBasedQueryPlanner`.
+- Не делать AI planner default.
+- Не запускать Tavily.
+- Не добавлять LinkedIn login, scraping или restriction bypass.
+- Не добавлять database, shortlist, export или persistent memory.
+
+### Критерии приемки
+
+- Phase 4 задокументирована как `AI Agent Foundation`.
+- Концепт `Search Brief` определен.
+- Граница agent tools определена.
+- Approval gates определены.
+- Existing deterministic engine сохранен как safe execution layer.
+- `QueryPlan` остается контрактом между planner и executor.
+- Следующие P4-задачи можно ревьюить по одной перед кодингом.
+
+### Перед реализацией
+
+Codex должен пересказать scope задачи, предложить точные implementation steps и дождаться явного approval перед изменением кода.
+
+---
+
+## Task: P4-002 Define Search Brief schema
+
+### Context
+
+`P4-001` approved the AI Agent Foundation contract. The next step is to define the exact `Search Brief v0` schema before implementing any LLM calls, validation endpoints, or frontend chat behavior.
+
+`Search Brief v0` is not just a copy of the current form. It is a dialogue state between recruiter intent and technical `QueryPlan` generation. It must support both complete and incomplete briefs.
+
+### Goal
+
+Define a concrete `Search Brief v0` schema that can store what the AI understood, what is missing, what questions should be asked, and what can later be adapted into `StructuredSearchRequest`.
+
+### Approved principles
+
+- `Search Brief v0` is a dialogue structure, not only a ready form.
+- The schema must support incomplete briefs.
+- `brief_status` is required:
+  - `needs_clarification`;
+  - `ready_for_planning`.
+- `missing_fields` and `clarifying_questions` are part of the schema.
+- `source_text` is kept so the product can show what recruiter text the brief came from.
+- `assumptions` are explicit so AI guesses are not hidden.
+- Canonical fields are more important than free-text `must_have` / `nice_to_have`.
+- `target_titles` do not belong in `Search Brief`; planner generates them later.
+- `exclusions` are only explicit user constraints such as "not Android" or "exclude frontend"; they are not a location blacklist.
+- `search_depth` defaults to `standard`; `deep` can recommend deeper search or multi-wave but execution still requires approval.
+
+### Proposed schema
+
+```json
+{
+  "source_text": "Find Backend Developer with Java in Ukraine, ideally Spring and Kafka.",
+  "brief_status": "ready_for_planning",
+  "role_family": "Backend Developer",
+  "technology": "Java",
+  "stack": ["Spring", "Kafka"],
+  "location": "Ukraine",
+  "seniority": null,
+  "must_have": ["Java"],
+  "nice_to_have": ["Spring", "Kafka"],
+  "exclusions": [],
+  "search_depth": "standard",
+  "profile_sources": ["linkedin_public"],
+  "notes": null,
+  "missing_fields": [],
+  "clarifying_questions": [],
+  "assumptions": []
+}
+```
+
+Exact field names can be adjusted during implementation, but the schema must preserve this meaning.
+
+### Field rules
+
+- `source_text`: original recruiter text or latest user instruction that produced the brief.
+- `brief_status`: `needs_clarification` or `ready_for_planning`.
+- `role_family`: canonical role family. For v0, supported value is `Backend Developer`.
+- `technology`: canonical main technology. For v0, supported value is `Java`.
+- `stack`: selected stack signals. For current Java planning, stack is required before `ready_for_planning`.
+- `location`: canonical target location. For v0, supported value is `Ukraine`.
+- `seniority`: optional value such as `Junior`, `Middle`, `Senior`, `Lead`, or `null`.
+- `must_have`: explicit hard requirements from the recruiter.
+- `nice_to_have`: explicit preferred signals from the recruiter.
+- `exclusions`: explicit exclusions from the recruiter only.
+- `search_depth`: `standard` or `deep`; default is `standard`.
+- `profile_sources`: for v0, only `linkedin_public`.
+- `notes`: optional user notes.
+- `missing_fields`: required-for-planning fields that are missing.
+- `clarifying_questions`: questions the agent should ask before planning.
+- `assumptions`: explicit assumptions made by AI or deterministic parsing.
+
+### Ready-for-planning rules
+
+For the current Java Backend baseline, `ready_for_planning` requires:
+
+- `role_family`;
+- `technology`;
+- `stack`;
+- `location`;
+- `search_depth`;
+- `profile_sources`.
+
+`stack` is not required for the schema object to exist, but it is required for `ready_for_planning` in the current Java flow.
+
+If any required-for-planning field is missing, status must be `needs_clarification`.
+
+### Incomplete brief example
+
+Input:
+
+```text
+Find Java backend developer in Ukraine.
+```
+
+Expected brief shape:
+
+```json
+{
+  "source_text": "Find Java backend developer in Ukraine.",
+  "brief_status": "needs_clarification",
+  "role_family": "Backend Developer",
+  "technology": "Java",
+  "stack": [],
+  "location": "Ukraine",
+  "search_depth": "standard",
+  "profile_sources": ["linkedin_public"],
+  "missing_fields": ["stack"],
+  "clarifying_questions": [
+    "Which Java stack signals are important for this search: Spring, Kafka, AWS, Hibernate, or something else?"
+  ],
+  "assumptions": []
+}
+```
+
+### Baseline brief example
+
+Baseline scenario:
+
+```text
+Backend Developer + Java + Spring/Kafka + Ukraine
+```
+
+Expected status:
+
+```json
+{
+  "brief_status": "ready_for_planning",
+  "role_family": "Backend Developer",
+  "technology": "Java",
+  "stack": ["Spring", "Kafka"],
+  "location": "Ukraine",
+  "search_depth": "standard",
+  "profile_sources": ["linkedin_public"],
+  "missing_fields": [],
+  "clarifying_questions": []
+}
+```
 
 ### Constraints
 
-- Do not implement AI calls in this task.
-- Do not change current search runtime in this task.
-- Do not remove `RuleBasedQueryPlanner`.
-- Do not make AI planner default.
+- Do not implement LLM calls in this task unless separately approved.
+- Do not change search runtime in this task.
 - Do not run Tavily.
-- Do not add LinkedIn login, scraping, or restriction bypass.
-- Do not add database, shortlist, export, or persistent memory.
+- Do not build recruiter chat UI.
+- Do not add database, memory, shortlist, export, or persistence.
+- Do not add `target_titles` to `Search Brief`.
+- Do not use `exclusions` as a location blacklist.
 
 ### Acceptance criteria
 
-- Phase 4 is documented as `AI Agent Foundation`.
-- `Search Brief` concept is defined.
-- Agent tool boundary is defined.
-- Approval gates are defined.
-- Existing deterministic engine is preserved as the safe execution layer.
-- `QueryPlan` remains the contract between planner and executor.
-- P4 follow-up tasks can be reviewed one by one before coding.
+- `Search Brief v0` schema is documented.
+- Schema supports both `needs_clarification` and `ready_for_planning`.
+- Required-for-planning fields are documented for the Java Backend baseline.
+- Incomplete brief behavior is documented.
+- Baseline brief example is documented.
+- `target_titles`, location blacklist exclusions, and execution behavior remain out of the schema.
+- Follow-up task `P4-003` can implement validation and adapter from this contract.
 
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P4-003 Add Search Brief validation and adapter
+
+### Context
+
+`P4-002` defined `Search Brief v0` as a dialogue-state schema. The next step is to define backend validation and the adapter from `Search Brief` into the existing `StructuredSearchRequest`.
+
+The adapter must not create a parallel search validation system. The current backend already has `StructuredSearchRequest` and `normalize_structured_search_request(...)`; `P4-003` should reuse that existing validation after mapping a ready brief into the structured request shape.
+
+### Goal
+
+Add a safe bridge from `Search Brief v0` to the current deterministic search engine:
+
+```text
+Search Brief
+-> Search Brief validation/normalization
+-> StructuredSearchRequest adapter
+-> existing structured-search validation
+```
+
+This task prepares the backend for a future LLM/ChatGPT layer, but it does not add LLM calls.
+
+### Proposed backend pieces
+
+1. Add a `SearchBrief` backend model matching `P4-002`.
+2. Add `validate_search_brief(...)`.
+3. Add `adapt_search_brief_to_structured_request(...)`.
+4. Add a validation endpoint:
+
+```text
+POST /api/search-brief/validate
+```
+
+The endpoint should return:
+
+- `ok`;
+- normalized brief;
+- validation errors;
+- clarifying questions when the brief is incomplete;
+- adapted `StructuredSearchRequest` only when the brief is `ready_for_planning` and valid.
+
+### Validation rules
+
+Backend must not blindly trust `brief_status` from AI or client input.
+
+- If `brief_status = ready_for_planning` but required-for-planning fields are missing, validation must fail or downgrade to `needs_clarification`.
+- If `brief_status = needs_clarification`, adapter must not create `StructuredSearchRequest`.
+- For the current Java flow, `stack` is required before planning.
+- `target_titles` must be rejected if sent; planner owns target-title generation.
+- `search_depth` allowed values are `standard` and `deep`.
+- `profile_sources` v0 supports only `linkedin_public`.
+- `exclusions` are accepted as explicit recruiter constraints only; they must not become Tavily negative terms or location blacklist logic.
+- `source_text`, `missing_fields`, `clarifying_questions`, and `assumptions` remain part of normalized brief metadata.
+
+### Adapter rules
+
+Adapter maps only execution-ready canonical fields into `StructuredSearchRequest`:
+
+```json
+{
+  "role_family": "Backend Developer",
+  "technology": "Java",
+  "stack": ["Spring", "Kafka"],
+  "location": "Ukraine",
+  "linkedin_profiles_only": true,
+  "location_filter_enabled": true
+}
+```
+
+Then the adapter must reuse existing `normalize_structured_search_request(...)` so the current rules remain authoritative for:
+
+- supported role families;
+- implemented technologies;
+- Java stack canonicalization and max stack count;
+- location filter availability;
+- default `linkedin_profiles_only`;
+- default `location_filter_enabled`.
+
+### Search depth handling
+
+`search_depth` does not belong in `StructuredSearchRequest`.
+
+- `standard` maps to the normal single-wave path later.
+- `deep` is kept as brief/agent metadata and may recommend multi-wave later.
+- `deep` must not automatically trigger multi-wave in this task.
+
+### Smoke checks
+
+Use local backend checks without Tavily:
+
+1. Complete baseline brief returns valid normalized brief and adapted structured request.
+2. Missing stack returns `needs_clarification` and no adapted request.
+3. Unsupported location returns validation error.
+4. Unsupported profile source returns validation error.
+5. `target_titles` in payload is rejected.
+6. `exclusions` are preserved as metadata but not converted into query terms or location blacklist.
+7. `deep` is accepted as metadata but does not change the adapted structured request.
+
+### Constraints
+
+- Do not add LLM/OpenAI calls in this task.
+- Do not run Tavily.
+- Do not build query plan in this endpoint.
+- Do not execute search.
+- Do not change `/api/structured-search` behavior.
+- Do not change planner/search runner/dedupe/scoring/location filter behavior.
+- Do not build recruiter chat UI.
+- Do not add database, memory, shortlist, export, or persistence.
+
+### Acceptance criteria
+
+- `SearchBrief` validation is documented and ready for implementation.
+- Adapter rules to `StructuredSearchRequest` are documented.
+- Existing structured-search validation remains authoritative.
+- Incomplete briefs do not produce adapted search requests.
+- `search_depth` is preserved as metadata but not pushed into current search runtime.
+- No Tavily or LLM calls are introduced.
+- Follow-up `P4-004` can define the full agent tools contract on top of this bridge.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P4-004 Define Agent tools contract
+
+### Context
+
+`P4-001` approved the AI Agent Foundation contract, `P4-002` defined `Search Brief v0`, and `P4-003` defined the validation/adapter bridge from `Search Brief` to the existing deterministic backend pipeline.
+
+The next step is to define the exact tools the future LLM/ChatGPT layer is allowed to use. This is a contract task, not a runtime implementation task.
+
+### Goal
+
+Define `Agent Tools v0`: names, inputs, outputs, approval requirements, error shape, and safety boundaries for the backend operations available to the agent.
+
+The agent must only call allowlisted tools and must not bypass existing backend contracts.
+
+### Approved Agent Tools v0
+
+#### `validate_search_brief`
+
+Validates and normalizes `Search Brief v0`.
+
+Approval: not required.
+
+Input:
+
+```json
+{
+  "search_brief": {}
+}
+```
+
+Output:
+
+```json
+{
+  "ok": true,
+  "normalized_brief": {},
+  "missing_fields": [],
+  "clarifying_questions": [],
+  "errors": []
+}
+```
+
+#### `adapt_brief_to_structured_request`
+
+Maps a `ready_for_planning` brief into the existing `StructuredSearchRequest` shape and reuses existing structured-search validation.
+
+Approval: not required.
+
+Rule: incomplete briefs must not produce adapted requests.
+
+#### `build_query_plan`
+
+Builds a `QueryPlan` from an adapted structured request.
+
+Approval: not required because it does not execute Tavily.
+
+Phase 4 may later support planner modes, but the tool contract must keep execution separate from planning.
+
+#### `validate_query_plan`
+
+Validates AI-generated or rule-based `QueryPlan` before any execution.
+
+Approval: not required.
+
+Rule: validation must be deterministic backend validation, not "AI validates AI".
+
+#### `run_single_wave_search`
+
+Runs the existing single-wave structured-search pipeline through the approved backend path.
+
+Approval: required.
+
+Rule: this tool must not run before explicit user approval.
+
+#### `run_multi_wave_search`
+
+Runs the experimental multi-wave structured-search pipeline through the approved backend path.
+
+Approval: required.
+
+Rule: this tool must not run before explicit user approval and should remain explicit/deeper search behavior.
+
+#### `analyze_candidate_quality`
+
+Analyzes already returned candidates using existing Candidate Quality Layer signals, report metrics, evidence, and review flags.
+
+Approval: not required.
+
+Rule: this tool does not hide candidates or change scoring/filtering behavior.
+
+#### `summarize_search_results`
+
+Creates a human-readable summary of already available report/results data.
+
+Approval: not required.
+
+#### `suggest_next_iteration`
+
+Suggests the next sourcing step, such as asking for stack clarification, trying `deep`, changing brief wording, or proposing multi-wave.
+
+Approval: not required for the suggestion itself.
+
+Rule: any suggested execution still requires the relevant approval gate.
+
+### Tool call envelope
+
+Every tool call should use a stable envelope:
+
+```json
+{
+  "tool_name": "build_query_plan",
+  "input": {},
+  "requires_approval": false,
+  "approval_status": "not_required",
+  "idempotency_key": null,
+  "reason": "Why the agent wants this tool."
+}
+```
+
+### Tool result envelope
+
+Every tool result should use a stable envelope:
+
+```json
+{
+  "ok": true,
+  "tool_name": "build_query_plan",
+  "result": {},
+  "errors": [],
+  "requires_approval": false,
+  "next_actions": []
+}
+```
+
+### Approval statuses
+
+Allowed approval statuses:
+
+- `not_required`;
+- `required`;
+- `approved`;
+- `rejected`.
+
+### Safety rules
+
+- Agent can call only allowlisted tools.
+- Tools must not do more than their declared contract.
+- Planning tools must not execute Tavily.
+- `run_*` tools must not execute without approval.
+- Tools must reuse existing backend functions/endpoints where possible.
+- Tool errors must be structured.
+- No direct web-search by the agent outside the approved backend pipeline.
+- No LinkedIn login.
+- No LinkedIn scraping or restriction bypass.
+- No arbitrary HTTP requests.
+- No automatic candidate messaging.
+- No account actions.
+
+### Constraints
+
+- Do not implement LLM/tool runtime in this task unless separately approved.
+- Do not add OpenAI calls in this task.
+- Do not run Tavily.
+- Do not change current search behavior.
+- Do not build frontend chat UI.
+- Do not add database, memory, shortlist, export, or persistence.
+
+### Acceptance criteria
+
+- `Agent Tools v0` list is documented.
+- Each tool has a purpose and approval requirement.
+- Tool call/result envelope is documented.
+- Approval statuses are documented.
+- Safety rules are documented.
+- Follow-up `P4-005` can add AI Query Planner mode behind explicit controls using this tool boundary.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P4-005 Add AI Query Planner v0 behind explicit mode
+
+### Context
+
+`P4-001` through `P4-004` approved the AI Agent Foundation, `Search Brief v0`, the Search Brief validation/adapter bridge, and the Agent Tools v0 contract.
+
+This is the first Phase 4 task where a real LLM/ChatGPT layer may be introduced, but only for planning and explanation. The current deterministic search engine must remain the safe execution layer.
+
+### Goal
+
+Add an AI Query Planner v0 behind an explicit planner mode.
+
+The AI planner may produce a draft `QueryPlan`, planner explanation, and metadata from a ready `Search Brief`, but it must not execute Tavily, change filters, change scoring, or become the default planner.
+
+### Planner modes
+
+Define explicit planner modes:
+
+- `rule_based`: current default behavior.
+- `ai`: use LLM/ChatGPT to propose a draft query plan.
+- `ai_with_fallback`: optional mode that may try AI planning and fall back to rule-based planning when AI planning fails.
+
+Default must remain `rule_based`.
+
+### AI planner input
+
+The AI planner should receive only controlled context:
+
+- validated `Search Brief`;
+- adapted/normalized `StructuredSearchRequest`;
+- current `QueryPlan` contract;
+- Agent Tools v0 boundary;
+- safety rules and absolute product boundaries;
+- allowed source: `linkedin_public`;
+- max query count and max results limits;
+- current supported baseline: `Backend Developer + Java + Spring/Kafka + Ukraine`.
+
+### AI planner output
+
+The output must be structured and treated as draft:
+
+```json
+{
+  "planner_version": "ai_query_planner_v0",
+  "planner_mode": "ai",
+  "explanation": "Why these query slots were proposed.",
+  "draft_query_plan": {},
+  "warnings": [],
+  "assumptions": []
+}
+```
+
+Important rule: `draft_query_plan` is not executable until later deterministic validation and approval gates are applied.
+
+### LLM/API configuration
+
+- Use a real LLM/ChatGPT API only for planning and explanation.
+- Do not hardcode the model name in business logic; read model/config from environment or central config.
+- Do not hardcode API keys.
+- Expected secret/config name: `OPENAI_API_KEY` or equivalent project-approved OpenAI API configuration.
+- If no API key/config is available, AI mode should fail gracefully without breaking `rule_based` mode.
+
+### Execution boundaries
+
+- AI planner must not call Tavily.
+- AI planner must not call `run_single_wave_search`.
+- AI planner must not call `run_multi_wave_search`.
+- AI planner must not perform direct web-search.
+- AI planner must not scrape LinkedIn, log in to LinkedIn, bypass restrictions, send candidate messages, or act on accounts.
+- AI planner must not change scoring, dedupe, location filter, or visible filter behavior.
+- AI planner must not silently hide candidates by AI opinion.
+
+### Relationship to P4-006 and P4-008
+
+`P4-005` may return a `draft_query_plan`, but it must not treat it as executable.
+
+- `P4-006` owns deterministic AI QueryPlan validation and fallback behavior.
+- `P4-008` owns approval before Tavily execution.
+
+Until those tasks are implemented, an AI-generated plan should remain a proposal only.
+
+### Proposed steps
+
+1. Add explicit planner mode contract: `rule_based`, `ai`, optional `ai_with_fallback`.
+2. Define AI planner prompt/context using only validated brief, adapted request, QueryPlan contract, limits, and safety rules.
+3. Add LLM/ChatGPT planning call behind explicit `ai` mode.
+4. Return structured output with `explanation`, `draft_query_plan`, `warnings`, and `assumptions`.
+5. Keep `rule_based` as the default planner.
+6. Ensure AI planner never executes Tavily or search tools.
+7. Add graceful error/fallback response when LLM config/API is unavailable.
+8. Keep generated AI plan non-executable until P4-006 validation and P4-008 approval are in place.
+9. Add local smoke checks that do not require Tavily execution.
+
+### Smoke checks
+
+- Default planner mode remains `rule_based`.
+- AI mode requires explicit selection.
+- Missing LLM/API config returns graceful error and does not break rule-based mode.
+- AI planner output is structured as draft.
+- AI planner does not run Tavily.
+- AI planner does not call search execution tools.
+- Draft AI plan is not accepted as executable in this task.
+
+### Constraints
+
+- Do not make AI planner default.
+- Do not execute Tavily.
+- Do not implement final AI QueryPlan validation in this task; that belongs to `P4-006`.
+- Do not implement execution approval UI/flow in this task; that belongs to `P4-008`.
+- Do not change existing search runtime behavior.
+- Do not change scoring, dedupe, location filter, or Candidate Quality logic.
+- Do not build full recruiter chat UI.
+- Do not add database, memory, shortlist, export, or persistence.
+- Do not violate absolute product boundaries in `instructions`.
+
+### Acceptance criteria
+
+- AI Query Planner v0 is documented as explicit mode only.
+- `rule_based` remains default.
+- AI planner is limited to planning and explanation.
+- AI output is treated as `draft_query_plan`, not executable plan.
+- Missing LLM/API config fails gracefully.
+- Tavily/search execution is not triggered by AI planner.
+- Follow-up `P4-006` can validate/fallback AI plans before any execution.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P4-006 Add AI QueryPlan validation and fallback
+
+### Context
+
+`P4-005` allows an explicit AI planner mode to produce a non-executable `draft_query_plan`. Before any AI-generated plan can get near execution, the backend must deterministically validate it and provide a visible fallback path.
+
+This task is the safety gate between LLM planning and search execution.
+
+### Goal
+
+Validate AI-generated draft plans deterministically and produce one of these outcomes:
+
+- validated AI plan, still not executable until approval;
+- rejected AI plan with structured errors;
+- visible fallback option or fallback plan from `RuleBasedQueryPlanner` when supported.
+
+No Tavily execution happens in this task.
+
+### Source of truth
+
+Validator must check the AI draft against backend-normalized inputs:
+
+```text
+normalized_brief + normalized_structured_request
+```
+
+The AI output is not authoritative for filters, execution settings, or supported domain rules.
+
+### Plan status
+
+Validated AI plans should still be marked non-executable until the approval flow exists:
+
+```json
+{
+  "plan_status": "validated_not_executable",
+  "execution_allowed": false
+}
+```
+
+### Structural validation
+
+The AI-generated plan must include the existing `QueryPlan` contract:
+
+- `planner_version`;
+- `planner_mode`;
+- `input_snapshot`;
+- `queries`;
+- `filters`;
+- `execution`;
+- `reporting`.
+
+Each query slot must include:
+
+- `id`;
+- `category`;
+- `purpose`;
+- `role_phrase`;
+- `query`;
+- `uses_stack`;
+- `max_results`.
+
+Query IDs must be unique and query strings must be non-empty.
+
+### Limit validation
+
+- Standard mode must not exceed the current 10-query plan contract.
+- `max_results` must not exceed `QUERY_PLAN_MAX_RESULTS`.
+- `deep` does not allow arbitrary extra queries.
+- `deep` may only support later multi-wave behavior through the same validated plan.
+
+### Safety validation
+
+The validator must reject plans that:
+
+- omit `site:linkedin.com/in` for LinkedIn public profile search;
+- include arbitrary domains or unsupported sources;
+- include LinkedIn login, scraping, bypass, account-action, or messaging terms;
+- try to bypass visible filters;
+- try to change scoring, dedupe, location filter, or candidate quality behavior;
+- include direct web-search behavior outside the approved backend pipeline.
+
+### Brief alignment validation
+
+The AI plan must align with the normalized brief/request:
+
+- role signal aligns with `role_family`;
+- technology signal aligns with `technology`;
+- location appears in each executable query string;
+- stack/nice-to-have terms do not contradict the brief;
+- `profile_sources` remains `linkedin_public`;
+- explicit `exclusions` are not turned into location blacklist logic.
+
+AI may propose query wording within approved scope, but the validator must ensure the query still contains the target location and relevant role/technology signal from the brief.
+
+### Authoritative filters
+
+Filters should come from backend normalized request, not from AI output.
+
+AI may propose filters in metadata, but backend must remain authoritative for:
+
+- `linkedin_profiles_only`;
+- `location_filter_enabled`;
+- execution limits;
+- report fields.
+
+### Validation error shape
+
+Validation errors must be structured:
+
+```json
+{
+  "field": "queries[3].query",
+  "code": "missing_target_location",
+  "message": "Query does not include target location Ukraine."
+}
+```
+
+### Fallback behavior
+
+Fallback to `RuleBasedQueryPlanner` should be available when the normalized structured request is supported.
+
+Fallback can be used when:
+
+- AI output is missing or invalid;
+- AI output is invalid JSON/shape;
+- AI model is unavailable;
+- AI call times out or errors;
+- AI plan validation fails;
+- AI plan violates safety rules;
+- user selects fallback;
+- planner mode is `ai_with_fallback`.
+
+Fallback response should be visible:
+
+```json
+{
+  "planner_mode": "rule_based_fallback",
+  "fallback_reason": "AI plan failed validation.",
+  "query_plan": {}
+}
+```
+
+Fallback plan also remains non-executable until approval.
+
+### Proposed backend pieces
+
+- `validate_ai_query_plan(draft_plan, normalized_brief, normalized_structured_request)`.
+- `build_rule_based_fallback_plan(normalized_structured_request, fallback_reason)`.
+- Optional endpoint:
+
+```text
+POST /api/ai-query-plan/validate
+```
+
+Endpoint shape can be finalized during coding, but the contract must preserve the validation/fallback behavior above.
+
+### Smoke checks
+
+- Valid draft plan returns `validated_not_executable`.
+- Missing `site:linkedin.com/in` is rejected.
+- Missing target location is rejected.
+- Too many queries are rejected.
+- `max_results` above limit is rejected.
+- Unsupported domain/source is rejected.
+- Filter override attempt is ignored or rejected.
+- Invalid AI output returns structured errors and fallback option when supported.
+- Fallback plan uses `RuleBasedQueryPlanner`.
+- No Tavily execution occurs.
+
+### Constraints
+
+- Do not run Tavily.
+- Do not make AI plans executable in this task.
+- Do not implement approval flow in this task; approval belongs to `P4-008`.
+- Do not change default planner mode.
+- Do not change current search runtime behavior.
+- Do not change scoring, dedupe, location filter, or Candidate Quality logic.
+- Do not build frontend chat UI.
+- Do not add database, memory, shortlist, export, or persistence.
+
+### Acceptance criteria
+
+- AI QueryPlan deterministic validation is documented.
+- Validation uses normalized brief/request as source of truth.
+- Valid AI plan is marked `validated_not_executable`.
+- Structured validation errors are defined.
+- Rule-based fallback behavior is defined.
+- No Tavily execution is introduced.
+- Follow-up `P4-007` can display planner explanations and validation/fallback state.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+---
+
+## Task: P4-007 Add planner explanation UI
+
+### Context
+
+`P4-005` defines AI Query Planner v0 behind explicit mode, and `P4-006` defines deterministic validation/fallback for AI-generated draft plans.
+
+The frontend already has a `Generated QueryPlan` panel and `renderQueryPlan(...)`. `P4-007` should extend that existing preview with planner explanation and validation/fallback state. It should not become a broad UI rewrite or full recruiter chat.
+
+### Goal
+
+Show the user what the planner understood and proposed before execution:
+
+- planner mode;
+- Search Brief summary;
+- planner explanation;
+- query plan preview;
+- validation status;
+- validation errors/warnings;
+- fallback state;
+- approval-needed notice.
+
+### UI direction
+
+Extend the existing `Generated QueryPlan` preview instead of creating a new chat UI.
+
+The UI should remain backward-compatible:
+
+- if explanation/status fields are present, show them;
+- if they are absent, current rule-based QueryPlan preview keeps working.
+
+### Planner mode display
+
+Show a clear planner mode badge or status:
+
+- `rule_based`;
+- `ai_draft`;
+- `validated_not_executable`;
+- `rejected`;
+- `rule_based_fallback`.
+
+Exact labels can be user-friendly, but the underlying state must remain visible enough for debugging.
+
+### Search Brief summary
+
+When available, show a compact brief summary near the plan:
+
+- role;
+- technology;
+- stack;
+- location;
+- search depth;
+- missing fields or clarifying questions when the brief is incomplete.
+
+### Planner explanation
+
+When available, show:
+
+- AI planner explanation;
+- assumptions;
+- warnings;
+- fallback explanation/reason.
+
+For rule-based mode, show a simple explanation such as:
+
+```text
+Using tested Java Backend rule-based planner baseline.
+```
+
+### QueryPlan preview
+
+Keep the current query plan list and enrich it when fields exist:
+
+- query id;
+- category;
+- role phrase;
+- purpose;
+- query string;
+- stack usage.
+
+### Validation and fallback display
+
+Show validation state:
+
+- `draft_query_plan`;
+- `validated_not_executable`;
+- `rejected`;
+- `rule_based_fallback`.
+
+Show structured validation errors when present:
+
+- `field`;
+- `code`;
+- `message`.
+
+### Approval-needed notice
+
+Until `P4-008` implements approval flow, show a clear notice when a plan is not executed:
+
+```text
+This plan is not executed yet. Search execution requires approval.
+```
+
+### Constraints
+
+- Do not run Tavily.
+- Do not implement approval execution flow; that belongs to `P4-008`.
+- Do not build full recruiter chat UI; that belongs to Phase 5.
+- Do not change planner/search runtime.
+- Do not make AI plans executable.
+- Do not hide validation errors.
+- Do not rewrite the whole frontend candidate/results UI.
+- Keep existing rule-based QueryPlan preview working.
+
+### Acceptance criteria
+
+- Existing QueryPlan preview remains functional.
+- Planner mode/status can be displayed when present.
+- Search Brief summary can be displayed when present.
+- Planner explanation/warnings/assumptions can be displayed when present.
+- Validation errors can be displayed in a readable way.
+- Fallback reason can be displayed.
+- UI clearly says execution requires approval before search.
+- No Tavily/search execution is introduced.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact UI changes, and wait for explicit approval before changing code.
 
 ---
 
@@ -2697,7 +3711,7 @@ Docs-only task completed:
 
 - `Tasks.md` marks `P3-014` as done and records Phase 3 closeout.
 - `Roadmap.md` marks Phase 3 completed and Phase 4 as the active next phase.
-- `ProjectStatus.md` marks Phase 3 completed through `P3-014` and names `P4-001` as the next task to review.
+- `ProjectStatus.md` marks Phase 3 completed through `P3-014`; after `P4-001` contract approval, `P4-002` is the next task to review.
 
 No code changes.
 
