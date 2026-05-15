@@ -26,7 +26,7 @@ Health check: `http://localhost:8000/api/health`.
 
 ## Current Status
 
-Phase 1 POC, Phase 1.1 behavior tuning, and Phase 2 are complete.
+Phase 1 POC, Phase 1.1 behavior tuning, Phase 2, and Phase 3 are complete.
 
 Phase 2 closed as a working planner-based multi-query search pipeline:
 
@@ -42,10 +42,13 @@ Phase 2 closed as a working planner-based multi-query search pipeline:
 
 The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine` passed: 58 unique candidates vs a target of 20. After `P2-012`/`P2-013`, the current location filter replayed a saved `Spring/Kafka` snapshot at 73 unique candidates, while recent live Tavily single-wave runs are around 55-60 unique candidates.
 
-The next product direction is selected:
+Current product direction:
 
-- Phase 3: `Candidate Quality Layer`, including adaptive multi-wave runner as a supporting quality-evaluation capability
-- Phase 4: `AI Query Planner v0`
+- Phase 4: `AI Agent Foundation`
+- `P4-003` through `P4-007` are implemented in code.
+- The backend has Search Brief validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, and non-executable planner responses.
+- The frontend has a `Planner mode` control and planner explanation UI.
+- `P4-008` is approved as the next execution-safety task: add a real backend approval gate before Tavily execution.
 
 ## Product Rules
 
@@ -60,16 +63,19 @@ The next product direction is selected:
 - Explicit foreign current location hides a candidate as `excluded_foreign_current_location`, even if the URL is `ua.linkedin.com/in/...`.
 - Non-UA LinkedIn profiles can be rescued only when Tavily public header/current-location text contains supported target-location terms.
 - Unknown current location falls back to country-domain/header/weak/unknown signals.
-- `QueryPlan` is the contract that should allow replacing `RuleBasedQueryPlanner v1` with an AI planner later without rewriting executor, dedupe, report, or frontend.
+- `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` remains the default execution planner; explicit AI planner mode can draft non-executable plans for backend validation/fallback.
+- AI-generated plans must remain non-executable until deterministic validation and approval gates allow a future execution path.
 - Local structured-search snapshots are written under `logs/search-runs/` and ignored by git.
 - Tavily live result sets vary between runs; use snapshots for deterministic analysis and treat live unique counts as a range, not a fixed guarantee.
+- Tavily execution must stay inside the approved backend pipeline.
+- Absolute product boundaries: no direct web-search bypass, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no user/third-party account actions.
 
 ## Working Rules
 
-- Read `instructions`, `ProjectStatus.md`, `Roadmap.md`, `Tasks.md`, and `docs/phase-1-poc-findings.md` before changing behavior.
+- Read `instructions`, `ProjectStatus.md`, `Roadmap.md`, `Tasks.md`, `docs/phase-1-poc-findings.md`, `docs/phase-3-quality-baseline.md`, and `docs/phase-3-multi-wave-evaluation.md` before changing behavior.
 - Follow the collaboration rules in `instructions`.
 - Do not change files or behavior without explicit user approval.
-- Keep the project within the public-search scope: no LinkedIn login automation, scraping, restriction bypass, direct LinkedIn profile automation, database, shortlist, authentication, or AI agent unless explicitly agreed.
+- Keep the project within the public-search scope: no LinkedIn login automation, scraping, restriction bypass, direct LinkedIn profile automation, database, shortlist, authentication, or autonomous agent behavior unless explicitly agreed.
 - Prefer focused, small changes with verification.
 
 ## Verification

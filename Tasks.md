@@ -1994,21 +1994,22 @@ Verification:
 
 - [ ] P4-001 Define AI Agent Foundation contract
 - [ ] P4-002 Define Search Brief schema
-- [ ] P4-003 Add Search Brief validation and adapter
-- [ ] P4-004 Define Agent tools contract
-- [ ] P4-005 Add AI Query Planner v0 behind explicit mode
-- [ ] P4-006 Add AI QueryPlan validation and fallback
-- [ ] P4-007 Add planner explanation UI
+- [ ] P4-008 Add approval before Tavily execution
 
 ### Backlog
 
-- [ ] P4-008 Add approval before Tavily execution
 - [ ] P4-009 Compare AI planner vs rule-based baseline
 - [ ] P4-010 Close Phase 4 with decision
 
 ### In Progress
 
 ### Done
+
+- [x] P4-003 Add Search Brief validation and adapter
+- [x] P4-004 Define Agent tools contract
+- [x] P4-005 Add AI Query Planner v0 behind explicit mode
+- [x] P4-006 Add AI QueryPlan validation and fallback
+- [x] P4-007 Add planner explanation UI
 
 ### Current Phase 4 strategy note
 
@@ -2027,6 +2028,14 @@ The current engine should become the agent's safe tool layer:
 - reports and snapshots.
 
 AI should plan and explain, while backend validation, visible controls, and approval gates keep search behavior inspectable and safe.
+
+Current Phase 4 implementation status:
+
+- `P4-003` through `P4-007` are implemented in code.
+- Backend supports `SearchBrief` validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, and non-executable planner responses.
+- Frontend supports `Planner mode` and displays Search Brief summary, planner explanation, validation/fallback state, and approval-needed notices.
+- `P4-008` is approved as the next execution-safety task: add a real backend approval gate before Tavily execution.
+- Next task to review after `P4-008`: `P4-009 Compare AI planner vs rule-based baseline`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2550,6 +2559,23 @@ Use local backend checks without Tavily:
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
+### Implementation result
+
+Implemented in code as part of Phase 4 agent planner foundation:
+
+- added `SearchBrief` backend model;
+- added validation/normalization for Search Brief v0;
+- added adapter from ready Search Brief into existing `StructuredSearchRequest`;
+- reused existing structured-search validation as the authoritative backend layer;
+- added `POST /api/search-brief/validate`;
+- rejected extra fields such as `target_titles`;
+- preserved `search_depth` as metadata and did not trigger Tavily or multi-wave execution.
+
+Verification:
+
+- backend compile passed;
+- no-Tavily smoke covered complete brief, missing stack, stale `missing_fields`, unsupported/extra fields, and adapted structured request.
+
 ---
 
 ## Task: P4-004 Define Agent tools contract
@@ -2732,6 +2758,21 @@ Allowed approval statuses:
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
+### Implementation result
+
+Implemented in code as part of Phase 4 agent planner foundation:
+
+- added Agent Tools v0 metadata endpoint;
+- exposed allowlisted tools and approval requirements;
+- preserved separation between planning/validation tools and search execution tools;
+- encoded absolute boundaries: no direct web-search bypass, no LinkedIn login, no LinkedIn scraping/bypass, no automatic candidate messaging, and no account actions.
+
+Verification:
+
+- `/api/agent/tools` smoke passed;
+- `build_query_plan` is marked `requires_approval = false`;
+- `run_single_wave_search` and `run_multi_wave_search` are marked `requires_approval = true`.
+
 ---
 
 ## Task: P4-005 Add AI Query Planner v0 behind explicit mode
@@ -2862,6 +2903,22 @@ Until those tasks are implemented, an AI-generated plan should remain a proposal
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+Implemented in code as part of Phase 4 agent planner foundation:
+
+- added explicit planner modes: `rule_based`, `ai`, and `ai_with_fallback`;
+- kept `rule_based` as the default planner mode;
+- added OpenAI/ChatGPT planning call behind explicit AI mode;
+- used environment-based OpenAI configuration and did not hardcode secrets;
+- returned AI planner explanation, warnings, assumptions, and draft QueryPlan data;
+- kept AI output non-executable and did not trigger Tavily from AI planning.
+
+Verification:
+
+- no-Tavily smoke covered rule-based agent plan and mocked AI planner response;
+- live OpenAI planner call succeeded through the backend and returned a validated-not-executable plan.
 
 ---
 
@@ -3059,6 +3116,20 @@ Endpoint shape can be finalized during coding, but the contract must preserve th
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
+### Implementation result
+
+Implemented in code as part of Phase 4 agent planner foundation:
+
+- added deterministic AI QueryPlan validation helper;
+- added `POST /api/ai-query-plan/validate`;
+- validated structure, query count, max results, LinkedIn public profile source scope, target location, role/technology signal, execution mode, and forbidden behavior terms;
+- normalized authoritative filters/execution/reporting from backend state instead of trusting AI output;
+- added visible rule-based fallback behavior for invalid AI plans and AI errors.
+
+Verification:
+
+- no-Tavily smoke covered valid AI plan, missing `site:linkedin.com/in`, fallback from invalid AI plan, and non-executable response state.
+
 ---
 
 ## Task: P4-007 Add planner explanation UI
@@ -3188,6 +3259,114 @@ This plan is not executed yet. Search execution requires approval.
 ### Before implementation
 
 Codex must restate the task scope, propose exact UI changes, and wait for explicit approval before changing code.
+
+### Implementation result
+
+Implemented in code as part of Phase 4 agent planner foundation:
+
+- added `Planner mode` frontend control;
+- built Search Brief from the current form state;
+- changed plan refresh to use `/api/agent/query-plan`;
+- rendered planner mode/status, Search Brief summary, planner explanation, warnings, assumptions, validation errors, fallback reason, role phrase, and approval-needed notice;
+- blocked direct search execution while AI planner preview mode is selected.
+
+Verification:
+
+- `node --check app/static/app.js`;
+- browser smoke confirmed planner UI renders, AI mode blocks direct Search, and console has no errors.
+
+---
+
+## Task: P4-008 Add approval before Tavily execution
+
+### Context
+
+`P4-003` through `P4-007` added the Phase 4 planner foundation. Planner responses can now say `execution_approval_required = true`, but the execution endpoints still need a real backend approval gate.
+
+The current risk is that `/api/structured-search` and `/api/structured-search/multi-wave` can still run Tavily when called directly. P4-008 closes that gap.
+
+### Goal
+
+Add a real backend approval gate before Tavily execution.
+
+Approval must be explicit, tied to the concrete action, and tied to the current visible `QueryPlan` so a user cannot approve one plan and accidentally execute another after changing inputs.
+
+### Approval payload
+
+Execution requests should include approval metadata similar to:
+
+```json
+{
+  "execution_approval": {
+    "approval_status": "approved",
+    "approved_action": "run_single_wave_search",
+    "approved_planner_mode": "rule_based",
+    "approved_query_count": 10,
+    "approved_plan_fingerprint": "..."
+  }
+}
+```
+
+### Backend rules
+
+- `/api/structured-search` requires approval for `run_single_wave_search`.
+- `/api/structured-search/multi-wave` requires approval for `run_multi_wave_search`.
+- Backend recalculates the current rule-based `QueryPlan` and computes the current fingerprint before Tavily execution.
+- Missing approval is rejected before Tavily.
+- Wrong action approval is rejected before Tavily.
+- Stale plan fingerprint is rejected before Tavily.
+- Wrong query count or planner mode is rejected before Tavily.
+- Approval metadata is saved into structured-search snapshots/logs.
+
+### Frontend rules
+
+- The user must see the plan before execution.
+- The Search button should communicate that the click approves Tavily execution, for example `Approve & Search`.
+- Single-wave and multi-wave approvals must be distinct.
+- Multi-wave remains explicit because it is deeper/costlier.
+
+### AI plan boundary
+
+AI-generated plans remain non-executable in this task.
+
+P4-008 should enable approval-gated execution for current rule-based single-wave and multi-wave paths first. Executing AI-generated plans should remain a later separately reviewed task.
+
+### Smoke checks
+
+Use local/mocked checks where possible and avoid unnecessary Tavily calls:
+
+1. Missing approval returns an error and does not call Tavily.
+2. Wrong action approval returns an error and does not call Tavily.
+3. Stale `approved_plan_fingerprint` returns an error and does not call Tavily.
+4. Correct single-wave approval allows `/api/structured-search`.
+5. Correct multi-wave approval allows `/api/structured-search/multi-wave`.
+6. Snapshot includes approval metadata.
+7. Frontend sends approval metadata only when the user clicks the explicit execution button.
+8. AI planner preview remains non-executable.
+
+### Constraints
+
+- Do not make AI-generated QueryPlans executable in this task.
+- Do not bypass existing structured-search validation.
+- Do not change scoring, dedupe, Candidate Quality, or location filter behavior.
+- Do not add recruiter chat UI.
+- Do not add database, shortlist, export, or persistent memory.
+- Do not perform direct web-search outside the approved backend pipeline.
+- Do not add LinkedIn login, scraping, restriction bypass, candidate messaging, or account actions.
+
+### Acceptance criteria
+
+- Tavily execution cannot happen without explicit backend-validated approval.
+- Approval is bound to action, planner mode, query count, and plan fingerprint.
+- Single-wave and multi-wave approvals are separate.
+- Stale or mismatched approvals fail safely before Tavily.
+- Approval metadata is logged in snapshots.
+- Frontend makes execution approval visible to the user.
+- AI-generated plans remain non-executable.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
 ---
 

@@ -83,7 +83,7 @@ POC прототип с легким фронтом и одним поисков
 
 Итог Phase 2: критерий успеха пройден с запасом (`55-73` observed unique candidates в последних проверках против цели `20`). Главное архитектурное достижение - `QueryPlan` contract: теперь можно менять planner logic, не переписывая executor, dedupe, report и frontend.
 
-Ограничения, которые переносим дальше: Tavily snippets неполные, Tavily live выдача меняется между запусками, `name` extraction слабый, location confidence эвристический, stack/seniority fit пока не является полноценным ranking layer, AI planner еще не реализован.
+Ограничения, которые переносим дальше из Phase 2: Tavily snippets неполные, Tavily live выдача меняется между запусками, `name` extraction слабый, location confidence эвристический, stack/seniority fit пока не является полноценным ranking layer. В Phase 4 уже появился explicit AI draft planner, но AI-generated plans остаются non-executable до deterministic validation и approval gate.
 
 Порядок реализации:
 
@@ -222,6 +222,18 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Keep existing rule-based QueryPlan preview backward-compatible when those fields are absent.
 - Do not run Tavily, do not implement approval execution flow, and do not make AI plans executable in this task.
 
+Статус `P4-008`: approved as backend approval gate before Tavily execution. Утверждено:
+
+- Сейчас planner preview уже говорит `execution_approval_required = true`, но `/api/structured-search` и `/api/structured-search/multi-wave` все еще могут запускать Tavily без настоящего backend approval gate.
+- P4-008 должен добавить реальную проверку approval непосредственно перед Tavily execution.
+- Approval должен быть привязан к конкретному действию: `run_single_wave_search` или `run_multi_wave_search`.
+- Approval должен быть привязан к текущему плану через `approved_plan_fingerprint`, чтобы нельзя было одобрить один `QueryPlan`, изменить форму и выполнить другой.
+- Backend пересчитывает/проверяет текущий `QueryPlan` перед execution и reject'ит missing/stale/wrong-action approval.
+- Frontend должен сделать смысл клика явным: пользователь одобряет запуск Tavily по видимому плану, а не просто нажимает абстрактный `Search`.
+- Multi-wave требует отдельного approval, потому что это более дорогой/deep execution mode.
+- Approval metadata сохраняется в structured-search snapshot/log.
+- AI-generated plans остаются non-executable в P4-008; запуск AI plan в Tavily не входит в эту задачу.
+
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
 
 Не входит в Phase 4: persistent memory/database, shortlist, export, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Chat UI относится к Phase 5, tool-calling runtime к Phase 6, candidate workspace/shortlist/export к Phase 7, persistence/memory/saved searches к Phase 8.
@@ -261,7 +273,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 4: `AI Agent Foundation` - `P4-001` through `P4-007` are approved as contracts; next task to review is `P4-008 Add approval before Tavily execution`.
+- Phase 4: `AI Agent Foundation` - `P4-001` through `P4-008` are approved as contracts; `P4-003` through `P4-007` are implemented; next task to review is `P4-009 Compare AI planner vs rule-based baseline`.
 
 ### Done
 
