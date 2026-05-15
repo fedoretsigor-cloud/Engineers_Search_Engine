@@ -78,14 +78,8 @@
 
 ### Approved
 
-- [ ] P3-001 Define Candidate Quality model
-- [ ] P3-002 Improve name/headline extraction
-- [ ] P3-003 Extract role query config and role_phrase metadata
-- [ ] P3-004 Add role fit signals
-
 ### Backlog
 
-- [ ] P3-005 Add technology and stack fit signals
 - [ ] P3-006 Add seniority detection
 - [ ] P3-007 Add explainable candidate quality score
 - [ ] P3-008 Add review flags
@@ -96,6 +90,12 @@
 ### In Progress
 
 ### Done
+
+- [x] P3-001 Define Candidate Quality model
+- [x] P3-002 Improve name/headline extraction
+- [x] P3-003 Extract role query config and role_phrase metadata
+- [x] P3-004 Add role fit signals
+- [x] P3-005 Add technology and stack fit signals
 
 ---
 
@@ -221,6 +221,12 @@ These internal values should support sorting, filtering, explanations, and later
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+- Candidate Quality model accepted as the Phase 3 contract.
+- First implementation slice limited to backend metadata: name/headline, role fit, technology fit, stack fit, evidence, and review flags.
+- Frontend candidate-quality table remains a later task.
 
 ---
 
@@ -361,6 +367,21 @@ Output:
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
+### Implementation result
+
+- `normalize_tavily_result(...)` now extracts `name` and `headline`.
+- Supported patterns include dash, pipe, and one-line public snippet formats.
+- `LinkedIn` suffix cleanup and basic HTML entity cleanup are applied.
+- Ambiguous identity remains `name = "unknown"` and `headline = "n/a"`.
+
+### Verification result
+
+- Local smoke checks passed for the agreed examples:
+  - `Serhii Ivanov - Java Software Developer - LinkedIn`;
+  - `Andrii Malyna - Lead Java Software Engineer at Geniusee - LinkedIn`;
+  - `Illia Sytnyk - Java Developer in B&B Solutions | LinkedIn`;
+  - one-line snippet `Serhii Ivanov. Java Software Developer. Kyiv...`.
+
 ---
 
 ## Task: P3-003 Extract role query config and role_phrase metadata
@@ -408,44 +429,57 @@ The output should keep the same generated query strings for the current baseline
 
 ### Proposed config shape
 
-Use a config keyed by the current supported planner inputs:
+Use one domain config keyed by the current supported planner inputs:
+
+```text
+Role Family -> Technology
+```
+
+This config should be prepared for both planner rules and later Candidate Quality rules. `P3-003` only fills the `planner` section. `P3-005` will later add or use the `quality` section for technology/stack matching.
 
 ```python
-ROLE_QUERY_CONFIG = {
+SEARCH_DOMAIN_CONFIG = {
     "Backend Developer": {
         "Java": {
-            "role_based": [
-                {
-                    "role_phrase": "Java Developer",
-                    "purpose": "Find broad Java Developer profiles for the selected location.",
-                },
-                {
-                    "role_phrase": "Java Software Engineer",
-                    "purpose": "Find Java Software Engineer profiles for the selected location.",
-                },
-            ],
-            "stack_focused": [
-                {
-                    "role_phrase": "Java Developer",
-                    "purpose": "Find Java Developer profiles that mention selected stack signals.",
-                },
-            ],
+            "planner": {
+                "role_based": [
+                    {
+                        "role_phrase": "Java Developer",
+                        "purpose": "Find broad Java Developer profiles for the selected location.",
+                    },
+                    {
+                        "role_phrase": "Java Software Engineer",
+                        "purpose": "Find Java Software Engineer profiles for the selected location.",
+                    },
+                ],
+                "stack_focused": [
+                    {
+                        "role_phrase": "Java Developer",
+                        "purpose": "Find Java Developer profiles that mention selected stack signals.",
+                    },
+                ],
+            },
+            "quality": {
+                # Reserved for P3-005.
+            },
         }
     }
 }
 ```
 
-The exact config can be simpler if it follows existing project style, but it must remove the role phrase list from the body of `RuleBasedQueryPlannerV1.build()`.
+The exact config name can follow existing project style, but it should not create a narrow `ROLE_QUERY_CONFIG` that later has to be replaced by a separate technology quality config. The important rule: planner role phrases and future quality rules should live under the same `Role Family -> Technology` domain.
 
 ### Proposed steps
 
-1. Add a local role query config for `Backend Developer + Java`.
-2. Move the current 10 role phrase/purpose/category definitions into that config.
+1. Add a local domain config for `Backend Developer + Java`.
+2. Add a `planner` section to that config.
+3. Move the current 10 role phrase/purpose/category definitions into the `planner` section.
 3. Update `build_query_slot(...)` to include `role_phrase` in the returned query slot.
-4. Update `RuleBasedQueryPlannerV1.build(...)` to iterate over config entries instead of manually listing 10 `build_query_slot(...)` calls.
+4. Update `RuleBasedQueryPlannerV1.build(...)` to read `Role Family -> Technology -> planner` config entries instead of manually listing 10 `build_query_slot(...)` calls.
 5. Preserve current query IDs, categories, purposes, query strings, stack usage, and max results.
 6. Add/adjust smoke checks to confirm the generated `QueryPlan` is behaviorally unchanged except for the new `role_phrase` field.
 7. Document that `role_phrase` is the future source for `P3-004` role matching.
+8. Document that the same domain config is the future place for `P3-005` technology/stack quality rules.
 
 ### Constraints
 
@@ -460,15 +494,32 @@ The exact config can be simpler if it follows existing project style, but it mus
 ### Acceptance criteria
 
 - `RuleBasedQueryPlannerV1` no longer hardcodes the role phrase list in the method body.
+- Planner role phrases are stored under a shared `Role Family -> Technology` domain config, not a narrow standalone role-only config.
 - Generated `QueryPlan.queries[]` includes `role_phrase`.
 - Current baseline still generates 10 query slots.
 - Current query strings remain unchanged for `Backend Developer + Java + Ukraine`.
 - `role_phrase` is available for later Candidate Quality role matching.
+- The config shape is compatible with adding `quality.technology` and `quality.stack` rules in `P3-005`.
 - Verification uses `/api/query-plan` or direct planner smoke checks without Tavily credits.
 
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+- Added shared `SEARCH_DOMAIN_CONFIG` under `Role Family -> Technology`.
+- Moved the current 10 Java Backend planner query definitions into the config.
+- `RuleBasedQueryPlannerV1` now builds queries from config instead of listing role phrases in the method body.
+- `QueryPlan.queries[]`, query result summaries, and candidate `query_sources` now carry `role_phrase`.
+- Stack-focused query metadata carries `uses_stack` as a group signal.
+
+### Verification result
+
+- Direct planner smoke check confirmed current baseline still generates 10 queries.
+- Current baseline query strings stayed unchanged.
+- `Q01` exposes `role_phrase = "Java Developer"`.
+- `Q07` exposes `uses_stack = ["Spring", "Kafka", "AWS"]`.
 
 ---
 
@@ -579,6 +630,332 @@ Exact field names can follow the existing project style, but the model should se
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+- Deduped structured-search candidates now carry:
+  - `role_display`;
+  - `role_fit`;
+  - `role_evidence`;
+  - merged `review_flags`.
+- Role matching uses `QueryPlan` / `query_sources` `role_phrase` metadata plus the selected `role_family`, not a separate hardcoded role alias list.
+- Similar role display can use role vocabulary derived from the same QueryPlan role phrases.
+- Example: `Java Software Developer` displays as `Java Software Developer` with `role_fit = "similar_role"`.
+
+### Verification result
+
+- Local smoke checks confirmed:
+  - exact/close roles produce `target_or_close_role`;
+  - derived similar roles produce `similar_role` and `role_similar_only`;
+  - missing role evidence produces `missing_role` and `role_missing`.
+
+---
+
+## Task: P3-005 Add technology and stack fit signals
+
+### Context
+
+After `P3-001` through `P3-004`, candidates should have a readable quality model, better name/headline extraction, explicit `role_phrase` metadata, and role fit signals.
+
+The next missing quality layer is technology and stack fit. For the current baseline, the user selects:
+
+```json
+{
+  "technology": "Java",
+  "stack": ["Spring", "Kafka", "AWS"]
+}
+```
+
+The product should show what technology/stack evidence was found for each candidate. This should be a quality signal, not a hidden filter.
+
+### Goal
+
+Add technology and stack fit signals to normalized/deduped candidates so the recruiter can see readable extracted values and later sort/filter by internal fit metadata.
+
+### Config decision
+
+Do not hardcode Java-specific related terms such as `Scala` or `Kotlin` inside matcher logic.
+
+Do not create a totally separate, disconnected `TECHNOLOGY_QUALITY_CONFIG` if `P3-003` introduces a role/technology query config.
+
+Preferred direction: use one domain config keyed by:
+
+```text
+Role Family -> Technology
+```
+
+The config should keep separate sections for planner rules and quality rules.
+
+Example shape:
+
+```python
+SEARCH_DOMAIN_CONFIG = {
+    "Backend Developer": {
+        "Java": {
+            "planner": {
+                "role_based": [...],
+                "stack_focused": [...],
+            },
+            "quality": {
+                "technology": {
+                    "exact_terms": ["Java"],
+                    "exclude_terms": ["JavaScript"],
+                    "related_terms": ["Kotlin", "Scala"],
+                },
+                "stack": {
+                    "allowed_terms": [
+                        "Spring",
+                        "Spring Boot",
+                        "Hibernate",
+                        "Kafka",
+                        "PostgreSQL",
+                        "AWS",
+                        "Docker",
+                        "Kubernetes",
+                        "Microservices",
+                        "REST",
+                    ],
+                    "related_terms": [],
+                },
+            },
+        }
+    }
+}
+```
+
+The exact config name and shape can follow the implementation from `P3-003`, but the rule is important: Java-specific knowledge belongs in config, not in the matcher algorithm.
+
+Approved conservative Java config for `P3-005`:
+
+- `technology.exact_terms`: `["Java"]`;
+- `technology.exclude_terms`: `["JavaScript"]`;
+- `technology.related_terms`: `["Kotlin", "Scala"]`;
+- `stack.allowed_terms`: current Java stack list from the UI/config;
+- `stack.related_terms`: `[]`.
+
+Rationale:
+
+- `Kotlin` and `Scala` are related JVM technology signals, but not exact Java matches.
+- Stack related terms stay empty in the first implementation to avoid noisy quality evidence.
+- Broader Java ecosystem terms such as `Maven`, `Gradle`, `JPA`, `JUnit`, `RabbitMQ`, `Redis`, etc. are deferred until real candidate-quality errors justify them.
+
+### Proposed inputs
+
+Use existing local candidate/search data:
+
+- `query_plan.input_snapshot.technology`;
+- `query_plan.input_snapshot.stack`;
+- domain config for selected `Role Family -> Technology`;
+- `query_plan.queries[*].uses_stack`;
+- candidate `query_sources`;
+- candidate `title`;
+- extracted `headline` from `P3-002`;
+- public `snippet` / `content` / `raw_content`;
+- optional `role_phrase` metadata from `P3-003`.
+
+### Proposed output fields
+
+Add candidate-facing display fields:
+
+```json
+{
+  "technology_display": "Java",
+  "stack_display": "Spring, Kafka"
+}
+```
+
+Add internal quality metadata:
+
+```json
+{
+  "technology_fit": "exact",
+  "technology_evidence": [
+    {
+      "term": "Java",
+      "source": "headline",
+      "value": "Senior Java Developer"
+    }
+  ],
+  "stack_fit": "selected_stack_found",
+  "stack_evidence": [
+    {
+      "term": "Spring",
+      "source": "snippet"
+    },
+    {
+      "terms": ["Spring", "Kafka", "AWS"],
+      "source": "query_source",
+      "query_id": "Q07",
+      "category": "stack_focused",
+      "evidence_type": "stack_query_group"
+    }
+  ],
+  "review_flags": []
+}
+```
+
+Exact field names can follow existing project style, but recruiter-facing display values must stay separate from internal fit labels.
+
+### Proposed fit classes
+
+Technology fit:
+
+- `exact`;
+- `related_only`;
+- `missing`;
+- `ambiguous`.
+
+Stack fit:
+
+- `selected_stack_found`;
+- `stack_query_source_only`;
+- `related_stack_only`;
+- `missing_selected_stack`;
+- `missing`.
+
+### Proposed review flags
+
+- `technology_missing`;
+- `technology_related_only`;
+- `technology_ambiguous`;
+- `selected_stack_missing`;
+- `stack_from_query_source_only`;
+- `stack_related_only`;
+- `possible_technology_false_positive`.
+
+### Proposed steps
+
+1. Reuse or extend the `Role Family -> Technology` config from `P3-003`.
+2. Add quality config under that same domain config instead of creating a disconnected config.
+3. Use the approved conservative config for `Backend Developer -> Java`:
+   - technology exact terms: `["Java"]`;
+   - technology exclude terms: `["JavaScript"]`;
+   - technology related terms: `["Kotlin", "Scala"]`;
+   - stack allowed terms: current Java stack list;
+   - stack related terms: `[]` for the first conservative version.
+4. Implement a generic technology matcher that reads config, not Java-specific `if` logic.
+5. Implement generic exact/exclude precedence:
+   - exact and exclude terms are matched as separate token/phrase matches;
+   - if only exclude terms are found, do not count an exact match;
+   - if an exact term is found separately, it wins even when exclude terms are also present;
+   - example pattern: `JavaScript Developer` is not exact Java, but `Java / JavaScript Developer` still has exact Java.
+6. Implement a generic stack matcher that reads config:
+   - selected stack comes from request input;
+   - allowed/related stack terms come from domain config;
+   - selected stack matches are stronger than related-only matches;
+   - direct candidate text matches produce concrete stack term evidence.
+7. Search for direct evidence in ordered candidate sources:
+   - extracted `headline`;
+   - candidate `title`;
+   - public `snippet/content/raw_content`.
+8. Search for secondary stack evidence in query source metadata:
+   - use candidate `query_sources`;
+   - look up corresponding `query_plan.queries[*].uses_stack`;
+   - preserve query id/category in `stack_evidence`;
+   - store query-source stack evidence as group evidence, not as a confirmed concrete term;
+   - evidence shape should include `terms`, `source = "query_source"`, `query_id`, `category`, and `evidence_type = "stack_query_group"`;
+   - example: a query with `uses_stack = ["Spring", "Kafka", "AWS"]` proves the candidate came from a stack-focused query, but does not prove which OR term matched.
+9. Set candidate-facing display values:
+   - `technology_display`: extracted exact/related technology or `n/a`;
+   - `stack_display`: direct matched selected/related stack terms or `n/a`;
+   - in the first version, do not put query-source-only stack groups into `stack_display`.
+10. Set internal fit values and evidence metadata separately from display values.
+11. Merge review flags with existing candidate flags:
+   - do not overwrite flags produced by earlier tasks such as role fit;
+   - append/dedupe new technology/stack flags.
+12. Add review flags for missing, related-only, ambiguous, or possible false-positive cases.
+13. Verify against local structured-search snapshots without new Tavily calls.
+14. Update `Tasks.md` with implementation result and verification result after coding.
+
+### Display rules
+
+- If selected technology is found exactly, display it.
+  - Example: `Java`.
+- If selected technology is not found but a related configured term is found, display the related term and flag it.
+  - Example: `Kotlin`.
+  - Example: `Scala`.
+- Do not treat an exclude-only match as an exact technology match.
+- If exact and exclude terms are both present as separate matches, exact wins.
+- If selected stack items are found, display the found selected values.
+  - Example: `Spring`.
+  - Example: `Spring, Kafka`.
+- If selected stack evidence comes only from stack-focused query sources, it can contribute to `stack_fit`, but it should not pretend that a specific OR term was directly observed.
+- Query-source-only stack evidence should be represented as group evidence:
+  - Example display value: keep `stack_display = "n/a"` in the first version.
+  - Example fit: `stack_fit = "stack_query_source_only"`.
+  - Example flag: `stack_from_query_source_only`.
+- If selected stack is not found but related configured stack evidence is found in a future config version, display that related evidence and flag it.
+- In the approved first version, `stack.related_terms = []`, so related-only stack evidence should normally not appear.
+- If no useful technology or stack evidence is found, display `n/a`.
+- Do not display internal labels such as `exact`, `related_only`, or `missing` as primary table cell values.
+
+### Constraints
+
+- Do not run Tavily for verification.
+- Do not open LinkedIn profiles.
+- Do not scrape LinkedIn.
+- Do not add AI model calls.
+- Do not change query generation.
+- Do not change `Location filter`.
+- Do not implement seniority detection in this task.
+- Do not implement final quality score in this task.
+- Do not implement frontend table changes unless separately approved.
+- Do not create a second independent technology/stack config disconnected from the role/technology domain config.
+
+### Acceptance criteria
+
+- Technology and stack quality rules are config-driven.
+- Related JVM signals such as `Kotlin`/`Scala` are not hardcoded inside matcher logic.
+- Approved first version uses conservative Java quality config: exact `Java`, exclude `JavaScript`, related `Kotlin`/`Scala`, and empty stack related terms.
+- The config is organized under the same `Role Family -> Technology` domain as planner configuration, or clearly prepared to merge with it after `P3-003`.
+- Candidates can carry readable `technology_display` and `stack_display` values.
+- Internal `technology_fit` and `stack_fit` are separate from recruiter-facing display values.
+- `JavaScript` is not counted as exact `Java`.
+- Exact/exclude precedence is generic and not hardcoded only for Java/JavaScript.
+- Selected stack matches are distinguished from related-only stack evidence.
+- Stack-focused query sources with `uses_stack` can contribute valid secondary stack group evidence.
+- Query-source stack evidence stores `terms` as a group and does not claim a specific OR term was directly matched.
+- `stack_display` is built from direct candidate text matches in the first version; query-source-only stack evidence stays in metadata/review flags.
+- Missing selected stack creates a review flag rather than hiding the candidate.
+- Technology/stack review flags are merged with existing candidate review flags instead of replacing them.
+- Verification uses local snapshots or direct smoke checks without Tavily credits.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+- Added conservative Java quality config under the shared `SEARCH_DOMAIN_CONFIG`.
+- Technology matcher is config-driven:
+  - exact terms: `Java`;
+  - exclude terms: `JavaScript`;
+  - related terms: `Kotlin`, `Scala`.
+- Stack matcher is config-driven from selected request stack and allowed Java stack terms.
+- Direct stack matches populate `stack_display`.
+- Stack-focused query-source matches populate group evidence with `source = "query_source"` and `evidence_type = "stack_query_group"`, but do not pretend that a specific OR term was directly observed.
+- Technology/stack review flags are merged with existing role review flags.
+
+### Verification result
+
+- Local smoke checks confirmed:
+  - `JavaScript Developer` is not counted as exact `Java`;
+  - `Scala` is treated as `technology_fit = "related_only"`;
+  - direct `Spring` text gives `stack_fit = "selected_stack_found"`;
+  - query-source-only stack evidence gives `stack_fit = "stack_query_source_only"` and keeps `stack_display = "n/a"`.
+- Full Tavily structured-search run for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`:
+  - queries succeeded: `10/10`;
+  - raw Tavily results: `199`;
+  - displayed occurrences: `101`;
+  - unique profiles: `55`;
+  - duplicates removed: `46`;
+  - hidden by profile filter: `10`;
+  - hidden by location filter: `88`;
+  - hidden by foreign current location: `82`.
+- Quality breakdown on the Tavily run:
+  - `role_fit`: `target_or_close_role = 41`, `similar_role = 10`, `missing_role = 4`;
+  - `technology_fit`: `exact = 46`, `missing = 9`;
+  - `stack_fit`: `selected_stack_found = 11`, `stack_query_source_only = 4`, `missing_selected_stack = 40`.
 
 ---
 

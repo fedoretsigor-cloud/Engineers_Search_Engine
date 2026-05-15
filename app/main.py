@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timezone
+import html
 import json
 import logging
 import os
@@ -63,6 +64,18 @@ KNOWN_BACKEND_TECHNOLOGIES = {
     "php": "PHP",
 }
 IMPLEMENTED_BACKEND_TECHNOLOGIES = {"Java"}
+JAVA_STACK_TERMS = [
+    "Spring",
+    "Spring Boot",
+    "Hibernate",
+    "Kafka",
+    "PostgreSQL",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "Microservices",
+    "REST",
+]
 JAVA_STACK_VALUES = {
     "spring": "Spring",
     "spring boot": "Spring Boot",
@@ -76,6 +89,97 @@ JAVA_STACK_VALUES = {
     "k8s": "Kubernetes",
     "microservices": "Microservices",
     "rest": "REST",
+}
+SEARCH_DOMAIN_CONFIG = {
+    "Backend Developer": {
+        "Java": {
+            "planner": {
+                "queries": [
+                    {
+                        "id": "Q01",
+                        "category": "role_based",
+                        "purpose": "Find broad Java Developer profiles for the selected location.",
+                        "role_phrase": "Java Developer",
+                        "uses_selected_stack": False,
+                    },
+                    {
+                        "id": "Q02",
+                        "category": "role_based",
+                        "purpose": "Find Java Software Engineer profiles for the selected location.",
+                        "role_phrase": "Java Software Engineer",
+                        "uses_selected_stack": False,
+                    },
+                    {
+                        "id": "Q03",
+                        "category": "backend_role",
+                        "purpose": "Find Java Backend Engineer profiles for the selected location.",
+                        "role_phrase": "Java Backend Engineer",
+                        "uses_selected_stack": False,
+                    },
+                    {
+                        "id": "Q04",
+                        "category": "role_based",
+                        "purpose": "Find Java Engineer profiles for the selected location.",
+                        "role_phrase": "Java Engineer",
+                        "uses_selected_stack": False,
+                    },
+                    {
+                        "id": "Q05",
+                        "category": "role_based",
+                        "purpose": "Find Java Programmer profiles for the selected location.",
+                        "role_phrase": "Java Programmer",
+                        "uses_selected_stack": False,
+                    },
+                    {
+                        "id": "Q06",
+                        "category": "role_based",
+                        "purpose": "Find Java Application Developer profiles for the selected location.",
+                        "role_phrase": "Java Application Developer",
+                        "uses_selected_stack": False,
+                    },
+                    {
+                        "id": "Q07",
+                        "category": "stack_focused",
+                        "purpose": "Find Java Developer profiles that mention selected stack signals.",
+                        "role_phrase": "Java Developer",
+                        "uses_selected_stack": True,
+                    },
+                    {
+                        "id": "Q08",
+                        "category": "stack_focused",
+                        "purpose": "Find Java Engineer profiles that mention selected stack signals.",
+                        "role_phrase": "Java Engineer",
+                        "uses_selected_stack": True,
+                    },
+                    {
+                        "id": "Q09",
+                        "category": "stack_focused",
+                        "purpose": "Find Java Backend Engineer profiles that mention selected stack signals.",
+                        "role_phrase": "Java Backend Engineer",
+                        "uses_selected_stack": True,
+                    },
+                    {
+                        "id": "Q10",
+                        "category": "stack_focused",
+                        "purpose": "Find Java Application Developer profiles that mention selected stack signals.",
+                        "role_phrase": "Java Application Developer",
+                        "uses_selected_stack": True,
+                    },
+                ]
+            },
+            "quality": {
+                "technology": {
+                    "exact_terms": ["Java"],
+                    "exclude_terms": ["JavaScript"],
+                    "related_terms": ["Kotlin", "Scala"],
+                },
+                "stack": {
+                    "allowed_terms": JAVA_STACK_TERMS,
+                    "related_terms": [],
+                },
+            },
+        },
+    },
 }
 LOCATION_FILTER_CONFIG = {
     "ukraine": {
@@ -198,6 +302,134 @@ def is_country_linkedin_profile_url(url: str, location_config: dict) -> bool:
 
 def compact_spaces(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+PROFILE_NAME_REJECT_TERMS = {
+    "architect",
+    "backend",
+    "consultant",
+    "developer",
+    "engineer",
+    "frontend",
+    "fullstack",
+    "java",
+    "javascript",
+    "kafka",
+    "kotlin",
+    "lead",
+    "linkedin",
+    "manager",
+    "middle",
+    "programmer",
+    "python",
+    "recruiter",
+    "scala",
+    "senior",
+    "software",
+    "spring",
+    "technologies",
+    "technology",
+}
+
+
+def clean_profile_text(value: object) -> str:
+    if value is None:
+        return ""
+
+    text = html.unescape(str(value))
+    text = text.replace("\xa0", " ")
+    text = text.replace("\u2013", "-").replace("\u2014", "-")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def strip_linkedin_suffix(value: str) -> str:
+    text = clean_profile_text(value)
+    text = re.sub(r"(?i)(?:\s*[-|]\s*)?linkedin\s*$", "", text)
+    text = re.sub(r"(?i)\s*\|\s*linkedin\b.*$", "", text)
+    text = re.sub(r"(?i)\s*-\s*linkedin\b.*$", "", text)
+    return text.strip(" -|.")
+
+
+def looks_like_person_name(value: str) -> bool:
+    name = strip_linkedin_suffix(value)
+    if not name or len(name) > 80:
+        return False
+    if any(marker in name for marker in ("@", "/", "\\", "|", ":")):
+        return False
+    if re.search(r"\d", name):
+        return False
+
+    lowered_name = name.lower()
+    if any(term in lowered_name.split() for term in PROFILE_NAME_REJECT_TERMS):
+        return False
+
+    tokens = [token.strip(".,") for token in name.split() if token.strip(".,")]
+    if not 2 <= len(tokens) <= 6:
+        return False
+
+    return all(any(char.isalpha() for char in token) for token in tokens)
+
+
+def clean_headline_value(value: str) -> str:
+    headline = strip_linkedin_suffix(value)
+    headline = re.sub(r"(?i)\b(?:\d+(?:[.,]\d+)?\s*)?(?:followers|connections)\b.*$", "", headline)
+    return headline.strip(" -|.")
+
+
+def identity_from_parts(name_candidate: str, headline_candidate: str) -> dict | None:
+    name = strip_linkedin_suffix(name_candidate)
+    headline = clean_headline_value(headline_candidate)
+
+    if not looks_like_person_name(name):
+        return None
+    if not headline or "linkedin" in headline.lower():
+        return None
+
+    return {"name": name, "headline": headline}
+
+
+def extract_identity_from_profile_text(value: object) -> dict | None:
+    text = strip_linkedin_suffix(clean_profile_text(value))
+    if not text:
+        return None
+
+    dash_parts = [
+        part.strip()
+        for part in re.split(r"\s+-\s+", text, maxsplit=1)
+        if part.strip()
+    ]
+    if len(dash_parts) == 2:
+        identity = identity_from_parts(dash_parts[0], dash_parts[1])
+        if identity:
+            return identity
+
+    pipe_parts = [part.strip() for part in text.split("|") if part.strip()]
+    if len(pipe_parts) >= 2:
+        identity = identity_from_parts(pipe_parts[0], pipe_parts[1])
+        if identity:
+            return identity
+
+    sentence_parts = [
+        part.strip()
+        for part in re.split(r"\.\s+", text, maxsplit=2)
+        if part.strip()
+    ]
+    if len(sentence_parts) >= 2:
+        identity = identity_from_parts(sentence_parts[0], sentence_parts[1])
+        if identity:
+            return identity
+
+    return None
+
+
+def extract_profile_identity(raw_result: dict) -> dict:
+    for field in ("title", "content", "snippet", "raw_content"):
+        identity = extract_identity_from_profile_text(raw_result.get(field))
+        if identity:
+            return identity
+
+    return {"name": "unknown", "headline": "n/a"}
 
 
 def first_public_profile_text(raw_result: dict, normalized_result: dict) -> str:
@@ -495,9 +727,11 @@ def normalize_tavily_result(result: dict) -> dict:
     raw_title = result.get("title") or ""
     raw_content = result.get("content") or ""
     url = result.get("url") or ""
+    profile_identity = extract_profile_identity(result)
 
     normalized_result = {
-        "name": "unknown",
+        "name": profile_identity["name"],
+        "headline": profile_identity["headline"],
         "title": raw_title or "unknown",
         "url": url,
         "source": detect_source(url),
@@ -534,6 +768,8 @@ def query_source_from_result(query_result: dict) -> dict:
     return {
         "id": query_result["query_id"],
         "category": query_result["category"],
+        "role_phrase": query_result.get("role_phrase"),
+        "uses_stack": query_result.get("uses_stack", []),
         "query": query_result["query"],
     }
 
@@ -543,6 +779,456 @@ def append_unique_query_source(query_sources: list[dict], query_source: dict) ->
         return
 
     query_sources.append(query_source)
+
+
+def search_domain_config_for(role_family: str, technology: str) -> dict:
+    return SEARCH_DOMAIN_CONFIG.get(role_family, {}).get(technology, {})
+
+
+def ordered_unique(values: list[str]) -> list[str]:
+    seen_values: set[str] = set()
+    unique_values: list[str] = []
+
+    for value in values:
+        if value and value not in seen_values:
+            seen_values.add(value)
+            unique_values.append(value)
+
+    return unique_values
+
+
+def term_match_pattern(term: str) -> str:
+    escaped_term = re.escape(term.strip()).replace(r"\ ", r"\s+")
+    return r"(?<![a-z0-9])" + escaped_term + r"(?![a-z0-9])"
+
+
+def find_term_match(text: str, term: str) -> re.Match | None:
+    if not text or not term:
+        return None
+
+    return re.search(term_match_pattern(term), text, flags=re.IGNORECASE)
+
+
+def match_config_terms(text: str, terms: list[str]) -> list[str]:
+    return [term for term in terms if find_term_match(text, term)]
+
+
+def candidate_text_sources(result: dict) -> list[dict[str, str]]:
+    sources: list[dict[str, str]] = []
+    seen_values: set[str] = set()
+    source_fields = [
+        ("headline", result.get("headline")),
+        ("title", result.get("title")),
+        ("snippet", result.get("snippet")),
+        ("raw_content", result.get("raw_content")),
+    ]
+
+    for source, raw_value in source_fields:
+        value = clean_profile_text(raw_value)
+        if not value or value.lower() in {"unknown", "n/a"}:
+            continue
+
+        value_key = value.lower()
+        if value_key in seen_values:
+            continue
+
+        seen_values.add(value_key)
+        sources.append({"source": source, "value": value})
+
+    return sources
+
+
+def collect_term_evidence(
+    sources: list[dict[str, str]],
+    terms: list[str],
+) -> list[dict[str, str]]:
+    evidence: list[dict[str, str]] = []
+    seen_terms: set[str] = set()
+
+    for source in sources:
+        value = source["value"]
+        for term in terms:
+            if term in seen_terms:
+                continue
+            if find_term_match(value, term):
+                seen_terms.add(term)
+                evidence.append(
+                    {
+                        "term": term,
+                        "source": source["source"],
+                        "value": value,
+                    }
+                )
+
+    return evidence
+
+
+def terms_from_evidence(
+    evidence: list[dict],
+    term_order: list[str],
+) -> list[str]:
+    found_terms = {item.get("term") for item in evidence if item.get("term")}
+    return [term for term in term_order if term in found_terms]
+
+
+def query_plan_by_id(query_plan: dict) -> dict[str, dict]:
+    return {query["id"]: query for query in query_plan.get("queries", [])}
+
+
+def role_context_phrases(query_sources: list[dict], query_plan: dict) -> list[str]:
+    queries_by_id = query_plan_by_id(query_plan)
+    role_phrases: list[str] = []
+
+    for source in query_sources:
+        role_phrase = source.get("role_phrase")
+        if not role_phrase:
+            query = queries_by_id.get(source.get("id"))
+            role_phrase = query.get("role_phrase") if query else None
+        if role_phrase:
+            role_phrases.append(role_phrase)
+
+    input_snapshot = query_plan.get("input_snapshot") or {}
+    if input_snapshot.get("role_family"):
+        role_phrases.append(input_snapshot["role_family"])
+
+    for query in query_plan.get("queries", []):
+        if query.get("role_phrase"):
+            role_phrases.append(query["role_phrase"])
+
+    return ordered_unique(role_phrases)
+
+
+def derived_role_phrases(
+    role_phrases: list[str],
+    technology_terms: list[str],
+) -> list[dict[str, str]]:
+    derived_phrases: list[dict[str, str]] = []
+    seen_phrases: set[str] = set()
+
+    for role_phrase in role_phrases:
+        derived_phrase = role_phrase
+        for technology_term in technology_terms:
+            derived_phrase = re.sub(
+                term_match_pattern(technology_term),
+                " ",
+                derived_phrase,
+                flags=re.IGNORECASE,
+            )
+
+        derived_phrase = compact_spaces(derived_phrase)
+        if (
+            derived_phrase
+            and derived_phrase.lower() != role_phrase.lower()
+            and derived_phrase.lower() not in seen_phrases
+        ):
+            seen_phrases.add(derived_phrase.lower())
+            derived_phrases.append(
+                {
+                    "phrase": derived_phrase,
+                    "source_role_phrase": role_phrase,
+                }
+            )
+
+    return derived_phrases
+
+
+def role_prefix_terms(
+    role_phrases: list[str],
+    technology_terms: list[str],
+) -> list[str]:
+    terms = ["Junior", "Middle", "Mid", "Senior", "Lead", "Principal", "Staff"]
+    for phrase in role_phrases + technology_terms:
+        terms.extend(re.findall(r"[A-Za-z][A-Za-z+#.]*", phrase))
+
+    return sorted(ordered_unique(terms), key=len, reverse=True)
+
+
+def role_display_from_match(
+    value: str,
+    match: re.Match,
+    technology_terms: list[str],
+    role_phrases: list[str],
+) -> str:
+    start = match.start()
+    end = match.end()
+    prefix_terms = role_prefix_terms(role_phrases, technology_terms)
+    prefix_options = "|".join(re.escape(term) for term in prefix_terms) or r"$^"
+    prefix_pattern = r"(?:(?:" + prefix_options + r")\s+){0,5}$"
+    prefix_match = re.search(prefix_pattern, value[:start], flags=re.IGNORECASE)
+    if prefix_match and prefix_match.group(0).strip():
+        start = prefix_match.start()
+
+    return clean_headline_value(value[start:end])
+
+
+def find_role_match(
+    sources: list[dict[str, str]],
+    role_phrases: list[str],
+    technology_terms: list[str],
+) -> dict | None:
+    ordered_role_phrases = sorted(role_phrases, key=len, reverse=True)
+    derived_phrases = sorted(
+        derived_role_phrases(role_phrases, technology_terms),
+        key=lambda item: len(item["phrase"]),
+        reverse=True,
+    )
+
+    for source in sources:
+        value = source["value"]
+        for role_phrase in ordered_role_phrases:
+            match = find_term_match(value, role_phrase)
+            if match:
+                return {
+                    "role_display": role_display_from_match(
+                        value,
+                        match,
+                        technology_terms,
+                        role_phrases,
+                    ),
+                    "role_fit": "target_or_close_role",
+                    "evidence": {
+                        "source": source["source"],
+                        "value": value,
+                        "matched_phrase": role_phrase,
+                        "match_type": "role_phrase",
+                    },
+                }
+
+    for source in sources:
+        value = source["value"]
+        for derived_phrase in derived_phrases:
+            match = find_term_match(value, derived_phrase["phrase"])
+            if match:
+                return {
+                    "role_display": role_display_from_match(
+                        value,
+                        match,
+                        technology_terms,
+                        role_phrases,
+                    ),
+                    "role_fit": "similar_role",
+                    "evidence": {
+                        "source": source["source"],
+                        "value": value,
+                        "matched_phrase": derived_phrase["phrase"],
+                        "source_role_phrase": derived_phrase["source_role_phrase"],
+                        "match_type": "derived_role_phrase",
+                    },
+                }
+
+    return None
+
+
+def build_role_quality(
+    result: dict,
+    query_sources: list[dict],
+    query_plan: dict,
+    domain_config: dict,
+) -> dict:
+    quality_config = domain_config.get("quality", {})
+    technology_terms = quality_config.get("technology", {}).get("exact_terms", [])
+    role_phrases = role_context_phrases(query_sources, query_plan)
+    sources = candidate_text_sources(result)
+    role_match = find_role_match(sources, role_phrases, technology_terms)
+
+    if not role_match:
+        return {
+            "role_display": "n/a",
+            "role_fit": "missing_role",
+            "role_evidence": [],
+            "review_flags": ["role_missing"],
+        }
+
+    review_flags: list[str] = []
+    evidence_source = role_match["evidence"]["source"]
+    if evidence_source not in {"headline", "title"}:
+        review_flags.append("role_from_snippet_only")
+    if role_match["role_fit"] == "similar_role":
+        review_flags.append("role_similar_only")
+
+    return {
+        "role_display": role_match["role_display"] or "n/a",
+        "role_fit": role_match["role_fit"],
+        "role_evidence": [role_match["evidence"]],
+        "review_flags": review_flags,
+    }
+
+
+def build_technology_quality(
+    result: dict,
+    domain_config: dict,
+) -> dict:
+    quality_config = domain_config.get("quality", {})
+    technology_config = quality_config.get("technology", {})
+    exact_terms = technology_config.get("exact_terms", [])
+    exclude_terms = technology_config.get("exclude_terms", [])
+    related_terms = technology_config.get("related_terms", [])
+    sources = candidate_text_sources(result)
+    exact_evidence = collect_term_evidence(sources, exact_terms)
+    exclude_evidence = collect_term_evidence(sources, exclude_terms)
+    related_evidence = collect_term_evidence(sources, related_terms)
+    exact_matches = terms_from_evidence(exact_evidence, exact_terms)
+    related_matches = terms_from_evidence(related_evidence, related_terms)
+    review_flags: list[str] = []
+
+    if exact_matches:
+        return {
+            "technology_display": ", ".join(exact_matches),
+            "technology_fit": "exact",
+            "technology_evidence": exact_evidence + exclude_evidence,
+            "review_flags": review_flags,
+        }
+
+    if related_matches:
+        review_flags.append("technology_related_only")
+        if exclude_evidence:
+            review_flags.append("possible_technology_false_positive")
+        return {
+            "technology_display": ", ".join(related_matches),
+            "technology_fit": "related_only",
+            "technology_evidence": related_evidence + exclude_evidence,
+            "review_flags": review_flags,
+        }
+
+    if exclude_evidence:
+        return {
+            "technology_display": "n/a",
+            "technology_fit": "ambiguous",
+            "technology_evidence": exclude_evidence,
+            "review_flags": [
+                "technology_ambiguous",
+                "possible_technology_false_positive",
+            ],
+        }
+
+    return {
+        "technology_display": "n/a",
+        "technology_fit": "missing",
+        "technology_evidence": [],
+        "review_flags": ["technology_missing"],
+    }
+
+
+def query_source_stack_evidence(
+    query_sources: list[dict],
+    query_plan: dict,
+) -> list[dict]:
+    queries_by_id = query_plan_by_id(query_plan)
+    evidence: list[dict] = []
+    seen_query_ids: set[str] = set()
+
+    for source in query_sources:
+        query_id = source.get("id")
+        if not query_id or query_id in seen_query_ids:
+            continue
+
+        uses_stack = source.get("uses_stack")
+        if uses_stack is None:
+            query = queries_by_id.get(query_id)
+            uses_stack = query.get("uses_stack") if query else []
+
+        if not uses_stack:
+            continue
+
+        seen_query_ids.add(query_id)
+        evidence.append(
+            {
+                "terms": uses_stack,
+                "source": "query_source",
+                "query_id": query_id,
+                "category": source.get("category"),
+                "evidence_type": "stack_query_group",
+            }
+        )
+
+    return evidence
+
+
+def build_stack_quality(
+    result: dict,
+    query_sources: list[dict],
+    query_plan: dict,
+    domain_config: dict,
+) -> dict:
+    input_snapshot = query_plan.get("input_snapshot") or {}
+    selected_stack = input_snapshot.get("stack") or []
+    quality_config = domain_config.get("quality", {})
+    stack_config = quality_config.get("stack", {})
+    allowed_terms = stack_config.get("allowed_terms", [])
+    related_terms = stack_config.get("related_terms", [])
+    selected_terms = [term for term in selected_stack if term in allowed_terms]
+    sources = candidate_text_sources(result)
+    selected_evidence = collect_term_evidence(sources, selected_terms)
+    related_evidence = collect_term_evidence(sources, related_terms)
+    query_group_evidence = query_source_stack_evidence(query_sources, query_plan)
+    selected_matches = terms_from_evidence(selected_evidence, selected_terms)
+    related_matches = terms_from_evidence(related_evidence, related_terms)
+
+    if selected_matches:
+        return {
+            "stack_display": ", ".join(selected_matches),
+            "stack_fit": "selected_stack_found",
+            "stack_evidence": selected_evidence + query_group_evidence,
+            "review_flags": [],
+        }
+
+    if query_group_evidence:
+        return {
+            "stack_display": "n/a",
+            "stack_fit": "stack_query_source_only",
+            "stack_evidence": query_group_evidence,
+            "review_flags": [
+                "selected_stack_missing",
+                "stack_from_query_source_only",
+            ],
+        }
+
+    if related_matches:
+        return {
+            "stack_display": ", ".join(related_matches),
+            "stack_fit": "related_stack_only",
+            "stack_evidence": related_evidence,
+            "review_flags": ["stack_related_only"],
+        }
+
+    return {
+        "stack_display": "n/a",
+        "stack_fit": "missing_selected_stack" if selected_stack else "missing",
+        "stack_evidence": [],
+        "review_flags": ["selected_stack_missing"] if selected_stack else [],
+    }
+
+
+def merge_review_flags(existing_flags: list[str], new_flags: list[str]) -> list[str]:
+    return ordered_unique(existing_flags + new_flags)
+
+
+def build_candidate_quality(
+    result: dict,
+    query_sources: list[dict],
+    query_plan: dict,
+) -> dict:
+    input_snapshot = query_plan.get("input_snapshot") or {}
+    domain_config = search_domain_config_for(
+        input_snapshot.get("role_family") or "",
+        input_snapshot.get("technology") or "",
+    )
+    quality: dict = {}
+    review_flags = list(result.get("review_flags", []))
+
+    for quality_part in (
+        build_role_quality(result, query_sources, query_plan, domain_config),
+        build_technology_quality(result, domain_config),
+        build_stack_quality(result, query_sources, query_plan, domain_config),
+    ):
+        review_flags = merge_review_flags(
+            review_flags,
+            quality_part.pop("review_flags", []),
+        )
+        quality.update(quality_part)
+
+    quality["review_flags"] = review_flags
+    return quality
 
 
 def empty_location_status_counts() -> dict[str, int]:
@@ -797,6 +1483,14 @@ def build_deduped_results_and_report(
             candidate["current_location_classifications"] = []
             candidate["location_filter_displayed"] = True
 
+        candidate["result"].update(
+            build_candidate_quality(
+                candidate["result"],
+                candidate["query_sources"],
+                query_plan,
+            )
+        )
+
     deduped_results: list[dict] = []
     for occurrence in occurrence_records:
         normalized_url = occurrence["normalized_url"]
@@ -1015,6 +1709,7 @@ def build_query_slot(
         "id": query_id,
         "category": category,
         "purpose": purpose,
+        "role_phrase": role_phrase,
         "query": " ".join(query_parts),
         "uses_stack": uses_stack,
         "max_results": QUERY_PLAN_MAX_RESULTS,
@@ -1072,6 +1767,8 @@ async def run_query_slot(query_slot: dict) -> dict:
         return {
             "query_id": query_slot["id"],
             "category": query_slot["category"],
+            "role_phrase": query_slot.get("role_phrase"),
+            "uses_stack": query_slot.get("uses_stack", []),
             "query": query_slot["query"],
             "ok": False,
             "raw_results": [],
@@ -1086,6 +1783,8 @@ async def run_query_slot(query_slot: dict) -> dict:
     return {
         "query_id": query_slot["id"],
         "category": query_slot["category"],
+        "role_phrase": query_slot.get("role_phrase"),
+        "uses_stack": query_slot.get("uses_stack", []),
         "query": query_slot["query"],
         "ok": True,
         "raw_results": raw_results,
@@ -1103,82 +1802,21 @@ class RuleBasedQueryPlannerV1:
     def build(self, normalized_request: dict) -> dict:
         location = normalized_request["location"]
         stack = normalized_request["stack"]
-
+        domain_config = search_domain_config_for(
+            normalized_request["role_family"],
+            normalized_request["technology"],
+        )
+        planner_queries = domain_config.get("planner", {}).get("queries", [])
         queries = [
             build_query_slot(
-                "Q01",
-                "role_based",
-                "Find broad Java Developer profiles for the selected location.",
-                "Java Developer",
+                query_config["id"],
+                query_config["category"],
+                query_config["purpose"],
+                query_config["role_phrase"],
                 location,
-            ),
-            build_query_slot(
-                "Q02",
-                "role_based",
-                "Find Java Software Engineer profiles for the selected location.",
-                "Java Software Engineer",
-                location,
-            ),
-            build_query_slot(
-                "Q03",
-                "backend_role",
-                "Find Java Backend Engineer profiles for the selected location.",
-                "Java Backend Engineer",
-                location,
-            ),
-            build_query_slot(
-                "Q04",
-                "role_based",
-                "Find Java Engineer profiles for the selected location.",
-                "Java Engineer",
-                location,
-            ),
-            build_query_slot(
-                "Q05",
-                "role_based",
-                "Find Java Programmer profiles for the selected location.",
-                "Java Programmer",
-                location,
-            ),
-            build_query_slot(
-                "Q06",
-                "role_based",
-                "Find Java Application Developer profiles for the selected location.",
-                "Java Application Developer",
-                location,
-            ),
-            build_query_slot(
-                "Q07",
-                "stack_focused",
-                "Find Java Developer profiles that mention selected stack signals.",
-                "Java Developer",
-                location,
-                stack,
-            ),
-            build_query_slot(
-                "Q08",
-                "stack_focused",
-                "Find Java Engineer profiles that mention selected stack signals.",
-                "Java Engineer",
-                location,
-                stack,
-            ),
-            build_query_slot(
-                "Q09",
-                "stack_focused",
-                "Find Java Backend Engineer profiles that mention selected stack signals.",
-                "Java Backend Engineer",
-                location,
-                stack,
-            ),
-            build_query_slot(
-                "Q10",
-                "stack_focused",
-                "Find Java Application Developer profiles that mention selected stack signals.",
-                "Java Application Developer",
-                location,
-                stack,
-            ),
+                stack if query_config.get("uses_selected_stack") else None,
+            )
+            for query_config in planner_queries
         ]
 
         return {
@@ -1222,6 +1860,8 @@ def query_result_status_summary(query_result: dict) -> dict:
     return {
         "query_id": query_result.get("query_id"),
         "category": query_result.get("category"),
+        "role_phrase": query_result.get("role_phrase"),
+        "uses_stack": query_result.get("uses_stack"),
         "query": query_result.get("query"),
         "ok": query_result.get("ok"),
         "raw_count": query_result.get("raw_count"),
