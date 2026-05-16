@@ -1994,7 +1994,6 @@ Verification:
 
 - [ ] P4-001 Define AI Agent Foundation contract
 - [ ] P4-002 Define Search Brief schema
-- [ ] P4-008 Add approval before Tavily execution
 
 ### Backlog
 
@@ -2010,6 +2009,7 @@ Verification:
 - [x] P4-005 Add AI Query Planner v0 behind explicit mode
 - [x] P4-006 Add AI QueryPlan validation and fallback
 - [x] P4-007 Add planner explanation UI
+- [x] P4-008 Add approval before Tavily execution
 
 ### Current Phase 4 strategy note
 
@@ -2034,7 +2034,7 @@ Current Phase 4 implementation status:
 - `P4-003` through `P4-007` are implemented in code.
 - Backend supports `SearchBrief` validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, and non-executable planner responses.
 - Frontend supports `Planner mode` and displays Search Brief summary, planner explanation, validation/fallback state, and approval-needed notices.
-- `P4-008` is approved as the next execution-safety task: add a real backend approval gate before Tavily execution.
+- `P4-008` is implemented: backend now requires explicit approval before rule-based single-wave or multi-wave Tavily execution.
 - Next task to review after `P4-008`: `P4-009 Compare AI planner vs rule-based baseline`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
@@ -3367,6 +3367,28 @@ Use local/mocked checks where possible and avoid unnecessary Tavily calls:
 ### Before implementation
 
 Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+
+### Implementation result
+
+Implemented in code:
+
+- added `ExecutionApproval` request model;
+- added deterministic `QueryPlan` fingerprinting;
+- added approval validation before `/api/structured-search` execution;
+- added approval validation before `/api/structured-search/multi-wave` execution;
+- rejected missing, wrong-action, wrong-planner, wrong-query-count, and stale-fingerprint approvals before Tavily;
+- disabled the legacy raw `/api/search` Tavily path so Tavily execution cannot bypass the approval-gated structured pipeline;
+- returned `plan_fingerprint` in planner/search responses;
+- logged approval metadata in structured-search snapshots;
+- updated frontend button copy to `Approve & Search`;
+- frontend now fetches the current visible rule-based plan before execution and sends approval metadata bound to action, planner mode, query count, and plan fingerprint;
+- AI planner previews remain non-executable.
+
+Verification:
+
+- backend compile passed;
+- frontend syntax check passed;
+- no-Tavily smoke passed for missing/wrong/stale approval rejects, approved single-wave, approved multi-wave, and snapshot approval metadata.
 
 ---
 

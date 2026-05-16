@@ -21,6 +21,9 @@ const stackInputs = Array.from(document.querySelectorAll('input[name="stack"]'))
 
 let planRefreshTimer = null;
 let locationFilterTouched = false;
+let latestPlannerData = null;
+let latestQueryPlan = null;
+let latestPlanFingerprint = null;
 
 const MULTI_WAVE_DEFAULTS = {
   max_waves: 5,
@@ -110,8 +113,12 @@ function buildAgentQueryPlanRequest() {
   };
 }
 
-function buildSearchRequest() {
+function buildSearchRequest(executionApproval = null) {
   const request = buildStructuredRequest();
+
+  if (executionApproval) {
+    request.execution_approval = executionApproval;
+  }
 
   if (!multiWaveInput.checked) {
     return request;
@@ -120,6 +127,36 @@ function buildSearchRequest() {
   return {
     ...request,
     ...MULTI_WAVE_DEFAULTS,
+  };
+}
+
+function queryPlanFromPlannerData(data = {}) {
+  return data.query_plan || data.fallback_query_plan || data.draft_query_plan || null;
+}
+
+function rememberPlannerData(data = {}) {
+  latestPlannerData = data;
+  latestQueryPlan = queryPlanFromPlannerData(data);
+  latestPlanFingerprint = data.plan_fingerprint || latestQueryPlan?.plan_fingerprint || null;
+}
+
+function clearPlannerData() {
+  latestPlannerData = null;
+  latestQueryPlan = null;
+  latestPlanFingerprint = null;
+}
+
+function buildExecutionApproval() {
+  const queryCount = latestQueryPlan?.queries?.length || 0;
+
+  return {
+    approval_status: "approved",
+    approved_action: multiWaveInput.checked
+      ? "run_multi_wave_search"
+      : "run_single_wave_search",
+    approved_planner_mode: "rule_based",
+    approved_query_count: queryCount,
+    approved_plan_fingerprint: latestPlanFingerprint,
   };
 }
 
@@ -333,7 +370,8 @@ function renderQueryPlan(queryPlan, plannerData = null) {
 }
 
 function renderAgentQueryPlan(data) {
-  const queryPlan = data.query_plan || data.fallback_query_plan || data.draft_query_plan;
+  rememberPlannerData(data);
+  const queryPlan = queryPlanFromPlannerData(data);
 
   if (!queryPlan) {
     planStatus.textContent = plannerLabel(data.plan_status || "rejected");
@@ -344,6 +382,23 @@ function renderAgentQueryPlan(data) {
   renderQueryPlan(queryPlan, data);
 }
 
+async function fetchAgentQueryPlan() {
+  const response = await fetch("/api/agent/query-plan", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(buildAgentQueryPlanRequest()),
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.detail || "Query plan request failed.");
+  }
+
+  return data;
+}
+
 async function refreshQueryPlan() {
   updateLocationFilterToggle();
   updateStackState();
@@ -351,28 +406,21 @@ async function refreshQueryPlan() {
   queryList.innerHTML = "";
 
   try {
-    const response = await fetch("/api/agent/query-plan", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(buildAgentQueryPlanRequest()),
-    });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.detail || "Query plan request failed.");
-    }
+    const data = await fetchAgentQueryPlan();
 
     if (!data.ok) {
+      clearPlannerData();
       renderPlanErrors(data.errors || []);
       return;
     }
 
     renderAgentQueryPlan(data);
+    return data;
   } catch (error) {
+    clearPlannerData();
     planStatus.textContent = error.message;
     queryList.innerHTML = "";
+    return null;
   }
 }
 
@@ -648,23 +696,43 @@ async function runStructuredSearch() {
 
   searchButton.disabled = true;
   refreshPlanButton.disabled = true;
-  resultsStatus.textContent = multiWaveInput.checked
-    ? "Searching Tavily with multi-wave..."
-    : "Searching Tavily...";
-  reportStatus.textContent = multiWaveInput.checked
-    ? "Running multi-wave query plan..."
-    : "Running query plan...";
+  resultsStatus.textContent = "Preparing approval for the visible QueryPlan...";
+  reportStatus.textContent = "Validating current plan before Tavily execution...";
   resultsList.innerHTML = "";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
 
   try {
+    const planData = await fetchAgentQueryPlan();
+    if (!planData.ok) {
+      clearPlannerData();
+      renderPlanErrors(planData.errors || []);
+      resultsStatus.textContent = validationMessage(planData.errors || []);
+      reportStatus.textContent = "Search was not approved.";
+      return;
+    }
+
+    renderAgentQueryPlan(planData);
+
+    if (!latestPlanFingerprint || !latestQueryPlan?.queries?.length) {
+      throw new Error("Current QueryPlan is missing approval fingerprint.");
+    }
+
+    const executionApproval = buildExecutionApproval();
+
+    resultsStatus.textContent = multiWaveInput.checked
+      ? "Searching Tavily with multi-wave..."
+      : "Searching Tavily...";
+    reportStatus.textContent = multiWaveInput.checked
+      ? "Running multi-wave query plan..."
+      : "Running query plan...";
+
     const response = await fetch(searchEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildSearchRequest()),
+      body: JSON.stringify(buildSearchRequest(executionApproval)),
     });
     const data = await response.json();
 
@@ -703,7 +771,14 @@ locationFilterInput.addEventListener("change", () => {
   schedulePlanRefresh();
 });
 
-[roleFamilySelect, technologySelect, locationInput, profilesOnlyInput, plannerModeSelect].forEach((input) => {
+[
+  roleFamilySelect,
+  technologySelect,
+  locationInput,
+  profilesOnlyInput,
+  plannerModeSelect,
+  multiWaveInput,
+].forEach((input) => {
   input.addEventListener("input", schedulePlanRefresh);
   input.addEventListener("change", schedulePlanRefresh);
 });

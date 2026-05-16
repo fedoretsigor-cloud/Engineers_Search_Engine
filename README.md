@@ -12,8 +12,7 @@ Status:
 - Phase 2 multi-query search + baseline query planner completed.
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation is in progress.
-- Phase 4 `P4-003`-`P4-007` are implemented: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, and planner explanation UI.
-- Phase 4 `P4-008` is approved: add a real backend approval gate before Tavily execution.
+- Phase 4 `P4-003`-`P4-008` are implemented: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, and backend approval gate before Tavily execution.
 
 Current pipeline:
 
@@ -21,6 +20,7 @@ Current pipeline:
 - `RuleBasedQueryPlanner v1` generates a visible 10-query `QueryPlan`;
 - optional explicit AI planner mode can draft and explain a non-executable plan;
 - backend validates AI draft plans deterministically and can show rule-based fallback;
+- rule-based Tavily execution requires explicit approval bound to action, query count, and current `QueryPlan` fingerprint;
 - Tavily executes the generated queries;
 - LinkedIn profile URLs are normalized and deduped;
 - visible `LinkedIn profiles only` and `Location filter` controls are applied;
@@ -32,7 +32,8 @@ Execution boundary:
 
 - AI planner output is planning/explanation only and is not executable.
 - Tavily execution must stay inside the approved backend pipeline.
-- The next Phase 4 implementation task is the approval gate before Tavily execution.
+- The legacy raw `/api/search` Tavily path is disabled.
+- AI-generated plans remain non-executable until a later reviewed task explicitly enables that path.
 
 ## Local Setup
 

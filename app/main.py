@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timezone
+import hashlib
 import html
 import json
 import logging
@@ -47,6 +48,8 @@ PLANNER_MODES = {
     PLANNER_MODE_AI,
     PLANNER_MODE_AI_WITH_FALLBACK,
 }
+EXECUTION_ACTION_SINGLE_WAVE = "run_single_wave_search"
+EXECUTION_ACTION_MULTI_WAVE = "run_multi_wave_search"
 FORBIDDEN_AI_QUERY_TERMS = [
     "linkedin.com/login",
     "login",
@@ -418,6 +421,16 @@ class SearchRequest(BaseModel):
     ukraine_linkedin_domain_only: bool = False
 
 
+class ExecutionApproval(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approval_status: str | None = None
+    approved_action: str | None = None
+    approved_planner_mode: str | None = None
+    approved_query_count: int | None = None
+    approved_plan_fingerprint: str | None = None
+
+
 class StructuredSearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -427,6 +440,7 @@ class StructuredSearchRequest(BaseModel):
     location: str | None = None
     linkedin_profiles_only: bool | None = None
     location_filter_enabled: bool | None = None
+    execution_approval: ExecutionApproval | None = None
 
 
 class MultiWaveStructuredSearchRequest(StructuredSearchRequest):
@@ -2746,6 +2760,117 @@ class RuleBasedQueryPlannerV1:
         }
 
 
+def query_plan_fingerprint_payload(query_plan: dict) -> dict:
+    return {
+        "planner_version": query_plan.get("planner_version"),
+        "planner_mode": query_plan.get("planner_mode", PLANNER_MODE_RULE_BASED),
+        "input_snapshot": query_plan.get("input_snapshot"),
+        "queries": query_plan.get("queries"),
+        "filters": query_plan.get("filters"),
+        "execution": query_plan.get("execution"),
+        "reporting": query_plan.get("reporting"),
+    }
+
+
+def query_plan_fingerprint(query_plan: dict) -> str:
+    payload = json.dumps(
+        query_plan_fingerprint_payload(query_plan),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def add_query_plan_fingerprint(query_plan: dict) -> dict:
+    return {
+        **query_plan,
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+    }
+
+
+def execution_approval_metadata(
+    approval: ExecutionApproval,
+    expected_action: str,
+    query_plan: dict,
+) -> dict:
+    return {
+        "approval_status": approval.approval_status,
+        "approved_action": approval.approved_action,
+        "approved_planner_mode": approval.approved_planner_mode,
+        "approved_query_count": approval.approved_query_count,
+        "approved_plan_fingerprint": approval.approved_plan_fingerprint,
+        "expected_action": expected_action,
+        "current_plan_fingerprint": query_plan_fingerprint(query_plan),
+        "current_query_count": len(query_plan.get("queries", [])),
+        "execution_allowed": True,
+    }
+
+
+def validate_execution_approval(
+    approval: ExecutionApproval | None,
+    expected_action: str,
+    query_plan: dict,
+) -> tuple[dict | None, list[dict[str, str]]]:
+    errors: list[dict[str, str]] = []
+    current_fingerprint = query_plan_fingerprint(query_plan)
+    current_query_count = len(query_plan.get("queries", []))
+
+    if approval is None:
+        add_plan_validation_error(
+            errors,
+            "execution_approval",
+            "missing_execution_approval",
+            "Tavily execution requires explicit approval for the visible QueryPlan.",
+        )
+        return None, errors
+
+    if approval.approval_status != AGENT_TOOL_APPROVAL_APPROVED:
+        add_plan_validation_error(
+            errors,
+            "execution_approval.approval_status",
+            "approval_not_approved",
+            "Execution approval status must be approved.",
+        )
+
+    if approval.approved_action != expected_action:
+        add_plan_validation_error(
+            errors,
+            "execution_approval.approved_action",
+            "wrong_execution_action",
+            f"Approval must be for {expected_action}.",
+        )
+
+    if approval.approved_planner_mode != PLANNER_MODE_RULE_BASED:
+        add_plan_validation_error(
+            errors,
+            "execution_approval.approved_planner_mode",
+            "unsupported_execution_planner_mode",
+            "Only rule_based QueryPlan execution is supported in this phase.",
+        )
+
+    if approval.approved_query_count != current_query_count:
+        add_plan_validation_error(
+            errors,
+            "execution_approval.approved_query_count",
+            "stale_or_mismatched_query_count",
+            "Approved query count does not match the current QueryPlan.",
+        )
+
+    if approval.approved_plan_fingerprint != current_fingerprint:
+        add_plan_validation_error(
+            errors,
+            "execution_approval.approved_plan_fingerprint",
+            "stale_or_mismatched_plan_fingerprint",
+            "Approved plan fingerprint does not match the current QueryPlan.",
+        )
+
+    if errors:
+        return None, errors
+
+    return execution_approval_metadata(approval, expected_action, query_plan), []
+
+
 def planner_explanation_for_rule_based() -> str:
     return "Using tested Java Backend rule-based planner baseline."
 
@@ -2755,6 +2880,7 @@ def build_agent_rule_based_plan_response(
     normalized_request: dict,
 ) -> dict:
     query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    plan_fingerprint = query_plan_fingerprint(query_plan)
     return {
         "ok": True,
         "planner_mode": PLANNER_MODE_RULE_BASED,
@@ -2763,7 +2889,8 @@ def build_agent_rule_based_plan_response(
         "normalized_brief": normalized_brief,
         "adapted_structured_request": normalized_request,
         "explanation": planner_explanation_for_rule_based(),
-        "query_plan": query_plan,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": plan_fingerprint,
         "draft_query_plan": None,
         "validation_errors": [],
         "warnings": [],
@@ -2781,6 +2908,7 @@ def build_rule_based_fallback_response(
     validation_errors: list[dict] | None = None,
 ) -> dict:
     query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    plan_fingerprint = query_plan_fingerprint(query_plan)
     return {
         "ok": True,
         "planner_mode": PLAN_STATUS_RULE_BASED_FALLBACK,
@@ -2790,7 +2918,8 @@ def build_rule_based_fallback_response(
         "adapted_structured_request": normalized_request,
         "explanation": planner_explanation_for_rule_based(),
         "fallback_reason": fallback_reason,
-        "query_plan": query_plan,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": plan_fingerprint,
         "draft_query_plan": None,
         "validation_errors": validation_errors or [],
         "warnings": [],
@@ -3192,6 +3321,7 @@ async def build_ai_query_plan_response(
         normalized_request,
     )
     if ai_errors:
+        fallback_query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
         if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK:
             return build_rule_based_fallback_response(
                 normalized_brief,
@@ -3210,7 +3340,8 @@ async def build_ai_query_plan_response(
             "validation_errors": ai_errors,
             "fallback_available": True,
             "fallback_reason": "AI planner request failed.",
-            "fallback_query_plan": RuleBasedQueryPlannerV1().build(normalized_request),
+            "fallback_query_plan": add_query_plan_fingerprint(fallback_query_plan),
+            "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
             "approval_required": False,
             "execution_approval_required": True,
             "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
@@ -3223,6 +3354,7 @@ async def build_ai_query_plan_response(
         normalized_request,
     )
     if validation_errors:
+        fallback_query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
         if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK:
             return build_rule_based_fallback_response(
                 normalized_brief,
@@ -3245,11 +3377,14 @@ async def build_ai_query_plan_response(
             "assumptions": ai_output.get("assumptions", []),
             "fallback_available": True,
             "fallback_reason": "AI plan failed validation.",
-            "fallback_query_plan": RuleBasedQueryPlannerV1().build(normalized_request),
+            "fallback_query_plan": add_query_plan_fingerprint(fallback_query_plan),
+            "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
             "approval_required": False,
             "execution_approval_required": True,
             "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
         }
+
+    plan_fingerprint = query_plan_fingerprint(validated_plan)
 
     return {
         "ok": True,
@@ -3259,7 +3394,8 @@ async def build_ai_query_plan_response(
         "normalized_brief": normalized_brief,
         "adapted_structured_request": normalized_request,
         "explanation": ai_output.get("explanation"),
-        "query_plan": validated_plan,
+        "query_plan": add_query_plan_fingerprint(validated_plan),
+        "plan_fingerprint": plan_fingerprint,
         "draft_query_plan": draft_plan,
         "validation_errors": [],
         "warnings": ai_output.get("warnings", []),
@@ -3319,12 +3455,15 @@ def build_structured_search_snapshot(
     report: dict,
     timestamp: datetime,
     snapshot_type: str = "structured-search",
+    execution_approval: dict | None = None,
 ) -> dict:
     return {
         "snapshot_type": snapshot_type,
         "timestamp": timestamp.isoformat(),
         "normalized_request": query_plan.get("input_snapshot"),
-        "query_plan": query_plan,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+        "execution_approval": execution_approval,
         "report": report,
         "location_filter_report": report.get("location_filter_report"),
         "deduped_results": deduped_results,
@@ -3342,6 +3481,7 @@ def write_structured_search_snapshot(
     deduped_results: list[dict],
     report: dict,
     snapshot_type: str = "structured-search",
+    execution_approval: dict | None = None,
 ) -> Path:
     timestamp = datetime.now(timezone.utc)
     snapshot = build_structured_search_snapshot(
@@ -3351,6 +3491,7 @@ def write_structured_search_snapshot(
         report,
         timestamp,
         snapshot_type,
+        execution_approval,
     )
     SEARCH_RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
     snapshot_path = SEARCH_RUN_LOG_DIR / structured_search_snapshot_filename(
@@ -3502,7 +3643,11 @@ def create_query_plan(request: StructuredSearchRequest) -> dict:
 
     query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
 
-    return {"ok": True, "query_plan": query_plan}
+    return {
+        "ok": True,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+    }
 
 
 @app.post("/api/agent/query-plan")
@@ -3607,6 +3752,7 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
         normalized_request,
     )
     if validation_errors:
+        fallback_query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
         return {
             "ok": False,
             "plan_status": PLAN_STATUS_REJECTED,
@@ -3614,8 +3760,11 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
             "normalized_brief": normalized_brief,
             "validation_errors": validation_errors,
             "fallback_available": True,
-            "fallback_query_plan": RuleBasedQueryPlannerV1().build(normalized_request),
+            "fallback_query_plan": add_query_plan_fingerprint(fallback_query_plan),
+            "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
         }
+
+    plan_fingerprint = query_plan_fingerprint(validated_plan)
 
     return {
         "ok": True,
@@ -3623,7 +3772,8 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
         "plan_status": PLAN_STATUS_VALIDATED_NOT_EXECUTABLE,
         "execution_allowed": False,
         "normalized_brief": normalized_brief,
-        "query_plan": validated_plan,
+        "query_plan": add_query_plan_fingerprint(validated_plan),
+        "plan_fingerprint": plan_fingerprint,
         "validation_errors": [],
         "approval_required": False,
         "execution_approval_required": True,
@@ -3638,6 +3788,21 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
     if errors:
         return {"ok": False, "errors": errors}
 
+    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    execution_approval, approval_errors = validate_execution_approval(
+        request.execution_approval,
+        EXECUTION_ACTION_SINGLE_WAVE,
+        query_plan,
+    )
+    if approval_errors:
+        return {
+            "ok": False,
+            "errors": approval_errors,
+            "execution_allowed": False,
+            "query_plan": add_query_plan_fingerprint(query_plan),
+            "plan_fingerprint": query_plan_fingerprint(query_plan),
+        }
+
     if not os.getenv("TAVILY_API_KEY"):
         return {
             "ok": False,
@@ -3649,7 +3814,6 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
             ],
         }
 
-    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
     query_results = await run_query_plan_wave(query_plan)
 
     successful_queries = sum(1 for result in query_results if result["ok"])
@@ -3663,13 +3827,16 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
             query_results,
             deduped_results,
             report,
+            execution_approval=execution_approval,
         )
     except Exception:
         logger.warning("Failed to write structured search snapshot.", exc_info=True)
 
     return {
         "ok": successful_queries > 0,
-        "query_plan": query_plan,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+        "execution_approval": execution_approval,
         "query_results": query_results,
         "deduped_results": deduped_results,
         "report": report,
@@ -3685,6 +3852,21 @@ async def structured_search_multi_wave(
     if errors:
         return {"ok": False, "errors": errors}
 
+    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    execution_approval, approval_errors = validate_execution_approval(
+        request.execution_approval,
+        EXECUTION_ACTION_MULTI_WAVE,
+        query_plan,
+    )
+    if approval_errors:
+        return {
+            "ok": False,
+            "errors": approval_errors,
+            "execution_allowed": False,
+            "query_plan": add_query_plan_fingerprint(query_plan),
+            "plan_fingerprint": query_plan_fingerprint(query_plan),
+        }
+
     if not os.getenv("TAVILY_API_KEY"):
         return {
             "ok": False,
@@ -3696,7 +3878,6 @@ async def structured_search_multi_wave(
             ],
         }
 
-    query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
     deduped_results, report, query_results = await run_multi_wave_query_plan(
         query_plan,
         settings,
@@ -3708,6 +3889,7 @@ async def structured_search_multi_wave(
             deduped_results,
             report,
             "structured-search-multi-wave",
+            execution_approval=execution_approval,
         )
     except Exception:
         logger.warning(
@@ -3718,7 +3900,9 @@ async def structured_search_multi_wave(
     return {
         "ok": report["queries_succeeded"] > 0,
         "experimental": True,
-        "query_plan": query_plan,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+        "execution_approval": execution_approval,
         "query_results": query_results,
         "deduped_results": deduped_results,
         "report": report,
@@ -3732,48 +3916,16 @@ async def search(request: SearchRequest) -> dict:
     if not query:
         raise HTTPException(status_code=400, detail="Search query is required.")
 
-    tavily_data = await run_tavily_query(query, request.max_results)
-    raw_results = tavily_data.get("results", [])
-    normalized_results = [normalize_tavily_result(result) for result in raw_results]
-    sorted_results = sorted(
-        normalized_results,
-        key=lambda result: result.get("score", 0),
-        reverse=True,
-    )
-    displayed_results = sorted_results
-    if request.linkedin_profiles_only:
-        displayed_results = [
-            result
-            for result in displayed_results
-            if is_linkedin_profile_url(result.get("url") or "")
-        ]
-    hidden_by_profile_filter = len(sorted_results) - len(displayed_results)
-
-    before_ukraine_domain_filter = len(displayed_results)
-    if request.ukraine_linkedin_domain_only:
-        displayed_results = [
-            result
-            for result in displayed_results
-            if is_ukraine_linkedin_profile_url(result.get("url") or "")
-        ]
-    hidden_by_ukraine_domain_filter = before_ukraine_domain_filter - len(displayed_results)
-
     return {
-        "query": tavily_data.get("query", query),
-        "results": raw_results,
-        "normalized_results": sorted_results,
-        "displayed_results": displayed_results,
-        "relevant_results": displayed_results,
-        "counts": {
-            "raw": len(raw_results),
-            "normalized": len(normalized_results),
-            "displayed": len(displayed_results),
-            "hidden_by_profile_filter": hidden_by_profile_filter,
-            "hidden_by_ukraine_domain_filter": hidden_by_ukraine_domain_filter,
-            "relevant": len(displayed_results),
-        },
-        "response_time": tavily_data.get("response_time"),
-        "usage": tavily_data.get("usage"),
-        "request_id": tavily_data.get("request_id"),
-        "raw": tavily_data,
+        "ok": False,
+        "errors": [
+            {
+                "field": "search",
+                "code": "legacy_raw_search_disabled",
+                "message": (
+                    "Legacy raw Tavily search is disabled. "
+                    "Use approval-gated structured search instead."
+                ),
+            }
+        ],
     }

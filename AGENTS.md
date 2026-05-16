@@ -45,10 +45,10 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 4: `AI Agent Foundation`
-- `P4-003` through `P4-007` are implemented in code.
-- The backend has Search Brief validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, and non-executable planner responses.
+- `P4-003` through `P4-008` are implemented in code.
+- The backend has Search Brief validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has a `Planner mode` control and planner explanation UI.
-- `P4-008` is approved as the next execution-safety task: add a real backend approval gate before Tavily execution.
+- The next task to review is `P4-009 Compare AI planner vs rule-based baseline`.
 
 ## Product Rules
 
@@ -64,10 +64,12 @@ Current product direction:
 - Non-UA LinkedIn profiles can be rescued only when Tavily public header/current-location text contains supported target-location terms.
 - Unknown current location falls back to country-domain/header/weak/unknown signals.
 - `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` remains the default execution planner; explicit AI planner mode can draft non-executable plans for backend validation/fallback.
-- AI-generated plans must remain non-executable until deterministic validation and approval gates allow a future execution path.
+- Rule-based Tavily execution requires explicit approval bound to action, query count, and the current `QueryPlan` fingerprint.
+- AI-generated plans must remain non-executable until a later reviewed task explicitly enables that path through deterministic validation and approval.
 - Local structured-search snapshots are written under `logs/search-runs/` and ignored by git.
 - Tavily live result sets vary between runs; use snapshots for deterministic analysis and treat live unique counts as a range, not a fixed guarantee.
 - Tavily execution must stay inside the approved backend pipeline.
+- The legacy raw `/api/search` Tavily path is disabled.
 - Absolute product boundaries: no direct web-search bypass, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no user/third-party account actions.
 
 ## Working Rules
