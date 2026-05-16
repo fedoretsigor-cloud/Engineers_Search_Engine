@@ -16,7 +16,7 @@ Current phase: `Phase 4 - AI Agent Foundation`.
 
 Completed through `P3-014`: Phase 3 is closed as the Candidate Quality Layer baseline. Backend candidates now include seniority, normalized review flag details, explainable `quality_score`; the frontend renders a hybrid candidate quality view; the first real Java/Ukraine quality baseline is documented; the `missing_selected_stack` group has been reviewed; stack evidence display labels are clearer; an experimental multi-wave API runner exists; the first real adaptive multi-wave evaluation is documented; and the frontend has a visible `Multi-wave` toggle off by default.
 
-Next task to review: `P4-009 Compare AI planner vs rule-based baseline`.
+Next approved task: `P4-010 Improve AI planner coverage and add quality gate` (coding not started).
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -60,6 +60,10 @@ Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for rank
 `P4-003` through `P4-007` are implemented in code. The backend now supports `SearchBrief` validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode through OpenAI/ChatGPT for planning only, deterministic AI QueryPlan validation/fallback, and non-executable planner responses. The frontend now has a `Planner mode` control and renders Search Brief summary, planner explanation, validation/fallback state, and approval-needed notices.
 
 `P4-008` is implemented as the real backend approval gate before Tavily execution. `/api/structured-search` and `/api/structured-search/multi-wave` now require explicit execution approval, bind approval to the concrete action and current QueryPlan fingerprint, reject missing/stale/wrong-action approval before Tavily, log approval metadata in search snapshots, and keep AI-generated plans non-executable. The legacy raw `/api/search` Tavily path is disabled so execution cannot bypass the approval-gated structured pipeline. Rule-based single-wave and multi-wave are the supported execution targets.
+
+`P4-009` is completed as a no-Tavily planner evaluation. For the baseline `Backend Developer + Java + Spring/Kafka + Ukraine`, the rule-based planner produced the expected 10-query coverage. A live AI planner run produced a formally valid but too narrow 1-query plan, and `ai_with_fallback` produced a 3-query AI plan without triggering fallback. Conclusion: AI is useful for intent understanding and explanation, but current validation does not yet enforce baseline coverage quality. `RuleBasedQueryPlanner v1` remains the default and only executable planner. See `docs/phase-4-ai-planner-baseline.md`.
+
+`P4-010` is approved as the next Phase 4 task: improve AI planner coverage and add a coverage quality gate. The AI planner should try to produce the tested 10-query baseline coverage, and the backend should treat under-covered AI plans as fallback cases even when they are structurally valid. `P4-011` will close Phase 4 after P4-010 is implemented/evaluated.
 
 ## What was built in Phase 1
 
@@ -328,6 +332,7 @@ Phase 3 is completed as Candidate Quality Layer. AI Agent Foundation is now the 
 - Phase 3 `P3-014` docs-only closeout completed and Phase 4 handoff prepared.
 - Phase 4 `P4-003`-`P4-007` implementation checks passed: backend compile, frontend syntax, no-Tavily smoke for SearchBrief/tools/rule-based plan/AI validation/mocked AI fallback, browser smoke for planner UI, live OpenAI planner call, and live Tavily single-wave run through the backend.
 - Phase 4 `P4-008` implementation checks passed: backend compile, frontend syntax, no-Tavily smoke for missing/wrong/stale approval rejection, approved single-wave, approved multi-wave, and snapshot approval metadata.
+- Phase 4 `P4-009` no-Tavily planner evaluation completed: rule-based planner returned 10 baseline queries, live AI planner returned 1 query, and live `ai_with_fallback` returned 3 queries without fallback because the current validator does not yet enforce coverage quality.
 
 ## Current known limitations
 
@@ -340,6 +345,7 @@ Phase 3 is completed as Candidate Quality Layer. AI Agent Foundation is now the 
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
 - Current-location extraction is conservative and can keep ambiguous snippets unknown.
 - `RuleBasedQueryPlanner v1` is still the default execution planner. AI draft planning exists behind explicit mode, but AI-generated plans remain non-executable until a later reviewed task enables AI plan execution through deterministic validation and approval.
+- Current AI QueryPlan validation checks safety and alignment but not full baseline coverage quality; a live AI plan can be valid structurally while still being too narrow compared with the 10-query rule-based baseline.
 - Candidate quality score is a deterministic v1 signal and should not be treated as final recruiting quality.
 - No database, shortlist, authentication, fully autonomous AI agent runtime, LinkedIn login, scraping, or direct LinkedIn automation is included.
 - Absolute product boundaries: no direct web-search bypass outside the approved backend pipeline, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no actions with user or third-party accounts.

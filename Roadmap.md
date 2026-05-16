@@ -149,7 +149,8 @@ AI в Phase 4 должен планировать и объяснять, а back
 - `P4-007 Add planner explanation UI`
 - `P4-008 Add approval before Tavily execution`
 - `P4-009 Compare AI planner vs rule-based baseline`
-- `P4-010 Close Phase 4 with decision`
+- `P4-010 Improve AI planner coverage and add quality gate`
+- `P4-011 Close Phase 4 with decision`
 
 Статус `P4-001`: approved as contract. Утверждено:
 
@@ -234,6 +235,25 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Approval metadata сохраняется в structured-search snapshot/log.
 - AI-generated plans остаются non-executable в P4-008; запуск AI plan в Tavily не входит в эту задачу.
 
+Статус `P4-009`: completed as no-Tavily AI planner baseline evaluation.
+
+- Baseline: `Backend Developer + Java + Spring/Kafka + Ukraine`.
+- Rule-based planner produced the expected 10-query baseline coverage.
+- Live AI planner produced a formally valid but too narrow 1-query plan.
+- Live `ai_with_fallback` produced a 3-query AI plan and did not fall back, because current validation checks structure/safety/alignment but not baseline coverage quality.
+- Decision: keep `RuleBasedQueryPlanner v1` as default and only executable planner for now.
+- Follow-up: before AI-generated plans can be executable, add a planner quality gate for coverage, role phrase diversity, and stack-focused slots.
+
+Статус `P4-010`: approved as next task after P4-009.
+
+- Goal: improve AI planner coverage and fallback when AI plan is structurally valid but under-covered.
+- AI planner should be prompted to produce the tested 10-query standard baseline rather than a minimal 1-query/3-query plan.
+- Expected standard structure: role-based coverage plus stack-focused coverage.
+- Standard baseline should not accept a 1-query or 3-query AI plan as good enough for Java Backend Ukraine.
+- Quality gate should check coverage, role phrase diversity, and stack-focused slots.
+- AI remains useful for planning/explanation, but backend decides whether the plan is strong enough.
+- `P4-011` closes Phase 4 after this improvement/gate is implemented and evaluated.
+
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
 
 Не входит в Phase 4: persistent memory/database, shortlist, export, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Chat UI относится к Phase 5, tool-calling runtime к Phase 6, candidate workspace/shortlist/export к Phase 7, persistence/memory/saved searches к Phase 8.
@@ -273,7 +293,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 4: `AI Agent Foundation` - `P4-001` through `P4-008` are approved as contracts; `P4-003` through `P4-008` are implemented; next task to review is `P4-009 Compare AI planner vs rule-based baseline`.
+- Phase 4: `AI Agent Foundation` - `P4-001` through `P4-010` are approved/evaluated as contracts and checkpoints; `P4-003` through `P4-008` are implemented; `P4-009` is documented as a no-Tavily planner evaluation; next approved task is `P4-010 Improve AI planner coverage and add quality gate`.
 
 ### Done
 

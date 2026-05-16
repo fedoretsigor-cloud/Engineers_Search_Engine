@@ -1994,11 +1994,11 @@ Verification:
 
 - [ ] P4-001 Define AI Agent Foundation contract
 - [ ] P4-002 Define Search Brief schema
+- [ ] P4-010 Improve AI planner coverage and add quality gate
 
 ### Backlog
 
-- [ ] P4-009 Compare AI planner vs rule-based baseline
-- [ ] P4-010 Close Phase 4 with decision
+- [ ] P4-011 Close Phase 4 with decision
 
 ### In Progress
 
@@ -2010,6 +2010,7 @@ Verification:
 - [x] P4-006 Add AI QueryPlan validation and fallback
 - [x] P4-007 Add planner explanation UI
 - [x] P4-008 Add approval before Tavily execution
+- [x] P4-009 Compare AI planner vs rule-based baseline
 
 ### Current Phase 4 strategy note
 
@@ -2035,7 +2036,8 @@ Current Phase 4 implementation status:
 - Backend supports `SearchBrief` validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, and non-executable planner responses.
 - Frontend supports `Planner mode` and displays Search Brief summary, planner explanation, validation/fallback state, and approval-needed notices.
 - `P4-008` is implemented: backend now requires explicit approval before rule-based single-wave or multi-wave Tavily execution.
-- Next task to review after `P4-008`: `P4-009 Compare AI planner vs rule-based baseline`.
+- `P4-009` is completed as a no-Tavily planner evaluation.
+- `P4-010` is approved as the next task, but coding has not started.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -3389,6 +3391,168 @@ Verification:
 - backend compile passed;
 - frontend syntax check passed;
 - no-Tavily smoke passed for missing/wrong/stale approval rejects, approved single-wave, approved multi-wave, and snapshot approval metadata.
+
+---
+
+## Task: P4-009 Compare AI planner vs rule-based baseline
+
+### Context
+
+`P4-005` through `P4-008` added explicit AI planner mode, deterministic validation/fallback, planner explanation UI, and backend approval before Tavily execution.
+
+Before closing Phase 4, compare the live AI planner against the current rule-based baseline for the approved scenario:
+
+`Backend Developer + Java + Spring/Kafka + Ukraine`
+
+This task evaluates planning quality only.
+
+### Goal
+
+Check whether AI planner output is good enough to replace or execute instead of the rule-based baseline.
+
+### Scope
+
+- Use the existing backend agent planner endpoint.
+- Compare `rule_based`, `ai`, and `ai_with_fallback` planner modes.
+- Use a ready `Search Brief` for the baseline scenario.
+- Do not run Tavily.
+- Do not run direct web-search.
+- Do not log in to LinkedIn, scrape LinkedIn, message candidates, or act on accounts.
+
+### Evaluation result
+
+Rule-based planner:
+
+- status: `validated_not_executable`;
+- query count: `10`;
+- result: expected Java Backend baseline coverage, including role-based and stack-focused slots.
+
+Live AI planner:
+
+- status: `validated_not_executable`;
+- query count: `1`;
+- result: formally valid but too narrow for baseline coverage.
+
+Live `ai_with_fallback`:
+
+- status: `validated_not_executable`;
+- query count: `3`;
+- result: better than the one-query AI plan, but still too narrow; fallback did not trigger because current validation does not enforce coverage quality.
+
+### Decision
+
+Keep `RuleBasedQueryPlanner v1` as the default and only executable planner.
+
+AI planner remains useful for intent understanding, explanation, and future chat-based planning, but it is not ready to execute or replace the rule-based baseline.
+
+### Follow-up
+
+Before enabling AI-generated plan execution, add a planner quality gate:
+
+- require baseline-level coverage for `search_depth = standard`;
+- require both role-based and stack-focused query slots when stack is present;
+- require enough role phrase diversity for the Java Backend baseline;
+- trigger visible fallback when a plan is structurally valid but under-covered;
+- improve the AI planner prompt to request explicit slot coverage;
+- rerun the same no-Tavily evaluation.
+
+Detailed evaluation notes are saved in `docs/phase-4-ai-planner-baseline.md`.
+
+---
+
+## Task: P4-010 Improve AI planner coverage and add quality gate
+
+### Context
+
+`P4-009` showed that the live AI planner can return a structurally valid but under-covered plan.
+
+For the baseline `Backend Developer + Java + Spring/Kafka + Ukraine`:
+
+- rule-based planner returned `10` query slots;
+- AI planner returned `1` query slot;
+- `ai_with_fallback` returned `3` query slots and did not fall back.
+
+The current validator catches invalid shape, unsafe behavior, wrong source scope, wrong location, and missing role/technology alignment. It does not yet catch a plan that is safe but too weak for baseline coverage.
+
+### Approval status
+
+Approved as a task. Coding requires a separate explicit request.
+
+### Goal
+
+Improve the AI planner so it tries to produce the tested 10-query baseline coverage, and add a deterministic quality gate so under-covered AI plans trigger visible fallback to `RuleBasedQueryPlanner`.
+
+The goal is not to make AI-generated plans executable. The goal is to make fallback honest when the AI plan is formally valid but not good enough.
+
+The intended architecture is:
+
+```text
+better AI prompt -> AI tries to produce 10-query plan -> backend quality gate verifies -> fallback if weak
+```
+
+### AI planner prompt improvements
+
+For the current Java Backend Ukraine baseline and `search_depth = standard`, the AI planner should be instructed to return exactly `10` query slots.
+
+The expected shape is:
+
+- `6` role-based queries;
+- `4` stack-focused queries;
+- every query targets public LinkedIn profiles;
+- every query includes target location;
+- every query includes the main technology signal;
+- stack-focused queries use selected stack terms such as `Spring` and `Kafka`.
+
+The prompt should make clear that the model must not reduce the plan to one broad query.
+
+### Proposed quality checks
+
+For the current Java Backend Ukraine baseline and `search_depth = standard`, the quality gate should require:
+
+- enough total query slots for baseline coverage, expected as `10` for the current standard Java Backend baseline;
+- both role-based and stack-focused query coverage when stack signals exist;
+- enough role phrase diversity;
+- target location present in every query;
+- technology signal present in every query;
+- stack-focused slots using selected stack terms when stack is provided.
+
+### Expected behavior
+
+If AI returns one broad query, the backend should respond with a visible fallback reason such as:
+
+```text
+AI plan is structurally valid, but coverage is too narrow for the baseline. Falling back to rule-based planner.
+```
+
+If AI returns a safe but incomplete 3-query plan, fallback should also trigger.
+
+The fallback plan remains non-executable until normal approval rules are satisfied.
+
+### Constraints
+
+- Do not make AI planner default.
+- Do not make AI-generated plans executable.
+- Do not run Tavily in the quality gate.
+- Do not change scoring, dedupe, Candidate Quality, or location filter behavior.
+- Do not add recruiter chat UI.
+- Do not perform direct web-search outside the approved backend pipeline.
+- Do not add LinkedIn login, scraping, restriction bypass, candidate messaging, or account actions.
+
+### Acceptance criteria
+
+- AI plans with too few query slots fail the coverage quality gate.
+- AI plans without stack-focused coverage fail when stack is present.
+- AI plans without enough role phrase diversity fail for the Java Backend baseline.
+- AI planner prompt asks for the expected 10-query standard baseline shape.
+- AI planner attempts role-based plus stack-focused coverage instead of one broad query.
+- `ai_with_fallback` falls back visibly for structurally valid but under-covered plans.
+- Rule-based mode behavior is unchanged.
+- No Tavily execution is introduced by this task.
+- P4-009 no-Tavily baseline evaluation can be rerun and shows fallback for the previous 1-query/3-query AI cases.
+
+### Before implementation
+
+Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
 
 ---
 

@@ -13,6 +13,8 @@ Status:
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation is in progress.
 - Phase 4 `P4-003`-`P4-008` are implemented: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, and backend approval gate before Tavily execution.
+- Phase 4 `P4-009` no-Tavily baseline evaluation is completed: rule-based planning remains the execution baseline; AI planner is useful for intent/explanation but needs stronger 10-query coverage behavior and a stricter quality gate before execution.
+- Next approved Phase 4 task: `P4-010 Improve AI planner coverage and add quality gate`.
 
 Current pipeline:
 
@@ -34,6 +36,7 @@ Execution boundary:
 - Tavily execution must stay inside the approved backend pipeline.
 - The legacy raw `/api/search` Tavily path is disabled.
 - AI-generated plans remain non-executable until a later reviewed task explicitly enables that path.
+- Current AI plan validation does not yet enforce baseline coverage quality, so structurally valid AI plans can still be too narrow.
 
 ## Local Setup
 
@@ -68,6 +71,7 @@ http://localhost:8000/api/health
 - `ProjectStatus.md`
 - `Roadmap.md`
 - `Tasks.md`
+- `docs/phase-4-ai-planner-baseline.md`
 - `docs/phase-1-poc-findings.md`
 - `docs/phase-3-quality-baseline.md`
 - `docs/phase-3-multi-wave-evaluation.md`

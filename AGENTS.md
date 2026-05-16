@@ -46,9 +46,10 @@ Current product direction:
 
 - Phase 4: `AI Agent Foundation`
 - `P4-003` through `P4-008` are implemented in code.
+- `P4-009` is completed as a no-Tavily planner evaluation.
 - The backend has Search Brief validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has a `Planner mode` control and planner explanation UI.
-- The next task to review is `P4-009 Compare AI planner vs rule-based baseline`.
+- The next approved task is `P4-010 Improve AI planner coverage and add quality gate`.
 
 ## Product Rules
 
@@ -65,6 +66,8 @@ Current product direction:
 - Unknown current location falls back to country-domain/header/weak/unknown signals.
 - `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` remains the default execution planner; explicit AI planner mode can draft non-executable plans for backend validation/fallback.
 - Rule-based Tavily execution requires explicit approval bound to action, query count, and the current `QueryPlan` fingerprint.
+- Current AI QueryPlan validation checks safety and alignment but not full baseline coverage quality; under-covered AI plans must not become executable.
+- `P4-010` should improve the AI prompt toward the tested 10-query baseline and add deterministic fallback for structurally valid but under-covered AI plans.
 - AI-generated plans must remain non-executable until a later reviewed task explicitly enables that path through deterministic validation and approval.
 - Local structured-search snapshots are written under `logs/search-runs/` and ignored by git.
 - Tavily live result sets vary between runs; use snapshots for deterministic analysis and treat live unique counts as a range, not a fixed guarantee.
