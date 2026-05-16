@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -48,6 +48,11 @@ PLANNER_MODES = {
     PLANNER_MODE_AI,
     PLANNER_MODE_AI_WITH_FALLBACK,
 }
+RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_AI_WITH_FALLBACK
+RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
+RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
+RECRUITER_CHAT_STATE_REFUSED = "refused"
+RECRUITER_CHAT_ALLOWED_MESSAGE_ROLES = {"assistant", "recruiter", "user"}
 EXECUTION_ACTION_SINGLE_WAVE = "run_single_wave_search"
 EXECUTION_ACTION_MULTI_WAVE = "run_multi_wave_search"
 FORBIDDEN_AI_QUERY_TERMS = [
@@ -64,6 +69,67 @@ FORBIDDEN_AI_QUERY_TERMS = [
     "message candidate",
     "contact candidate",
     "account",
+]
+RECRUITER_CHAT_PROHIBITED_RULES = [
+    {
+        "code": "direct_web_search_bypass",
+        "message": "Direct web-search by the agent outside the approved backend pipeline is prohibited.",
+        "patterns": [
+            r"\bdirect web[- ]search\b",
+            r"\boutside (the )?approved backend\b",
+            r"\bwithout (the )?backend\b",
+            r"в обход (backend|бекенд|бекэнда)",
+            r"прям(ой|ую|ым).{0,30}web[- ]?search",
+        ],
+    },
+    {
+        "code": "linkedin_login",
+        "message": "LinkedIn login is prohibited.",
+        "patterns": [
+            r"linkedin.{0,40}\b(log\s?in|login|sign in)\b",
+            r"\b(log\s?in|login|sign in)\b.{0,40}linkedin",
+            r"(зайди|войд[иу]|авторизуй|залогин).{0,40}linkedin",
+            r"linkedin.{0,40}(зайди|войд[иу]|авторизуй|залогин)",
+        ],
+    },
+    {
+        "code": "linkedin_scraping_or_bypass",
+        "message": "LinkedIn scraping or restriction bypass is prohibited.",
+        "patterns": [
+            r"\bscrap(e|ing|er)\b",
+            r"\bcrawl(er|ing)?\b",
+            r"\bbypass\b",
+            r"restriction bypass",
+            r"скрейп",
+            r"парс.{0,40}linkedin",
+            r"linkedin.{0,40}парс",
+            r"обход.{0,40}(linkedin|огранич)",
+        ],
+    },
+    {
+        "code": "candidate_messaging",
+        "message": "Candidate messaging or automatic outreach is prohibited.",
+        "patterns": [
+            r"\binmail\b",
+            r"\bsend.{0,30}(message|dm|email).{0,40}(candidate|profile)\b",
+            r"\bmessage.{0,40}(candidate|profile)\b",
+            r"напиш[ии].{0,40}кандидат",
+            r"отправ.{0,40}сообщ.{0,40}кандидат",
+            r"свяж.{0,40}кандидат",
+        ],
+    },
+    {
+        "code": "account_actions",
+        "message": "User or third-party account actions are prohibited.",
+        "patterns": [
+            r"\baccount action",
+            r"\buse my account\b",
+            r"\bmy linkedin account\b",
+            r"мой.{0,30}аккаунт",
+            r"через.{0,30}аккаунт",
+            r"действ.{0,30}аккаунт",
+        ],
+    },
 ]
 PLAN_STATUS_NEEDS_CLARIFICATION = "needs_clarification"
 PLAN_STATUS_DRAFT = "draft_query_plan"
@@ -506,6 +572,22 @@ class AIQueryPlanValidationRequest(BaseModel):
 
     search_brief: SearchBrief
     draft_query_plan: dict | None = None
+
+
+class RecruiterChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: str
+    content: str = Field(..., min_length=1)
+
+
+class RecruiterChatTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    messages: list[RecruiterChatMessage] = Field(default_factory=list)
+    draft_brief: SearchBrief | None = None
+    language: str | None = None
+    planner_mode: str | None = None
 
 
 def detect_source(url: str) -> str:
@@ -2186,6 +2268,18 @@ def canonical_value(value: str | None, allowed_values: dict[str, str]) -> str | 
     return allowed_values.get(normalized_key)
 
 
+def normalize_location_value(value: str | None) -> str | None:
+    normalized_value = normalize_text_value(value)
+    if not normalized_value:
+        return None
+
+    normalized_key = normalized_value.lower()
+    if re.search(r"^укра(и|ї)н", normalized_key) or normalized_key == "ukraine":
+        return "Ukraine"
+
+    return normalized_value
+
+
 def add_validation_error(errors: list[dict[str, str]], field: str, message: str) -> None:
     errors.append({"field": field, "message": message})
 
@@ -2238,7 +2332,7 @@ def normalize_structured_search_request(
             "Technology is known but planner is not implemented yet.",
         )
 
-    location = (request.location or "").strip()
+    location = normalize_location_value(request.location) or ""
     if not location:
         add_validation_error(errors, "location", "Location is required.")
 
@@ -2433,7 +2527,7 @@ def validate_and_normalize_search_brief(
             "Technology is known but planner is not implemented yet.",
         )
 
-    location = normalize_text_value(brief.location)
+    location = normalize_location_value(brief.location)
     if location and not location_filter_config_for(location):
         add_validation_error(errors, "location", "Location is not supported yet.")
 
@@ -2547,6 +2641,567 @@ def search_brief_validation_response(brief: SearchBrief) -> dict:
         "clarifying_questions": normalized_brief.get("clarifying_questions", []),
         "adapted_structured_request": adapted_request,
     }
+
+
+def recruiter_chat_text(messages: list[RecruiterChatMessage]) -> str:
+    return "\n".join(
+        f"{normalize_text_value(message.role) or 'user'}: {message.content}"
+        for message in messages
+    )
+
+
+def recruiter_chat_language(request: RecruiterChatTurnRequest) -> str:
+    language = (normalize_text_value(request.language) or "").lower()
+    if language.startswith(("ru", "рус")):
+        return "ru"
+    if language.startswith(("en", "англ")):
+        return "en"
+
+    text = recruiter_chat_text(request.messages)
+    if re.search(r"[А-Яа-яЁёІіЇїЄє]", text):
+        return "ru"
+
+    return "en"
+
+
+def validate_recruiter_chat_messages(
+    messages: list[RecruiterChatMessage],
+) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    if not messages:
+        add_validation_error(errors, "messages", "At least one chat message is required.")
+        return errors
+
+    for index, message in enumerate(messages):
+        role = (normalize_text_value(message.role) or "").lower()
+        if role not in RECRUITER_CHAT_ALLOWED_MESSAGE_ROLES:
+            add_validation_error(
+                errors,
+                f"messages[{index}].role",
+                "Unsupported chat message role.",
+            )
+
+    return errors
+
+
+def detect_recruiter_chat_prohibited_requests(
+    text: str,
+) -> list[dict[str, str]]:
+    normalized_text = compact_spaces(text).lower()
+    detections: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+
+    for rule in RECRUITER_CHAT_PROHIBITED_RULES:
+        for pattern in rule["patterns"]:
+            if not re.search(pattern, normalized_text, flags=re.IGNORECASE):
+                continue
+            if rule["code"] in seen_codes:
+                break
+            seen_codes.add(rule["code"])
+            detections.append(
+                {
+                    "field": "messages",
+                    "code": rule["code"],
+                    "message": rule["message"],
+                }
+            )
+            break
+
+    return detections
+
+
+def recruiter_chat_refusal_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Я не могу выполнять LinkedIn login, scraping, обход ограничений, "
+            "автоматические сообщения кандидатам, действия с аккаунтами или "
+            "прямой web-search в обход backend. Могу помочь сформировать Search Brief "
+            "для approved backend pipeline."
+        )
+
+    return (
+        "I cannot perform LinkedIn login, scraping, restriction bypass, automatic "
+        "candidate messaging, account actions, or direct web-search outside the "
+        "approved backend pipeline. I can help turn the request into a Search Brief."
+    )
+
+
+def localized_clarifying_question_for_missing_field(field: str, language: str) -> str:
+    if language != "ru":
+        return clarifying_question_for_missing_field(field)
+
+    questions = {
+        "role_family": "Какую роль ищем?",
+        "technology": "Какая основная технология должна быть у кандидата?",
+        "stack": (
+            "Какие Java stack сигналы важны: Spring, Kafka, AWS, Hibernate "
+            "или что-то другое?"
+        ),
+        "location": "В какой локации ищем кандидатов?",
+        "search_depth": "Делаем standard или deep search?",
+        "profile_sources": "Какие публичные источники профилей использовать?",
+    }
+    return questions.get(field, f"Уточни, пожалуйста, поле {field}.")
+
+
+def one_clarifying_question(normalized_brief: dict, language: str) -> str | None:
+    missing_fields = normalized_brief.get("missing_fields") or []
+    if missing_fields:
+        return localized_clarifying_question_for_missing_field(missing_fields[0], language)
+
+    questions = normalized_brief.get("clarifying_questions") or []
+    return questions[0] if questions else None
+
+
+def build_search_brief_summary(normalized_brief: dict) -> dict:
+    return {
+        "role_family": normalized_brief.get("role_family"),
+        "technology": normalized_brief.get("technology"),
+        "stack": normalized_brief.get("stack") or [],
+        "location": normalized_brief.get("location"),
+        "seniority": normalized_brief.get("seniority") or "n/a",
+        "search_depth": normalized_brief.get("search_depth"),
+        "profile_sources": normalized_brief.get("profile_sources") or [],
+        "assumptions": normalized_brief.get("assumptions") or [],
+    }
+
+
+def ready_for_planning_message(language: str) -> str:
+    if language == "ru":
+        return "Search Brief собран. Проверь summary и нажми Build Plan."
+
+    return "Search Brief is ready. Review the summary and click Build Plan."
+
+
+def validation_error_message(errors: list[dict[str, str]], language: str) -> str:
+    if not errors:
+        return ""
+
+    message = errors[0].get("message", "Validation error.")
+    if language == "ru":
+        return f"Нужно уточнить brief: {message}"
+
+    return f"The brief needs clarification: {message}"
+
+
+def clean_search_brief_dict(brief: SearchBrief | None) -> dict:
+    if not brief:
+        return {}
+
+    return {
+        key: value
+        for key, value in brief.model_dump().items()
+        if value is not None and value != []
+    }
+
+
+def extract_chat_draft_brief(ai_output: dict) -> dict:
+    draft_source = ai_output.get("draft_brief")
+    if not isinstance(draft_source, dict):
+        draft_source = ai_output
+
+    draft: dict = {}
+    for field_name in SearchBrief.model_fields:
+        if field_name in draft_source:
+            draft[field_name] = draft_source[field_name]
+
+    top_level_assumptions = ai_output.get("assumptions")
+    if "assumptions" not in draft and isinstance(top_level_assumptions, list):
+        draft["assumptions"] = top_level_assumptions
+
+    return draft
+
+
+def deterministic_chat_brief_hints(source_text: str) -> dict:
+    lowered_text = source_text.lower()
+    hints: dict = {
+        "source_text": source_text,
+        "search_depth": SEARCH_DEPTH_STANDARD,
+        "profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
+    }
+
+    if re.search(r"\bbackend\b|бекенд|бэкенд", lowered_text):
+        hints["role_family"] = "Backend Developer"
+
+    if re.search(r"\bjava\b", lowered_text) and not re.search(r"\bjavascript\b", lowered_text):
+        hints["technology"] = "Java"
+        hints["must_have"] = ["Java"]
+
+    stack: list[str] = []
+    for alias, canonical_stack_item in JAVA_STACK_VALUES.items():
+        if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", lowered_text):
+            if canonical_stack_item not in stack:
+                stack.append(canonical_stack_item)
+    if stack:
+        hints["stack"] = stack[:3]
+        hints["nice_to_have"] = stack[:3]
+
+    if re.search(r"\bukraine\b|украин|україн|київ|киев|\bkyiv\b|\bkiev\b", lowered_text):
+        hints["location"] = "Ukraine"
+
+    if re.search(r"\bdeep\b|глубок", lowered_text):
+        hints["search_depth"] = SEARCH_DEPTH_DEEP
+
+    return hints
+
+
+def should_merge_chat_brief_field(
+    field_name: str,
+    value: object,
+    current_value: object,
+) -> bool:
+    if not current_value:
+        return True
+
+    if field_name == "role_family" and isinstance(value, str):
+        return canonical_value(value, CANONICAL_ROLE_FAMILIES) is not None
+
+    if field_name == "technology" and isinstance(value, str):
+        return canonical_value(value, KNOWN_BACKEND_TECHNOLOGIES) is not None
+
+    if field_name == "location" and isinstance(value, str):
+        normalized_location = normalize_location_value(value)
+        return bool(
+            normalized_location and location_filter_config_for(normalized_location)
+        )
+
+    return True
+
+
+def merge_chat_draft_brief(
+    existing_brief: SearchBrief | None,
+    llm_draft: dict,
+    source_text: str,
+) -> tuple[SearchBrief | None, list[dict[str, str]]]:
+    merged = clean_search_brief_dict(existing_brief)
+
+    for field_name, value in deterministic_chat_brief_hints(source_text).items():
+        if value is not None and value != []:
+            merged[field_name] = value
+
+    for field_name, value in llm_draft.items():
+        if value is None:
+            continue
+        if isinstance(value, str) and not normalize_text_value(value):
+            continue
+        if isinstance(value, list) and not value:
+            continue
+        if not should_merge_chat_brief_field(field_name, value, merged.get(field_name)):
+            continue
+        merged[field_name] = value
+
+    if "source_text" not in merged:
+        merged["source_text"] = source_text
+    if "search_depth" not in merged:
+        merged["search_depth"] = SEARCH_DEPTH_STANDARD
+    if "profile_sources" not in merged:
+        merged["profile_sources"] = [PROFILE_SOURCE_LINKEDIN_PUBLIC]
+
+    try:
+        return SearchBrief(**merged), []
+    except ValidationError as exc:
+        return None, [
+            {
+                "field": "draft_brief",
+                "message": f"Chat draft brief is invalid: {error['msg']}",
+            }
+            for error in exc.errors()
+        ]
+
+
+def recruiter_chat_brief_system_prompt() -> str:
+    return (
+        "You are a recruiter chat-to-Search-Brief adapter. Return only valid JSON. "
+        "Your only job is to convert chat messages into a draft SearchBrief. Do not "
+        "build QueryPlans, do not execute searches, do not call tools, do not browse "
+        "the web, do not scrape LinkedIn, do not log in to LinkedIn, do not send "
+        "messages, and do not act on accounts."
+    )
+
+
+def recruiter_chat_brief_user_prompt(request: RecruiterChatTurnRequest) -> str:
+    messages = [
+        {
+            "role": (normalize_text_value(message.role) or "user").lower(),
+            "content": message.content,
+        }
+        for message in request.messages
+    ]
+
+    return json.dumps(
+        {
+            "task": "Extract or update a draft SearchBrief from the recruiter chat turn.",
+            "required_output": {
+                "draft_brief": {
+                    "source_text": "Combined recruiter request text.",
+                    "brief_status": "needs_clarification or ready_for_planning",
+                    "role_family": "Backend Developer or null",
+                    "technology": "Java or another explicitly requested backend technology",
+                    "stack": ["up to 3 Java stack values"],
+                    "location": "Target location string or null",
+                    "seniority": "Optional seniority or null",
+                    "must_have": [],
+                    "nice_to_have": [],
+                    "exclusions": [],
+                    "search_depth": "standard or deep",
+                    "profile_sources": ["linkedin_public"],
+                    "notes": None,
+                    "missing_fields": [],
+                    "clarifying_questions": [],
+                    "assumptions": [],
+                },
+                "assistant_message": "Short user-facing message, no more than one sentence.",
+                "assumptions": [],
+            },
+            "messages": messages,
+            "previous_draft_brief": clean_search_brief_dict(request.draft_brief),
+            "language_hint": request.language,
+            "supported_values": {
+                "role_family": ["Backend Developer"],
+                "implemented_technology": ["Java"],
+                "known_backend_technologies": sorted(KNOWN_BACKEND_TECHNOLOGIES.values()),
+                "java_stack": JAVA_STACK_TERMS,
+                "search_depth": sorted(SEARCH_DEPTH_VALUES),
+                "profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
+            },
+            "rules": [
+                "Return one JSON object only.",
+                "Do not invent hard constraints that the recruiter did not provide.",
+                "If location, stack, role, or technology is missing, leave it null or empty.",
+                "Map Java backend/software engineer intent to role_family Backend Developer.",
+                "Set search_depth to standard unless the recruiter asks for deep search.",
+                "Use profile_sources ['linkedin_public'] unless the user explicitly asks otherwise.",
+                "Never include target_titles; planner owns title generation later.",
+            ],
+            "hard_boundaries": [
+                "No direct web-search by the agent outside the approved backend pipeline.",
+                "No LinkedIn login.",
+                "No LinkedIn scraping or restriction bypass.",
+                "No candidate messaging or automatic outreach.",
+                "No user or third-party account actions.",
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+async def run_openai_json_recruiter_chat(
+    request: RecruiterChatTurnRequest,
+) -> tuple[dict | None, list[dict[str, str]]]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("OPENAI_MODEL")
+    if not api_key:
+        return None, [{"field": "openai_api_key", "message": "OPENAI_API_KEY is not configured."}]
+    if not model:
+        return None, [{"field": "openai_model", "message": "OPENAI_MODEL is not configured."}]
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": recruiter_chat_brief_system_prompt()},
+            {"role": "user", "content": recruiter_chat_brief_user_prompt(request)},
+        ],
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            response = await client.post(
+                os.getenv("OPENAI_CHAT_COMPLETIONS_URL", OPENAI_CHAT_COMPLETIONS_URL),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        return None, [
+            {
+                "field": "openai",
+                "message": (
+                    "OpenAI recruiter chat request failed with status "
+                    f"{exc.response.status_code}."
+                ),
+            }
+        ]
+    except httpx.HTTPError:
+        return None, [{"field": "openai", "message": "OpenAI recruiter chat request failed."}]
+
+    data = response.json()
+    content = (
+        data.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content")
+    )
+    if not content:
+        return None, [{"field": "openai", "message": "OpenAI recruiter chat returned no content."}]
+
+    try:
+        parsed_content = json.loads(content)
+    except json.JSONDecodeError:
+        return None, [{"field": "openai", "message": "OpenAI recruiter chat returned invalid JSON."}]
+    if not isinstance(parsed_content, dict):
+        return None, [
+            {
+                "field": "openai",
+                "message": "OpenAI recruiter chat returned JSON that is not an object.",
+            }
+        ]
+
+    return parsed_content, []
+
+
+def build_recruiter_chat_response(
+    *,
+    ok: bool,
+    state: str,
+    language: str,
+    normalized_brief: dict | None = None,
+    validation_errors: list[dict[str, str]] | None = None,
+    next_question: str | None = None,
+    planner_mode: str = RECRUITER_CHAT_DEFAULT_PLANNER_MODE,
+    assistant_message: str | None = None,
+) -> dict:
+    normalized_brief = normalized_brief or {}
+    validation_errors = validation_errors or []
+    can_build_plan = ok and state == RECRUITER_CHAT_STATE_READY_FOR_PLANNING
+    summary = build_search_brief_summary(normalized_brief) if normalized_brief else None
+
+    if assistant_message is None:
+        if state == RECRUITER_CHAT_STATE_REFUSED:
+            assistant_message = recruiter_chat_refusal_message(language)
+        elif next_question:
+            assistant_message = next_question
+        elif can_build_plan:
+            assistant_message = ready_for_planning_message(language)
+        else:
+            assistant_message = validation_error_message(validation_errors, language)
+
+    build_plan_action = None
+    if can_build_plan:
+        build_plan_action = {
+            "label": "Build Plan",
+            "method": "POST",
+            "endpoint": "/api/agent/query-plan",
+            "planner_mode": planner_mode,
+            "search_brief": normalized_brief,
+        }
+
+    return {
+        "ok": ok,
+        "state": state,
+        "assistant_message": assistant_message,
+        "next_question": next_question,
+        "normalized_brief": normalized_brief or None,
+        "summary": summary,
+        "missing_fields": normalized_brief.get("missing_fields", []),
+        "assumptions": normalized_brief.get("assumptions", []),
+        "validation_errors": validation_errors,
+        "recommended_planner_mode": planner_mode,
+        "can_build_plan": can_build_plan,
+        "build_plan_action": build_plan_action,
+    }
+
+
+async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dict:
+    language = recruiter_chat_language(request)
+    planner_mode = request.planner_mode or RECRUITER_CHAT_DEFAULT_PLANNER_MODE
+
+    if planner_mode not in PLANNER_MODES:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            validation_errors=[
+                {
+                    "field": "planner_mode",
+                    "message": "Unsupported planner mode.",
+                }
+            ],
+            planner_mode=RECRUITER_CHAT_DEFAULT_PLANNER_MODE,
+        )
+
+    message_errors = validate_recruiter_chat_messages(request.messages)
+    if message_errors:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            validation_errors=message_errors,
+            planner_mode=planner_mode,
+        )
+
+    chat_text = recruiter_chat_text(request.messages)
+    prohibited_errors = detect_recruiter_chat_prohibited_requests(chat_text)
+    if prohibited_errors:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_REFUSED,
+            language=language,
+            validation_errors=prohibited_errors,
+            planner_mode=planner_mode,
+        )
+
+    ai_output, ai_errors = await run_openai_json_recruiter_chat(request)
+    if ai_errors or ai_output is None:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            validation_errors=ai_errors,
+            planner_mode=planner_mode,
+        )
+
+    brief, draft_errors = merge_chat_draft_brief(
+        request.draft_brief,
+        extract_chat_draft_brief(ai_output),
+        chat_text,
+    )
+    if draft_errors or brief is None:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            validation_errors=draft_errors,
+            planner_mode=planner_mode,
+        )
+
+    brief_response = search_brief_validation_response(brief)
+    normalized_brief = brief_response["normalized_brief"]
+    validation_errors = brief_response["errors"]
+    next_question = one_clarifying_question(normalized_brief, language)
+
+    if validation_errors:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=normalized_brief,
+            validation_errors=validation_errors,
+            next_question=next_question,
+            planner_mode=planner_mode,
+        )
+
+    if normalized_brief["brief_status"] != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=normalized_brief,
+            next_question=next_question,
+            planner_mode=planner_mode,
+        )
+
+    return build_recruiter_chat_response(
+        ok=True,
+        state=RECRUITER_CHAT_STATE_READY_FOR_PLANNING,
+        language=language,
+        normalized_brief=normalized_brief,
+        planner_mode=planner_mode,
+    )
 
 
 AGENT_TOOLS_V0 = {
@@ -4124,6 +4779,11 @@ def validate_structured_search(request: StructuredSearchRequest) -> dict:
 @app.post("/api/search-brief/validate")
 def validate_search_brief_endpoint(request: SearchBrief) -> dict:
     return search_brief_validation_response(request)
+
+
+@app.post("/api/recruiter-chat/turn")
+async def create_recruiter_chat_turn(request: RecruiterChatTurnRequest) -> dict:
+    return await recruiter_chat_turn_response(request)
 
 
 @app.get("/api/agent/tools")

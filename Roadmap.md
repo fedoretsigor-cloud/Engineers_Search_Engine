@@ -268,7 +268,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
 - Preserve absolute product boundaries as prohibited behavior: no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, and no user or third-party account actions.
-- Phase 5 is now the active next phase; `P5-001 Define recruiter chat and Search Brief conversation contract` is approved as a docs-only contract task.
+- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract` and `P5-002 Add backend chat-to-brief adapter` are completed. Next task to review is `P5-003 Replace structured form with recruiter chat UI`.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
 
@@ -308,11 +308,11 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - approved task is `P5-001 Define recruiter chat and Search Brief conversation contract`.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` and `P5-002` are completed; next task to review is `P5-003 Replace structured form with recruiter chat UI`.
 
 ### Phase 5 Approved Contract
 
-`P5-001` defines the recruiter chat and `Search Brief` conversation contract before coding.
+`P5-001` defined the recruiter chat and `Search Brief` conversation contract before coding.
 
 Approved decisions:
 
@@ -327,10 +327,10 @@ Approved decisions:
 
 Recommended implementation order after the contract:
 
-- `P5-002 Add backend chat-to-brief adapter` - approved, not coded.
+- `P5-002 Add backend chat-to-brief adapter` - implemented.
 - `P5-003 Replace structured form with recruiter chat UI` - next task to review.
 
-`P5-002` guardrail: keep the task to `chat messages -> draft Search Brief -> validation -> one assistant response`. Do not let it grow into an agent loop.
+`P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = ai_with_fallback`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 
 ### Done
 

@@ -48,11 +48,11 @@ Current product direction:
 - Phase 4 is completed as `AI Agent Foundation` through `P4-011`.
 - `P4-003` through `P4-010` are implemented in code.
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
-- The backend has Search Brief validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
+- The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has a `Planner mode` control and planner explanation UI.
-- The approved Phase 5 tasks are `P5-001 Define recruiter chat and Search Brief conversation contract` and `P5-002 Add backend chat-to-brief adapter`.
-- `P5-001` is docs-only; coding has not started. It defines Russian/English chat input, one clarification question at a time, a normalized brief summary before `Build Plan`, planner preview before execution, and the follow-up implementation order.
-- `P5-002` is approved but not coded. Guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract` and `P5-002 Add backend chat-to-brief adapter`.
+- `P5-002` guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
+- The next task to review is `P5-003 Replace structured form with recruiter chat UI`.
 
 ## Product Rules
 
@@ -69,6 +69,7 @@ Current product direction:
 - Unknown current location falls back to country-domain/header/weak/unknown signals.
 - `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` remains the default execution planner; explicit AI planner mode can draft non-executable plans for backend validation/fallback.
 - Rule-based Tavily execution requires explicit approval bound to action, query count, and the current `QueryPlan` fingerprint.
+- `POST /api/recruiter-chat/turn` can prepare a `Search Brief`, but it must not build `QueryPlan`, call Tavily, execute search, or change frontend UI.
 - AI QueryPlan validation checks safety, alignment, and strict coverage for the Java/Ukraine standard baseline through `AIPlannerCoveragePolicy v0`; unsupported briefs return a visible coverage-policy warning.
 - `P4-010` diagnosed the AI planner coverage gap, improved the AI prompt toward the tested 10-query baseline, added one bounded repair attempt, and kept deterministic fallback for structurally valid but under-covered AI plans.
 - AI-generated plans must remain non-executable until a later reviewed task explicitly enables that path through deterministic validation and approval.

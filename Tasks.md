@@ -2041,7 +2041,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Approved Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2074,14 +2074,16 @@ Absolute prohibited behavior:
 
 ### Approved
 
-- [ ] P5-001 Define recruiter chat and Search Brief conversation contract
-- [ ] P5-002 Add backend chat-to-brief adapter
-
 ### Backlog
+
+- [ ] P5-003 Replace structured form with recruiter chat UI
 
 ### In Progress
 
 ### Done
+
+- [x] P5-001 Define recruiter chat and Search Brief conversation contract
+- [x] P5-002 Add backend chat-to-brief adapter
 
 ### Current Phase 5 strategy note
 
@@ -2105,9 +2107,9 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Status
 
-Approved as a docs-only contract task.
+Completed as a docs-only contract task.
 
-Coding is not started. Backend/frontend implementation requires a separate explicit coding request.
+Backend/frontend implementation was intentionally left to follow-up tasks.
 
 ### Context
 
@@ -2223,7 +2225,7 @@ If the recruiter asks the product to log in to LinkedIn, scrape LinkedIn, messag
 - The contract says `Build Plan` creates a plan preview, not a Tavily run.
 - The contract keeps Tavily execution behind explicit backend approval.
 - Prohibited behavior is documented as prohibited, not merely deferred.
-- The next implementation tasks are named but not coded.
+- Follow-up implementation tasks are named.
 
 ---
 
@@ -2231,9 +2233,7 @@ If the recruiter asks the product to log in to LinkedIn, scrape LinkedIn, messag
 
 ### Status
 
-Approved.
-
-Not approved for coding yet.
+Implemented.
 
 ### Context
 
@@ -2342,6 +2342,25 @@ The response should include:
 - The endpoint does not build a `QueryPlan`.
 - The endpoint does not call Tavily or execute search.
 - Existing Search Brief validation remains the source of truth.
+
+### Implementation result
+
+Implemented in code:
+
+- added `RecruiterChatMessage` and `RecruiterChatTurnRequest` backend models;
+- added `POST /api/recruiter-chat/turn`;
+- added strict OpenAI/ChatGPT JSON prompt for chat-to-brief extraction;
+- added deterministic prohibited-request checks before any LLM call;
+- added deterministic supported-signal hints for obvious role/technology/stack/location text;
+- normalized Ukraine location aliases such as `Украина`/`Украине` to `Ukraine`;
+- added conservative draft merge with optional previous `SearchBrief`;
+- reused `validate_and_normalize_search_brief(...)` as the source of truth;
+- returns `needs_clarification`, `ready_for_planning`, or `refused`;
+- returns exactly one `next_question` when clarification is needed;
+- returns `recommended_planner_mode = ai_with_fallback` and `build_plan_action` only when ready;
+- added `scripts/smoke_p5_chat_adapter.py` no-Tavily smoke coverage for RU complete, EN complete, incomplete one-question, prohibited refusal, and default planner mode.
+
+Guardrail preserved: the endpoint does not build `QueryPlan`, does not call `/api/agent/query-plan`, does not call Tavily, does not execute search, does not change frontend UI, and does not implement an agent loop.
 
 ---
 
