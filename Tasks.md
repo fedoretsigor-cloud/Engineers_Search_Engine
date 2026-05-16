@@ -1992,18 +1992,14 @@ Verification:
 
 ### Approved
 
-- [ ] P4-001 Define AI Agent Foundation contract
-- [ ] P4-002 Define Search Brief schema
-- [ ] P4-010 Improve AI planner coverage and add quality gate
-
 ### Backlog
-
-- [ ] P4-011 Close Phase 4 with decision
 
 ### In Progress
 
 ### Done
 
+- [x] P4-001 Define AI Agent Foundation contract
+- [x] P4-002 Define Search Brief schema
 - [x] P4-003 Add Search Brief validation and adapter
 - [x] P4-004 Define Agent tools contract
 - [x] P4-005 Add AI Query Planner v0 behind explicit mode
@@ -2011,6 +2007,8 @@ Verification:
 - [x] P4-007 Add planner explanation UI
 - [x] P4-008 Add approval before Tavily execution
 - [x] P4-009 Compare AI planner vs rule-based baseline
+- [x] P4-010 Diagnose and improve AI planner coverage
+- [x] P4-011 Close Phase 4 with decision
 
 ### Current Phase 4 strategy note
 
@@ -2037,7 +2035,13 @@ Current Phase 4 implementation status:
 - Frontend supports `Planner mode` and displays Search Brief summary, planner explanation, validation/fallback state, and approval-needed notices.
 - `P4-008` is implemented: backend now requires explicit approval before rule-based single-wave or multi-wave Tavily execution.
 - `P4-009` is completed as a no-Tavily planner evaluation.
-- `P4-010` is approved as the next task, but coding has not started.
+- Phase 4 is completed through `P4-011`.
+
+`P4-010` is implemented: AI planner prompt now targets 10-query coverage, `AIPlannerCoveragePolicy v0` validates coverage, and `ai_with_fallback` has one bounded repair attempt before rule-based fallback.
+
+`P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
+
+Next task to review: `P5-001 Define recruiter chat and Search Brief conversation contract`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2057,6 +2061,28 @@ Do not include in Phase 4 without separate approval:
 - scraping or restriction bypass;
 - fully autonomous tool-calling loop;
 - multi-source search beyond Tavily.
+
+---
+
+## Phase 5 - Recruiter Chat UX + Search Brief conversation
+
+### Approved
+
+### Backlog
+
+- [ ] P5-001 Define recruiter chat and Search Brief conversation contract
+
+### In Progress
+
+### Done
+
+### Current Phase 5 strategy note
+
+Phase 5 should build the user-facing recruiter chat on top of the Phase 4 foundation.
+
+The chat should collect and refine a `Search Brief` through dialogue, show the generated plan and approval state clearly, and reuse existing backend contracts instead of bypassing them.
+
+Phase 5 should not introduce an autonomous tool loop, persistence, candidate workspace, LinkedIn login/scraping, candidate messaging, or account actions without separate approval.
 
 ---
 
@@ -3460,7 +3486,7 @@ Detailed evaluation notes are saved in `docs/phase-4-ai-planner-baseline.md`.
 
 ---
 
-## Task: P4-010 Improve AI planner coverage and add quality gate
+## Task: P4-010 Diagnose and improve AI planner coverage
 
 ### Context
 
@@ -3474,21 +3500,35 @@ For the baseline `Backend Developer + Java + Spring/Kafka + Ukraine`:
 
 The current validator catches invalid shape, unsafe behavior, wrong source scope, wrong location, and missing role/technology alignment. It does not yet catch a plan that is safe but too weak for baseline coverage.
 
-### Approval status
+### Status
 
-Approved as a task. Coding requires a separate explicit request.
+Implemented in code.
 
 ### Goal
 
-Improve the AI planner so it tries to produce the tested 10-query baseline coverage, and add a deterministic quality gate so under-covered AI plans trigger visible fallback to `RuleBasedQueryPlanner`.
+Diagnose why the AI planner did not produce the expected 10-query plan, improve its instructions and bounded repair behavior, and keep a deterministic quality gate so under-covered AI plans trigger visible fallback to `RuleBasedQueryPlanner`.
 
 The goal is not to make AI-generated plans executable. The goal is to make fallback honest when the AI plan is formally valid but not good enough.
 
 The intended architecture is:
 
 ```text
-better AI prompt -> AI tries to produce 10-query plan -> backend quality gate verifies -> fallback if weak
+diagnose prompt/validation gap -> better AI prompt -> AI tries to produce 10-query plan -> backend quality gate verifies -> one repair attempt if weak -> fallback if still weak
 ```
+
+The quality gate should be implemented through a minimal policy layer, not by scattering Java/Ukraine checks through the validator.
+
+### Diagnostic findings to preserve
+
+`P4-009` showed that the current AI planner behavior is caused by a contract gap, not only by model quality:
+
+- the prompt says `max_queries = 10`, which means "up to 10", not "exactly 10";
+- the example `required_output` contains only one query slot, so the model has a one-query pattern to imitate;
+- the validator accepts `1..10` queries, so one query is currently structurally valid;
+- the prompt does not require `6` role-based plus `4` stack-focused slots;
+- there is no repair/revision call when the first AI plan is too narrow.
+
+These findings were checked during implementation and are reflected in the final P4-010 result.
 
 ### AI planner prompt improvements
 
@@ -3505,6 +3545,50 @@ The expected shape is:
 
 The prompt should make clear that the model must not reduce the plan to one broad query.
 
+### Coverage policy v0
+
+Implement a small `AIPlannerCoveragePolicy v0` layer for strict coverage checks.
+
+The first supported policy is only the current baseline:
+
+```text
+role_family: Backend Developer
+technology: Java
+location: Ukraine
+search_depth: standard
+expected_query_count: 10
+role_based_min: 6
+stack_focused_min: 4
+min_role_phrase_diversity: 5
+max_ai_plan_revision_attempts: 1
+```
+
+Behavior:
+
+- if the normalized brief matches this policy, apply the strict coverage gate;
+- if the normalized brief is unsupported by coverage policy v0, keep basic structural/safety validation and return a visible warning such as `coverage_policy_not_configured`;
+- do not make unsupported AI plans executable;
+- do not add a broad generic coverage engine in this task.
+
+### AI planner repair attempt
+
+If the first AI plan is structurally valid but fails the coverage quality gate, the backend may ask the AI planner to revise the plan once.
+
+The repair prompt should include specific feedback, for example:
+
+- how many query slots were returned;
+- that the expected standard baseline is exactly `10` query slots;
+- that the expected shape is `6` role-based plus `4` stack-focused slots;
+- which required coverage signals were missing.
+
+The maximum revision count for Phase 4 is:
+
+```text
+max_ai_plan_revision_attempts = 1
+```
+
+After one failed repair attempt, fallback to `RuleBasedQueryPlanner`.
+
 ### Proposed quality checks
 
 For the current Java Backend Ukraine baseline and `search_depth = standard`, the quality gate should require:
@@ -3516,6 +3600,8 @@ For the current Java Backend Ukraine baseline and `search_depth = standard`, the
 - technology signal present in every query;
 - stack-focused slots using selected stack terms when stack is provided.
 
+These checks should read their thresholds from `AIPlannerCoveragePolicy v0`.
+
 ### Expected behavior
 
 If AI returns one broad query, the backend should respond with a visible fallback reason such as:
@@ -3526,6 +3612,8 @@ AI plan is structurally valid, but coverage is too narrow for the baseline. Fall
 
 If AI returns a safe but incomplete 3-query plan, fallback should also trigger.
 
+If the AI plan fails only coverage quality, `ai_with_fallback` should first make one bounded repair attempt. If the repaired plan still fails, fallback should trigger.
+
 The fallback plan remains non-executable until normal approval rules are satisfied.
 
 ### Constraints
@@ -3533,6 +3621,10 @@ The fallback plan remains non-executable until normal approval rules are satisfi
 - Do not make AI planner default.
 - Do not make AI-generated plans executable.
 - Do not run Tavily in the quality gate.
+- Do not allow unbounded AI retry loops.
+- Do not use more than one AI plan repair attempt in Phase 4.
+- Do not build a broad multi-role/multi-country coverage framework in this task.
+- Do not scatter Java/Ukraine-specific thresholds across unrelated validation code.
 - Do not change scoring, dedupe, Candidate Quality, or location filter behavior.
 - Do not add recruiter chat UI.
 - Do not perform direct web-search outside the approved backend pipeline.
@@ -3545,14 +3637,131 @@ The fallback plan remains non-executable until normal approval rules are satisfi
 - AI plans without enough role phrase diversity fail for the Java Backend baseline.
 - AI planner prompt asks for the expected 10-query standard baseline shape.
 - AI planner attempts role-based plus stack-focused coverage instead of one broad query.
+- Strict coverage thresholds are defined in a small `AIPlannerCoveragePolicy v0`.
+- Unsupported briefs return a visible `coverage_policy_not_configured` warning instead of pretending strict coverage was checked.
+- Under-covered AI plans get at most one repair attempt with explicit feedback.
+- If the repair attempt still fails coverage quality, `ai_with_fallback` falls back visibly.
 - `ai_with_fallback` falls back visibly for structurally valid but under-covered plans.
 - Rule-based mode behavior is unchanged.
 - No Tavily execution is introduced by this task.
 - P4-009 no-Tavily baseline evaluation can be rerun and shows fallback for the previous 1-query/3-query AI cases.
 
-### Before implementation
+### Implementation result
 
-Codex must restate the task scope, propose exact implementation steps, and wait for explicit approval before changing code.
+Implemented in code:
+
+- confirmed the prompt/validator gap from `P4-009`;
+- changed the AI planner prompt from a soft `max_queries = 10` contract to an explicit 10-query coverage contract when coverage policy is configured;
+- replaced the one-query output example with a 10-slot policy blueprint for the Java Backend Ukraine baseline;
+- added `AIPlannerCoveragePolicy v0` with the current baseline as the first strict policy;
+- added coverage checks for query count, role-based slots, stack-focused slots, role phrase diversity, technology signal, location signal, and selected stack terms;
+- added visible `coverage_policy_not_configured` warning for unsupported briefs;
+- added one bounded AI plan repair attempt for `ai_with_fallback`;
+- kept AI-generated plans non-executable;
+- did not call Tavily from planner validation, repair, or evaluation.
+
+Verification:
+
+- backend compile passed;
+- no-Tavily mocked smoke passed for coverage gate, one repair attempt, fallback after failed repair, and validation endpoint coverage errors;
+- live no-Tavily OpenAI planner evaluation returned 10 queries for both `ai` and `ai_with_fallback` with `repair_attempts = 0`.
+
+---
+
+## Task: P4-011 Close Phase 4 with decision
+
+### Status
+
+Completed as docs-only closeout.
+
+### Context
+
+Phase 4 added the foundation for an AI Agent without replacing the deterministic sourcing engine.
+
+Implemented foundation pieces:
+
+- `Search Brief` validation and adapter;
+- Agent Tools v0 contract;
+- explicit AI planner mode through OpenAI/ChatGPT;
+- deterministic AI QueryPlan validation and fallback;
+- planner explanation UI;
+- backend approval gate before Tavily execution;
+- disabled legacy raw `/api/search` Tavily bypass;
+- no-Tavily AI planner baseline evaluation;
+- AI planner coverage diagnosis/improvement;
+- `AIPlannerCoveragePolicy v0` for the Java/Ukraine standard baseline;
+- one bounded AI plan repair attempt before rule-based fallback.
+
+### Goal
+
+Close Phase 4 as `AI Agent Foundation`.
+
+The closeout must be precise: Phase 4 does not mean the full autonomous recruiter agent is complete. It means the backend and planning foundation is ready for Phase 5.
+
+### Decision to capture
+
+Phase 4 is complete when the project agrees that:
+
+- AI can help understand recruiter intent, plan, and explain;
+- backend validation remains the source of truth;
+- AI-generated plans are still non-executable;
+- Tavily execution requires explicit approval and stays inside the backend pipeline;
+- rule-based execution remains the default execution baseline;
+- coverage policy protects the current Java/Ukraine AI planner baseline;
+- Phase 5 can build recruiter chat/Search Brief conversation on top of this foundation.
+
+### Transition criterion to Phase 5
+
+Move to Phase 5 when the closeout documents clearly state:
+
+- backend foundation is ready;
+- recruiter chat UI is not yet built;
+- chat should collect and refine `Search Brief` through dialogue;
+- chat should show planner/execution approval clearly before any Tavily call;
+- chat should reuse the existing Phase 4 backend contracts instead of bypassing them.
+
+### Non-goals to preserve
+
+P4-011 did not introduce:
+
+- code changes;
+- Tavily calls;
+- AI-generated plan execution;
+- full autonomous tool loop;
+- database or persistent memory;
+- shortlist/workspace/export;
+- multi-source search beyond Tavily;
+- direct web-search by the agent outside the approved backend pipeline;
+- LinkedIn login, LinkedIn scraping, restriction bypass, candidate messaging, or account actions.
+
+### Steps
+
+1. Summarize Phase 4 completed work.
+2. Mark Phase 4 completed through `P4-011`.
+3. Record the Phase 4 closeout decision.
+4. Record the transition criterion into Phase 5.
+5. Update `Roadmap.md`, `ProjectStatus.md`, `Tasks.md`, `README.md`, and `AGENTS.md`.
+6. Confirm docs no longer say `P4-011` is next.
+7. Keep Phase 5 as the next active phase: `Recruiter Chat UX + Search Brief conversation`.
+
+### Acceptance criteria
+
+- Phase 4 is documented as completed.
+- Phase 5 is documented as the next active phase.
+- The closeout clearly says Phase 4 is foundation, not full autonomous agent completion.
+- Phase 4 execution boundaries remain visible.
+- No code changes or Tavily calls are made by this task.
+
+### Implementation result
+
+Completed in docs:
+
+- Phase 4 marked completed through `P4-011`;
+- Phase 5 marked as the next active phase;
+- closeout decision recorded: Phase 4 is foundation, not full autonomous agent completion;
+- transition criterion into Phase 5 recorded;
+- next task set to `P5-001 Define recruiter chat and Search Brief conversation contract`;
+- no code changes or Tavily calls were made for P4-011.
 
 ---
 

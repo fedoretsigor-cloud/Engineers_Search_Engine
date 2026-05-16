@@ -12,11 +12,13 @@ Completed through `P2-013`: Phase 2 conclusions are documented, local structured
 
 Phase 3 - Candidate Quality Layer is completed.
 
-Current phase: `Phase 4 - AI Agent Foundation`.
+Phase 4 - AI Agent Foundation is completed.
 
-Completed through `P3-014`: Phase 3 is closed as the Candidate Quality Layer baseline. Backend candidates now include seniority, normalized review flag details, explainable `quality_score`; the frontend renders a hybrid candidate quality view; the first real Java/Ukraine quality baseline is documented; the `missing_selected_stack` group has been reviewed; stack evidence display labels are clearer; an experimental multi-wave API runner exists; the first real adaptive multi-wave evaluation is documented; and the frontend has a visible `Multi-wave` toggle off by default.
+Current phase: `Phase 5 - Recruiter Chat UX + Search Brief conversation`.
 
-Next approved task: `P4-010 Improve AI planner coverage and add quality gate` (coding not started).
+Completed through `P4-011`: Phase 4 is closed as an AI Agent Foundation. The backend now has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, and AI planner coverage policy/repair behavior. This is a foundation for Phase 5, not a complete autonomous recruiter agent.
+
+Next task to review: `P5-001 Define recruiter chat and Search Brief conversation contract`.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -63,7 +65,9 @@ Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for rank
 
 `P4-009` is completed as a no-Tavily planner evaluation. For the baseline `Backend Developer + Java + Spring/Kafka + Ukraine`, the rule-based planner produced the expected 10-query coverage. A live AI planner run produced a formally valid but too narrow 1-query plan, and `ai_with_fallback` produced a 3-query AI plan without triggering fallback. Conclusion: AI is useful for intent understanding and explanation, but current validation does not yet enforce baseline coverage quality. `RuleBasedQueryPlanner v1` remains the default and only executable planner. See `docs/phase-4-ai-planner-baseline.md`.
 
-`P4-010` is approved as the next Phase 4 task: improve AI planner coverage and add a coverage quality gate. The AI planner should try to produce the tested 10-query baseline coverage, and the backend should treat under-covered AI plans as fallback cases even when they are structurally valid. `P4-011` will close Phase 4 after P4-010 is implemented/evaluated.
+`P4-010` is implemented. The root cause was confirmed: the old AI planner prompt said `max_queries = 10`, showed a one-query output example, and the validator accepted `1..10` queries. The AI planner prompt now requests the tested 10-query standard baseline shape, `AIPlannerCoveragePolicy v0` applies strict coverage checks for the current Java/Ukraine baseline, `ai_with_fallback` can make one bounded repair attempt, and under-covered plans fall back visibly to `RuleBasedQueryPlanner`. AI-generated plans remain non-executable and Tavily is not called by this flow.
+
+`P4-011` is completed as a docs-only closeout. Phase 4 is closed as an AI Agent Foundation, not as a complete autonomous recruiter agent. The closeout decision: the backend foundation is ready for Phase 5 because Search Brief, AI planning, deterministic validation/fallback, coverage policy, explanations, and approval-gated execution boundaries exist. Full recruiter chat, autonomous tool loop, candidate workspace, and persistence remain later phases.
 
 ## What was built in Phase 1
 
@@ -297,10 +301,10 @@ Final baseline numbers remain above the Phase 2 success criterion:
 
 Recommended next steps:
 
-- Phase 3: `Candidate Quality Layer`, focused on name extraction, location confidence, stack/seniority scoring, ranking quality, and an adaptive multi-wave runner for quality evaluation.
-- Phase 4: `AI Agent Foundation`, focused on `Search Brief`, agent tool boundaries, AI-assisted planning, explanations, approval gates, and an AI Query Planner mode while preserving the `QueryPlan` contract.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts.
+- Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded agent loop that can choose approved backend tools, inspect results, and suggest next iterations.
 
-Phase 3 is completed as Candidate Quality Layer. AI Agent Foundation is now the active Phase 4 direction.
+Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief conversation is now the active Phase 5 direction.
 
 ## Verification
 
@@ -333,6 +337,8 @@ Phase 3 is completed as Candidate Quality Layer. AI Agent Foundation is now the 
 - Phase 4 `P4-003`-`P4-007` implementation checks passed: backend compile, frontend syntax, no-Tavily smoke for SearchBrief/tools/rule-based plan/AI validation/mocked AI fallback, browser smoke for planner UI, live OpenAI planner call, and live Tavily single-wave run through the backend.
 - Phase 4 `P4-008` implementation checks passed: backend compile, frontend syntax, no-Tavily smoke for missing/wrong/stale approval rejection, approved single-wave, approved multi-wave, and snapshot approval metadata.
 - Phase 4 `P4-009` no-Tavily planner evaluation completed: rule-based planner returned 10 baseline queries, live AI planner returned 1 query, and live `ai_with_fallback` returned 3 queries without fallback because the current validator does not yet enforce coverage quality.
+- Phase 4 `P4-010` implementation checks passed: backend compile, no-Tavily mocked smoke for coverage gate, one repair attempt, fallback after failed repair, validation endpoint coverage errors, and live no-Tavily OpenAI planner evaluation returning 10 queries for both `ai` and `ai_with_fallback`.
+- Phase 4 `P4-011` docs-only closeout completed: Phase 4 is completed as AI Agent Foundation and Phase 5 is the next active phase.
 
 ## Current known limitations
 
@@ -345,7 +351,7 @@ Phase 3 is completed as Candidate Quality Layer. AI Agent Foundation is now the 
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
 - Current-location extraction is conservative and can keep ambiguous snippets unknown.
 - `RuleBasedQueryPlanner v1` is still the default execution planner. AI draft planning exists behind explicit mode, but AI-generated plans remain non-executable until a later reviewed task enables AI plan execution through deterministic validation and approval.
-- Current AI QueryPlan validation checks safety and alignment but not full baseline coverage quality; a live AI plan can be valid structurally while still being too narrow compared with the 10-query rule-based baseline.
+- Current AI QueryPlan validation now includes strict `AIPlannerCoveragePolicy v0` coverage checks for the Java/Ukraine standard baseline. Unsupported briefs still need future coverage policies and return a visible `coverage_policy_not_configured` warning.
 - Candidate quality score is a deterministic v1 signal and should not be treated as final recruiting quality.
 - No database, shortlist, authentication, fully autonomous AI agent runtime, LinkedIn login, scraping, or direct LinkedIn automation is included.
 - Absolute product boundaries: no direct web-search bypass outside the approved backend pipeline, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no actions with user or third-party accounts.

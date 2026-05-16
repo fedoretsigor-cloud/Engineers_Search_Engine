@@ -92,6 +92,30 @@ QUERY_PLAN_REPORTING_FIELDS = [
     "location_filter_report",
     "query_contribution",
 ]
+AI_PLANNER_COVERAGE_POLICY_VERSION = "ai_planner_coverage_policy_v0"
+AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING = (
+    "coverage_policy_not_configured: Strict AI planner coverage policy is not "
+    "configured for this brief."
+)
+AI_PLANNER_UNDER_COVERED_FALLBACK_REASON = (
+    "AI plan is structurally valid, but coverage is too narrow for the baseline. "
+    "Falling back to rule-based planner."
+)
+AI_PLANNER_COVERAGE_POLICIES = [
+    {
+        "policy_id": "java_backend_ukraine_standard_v0",
+        "policy_version": AI_PLANNER_COVERAGE_POLICY_VERSION,
+        "role_family": "Backend Developer",
+        "technology": "Java",
+        "location": "Ukraine",
+        "search_depth": SEARCH_DEPTH_STANDARD,
+        "expected_query_count": 10,
+        "role_based_min": 6,
+        "stack_focused_min": 4,
+        "min_role_phrase_diversity": 5,
+        "max_ai_plan_revision_attempts": 1,
+    }
+]
 
 load_dotenv()
 
@@ -2906,6 +2930,10 @@ def build_rule_based_fallback_response(
     normalized_request: dict,
     fallback_reason: str,
     validation_errors: list[dict] | None = None,
+    warnings: list[str] | None = None,
+    draft_query_plan: dict | None = None,
+    coverage_policy: dict | None = None,
+    repair_attempts: int = 0,
 ) -> dict:
     query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
     plan_fingerprint = query_plan_fingerprint(query_plan)
@@ -2920,14 +2948,100 @@ def build_rule_based_fallback_response(
         "fallback_reason": fallback_reason,
         "query_plan": add_query_plan_fingerprint(query_plan),
         "plan_fingerprint": plan_fingerprint,
-        "draft_query_plan": None,
+        "draft_query_plan": draft_query_plan,
         "validation_errors": validation_errors or [],
-        "warnings": [],
+        "warnings": warnings or [],
         "assumptions": normalized_brief.get("assumptions", []),
+        "coverage_policy": coverage_policy,
+        "repair_attempts": repair_attempts,
         "approval_required": False,
         "execution_approval_required": True,
         "approval_notice": "This fallback plan is not executed yet. Search execution requires approval.",
     }
+
+
+def ai_planner_coverage_policy_for(
+    normalized_brief: dict,
+    normalized_request: dict,
+) -> dict | None:
+    search_depth = normalized_brief.get("search_depth") or SEARCH_DEPTH_STANDARD
+
+    for policy in AI_PLANNER_COVERAGE_POLICIES:
+        if (
+            normalized_request.get("role_family") == policy["role_family"]
+            and normalized_request.get("technology") == policy["technology"]
+            and (normalized_request.get("location") or "").strip().lower()
+            == policy["location"].lower()
+            and search_depth == policy["search_depth"]
+        ):
+            policy_copy = dict(policy)
+            policy_copy["selected_stack"] = normalized_request.get("stack", [])
+            return policy_copy
+
+    return None
+
+
+def ai_planner_coverage_policy_prompt(
+    coverage_policy: dict | None,
+    normalized_request: dict,
+) -> dict:
+    if not coverage_policy:
+        return {
+            "configured": False,
+            "warning": AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING,
+        }
+
+    expected_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    return {
+        "configured": True,
+        "policy_id": coverage_policy["policy_id"],
+        "policy_version": coverage_policy["policy_version"],
+        "expected_query_count": coverage_policy["expected_query_count"],
+        "required_shape": {
+            "role_based_min": coverage_policy["role_based_min"],
+            "stack_focused_min": coverage_policy["stack_focused_min"],
+            "min_role_phrase_diversity": coverage_policy[
+                "min_role_phrase_diversity"
+            ],
+        },
+        "selected_stack": coverage_policy.get("selected_stack", []),
+        "max_ai_plan_revision_attempts": coverage_policy[
+            "max_ai_plan_revision_attempts"
+        ],
+        "query_slot_blueprint": [
+            {
+                "id": query["id"],
+                "category": query["category"],
+                "purpose": query["purpose"],
+                "role_phrase": query["role_phrase"],
+                "uses_stack": query.get("uses_stack", []),
+                "query": query["query"],
+                "max_results": query["max_results"],
+            }
+            for query in expected_plan.get("queries", [])
+        ],
+    }
+
+
+def normalize_ai_text_list(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+
+    return [str(value) for value in values if str(value or "").strip()]
+
+
+def ai_plan_output_warnings(ai_output: dict | None) -> list[str]:
+    if not isinstance(ai_output, dict):
+        return []
+
+    return normalize_ai_text_list(ai_output.get("warnings", []))
+
+
+def ai_plan_output_assumptions(ai_output: dict | None) -> list[str]:
+    if not isinstance(ai_output, dict):
+        return []
+
+    return normalize_ai_text_list(ai_output.get("assumptions", []))
 
 
 def ai_query_planner_system_prompt() -> str:
@@ -2943,10 +3057,27 @@ def ai_query_planner_system_prompt() -> str:
 def ai_query_planner_user_prompt(
     normalized_brief: dict,
     normalized_request: dict,
+    repair_feedback: list[dict[str, str]] | None = None,
+    previous_draft_plan: dict | None = None,
 ) -> str:
+    coverage_policy = ai_planner_coverage_policy_for(
+        normalized_brief,
+        normalized_request,
+    )
+    coverage_policy_prompt = ai_planner_coverage_policy_prompt(
+        coverage_policy,
+        normalized_request,
+    )
+    is_repair = bool(repair_feedback)
+    task = (
+        "Repair the previous draft QueryPlan using the coverage feedback."
+        if is_repair
+        else "Create a draft QueryPlan for recruiter sourcing."
+    )
+
     return json.dumps(
         {
-            "task": "Create a draft QueryPlan for recruiter sourcing.",
+            "task": task,
             "required_output": {
                 "planner_version": "ai_query_planner_v0",
                 "planner_mode": "ai",
@@ -2955,7 +3086,8 @@ def ai_query_planner_user_prompt(
                     "planner_version": "ai_query_planner_v0",
                     "planner_mode": "ai",
                     "input_snapshot": normalized_request,
-                    "queries": [
+                    "queries": coverage_policy_prompt.get("query_slot_blueprint")
+                    or [
                         {
                             "id": "Q01",
                             "category": "role_based",
@@ -2985,17 +3117,32 @@ def ai_query_planner_user_prompt(
             },
             "search_brief": normalized_brief,
             "normalized_structured_request": normalized_request,
+            "coverage_policy": coverage_policy_prompt,
+            "repair_feedback": repair_feedback or [],
+            "previous_draft_query_plan": previous_draft_plan if is_repair else None,
             "hard_limits": {
                 "max_queries": 10,
+                "expected_queries_when_coverage_policy_configured": coverage_policy_prompt.get(
+                    "expected_query_count"
+                ),
                 "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
                 "allowed_source_scope": "site:linkedin.com/in",
                 "allowed_profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
                 "default_planner_remains": PLANNER_MODE_RULE_BASED,
             },
+            "coverage_rules": [
+                "If coverage_policy.configured is true, return exactly the expected query count.",
+                "For the Java Backend Ukraine standard policy, return exactly 10 query slots.",
+                "Use role-based coverage plus stack-focused coverage; do not collapse the plan to one broad query.",
+                "For the Java Backend Ukraine standard policy, target at least 6 role-based slots and 4 stack-focused slots.",
+                "Use diverse role phrases instead of repeating the same phrase across all slots.",
+                "If selected stack terms are present, stack-focused slots must include those terms in the query text and uses_stack.",
+            ],
             "safety_rules": [
                 "Every query must include site:linkedin.com/in.",
                 "Every query must include the target location.",
-                "Every query must include a role or technology signal from the brief.",
+                "Every query must include the main technology signal from the brief.",
+                "Every query must include a role signal from the brief or policy blueprint.",
                 "Do not include arbitrary domains.",
                 "Do not include LinkedIn login, scraping, bypass, messaging, or account-action behavior.",
                 "Do not change filters, scoring, dedupe, location filtering, or execution behavior.",
@@ -3009,6 +3156,8 @@ def ai_query_planner_user_prompt(
 async def run_openai_json_planner(
     normalized_brief: dict,
     normalized_request: dict,
+    repair_feedback: list[dict[str, str]] | None = None,
+    previous_draft_plan: dict | None = None,
 ) -> tuple[dict | None, list[dict[str, str]]]:
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL")
@@ -3026,6 +3175,8 @@ async def run_openai_json_planner(
                 "content": ai_query_planner_user_prompt(
                     normalized_brief,
                     normalized_request,
+                    repair_feedback=repair_feedback,
+                    previous_draft_plan=previous_draft_plan,
                 ),
             },
         ],
@@ -3067,6 +3218,8 @@ async def run_openai_json_planner(
         parsed_content = json.loads(content)
     except json.JSONDecodeError:
         return None, [{"field": "openai", "message": "OpenAI planner returned invalid JSON."}]
+    if not isinstance(parsed_content, dict):
+        return None, [{"field": "openai", "message": "OpenAI planner returned JSON that is not an object."}]
 
     return parsed_content, []
 
@@ -3311,6 +3464,261 @@ def validate_ai_query_plan(
     return validated_plan, []
 
 
+def role_phrase_key(value: object) -> str:
+    return compact_spaces(str(value or "")).lower()
+
+
+def query_slot_stack_terms(query_slot: dict, selected_stack: list[str]) -> list[str]:
+    query = query_slot.get("query") or ""
+    uses_stack = query_slot.get("uses_stack")
+    if not isinstance(uses_stack, list):
+        uses_stack = []
+
+    matched_terms = []
+    for stack_term in selected_stack:
+        if stack_term in uses_stack and find_term_match(query, stack_term):
+            matched_terms.append(stack_term)
+
+    return matched_terms
+
+
+def query_slot_is_stack_focused(query_slot: dict, selected_stack: list[str]) -> bool:
+    return bool(query_slot_stack_terms(query_slot, selected_stack))
+
+
+def validate_ai_query_plan_coverage(
+    query_plan: dict,
+    normalized_brief: dict,
+    normalized_request: dict,
+) -> tuple[list[dict[str, str]], list[str], dict | None]:
+    coverage_policy = ai_planner_coverage_policy_for(
+        normalized_brief,
+        normalized_request,
+    )
+    if not coverage_policy:
+        return [], [AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING], None
+
+    errors: list[dict[str, str]] = []
+    queries = [
+        query
+        for query in query_plan.get("queries", [])
+        if isinstance(query, dict)
+    ]
+    selected_stack = coverage_policy.get("selected_stack", [])
+    expected_query_count = coverage_policy["expected_query_count"]
+
+    if len(queries) != expected_query_count:
+        add_plan_validation_error(
+            errors,
+            "coverage.query_count",
+            "undercovered_query_count",
+            (
+                f"AI plan returned {len(queries)} queries, but coverage policy "
+                f"requires exactly {expected_query_count} queries."
+            ),
+        )
+
+    stack_focused_queries = [
+        query for query in queries if query_slot_is_stack_focused(query, selected_stack)
+    ]
+    stack_focused_query_ids = {id(query) for query in stack_focused_queries}
+    role_based_queries = [
+        query for query in queries if id(query) not in stack_focused_query_ids
+    ]
+
+    if len(role_based_queries) < coverage_policy["role_based_min"]:
+        add_plan_validation_error(
+            errors,
+            "coverage.role_based",
+            "missing_role_based_coverage",
+            (
+                f"AI plan has {len(role_based_queries)} role-based queries, but "
+                f"coverage policy requires at least {coverage_policy['role_based_min']}."
+            ),
+        )
+
+    if selected_stack and len(stack_focused_queries) < coverage_policy["stack_focused_min"]:
+        add_plan_validation_error(
+            errors,
+            "coverage.stack_focused",
+            "missing_stack_focused_coverage",
+            (
+                f"AI plan has {len(stack_focused_queries)} stack-focused queries, but "
+                f"coverage policy requires at least {coverage_policy['stack_focused_min']}."
+            ),
+        )
+
+    role_phrase_count = len(
+        {
+            role_phrase_key(query.get("role_phrase"))
+            for query in queries
+            if role_phrase_key(query.get("role_phrase"))
+        }
+    )
+    if role_phrase_count < coverage_policy["min_role_phrase_diversity"]:
+        add_plan_validation_error(
+            errors,
+            "coverage.role_phrase_diversity",
+            "insufficient_role_phrase_diversity",
+            (
+                f"AI plan has {role_phrase_count} distinct role phrases, but "
+                "coverage policy requires at least "
+                f"{coverage_policy['min_role_phrase_diversity']}."
+            ),
+        )
+
+    technology = normalized_request.get("technology")
+    if technology:
+        missing_technology_indexes = [
+            str(index + 1)
+            for index, query in enumerate(queries)
+            if not find_term_match(query.get("query") or "", technology)
+        ]
+        if missing_technology_indexes:
+            add_plan_validation_error(
+                errors,
+                "coverage.technology",
+                "missing_technology_signal",
+                (
+                    "AI plan has queries without the required technology signal: "
+                    + ", ".join(missing_technology_indexes)
+                    + "."
+                ),
+            )
+
+    location = normalized_request.get("location")
+    if location:
+        missing_location_indexes = [
+            str(index + 1)
+            for index, query in enumerate(queries)
+            if not find_term_match(query.get("query") or "", location)
+        ]
+        if missing_location_indexes:
+            add_plan_validation_error(
+                errors,
+                "coverage.location",
+                "missing_target_location",
+                (
+                    "AI plan has queries without the required target location: "
+                    + ", ".join(missing_location_indexes)
+                    + "."
+                ),
+            )
+
+    if selected_stack:
+        stack_terms_seen = {
+            term
+            for query in stack_focused_queries
+            for term in query_slot_stack_terms(query, selected_stack)
+        }
+        missing_stack_terms = [
+            term for term in selected_stack if term not in stack_terms_seen
+        ]
+        if missing_stack_terms:
+            add_plan_validation_error(
+                errors,
+                "coverage.stack_terms",
+                "missing_selected_stack_terms",
+                (
+                    "AI plan stack-focused queries did not cover selected stack terms: "
+                    + ", ".join(missing_stack_terms)
+                    + "."
+                ),
+            )
+
+    return errors, [], coverage_policy
+
+
+def merge_warning_lists(*warning_lists: list[str]) -> list[str]:
+    merged_warnings: list[str] = []
+    seen_warnings: set[str] = set()
+
+    for warning_list in warning_lists:
+        for warning in warning_list:
+            if warning and warning not in seen_warnings:
+                seen_warnings.add(warning)
+                merged_warnings.append(warning)
+
+    return merged_warnings
+
+
+def build_ai_plan_rejected_response(
+    normalized_brief: dict,
+    normalized_request: dict,
+    ai_output: dict | None,
+    draft_plan: dict | None,
+    validation_errors: list[dict[str, str]],
+    fallback_reason: str,
+    warnings: list[str] | None = None,
+    coverage_policy: dict | None = None,
+    repair_attempts: int = 0,
+) -> dict:
+    fallback_query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+    return {
+        "ok": False,
+        "planner_mode": PLANNER_MODE_AI,
+        "plan_status": PLAN_STATUS_REJECTED,
+        "execution_allowed": False,
+        "normalized_brief": normalized_brief,
+        "adapted_structured_request": normalized_request,
+        "explanation": ai_output.get("explanation") if isinstance(ai_output, dict) else None,
+        "draft_query_plan": draft_plan,
+        "validation_errors": validation_errors,
+        "errors": validation_errors,
+        "warnings": merge_warning_lists(
+            ai_plan_output_warnings(ai_output),
+            warnings or [],
+        ),
+        "assumptions": ai_plan_output_assumptions(ai_output),
+        "coverage_policy": coverage_policy,
+        "repair_attempts": repair_attempts,
+        "fallback_available": True,
+        "fallback_reason": fallback_reason,
+        "fallback_query_plan": add_query_plan_fingerprint(fallback_query_plan),
+        "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
+        "approval_required": False,
+        "execution_approval_required": True,
+        "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
+    }
+
+
+def build_valid_ai_plan_response(
+    normalized_brief: dict,
+    normalized_request: dict,
+    ai_output: dict,
+    draft_plan: dict,
+    validated_plan: dict,
+    warnings: list[str],
+    coverage_policy: dict | None = None,
+    repair_attempts: int = 0,
+) -> dict:
+    plan_fingerprint = query_plan_fingerprint(validated_plan)
+
+    return {
+        "ok": True,
+        "planner_mode": PLANNER_MODE_AI,
+        "plan_status": PLAN_STATUS_VALIDATED_NOT_EXECUTABLE,
+        "execution_allowed": False,
+        "normalized_brief": normalized_brief,
+        "adapted_structured_request": normalized_request,
+        "explanation": ai_output.get("explanation"),
+        "query_plan": add_query_plan_fingerprint(validated_plan),
+        "plan_fingerprint": plan_fingerprint,
+        "draft_query_plan": draft_plan,
+        "validation_errors": [],
+        "warnings": merge_warning_lists(
+            ai_plan_output_warnings(ai_output),
+            warnings,
+        ),
+        "assumptions": ai_plan_output_assumptions(ai_output),
+        "coverage_policy": coverage_policy,
+        "repair_attempts": repair_attempts,
+        "approval_required": False,
+        "execution_approval_required": True,
+        "approval_notice": "This AI plan is validated but not executed yet. Search execution requires approval.",
+    }
+
+
 async def build_ai_query_plan_response(
     normalized_brief: dict,
     normalized_request: dict,
@@ -3347,63 +3755,152 @@ async def build_ai_query_plan_response(
             "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
         }
 
-    draft_plan = ai_output.get("draft_query_plan") if ai_output else None
+    draft_plan = ai_output.get("draft_query_plan") if isinstance(ai_output, dict) else None
     validated_plan, validation_errors = validate_ai_query_plan(
         draft_plan,
         normalized_brief,
         normalized_request,
     )
     if validation_errors:
-        fallback_query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
         if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK:
             return build_rule_based_fallback_response(
                 normalized_brief,
                 normalized_request,
                 "AI plan failed validation.",
                 validation_errors,
+                warnings=ai_plan_output_warnings(ai_output),
+                draft_query_plan=draft_plan,
             )
-        return {
-            "ok": False,
-            "planner_mode": PLANNER_MODE_AI,
-            "plan_status": PLAN_STATUS_REJECTED,
-            "execution_allowed": False,
-            "normalized_brief": normalized_brief,
-            "adapted_structured_request": normalized_request,
-            "explanation": ai_output.get("explanation"),
-            "draft_query_plan": draft_plan,
-            "validation_errors": validation_errors,
-            "errors": validation_errors,
-            "warnings": ai_output.get("warnings", []),
-            "assumptions": ai_output.get("assumptions", []),
-            "fallback_available": True,
-            "fallback_reason": "AI plan failed validation.",
-            "fallback_query_plan": add_query_plan_fingerprint(fallback_query_plan),
-            "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
-            "approval_required": False,
-            "execution_approval_required": True,
-            "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
-        }
+        return build_ai_plan_rejected_response(
+            normalized_brief,
+            normalized_request,
+            ai_output,
+            draft_plan,
+            validation_errors,
+            "AI plan failed validation.",
+        )
 
-    plan_fingerprint = query_plan_fingerprint(validated_plan)
+    coverage_errors, coverage_warnings, coverage_policy = validate_ai_query_plan_coverage(
+        validated_plan,
+        normalized_brief,
+        normalized_request,
+    )
+    if coverage_errors:
+        if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK and coverage_policy:
+            repair_output, repair_errors = await run_openai_json_planner(
+                normalized_brief,
+                normalized_request,
+                repair_feedback=coverage_errors,
+                previous_draft_plan=draft_plan,
+            )
+            repair_draft_plan = (
+                repair_output.get("draft_query_plan")
+                if isinstance(repair_output, dict)
+                else None
+            )
+            if repair_errors:
+                return build_rule_based_fallback_response(
+                    normalized_brief,
+                    normalized_request,
+                    "AI plan failed coverage quality and repair request failed.",
+                    coverage_errors + repair_errors,
+                    warnings=coverage_warnings,
+                    draft_query_plan=draft_plan,
+                    coverage_policy=coverage_policy,
+                    repair_attempts=1,
+                )
 
-    return {
-        "ok": True,
-        "planner_mode": PLANNER_MODE_AI,
-        "plan_status": PLAN_STATUS_VALIDATED_NOT_EXECUTABLE,
-        "execution_allowed": False,
-        "normalized_brief": normalized_brief,
-        "adapted_structured_request": normalized_request,
-        "explanation": ai_output.get("explanation"),
-        "query_plan": add_query_plan_fingerprint(validated_plan),
-        "plan_fingerprint": plan_fingerprint,
-        "draft_query_plan": draft_plan,
-        "validation_errors": [],
-        "warnings": ai_output.get("warnings", []),
-        "assumptions": ai_output.get("assumptions", []),
-        "approval_required": False,
-        "execution_approval_required": True,
-        "approval_notice": "This AI plan is validated but not executed yet. Search execution requires approval.",
-    }
+            repaired_plan, repair_validation_errors = validate_ai_query_plan(
+                repair_draft_plan,
+                normalized_brief,
+                normalized_request,
+            )
+            if repair_validation_errors:
+                return build_rule_based_fallback_response(
+                    normalized_brief,
+                    normalized_request,
+                    "AI repaired plan failed validation.",
+                    repair_validation_errors,
+                    warnings=merge_warning_lists(
+                        coverage_warnings,
+                        ai_plan_output_warnings(repair_output),
+                    ),
+                    draft_query_plan=repair_draft_plan,
+                    coverage_policy=coverage_policy,
+                    repair_attempts=1,
+                )
+
+            (
+                repair_coverage_errors,
+                repair_coverage_warnings,
+                repair_coverage_policy,
+            ) = validate_ai_query_plan_coverage(
+                repaired_plan,
+                normalized_brief,
+                normalized_request,
+            )
+            repair_warnings = merge_warning_lists(
+                coverage_warnings,
+                repair_coverage_warnings,
+                ["AI plan required one coverage repair attempt."],
+            )
+            if repair_coverage_errors:
+                return build_rule_based_fallback_response(
+                    normalized_brief,
+                    normalized_request,
+                    "AI plan failed coverage quality after one repair attempt.",
+                    repair_coverage_errors,
+                    warnings=merge_warning_lists(
+                        repair_warnings,
+                        ai_plan_output_warnings(repair_output),
+                    ),
+                    draft_query_plan=repair_draft_plan,
+                    coverage_policy=repair_coverage_policy or coverage_policy,
+                    repair_attempts=1,
+                )
+
+            return build_valid_ai_plan_response(
+                normalized_brief,
+                normalized_request,
+                repair_output,
+                repair_draft_plan,
+                repaired_plan,
+                repair_warnings,
+                coverage_policy=repair_coverage_policy or coverage_policy,
+                repair_attempts=1,
+            )
+
+        if planner_mode == PLANNER_MODE_AI_WITH_FALLBACK:
+            return build_rule_based_fallback_response(
+                normalized_brief,
+                normalized_request,
+                AI_PLANNER_UNDER_COVERED_FALLBACK_REASON,
+                coverage_errors,
+                warnings=coverage_warnings,
+                draft_query_plan=draft_plan,
+                coverage_policy=coverage_policy,
+            )
+
+        return build_ai_plan_rejected_response(
+            normalized_brief,
+            normalized_request,
+            ai_output,
+            draft_plan,
+            coverage_errors,
+            AI_PLANNER_UNDER_COVERED_FALLBACK_REASON,
+            warnings=coverage_warnings,
+            coverage_policy=coverage_policy,
+        )
+
+    return build_valid_ai_plan_response(
+        normalized_brief,
+        normalized_request,
+        ai_output,
+        draft_plan,
+        validated_plan,
+        coverage_warnings,
+        coverage_policy=coverage_policy,
+    )
 
 
 def snapshot_slug(value: object) -> str:
@@ -3764,6 +4261,27 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
             "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
         }
 
+    coverage_errors, coverage_warnings, coverage_policy = validate_ai_query_plan_coverage(
+        validated_plan,
+        normalized_brief,
+        normalized_request,
+    )
+    if coverage_errors:
+        fallback_query_plan = RuleBasedQueryPlannerV1().build(normalized_request)
+        return {
+            "ok": False,
+            "plan_status": PLAN_STATUS_REJECTED,
+            "execution_allowed": False,
+            "normalized_brief": normalized_brief,
+            "validation_errors": coverage_errors,
+            "warnings": coverage_warnings,
+            "coverage_policy": coverage_policy,
+            "fallback_available": True,
+            "fallback_reason": AI_PLANNER_UNDER_COVERED_FALLBACK_REASON,
+            "fallback_query_plan": add_query_plan_fingerprint(fallback_query_plan),
+            "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
+        }
+
     plan_fingerprint = query_plan_fingerprint(validated_plan)
 
     return {
@@ -3775,6 +4293,8 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
         "query_plan": add_query_plan_fingerprint(validated_plan),
         "plan_fingerprint": plan_fingerprint,
         "validation_errors": [],
+        "warnings": coverage_warnings,
+        "coverage_policy": coverage_policy,
         "approval_required": False,
         "execution_approval_required": True,
         "approval_notice": "This plan is not executed yet. Search execution requires approval.",

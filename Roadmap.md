@@ -128,7 +128,7 @@ POC прототип с легким фронтом и одним поисков
 - Phase 7 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 8 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
-Phase 3 завершена как baseline `Candidate Quality Layer`. Следующий этап - Phase 4 `AI Agent Foundation`.
+Phase 4 завершена как `AI Agent Foundation`. Текущий активный этап - Phase 5 `Recruiter Chat UX + Search Brief conversation`.
 
 Фаза 4 - AI Agent Foundation
 
@@ -149,7 +149,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 - `P4-007 Add planner explanation UI`
 - `P4-008 Add approval before Tavily execution`
 - `P4-009 Compare AI planner vs rule-based baseline`
-- `P4-010 Improve AI planner coverage and add quality gate`
+- `P4-010 Diagnose and improve AI planner coverage`
 - `P4-011 Close Phase 4 with decision`
 
 Статус `P4-001`: approved as contract. Утверждено:
@@ -244,15 +244,25 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Decision: keep `RuleBasedQueryPlanner v1` as default and only executable planner for now.
 - Follow-up: before AI-generated plans can be executable, add a planner quality gate for coverage, role phrase diversity, and stack-focused slots.
 
-Статус `P4-010`: approved as next task after P4-009.
+Статус `P4-010`: implemented.
 
-- Goal: improve AI planner coverage and fallback when AI plan is structurally valid but under-covered.
+- Goal: diagnose why AI planner did not return the expected 10-query plan, improve planner coverage, and fallback when AI plan remains structurally valid but under-covered.
 - AI planner should be prompted to produce the tested 10-query standard baseline rather than a minimal 1-query/3-query plan.
 - Expected standard structure: role-based coverage plus stack-focused coverage.
 - Standard baseline should not accept a 1-query or 3-query AI plan as good enough for Java Backend Ukraine.
 - Quality gate should check coverage, role phrase diversity, and stack-focused slots.
+- Implement this as a minimal `AIPlannerCoveragePolicy v0` with one strict supported policy for the current baseline, not as scattered Java/Ukraine checks in the validator.
+- Implementation result: live no-Tavily OpenAI planner evaluation returned the expected 10-query plan for both `ai` and `ai_with_fallback`; mocked smoke covered one repair attempt and fallback after failed repair.
 - AI remains useful for planning/explanation, but backend decides whether the plan is strong enough.
-- `P4-011` closes Phase 4 after this improvement/gate is implemented and evaluated.
+- Follow-up `P4-011` completed the docs-only closeout and moved the active product focus to Phase 5.
+
+Статус `P4-011`: implemented as docs-only closeout.
+
+- Close Phase 4 as `AI Agent Foundation`, not as a complete autonomous sourcing agent.
+- Decision to capture: backend foundation is ready for Phase 5 because Search Brief, AI-assisted planning, deterministic validation/fallback, coverage policy, explanations, and approval-gated execution boundaries exist.
+- Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
+- Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, no multi-source search beyond Tavily, no LinkedIn login/scraping, no candidate messaging, and no user/account actions.
+- Phase 5 is now the active next phase; first task to review is `P5-001 Define recruiter chat and Search Brief conversation contract`.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
 
@@ -282,20 +292,20 @@ Absolute product boundaries: запрещены direct web-search агентом
 - For selected stack terms that are not visible in Tavily public snippets, the UI now says `Not visible`; query-source-only stack evidence says `Not confirmed`.
 - Real `P3-012` multi-wave evaluation produced 67 unique candidates after 4 waves and 40 Tavily queries; incremental gain over wave 1 was +7 unique candidates, so multi-wave should not become default yet.
 - `P3-013` keeps single-wave as default and exposes multi-wave only through an explicit frontend toggle that is off by default.
-- `P3-014` closes Phase 3 and prepares the handoff to Phase 4. Phase 4 is now `AI Agent Foundation`: it should preserve the `QueryPlan` contract, visible filters, existing executor/dedupe/report pipeline, Candidate Quality Layer, and add `Search Brief`, agent tool boundaries, AI planner mode, explanations, and approval gates.
+- `P3-014` closed Phase 3 and prepared the handoff to Phase 4. Phase 4 later completed as `AI Agent Foundation`: it preserved the `QueryPlan` contract, visible filters, existing executor/dedupe/report pipeline, Candidate Quality Layer, and added `Search Brief`, agent tool boundaries, AI planner mode, explanations, approval gates, and AI planner coverage validation.
 
 ### Planned
 
-- Phase 5: `Recruiter Chat + Search Brief`.
 - Phase 6: `Tool-Calling Agent Runtime`.
 - Phase 7: `Candidate Workspace/Table + Shortlist`.
 - Phase 8: `Persistent Memory + Saved Searches`.
 
 ### In Progress
 
-- Phase 4: `AI Agent Foundation` - `P4-001` through `P4-010` are approved/evaluated as contracts and checkpoints; `P4-003` through `P4-008` are implemented; `P4-009` is documented as a no-Tavily planner evaluation; next approved task is `P4-010 Improve AI planner coverage and add quality gate`.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - next task to review is `P5-001 Define recruiter chat and Search Brief conversation contract`.
 
 ### Done
 
 - Phase 2 - Multi-query Search + Baseline Query Planner.
 - Phase 3 - Candidate Quality Layer.
+- Phase 4 - AI Agent Foundation.

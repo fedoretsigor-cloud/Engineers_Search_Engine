@@ -125,15 +125,33 @@ The AI planner is useful for:
 
 The AI planner is not yet reliable enough to execute or replace the rule-based baseline because it can return a formally valid but under-covered plan.
 
-## Follow-Up Needed
+## P4-010 Follow-Up Result
 
-Before AI-generated plans can be considered for execution, improve the AI planner and add a stricter planner quality gate:
+P4-010 implemented the follow-up:
 
+- preserve the diagnostic finding that the current prompt says `max_queries = 10`, shows a one-query output example, and the validator currently accepts `1..10` queries;
 - improve the AI planner prompt to request the expected 10-query standard baseline explicitly;
+- include the expected `6` role-based plus `4` stack-focused shape;
+- implement strict thresholds through a minimal `AIPlannerCoveragePolicy v0` with the current Java/Ukraine baseline as the first supported policy;
+- return a visible `coverage_policy_not_configured` warning for unsupported briefs instead of pretending strict coverage was checked;
 - for `search_depth = standard`, require baseline-level query coverage or an explicit minimum coverage threshold;
 - require both role-based and stack-focused slots when stack signals are present;
 - require enough role phrase diversity for the Java Backend baseline;
+- allow at most one AI plan repair attempt when the initial plan is structurally valid but under-covered;
 - trigger visible fallback when an AI plan is valid structurally but too narrow for the baseline;
 - rerun the same no-Tavily baseline evaluation after the quality gate is implemented.
 
-This follow-up is now tracked as `P4-010 Improve AI planner coverage and add quality gate`. `P4-011` will close Phase 4 after that improvement/gate is implemented and evaluated.
+Implementation notes:
+
+- AI-generated plans remain non-executable.
+- Tavily is not called by planner validation, repair, or evaluation.
+- Unsupported briefs return a visible `coverage_policy_not_configured` warning instead of pretending strict coverage was checked.
+
+Re-evaluation after P4-010:
+
+- `rule_based`: 10 queries, expected baseline coverage.
+- live `ai`: 10 queries, `validated_not_executable`, `repair_attempts = 0`, coverage policy `java_backend_ukraine_standard_v0`.
+- live `ai_with_fallback`: 10 queries, `validated_not_executable`, `repair_attempts = 0`, coverage policy `java_backend_ukraine_standard_v0`.
+- mocked no-Tavily smoke confirmed one repair attempt for under-covered plans and rule-based fallback after failed repair.
+
+`P4-011` closed Phase 4 as AI Agent Foundation and moved the active product focus to Phase 5 recruiter chat/Search Brief conversation.

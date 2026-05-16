@@ -11,10 +11,10 @@ Status:
 - Phase 1.1 behavior tuning completed.
 - Phase 2 multi-query search + baseline query planner completed.
 - Phase 3 Candidate Quality Layer completed.
-- Phase 4 AI Agent Foundation is in progress.
-- Phase 4 `P4-003`-`P4-008` are implemented: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, and backend approval gate before Tavily execution.
-- Phase 4 `P4-009` no-Tavily baseline evaluation is completed: rule-based planning remains the execution baseline; AI planner is useful for intent/explanation but needs stronger 10-query coverage behavior and a stricter quality gate before execution.
-- Next approved Phase 4 task: `P4-010 Improve AI planner coverage and add quality gate`.
+- Phase 4 AI Agent Foundation completed.
+- Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
+- Current active phase: Phase 5 `Recruiter Chat UX + Search Brief conversation`.
+- Next task to review: `P5-001 Define recruiter chat and Search Brief conversation contract`.
 
 Current pipeline:
 
@@ -36,7 +36,7 @@ Execution boundary:
 - Tavily execution must stay inside the approved backend pipeline.
 - The legacy raw `/api/search` Tavily path is disabled.
 - AI-generated plans remain non-executable until a later reviewed task explicitly enables that path.
-- Current AI plan validation does not yet enforce baseline coverage quality, so structurally valid AI plans can still be too narrow.
+- AI plan validation includes strict `AIPlannerCoveragePolicy v0` coverage checks for the Java/Ukraine standard baseline; unsupported briefs return a visible coverage-policy warning.
 
 ## Local Setup
 
