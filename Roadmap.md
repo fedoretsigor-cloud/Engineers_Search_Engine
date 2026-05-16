@@ -111,13 +111,18 @@ POC прототип с легким фронтом и одним поисков
 
 Не входит в Phase 2 без отдельного согласования:
 
-- LinkedIn login.
-- Scraping или обход ограничений LinkedIn.
 - База данных.
 - Shortlist.
 - AI agent или AI query planner implementation.
 - Multi-source search beyond Tavily.
+
+Запрещено в рамках продукта, не является будущим approval item:
+
+- LinkedIn login.
+- Scraping или обход ограничений LinkedIn.
 - Автоматическое открытие и парсинг LinkedIn-профилей.
+- Автоматическая отправка сообщений кандидатам.
+- Любые действия с user или third-party accounts.
 
 Следующий порядок после Phase 2:
 
@@ -261,8 +266,9 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Close Phase 4 as `AI Agent Foundation`, not as a complete autonomous sourcing agent.
 - Decision to capture: backend foundation is ready for Phase 5 because Search Brief, AI-assisted planning, deterministic validation/fallback, coverage policy, explanations, and approval-gated execution boundaries exist.
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
-- Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, no multi-source search beyond Tavily, no LinkedIn login/scraping, no candidate messaging, and no user/account actions.
-- Phase 5 is now the active next phase; first task to review is `P5-001 Define recruiter chat and Search Brief conversation contract`.
+- Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
+- Preserve absolute product boundaries as prohibited behavior: no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, and no user or third-party account actions.
+- Phase 5 is now the active next phase; `P5-001 Define recruiter chat and Search Brief conversation contract` is approved as a docs-only contract task.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
 
@@ -302,7 +308,29 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - next task to review is `P5-001 Define recruiter chat and Search Brief conversation contract`.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - approved task is `P5-001 Define recruiter chat and Search Brief conversation contract`.
+
+### Phase 5 Approved Contract
+
+`P5-001` defines the recruiter chat and `Search Brief` conversation contract before coding.
+
+Approved decisions:
+
+- Support both Russian and English recruiter messages.
+- Ask one clarifying question at a time.
+- Make recruiter chat the primary UX over time, replacing the current structured form.
+- Show a normalized brief summary before `Build Plan`.
+- Treat `Build Plan` as planner preview only, not Tavily execution.
+- Use `ai_with_fallback` as the default planner mode for chat `Build Plan`, unless an advanced/developer control explicitly overrides it.
+- Keep Tavily execution behind explicit backend approval.
+- Preserve prohibited behavior as hard boundaries: no direct web-search bypass, no LinkedIn login, no LinkedIn scraping/restriction bypass, no candidate messaging/automatic outreach, and no user or third-party account actions.
+
+Recommended implementation order after the contract:
+
+- `P5-002 Add backend chat-to-brief adapter` - approved, not coded.
+- `P5-003 Replace structured form with recruiter chat UI` - next task to review.
+
+`P5-002` guardrail: keep the task to `chat messages -> draft Search Brief -> validation -> one assistant response`. Do not let it grow into an agent loop.
 
 ### Done
 

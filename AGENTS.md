@@ -50,7 +50,9 @@ Current product direction:
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
 - The backend has Search Brief validation/adapter endpoints, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has a `Planner mode` control and planner explanation UI.
-- The next task to review is `P5-001 Define recruiter chat and Search Brief conversation contract`.
+- The approved Phase 5 tasks are `P5-001 Define recruiter chat and Search Brief conversation contract` and `P5-002 Add backend chat-to-brief adapter`.
+- `P5-001` is docs-only; coding has not started. It defines Russian/English chat input, one clarification question at a time, a normalized brief summary before `Build Plan`, planner preview before execution, and the follow-up implementation order.
+- `P5-002` is approved but not coded. Guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
 
 ## Product Rules
 
@@ -81,7 +83,7 @@ Current product direction:
 - Read `instructions`, `ProjectStatus.md`, `Roadmap.md`, `Tasks.md`, `docs/phase-1-poc-findings.md`, `docs/phase-3-quality-baseline.md`, and `docs/phase-3-multi-wave-evaluation.md` before changing behavior.
 - Follow the collaboration rules in `instructions`.
 - Do not change files or behavior without explicit user approval.
-- Keep the project within the public-search scope: no LinkedIn login automation, scraping, restriction bypass, direct LinkedIn profile automation, database, shortlist, authentication, or autonomous agent behavior unless explicitly agreed.
+- Keep the project within the public-search scope. LinkedIn login, LinkedIn scraping or restriction bypass, candidate messaging/automatic outreach, and user or third-party account actions are absolute prohibited behavior. Database, shortlist, authentication, and autonomous agent behavior require separate explicit approval.
 - Prefer focused, small changes with verification.
 
 ## Verification

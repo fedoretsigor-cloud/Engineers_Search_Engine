@@ -14,7 +14,9 @@ Status:
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
 - Current active phase: Phase 5 `Recruiter Chat UX + Search Brief conversation`.
-- Next task to review: `P5-001 Define recruiter chat and Search Brief conversation contract`.
+- Approved Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
+- `P5-001` is docs-only; coding has not started. The approved contract supports Russian/English recruiter messages, one clarification question at a time, a brief summary before `Build Plan`, and planner preview before any execution approval.
+- `P5-002` is approved but not coded; it is limited to `chat messages -> draft Search Brief -> validation -> one assistant response`.
 
 Current pipeline:
 

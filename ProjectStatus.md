@@ -18,7 +18,11 @@ Current phase: `Phase 5 - Recruiter Chat UX + Search Brief conversation`.
 
 Completed through `P4-011`: Phase 4 is closed as an AI Agent Foundation. The backend now has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, and AI planner coverage policy/repair behavior. This is a foundation for Phase 5, not a complete autonomous recruiter agent.
 
-Next task to review: `P5-001 Define recruiter chat and Search Brief conversation contract`.
+Approved Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
+
+`P5-001` is approved as a docs-only contract task. Coding is not started. The approved recruiter chat contract supports Russian and English input, asks one clarifying question at a time, replaces the structured form as the primary UX over time, shows a normalized brief summary before `Build Plan`, and keeps `Build Plan` as planner preview only. Chat `Build Plan` should default to `ai_with_fallback` unless an advanced/developer control explicitly overrides planner mode. Tavily execution remains behind explicit backend approval. Direct web-search bypass, LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, and user or third-party account actions remain prohibited behavior.
+
+`P5-002` is approved as a backend chat-to-brief adapter task, but coding is not started. The guardrail is strict: `chat messages -> draft Search Brief -> validation -> one assistant response`. It must not become an agent loop, build `QueryPlan`, call `/api/agent/query-plan`, call Tavily, execute search, or change frontend UI.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -67,7 +71,7 @@ Main Phase 3 baseline conclusion: the Candidate Quality Layer is useful for rank
 
 `P4-010` is implemented. The root cause was confirmed: the old AI planner prompt said `max_queries = 10`, showed a one-query output example, and the validator accepted `1..10` queries. The AI planner prompt now requests the tested 10-query standard baseline shape, `AIPlannerCoveragePolicy v0` applies strict coverage checks for the current Java/Ukraine baseline, `ai_with_fallback` can make one bounded repair attempt, and under-covered plans fall back visibly to `RuleBasedQueryPlanner`. AI-generated plans remain non-executable and Tavily is not called by this flow.
 
-`P4-011` is completed as a docs-only closeout. Phase 4 is closed as an AI Agent Foundation, not as a complete autonomous recruiter agent. The closeout decision: the backend foundation is ready for Phase 5 because Search Brief, AI planning, deterministic validation/fallback, coverage policy, explanations, and approval-gated execution boundaries exist. Full recruiter chat, autonomous tool loop, candidate workspace, and persistence remain later phases.
+`P4-011` is completed as a docs-only closeout. Phase 4 is closed as an AI Agent Foundation, not as a complete autonomous recruiter agent. The closeout decision: the backend foundation is ready for Phase 5 because Search Brief, AI planning, deterministic validation/fallback, coverage policy, explanations, and approval-gated execution boundaries exist. Full recruiter chat, autonomous tool loop, candidate workspace, and persistence remain later phases. LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, and user or third-party account actions remain absolute prohibited behavior.
 
 ## What was built in Phase 1
 
@@ -301,7 +305,7 @@ Final baseline numbers remain above the Phase 2 success criterion:
 
 Recommended next steps:
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts. `P5-001` is approved as the docs-only conversation contract; implementation has not started.
 - Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded agent loop that can choose approved backend tools, inspect results, and suggest next iterations.
 
 Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief conversation is now the active Phase 5 direction.
@@ -353,7 +357,7 @@ Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief co
 - `RuleBasedQueryPlanner v1` is still the default execution planner. AI draft planning exists behind explicit mode, but AI-generated plans remain non-executable until a later reviewed task enables AI plan execution through deterministic validation and approval.
 - Current AI QueryPlan validation now includes strict `AIPlannerCoveragePolicy v0` coverage checks for the Java/Ukraine standard baseline. Unsupported briefs still need future coverage policies and return a visible `coverage_policy_not_configured` warning.
 - Candidate quality score is a deterministic v1 signal and should not be treated as final recruiting quality.
-- No database, shortlist, authentication, fully autonomous AI agent runtime, LinkedIn login, scraping, or direct LinkedIn automation is included.
+- No database, shortlist, authentication, or fully autonomous AI agent runtime is included.
 - Absolute product boundaries: no direct web-search bypass outside the approved backend pipeline, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no actions with user or third-party accounts.
 
 ## Reference documents

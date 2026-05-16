@@ -2041,7 +2041,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Next task to review: `P5-001 Define recruiter chat and Search Brief conversation contract`.
+Approved Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2057,10 +2057,16 @@ Do not include in Phase 4 without separate approval:
 - persistent memory or database;
 - shortlist;
 - export workflow;
-- LinkedIn login;
-- scraping or restriction bypass;
 - fully autonomous tool-calling loop;
 - multi-source search beyond Tavily.
+
+Absolute prohibited behavior:
+
+- direct web-search by the agent outside the approved backend pipeline;
+- LinkedIn login;
+- LinkedIn scraping or restriction bypass;
+- candidate messaging or automatic outreach;
+- user or third-party account actions.
 
 ---
 
@@ -2068,9 +2074,10 @@ Do not include in Phase 4 without separate approval:
 
 ### Approved
 
-### Backlog
-
 - [ ] P5-001 Define recruiter chat and Search Brief conversation contract
+- [ ] P5-002 Add backend chat-to-brief adapter
+
+### Backlog
 
 ### In Progress
 
@@ -2082,7 +2089,259 @@ Phase 5 should build the user-facing recruiter chat on top of the Phase 4 founda
 
 The chat should collect and refine a `Search Brief` through dialogue, show the generated plan and approval state clearly, and reuse existing backend contracts instead of bypassing them.
 
-Phase 5 should not introduce an autonomous tool loop, persistence, candidate workspace, LinkedIn login/scraping, candidate messaging, or account actions without separate approval.
+Phase 5 should not introduce an autonomous tool loop, persistence, or candidate workspace without separate approval.
+
+Phase 5 must preserve absolute product boundaries. The following are prohibited, not merely out of scope:
+
+- direct web-search by the agent outside the approved backend pipeline;
+- LinkedIn login;
+- LinkedIn scraping or restriction bypass;
+- candidate messaging or automatic outreach;
+- user or third-party account actions.
+
+---
+
+## Task: P5-001 Define recruiter chat and Search Brief conversation contract
+
+### Status
+
+Approved as a docs-only contract task.
+
+Coding is not started. Backend/frontend implementation requires a separate explicit coding request.
+
+### Context
+
+Phase 4 built the foundation: `Search Brief`, AI-assisted planning, deterministic QueryPlan validation/fallback, planner explanations, coverage policy, and approval-gated Tavily execution.
+
+Phase 5 should turn that foundation into a recruiter-facing chat experience. The recruiter should describe the search in natural language, the AI should clarify the brief through dialogue, and the product should show a clear plan before any search execution.
+
+### Goal
+
+Define the first recruiter chat contract before coding.
+
+The contract must describe:
+
+- how a recruiter message becomes a `Search Brief`;
+- how the chat asks clarifying questions;
+- how the user confirms the brief before planning;
+- how `Build Plan` connects the chat to the existing Phase 4 planner;
+- where approval is required before Tavily execution;
+- which behaviors are prohibited.
+
+### Approved decisions
+
+- The chat must support both Russian and English recruiter messages.
+- The assistant asks one clarifying question at a time.
+- The chat should replace the current structured form as the primary UX over time, not live only as a side panel.
+- Before planner preview, the UI should show the normalized brief summary and a `Build Plan` action.
+- `Build Plan` means "build a validated plan preview", not "run Tavily search".
+- Tavily execution still requires the existing explicit backend approval gate.
+- Chat `Build Plan` should use `ai_with_fallback` by default unless an advanced/developer control explicitly overrides planner mode.
+- The recommended next implementation order is:
+  - `P5-002 Add backend chat-to-brief adapter`;
+  - `P5-003 Replace structured form with recruiter chat UI`.
+
+### Real conversational flow
+
+Step 1 is approved.
+
+Example in Russian:
+
+1. Recruiter writes: "Найди backend разработчиков в Украине, основной стек Java, желательно Spring и Kafka."
+2. Chat extracts a draft brief: role family `Backend Developer`, technology `Java`, selected stack `Spring/Kafka`, location `Ukraine`.
+3. If seniority is not specified, the chat asks one question: "Нужен конкретный seniority level или ищем всех релевантных кандидатов?"
+4. After the recruiter answers, the chat shows a brief summary and the `Build Plan` action.
+5. Only after `Build Plan` does the product call the existing planning flow and show the plan preview.
+6. Search execution still requires explicit approval before Tavily calls.
+
+Example in English:
+
+1. Recruiter writes: "Find backend developers in Ukraine with Java as the main skill, ideally Spring and Kafka."
+2. Chat extracts the same normalized brief.
+3. If the brief is incomplete, it asks one focused clarification.
+4. The final state is a visible brief summary plus `Build Plan`.
+
+If the recruiter asks the product to log in to LinkedIn, scrape LinkedIn, message candidates, or act through an account, the chat must refuse because those are prohibited behaviors.
+
+### Steps
+
+1. Document the real conversational flow for Russian and English recruiter inputs.
+2. Define chat states:
+   - `drafting`;
+   - `needs_clarification`;
+   - `ready_for_planning`;
+   - `plan_preview`;
+   - `awaiting_execution_approval`.
+3. Define mapping from chat messages to `Search Brief` fields:
+   - `role_family`;
+   - `technology`;
+   - `selected_stack`;
+   - `location`;
+   - `seniority`;
+   - `exclusions`;
+   - `search_depth`;
+   - `source_text`;
+   - `missing_fields`;
+   - `clarifying_questions`;
+   - `assumptions`.
+4. Define clarification behavior:
+   - ask one question at a time;
+   - prefer practical recruiter language;
+   - clarify missing or ambiguous required fields before planning;
+   - do not invent hard constraints when the recruiter did not provide them.
+5. Define summary and confirmation UX:
+   - show normalized brief summary;
+   - show assumptions and missing fields if any remain;
+   - expose `Build Plan` as the transition into planner preview;
+   - keep search execution separate from plan generation.
+6. Define planner and approval boundary:
+   - `Build Plan` may call the existing planner/validation preview;
+   - AI-generated plans remain non-executable unless a later reviewed task changes that;
+   - Tavily execution requires explicit backend approval bound to the current plan/action.
+7. Preserve prohibited behavior as hard boundaries:
+   - no direct web-search by the agent outside the approved backend pipeline;
+   - no LinkedIn login;
+   - no LinkedIn scraping or restriction bypass;
+   - no candidate messaging or automatic outreach;
+   - no user or third-party account actions.
+8. Define non-goals for P5-001:
+   - no code changes;
+   - no database or persistent memory;
+   - no autonomous tool loop;
+   - no shortlist/workspace/export;
+   - no Tavily calls.
+9. Record follow-up implementation tasks:
+   - `P5-002 Add backend chat-to-brief adapter`;
+   - `P5-003 Replace structured form with recruiter chat UI`.
+
+### Acceptance criteria
+
+- `Tasks.md`, `Roadmap.md`, and `ProjectStatus.md` describe the approved P5-001 contract consistently.
+- The contract supports Russian and English recruiter messages.
+- The contract says the chat asks one clarifying question at a time.
+- The contract says the chat produces a visible brief summary before `Build Plan`.
+- The contract says `Build Plan` creates a plan preview, not a Tavily run.
+- The contract keeps Tavily execution behind explicit backend approval.
+- Prohibited behavior is documented as prohibited, not merely deferred.
+- The next implementation tasks are named but not coded.
+
+---
+
+## Task: P5-002 Add backend chat-to-brief adapter
+
+### Status
+
+Approved.
+
+Not approved for coding yet.
+
+### Context
+
+`P5-001` approved the first recruiter chat contract. The chat should accept natural recruiter language in Russian or English, ask one clarifying question at a time, and produce a validated `Search Brief` before planning.
+
+The backend already has:
+
+- `SearchBrief`;
+- `validate_and_normalize_search_brief(...)`;
+- `adapt_search_brief_to_structured_request(...)`;
+- `/api/search-brief/validate`;
+- `/api/agent/query-plan`;
+- AI planner modes: `rule_based`, `ai`, `ai_with_fallback`.
+
+`P5-002` should add only the missing backend chat adapter. It should not duplicate planner logic.
+
+Implementation guardrail: do not let `P5-002` grow into an agent loop. The task is only:
+
+`chat messages -> draft Search Brief -> validation -> one assistant response`.
+
+### Goal
+
+Add a backend turn endpoint that converts recruiter chat messages into a draft or ready `Search Brief`.
+
+The adapter should use an LLM/ChatGPT call to understand natural language, then rely on deterministic backend validation to normalize and gate the result.
+
+### Approved direction so far
+
+- The endpoint should be turn-based, for example `POST /api/recruiter-chat/turn`.
+- The adapter supports Russian and English recruiter messages.
+- The adapter asks one clarifying question at a time.
+- The adapter returns a ready `Search Brief` before planning.
+- The chat `Build Plan` flow should default to planner mode `ai_with_fallback`.
+- `Build Plan` is a later planner-preview action through `/api/agent/query-plan`; it is not part of this endpoint.
+
+### Request contract
+
+The request should include:
+
+- `messages`: current recruiter/assistant chat messages;
+- `draft_brief`: optional previous draft `SearchBrief`;
+- `language`: optional UI/user language hint;
+- `planner_mode`: optional advanced override, defaulting to `ai_with_fallback` for the later `Build Plan` step.
+
+The endpoint should not require frontend form fields.
+
+### Response contract
+
+The response should include:
+
+- `ok`;
+- `state`: `needs_clarification`, `ready_for_planning`, or `refused`;
+- `assistant_message`;
+- `next_question`: one question when clarification is needed;
+- `normalized_brief`;
+- `summary`;
+- `missing_fields`;
+- `assumptions`;
+- `validation_errors`;
+- `recommended_planner_mode`: default `ai_with_fallback`;
+- `can_build_plan`: true only when the brief is ready for planning;
+- `build_plan_action`: metadata the frontend can use later to call `/api/agent/query-plan`.
+
+### Steps
+
+1. Add chat request/response backend models.
+2. Add `POST /api/recruiter-chat/turn`.
+3. Build a strict LLM prompt for extracting a draft `Search Brief` from chat messages and optional previous draft.
+4. Require strict JSON output from the LLM.
+5. Add deterministic safety checks for prohibited requests:
+   - direct web-search by the agent outside the approved backend pipeline;
+   - LinkedIn login;
+   - LinkedIn scraping or restriction bypass;
+   - candidate messaging or automatic outreach;
+   - user or third-party account actions.
+6. Merge LLM output with existing draft brief conservatively.
+7. Pass the result through `validate_and_normalize_search_brief(...)`.
+8. If validation says fields are missing, return `needs_clarification` with exactly one next question.
+9. If validation says the brief is ready, return `ready_for_planning`, a normalized brief summary, `can_build_plan = true`, and `recommended_planner_mode = ai_with_fallback`.
+10. Keep `Build Plan` outside this endpoint; frontend should later call `/api/agent/query-plan` with the normalized brief and recommended planner mode.
+11. Add no-Tavily tests or smoke checks for:
+   - Russian complete brief;
+   - English complete brief;
+   - incomplete brief with one clarification;
+   - prohibited request refusal;
+   - planner mode defaulting to `ai_with_fallback`.
+
+### Non-goals
+
+- Do not build an agent loop.
+- Do not build `QueryPlan` in this endpoint.
+- Do not call `/api/agent/query-plan` from this endpoint.
+- Do not call Tavily.
+- Do not execute search.
+- Do not change frontend UI in this task.
+- Do not add database, persistence, memory, shortlist, export, or autonomous agent loop.
+- Do not add LinkedIn login, scraping, restriction bypass, candidate messaging, or account actions.
+
+### Acceptance criteria
+
+- Backend exposes a turn-based recruiter chat adapter endpoint.
+- The endpoint can produce a normalized `Search Brief` from Russian and English recruiter messages.
+- The endpoint asks exactly one clarification question when the brief is incomplete.
+- The endpoint refuses prohibited requests.
+- The endpoint returns `recommended_planner_mode = ai_with_fallback` by default.
+- The endpoint does not build a `QueryPlan`.
+- The endpoint does not call Tavily or execute search.
+- Existing Search Brief validation remains the source of truth.
 
 ---
 
@@ -2202,7 +2461,8 @@ Phase 5 should not introduce an autonomous tool loop, persistence, candidate wor
 - Phase 4 строит фундамент агента: `Search Brief`, AI-assisted planning, explanations, backend validation и approval gates.
 - Existing deterministic engine остается safe execution layer: `QueryPlan`, planner fallback, search runner, multi-wave runner, dedupe, filters, Candidate Quality Layer, reports и snapshots.
 - AI Query Planner остается отдельной задачей внутри Phase 4, но не является всей фазой.
-- Fully autonomous agent loop, chat UI, persistent memory/database, shortlist/export, LinkedIn login/scraping и multi-source search остаются вне Phase 4 без отдельного approval.
+- Fully autonomous agent loop, chat UI, persistent memory/database, shortlist/export и multi-source search остаются вне Phase 4 без отдельного approval.
+- LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach и user/third-party account actions являются absolute prohibited behavior, а не будущими задачами для approval.
 - Step 2 approved: `Search Brief v0` является структурой диалога, а не копией текущей формы.
 - `Search Brief v0` хранит recruiter intent, missing fields, clarifying questions, assumptions и явные ограничения пользователя.
 - `target_titles` не хранятся в `Search Brief`; их генерирует planner.
@@ -4260,7 +4520,8 @@ Phase 4 may add AI-assisted planning and agent-style orchestration, but it shoul
 - executor, dedupe, report, filters, snapshots, and candidate quality layer should not be rewritten for P4-001;
 - AI planner suggestions should be inspectable before execution;
 - visible filters remain user-controlled;
-- no LinkedIn login, scraping, restriction bypass, database, shortlist, or full agent runtime unless separately approved.
+- no database, shortlist, or full agent runtime unless separately approved.
+- LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, and user/third-party account actions are prohibited behavior, not future approval candidates.
 
 ### Next recommended task
 
