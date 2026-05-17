@@ -2041,7 +2041,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2076,14 +2076,13 @@ Absolute prohibited behavior:
 
 ### Backlog
 
-- [ ] P5-003 Replace structured form with recruiter chat UI
-
 ### In Progress
 
 ### Done
 
 - [x] P5-001 Define recruiter chat and Search Brief conversation contract
 - [x] P5-002 Add backend chat-to-brief adapter
+- [x] P5-003 Replace structured form with recruiter chat UI
 
 ### Current Phase 5 strategy note
 
@@ -2361,6 +2360,163 @@ Implemented in code:
 - added `scripts/smoke_p5_chat_adapter.py` no-Tavily smoke coverage for RU complete, EN complete, incomplete one-question, prohibited refusal, and default planner mode.
 
 Guardrail preserved: the endpoint does not build `QueryPlan`, does not call `/api/agent/query-plan`, does not call Tavily, does not execute search, does not change frontend UI, and does not implement an agent loop.
+
+---
+
+## Task: P5-003 Replace structured form with recruiter chat UI
+
+### Status
+
+Implemented.
+
+### Context
+
+The backend now supports the Phase 5 chat foundation:
+
+- `POST /api/recruiter-chat/turn` turns recruiter messages into a validated `Search Brief`;
+- `/api/agent/query-plan` turns a ready `Search Brief` into a planner preview;
+- `recommended_planner_mode` defaults to `ai_with_fallback`;
+- Tavily execution still requires explicit backend approval;
+- AI draft plans remain non-executable unless validation/fallback produces an executable rule-based plan.
+
+Before `P5-003`, the frontend still started from the old structured form:
+
+- `Role family`;
+- `Technology`;
+- `Location`;
+- `Planner mode`;
+- Java stack checkboxes;
+- result filters;
+- `Refresh plan`;
+- `Approve & Search`.
+
+`P5-003` makes recruiter chat the primary input while preserving the existing planner preview, approval gate, report, and results rendering.
+
+### Critical source-of-truth decision
+
+The old structured form must no longer be the source of truth for execution.
+
+After chat is introduced, the execution path must be:
+
+`chat -> normalizedBrief -> Build Plan -> adapted_structured_request/query_plan -> Approve & Search`
+
+`Approve & Search` must build its execution request from the planner response `adapted_structured_request`, not from old DOM fields such as `roleFamilySelect`, `technologySelect`, `locationInput`, or `stackInputs`.
+
+This is the main guardrail for `P5-003`: do not build a nice chat UI that still runs search using stale structured-form values.
+
+### Goal
+
+Replace the structured form as the primary frontend UX with recruiter chat.
+
+The recruiter should type a natural-language sourcing request, receive either one clarifying question or a visible `Search Brief` summary, then click `Build Plan`. Only after a successful plan preview should execution approval/search become available.
+
+### Frontend state
+
+Add explicit frontend state for:
+
+- `messages`;
+- `draftBrief`;
+- `normalizedBrief`;
+- `chatState`;
+- `recommendedPlannerMode`;
+- `adaptedStructuredRequest`;
+- `latestPlannerData`;
+- `latestQueryPlan`;
+- `latestPlanFingerprint`;
+- execution controls such as profile filter, location filter, and multi-wave.
+
+### Steps
+
+1. Replace the primary left-column structured form with a recruiter chat panel:
+   - message history;
+   - text input;
+   - send action;
+   - visible assistant response.
+2. Keep any old structured inputs only as a secondary debug/advanced section if needed for rollback or diagnostics.
+3. On message send, call `POST /api/recruiter-chat/turn` with:
+   - current `messages`;
+   - optional `draftBrief`;
+   - optional language hint.
+4. Store returned chat state:
+   - `state`;
+   - `normalized_brief`;
+   - `summary`;
+   - `recommended_planner_mode`;
+   - `build_plan_action`;
+   - `can_build_plan`.
+5. If response state is `needs_clarification`, append exactly one assistant question to the chat.
+6. If response state is `refused`, show the refusal in chat and do not expose `Build Plan`.
+7. If response state is `ready_for_planning`, show a normalized `Search Brief` summary and expose `Build Plan`.
+8. `Build Plan` calls `/api/agent/query-plan` with:
+   - `search_brief = normalizedBrief`;
+   - `planner_mode = recommendedPlannerMode`, default `ai_with_fallback`.
+9. After `Build Plan`, store from planner response:
+   - `adapted_structured_request`;
+   - `query_plan` or `fallback_query_plan`;
+   - `plan_fingerprint` or `fallback_plan_fingerprint`;
+   - planner status and validation/fallback metadata.
+10. Enable `Approve & Search` only when the visible plan is executable:
+    - rule-based plan;
+    - or rule-based fallback plan;
+    - with current plan fingerprint;
+    - with `adapted_structured_request`.
+11. If planner returns AI draft `validated_not_executable`, show the plan preview but keep `Approve & Search` disabled.
+12. Build the execution request from `adaptedStructuredRequest` plus current execution controls and approval metadata.
+13. Preserve existing report and results rendering.
+14. Preserve backend approval gate; do not bypass it.
+15. Preserve prohibited behavior boundaries:
+    - no direct web-search by the agent outside the approved backend pipeline;
+    - no LinkedIn login;
+    - no LinkedIn scraping or restriction bypass;
+    - no candidate messaging or automatic outreach;
+    - no user or third-party account actions.
+
+### Non-goals
+
+- Do not change backend search execution.
+- Do not change Tavily runner.
+- Do not change dedupe, filters, location matching, candidate scoring, or report generation.
+- Do not build an agent loop.
+- Do not add persistence, database, memory, shortlist, export, authentication, or candidate workspace.
+- Do not make AI-generated draft plans executable unless a later reviewed task explicitly approves that path.
+
+### Acceptance criteria
+
+- The primary frontend input is recruiter chat, not the old structured form.
+- Chat can reach `ready_for_planning` and show a normalized `Search Brief` summary.
+- `Build Plan` uses `recommendedPlannerMode = ai_with_fallback` by default.
+- `Build Plan` calls `/api/agent/query-plan` with the chat-produced `Search Brief`.
+- Search execution uses planner response `adapted_structured_request`, not old form DOM values.
+- AI draft-only plans remain non-executable.
+- Rule-based or rule-based fallback plans can proceed to existing approval/search flow.
+- Existing report/results rendering still works.
+- Prohibited requests remain refused before planning/execution.
+
+### Implementation result
+
+- Replaced the old primary structured form with a recruiter chat panel.
+- Added frontend state for `messages`, `draftBrief`, `normalizedBrief`, `chatState`, `recommendedPlannerMode`, `adaptedStructuredRequest`, current planner data, plan fingerprint, and busy request state.
+- Chat sends recruiter messages to `POST /api/recruiter-chat/turn` and renders either one assistant clarification/refusal or a normalized `Search Brief` summary.
+- `Build Plan` calls `/api/agent/query-plan` with the chat-produced `Search Brief` and default `recommendedPlannerMode = ai_with_fallback`.
+- Planner response stores `adapted_structured_request`, visible plan data, fingerprint, and executable/non-executable state.
+- `Approve & Search` builds the execution request from `adaptedStructuredRequest` plus approval metadata, not from old DOM form values.
+- AI draft `validated_not_executable` plans remain visible but non-executable.
+- Rule-based and rule-based fallback plans remain the only executable frontend path.
+- Existing report/results rendering is preserved.
+- Prohibited requests remain refused before planning/execution.
+
+### Verification
+
+- `node --check app/static/app.js`
+- `python -m compileall app scripts`
+- `python scripts/smoke_p5_chat_adapter.py`
+- `git diff --check`
+- Browser check on `http://127.0.0.1:8000/`:
+  - prohibited LinkedIn login/messaging request is refused and keeps `Build Plan`/`Approve & Search` disabled;
+  - normal Russian recruiter request reaches `ready_for_planning` and shows `Backend Developer / Java / Spring, Kafka / Ukraine`;
+  - `Build Plan` produces 10 AI draft queries;
+  - AI draft plan remains non-executable and keeps `Approve & Search` disabled;
+  - no browser console errors.
 
 ---
 

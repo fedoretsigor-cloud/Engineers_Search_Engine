@@ -10,7 +10,7 @@
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Phase 3 Quality</p>
+          <p class="eyebrow">Phase 5 Recruiter Chat</p>
           <h1>Engineers Search</h1>
         </div>
         <div class="status" id="app-status">Frontend script loading...</div>
@@ -18,90 +18,34 @@
 
       <section class="workspace" aria-label="Search workspace">
         <section class="left-column">
-          <form class="search-form" id="search-form">
-            <div class="form-grid">
-              <label>
-                Role family
-                <select id="role-family" name="roleFamily">
-                  <option value="Backend Developer">Backend Developer</option>
-                </select>
-              </label>
-
-              <label>
-                Technology
-                <select id="technology" name="technology">
-                  <option value="Java">Java</option>
-                  <option value="Python" disabled>Python</option>
-                  <option value="Node.js" disabled>Node.js</option>
-                  <option value="C#" disabled>C#</option>
-                  <option value="Go" disabled>Go</option>
-                  <option value="PHP" disabled>PHP</option>
-                </select>
-              </label>
-
-              <label>
-                Location
-                <input id="location" name="location" value="Ukraine" autocomplete="off" />
-              </label>
-
-              <label>
-                Planner mode
-                <select id="planner-mode" name="plannerMode">
-                  <option value="rule_based">Rule-based</option>
-                  <option value="ai">AI draft</option>
-                  <option value="ai_with_fallback">AI with fallback</option>
-                </select>
-              </label>
+          <section class="chat-panel" aria-label="Recruiter chat">
+            <div class="panel-header">
+              <h2>Recruiter Chat</h2>
+              <p id="chat-status">Describe the search in Russian or English.</p>
             </div>
 
-            <fieldset class="stack-fieldset">
-              <legend>Java stack</legend>
-              <div class="stack-options" id="stack-options">
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Spring" checked />
-                  <span>Spring</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Spring Boot" />
-                  <span>Spring Boot</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Hibernate" />
-                  <span>Hibernate</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Kafka" checked />
-                  <span>Kafka</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="PostgreSQL" />
-                  <span>PostgreSQL</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="AWS" />
-                  <span>AWS</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Docker" />
-                  <span>Docker</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Kubernetes" />
-                  <span>Kubernetes</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="Microservices" />
-                  <span>Microservices</span>
-                </label>
-                <label class="chip-option">
-                  <input type="checkbox" name="stack" value="REST" />
-                  <span>REST</span>
-                </label>
-              </div>
-              <p class="field-message" id="stack-message"></p>
-            </fieldset>
+            <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
 
-            <div class="filter-toggles" aria-label="Result filters">
+            <form class="chat-form" id="recruiter-chat-form">
+              <label>
+                Message
+                <textarea
+                  id="chat-input"
+                  name="chatInput"
+                  rows="4"
+                  autocomplete="off"
+                  placeholder="Найди backend разработчиков в Украине, основной стек Java, желательно Spring и Kafka."
+                ></textarea>
+              </label>
+              <div class="actions">
+                <button class="secondary-button" id="reset-chat" type="button">Reset</button>
+                <button class="primary-button" id="send-chat" type="submit">Send</button>
+              </div>
+            </form>
+
+            <div class="brief-summary-panel" id="brief-summary-panel" hidden></div>
+
+            <div class="filter-toggles execution-controls" aria-label="Execution controls">
               <label class="toggle-field">
                 <input id="profiles-only" name="profilesOnly" type="checkbox" checked />
                 <span>LinkedIn profiles only</span>
@@ -119,10 +63,10 @@
             </div>
 
             <div class="actions">
-              <button class="secondary-button" id="refresh-plan" type="button">Refresh plan</button>
-              <button class="primary-button" type="submit">Approve & Search</button>
+              <button class="secondary-button" id="build-plan" type="button" disabled>Build Plan</button>
+              <button class="primary-button" id="approve-search" type="button" disabled>Approve & Search</button>
             </div>
-          </form>
+          </section>
 
           <section class="plan-panel" aria-live="polite">
             <div class="panel-header">

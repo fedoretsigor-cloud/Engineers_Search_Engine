@@ -16,15 +16,15 @@ Phase 4 - AI Agent Foundation is completed.
 
 Current phase: `Phase 5 - Recruiter Chat UX + Search Brief conversation`.
 
-Completed through `P5-002`: Phase 4 is closed as an AI Agent Foundation, and Phase 5 has its recruiter chat contract plus backend chat-to-brief adapter. The backend now has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, and `POST /api/recruiter-chat/turn`. This is still not a complete autonomous recruiter agent.
+Completed through `P5-003`: Phase 4 is closed as an AI Agent Foundation, and Phase 5 now has its recruiter chat contract, backend chat-to-brief adapter, and primary recruiter chat frontend. The backend has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, and `POST /api/recruiter-chat/turn`. This is still not a complete autonomous recruiter agent.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`.
 
 `P5-001` is completed as a docs-only contract task. The approved recruiter chat contract supports Russian and English input, asks one clarifying question at a time, replaces the structured form as the primary UX over time, shows a normalized brief summary before `Build Plan`, and keeps `Build Plan` as planner preview only. Chat `Build Plan` should default to `ai_with_fallback` unless an advanced/developer control explicitly overrides planner mode. Tavily execution remains behind explicit backend approval. Direct web-search bypass, LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, and user or third-party account actions remain prohibited behavior.
 
 `P5-002` is implemented as a backend chat-to-brief adapter. The guardrail is preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`. It adds `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic prohibited-request refusal, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = ai_with_fallback`, and a no-Tavily smoke script. It does not build `QueryPlan`, call `/api/agent/query-plan`, call Tavily, execute search, or change frontend UI.
 
-Next task to review: `P5-003 Replace structured form with recruiter chat UI`.
+`P5-003` is implemented. The primary frontend input is now recruiter chat. The implemented path is `chat -> normalizedBrief -> Build Plan -> adapted_structured_request/query_plan -> Approve & Search`, and search execution uses `adapted_structured_request` from the planner response, not old structured-form DOM fields. AI draft `validated_not_executable` plans remain visible but non-executable; rule-based and rule-based fallback plans remain the only executable frontend path.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -113,8 +113,9 @@ Implemented:
 
 ## Current product rule
 
-- Phase 2 search is driven by structured inputs: `Role Family`, `Technology`, `Stack`, and `Location`.
-- `QueryPlanner v1` builds a visible 10-query `QueryPlan` from those inputs.
+- Current frontend search starts from recruiter chat that produces a validated `Search Brief`.
+- Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
+- `QueryPlanner v1` builds a visible 10-query `QueryPlan` from the adapted structured request.
 - Tavily receives only the generated queries from the visible `QueryPlan`.
 - `LinkedIn profiles only` is an explicit visible filter.
 - `Location filter` is an explicit visible filter and currently has the first config for `Ukraine`.
@@ -307,7 +308,7 @@ Final baseline numbers remain above the Phase 2 success criterion:
 
 Recommended next steps:
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts. `P5-001` and `P5-002` are completed; `P5-003` is the next task to review.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts. `P5-001`, `P5-002`, and `P5-003` are completed.
 - Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded agent loop that can choose approved backend tools, inspect results, and suggest next iterations.
 
 Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief conversation is now the active Phase 5 direction.

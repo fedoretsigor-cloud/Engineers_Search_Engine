@@ -49,14 +49,16 @@ Current product direction:
 - `P4-003` through `P4-010` are implemented in code.
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
 - The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
-- The frontend has a `Planner mode` control and planner explanation UI.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract` and `P5-002 Add backend chat-to-brief adapter`.
+- The frontend has recruiter chat as the primary input, a `Search Brief` summary, `Build Plan`, planner explanation UI, and approval-gated search controls.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, and `P5-003 Replace structured form with recruiter chat UI`.
 - `P5-002` guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
-- The next task to review is `P5-003 Replace structured form with recruiter chat UI`.
+- `P5-003` made recruiter chat the primary frontend input.
+- `P5-003` guardrail: search execution uses `adapted_structured_request` from the planner response, not old structured-form DOM fields.
 
 ## Product Rules
 
-- Current structured search is driven by `Role Family`, `Technology`, `Stack`, and `Location`.
+- Current frontend search starts from recruiter chat that produces a validated `Search Brief`.
+- Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
 - `RuleBasedQueryPlanner v1` builds the visible `QueryPlan`.
 - Tavily receives only generated queries from the visible `QueryPlan`.
 - `LinkedIn profiles only` is an explicit visible filter.

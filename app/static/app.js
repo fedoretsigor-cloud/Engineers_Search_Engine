@@ -1,14 +1,16 @@
 const statusElement = document.querySelector("#app-status");
-const searchForm = document.querySelector("#search-form");
-const roleFamilySelect = document.querySelector("#role-family");
-const technologySelect = document.querySelector("#technology");
-const locationInput = document.querySelector("#location");
-const plannerModeSelect = document.querySelector("#planner-mode");
+const chatForm = document.querySelector("#recruiter-chat-form");
+const chatInput = document.querySelector("#chat-input");
+const chatMessagesElement = document.querySelector("#chat-messages");
+const chatStatusElement = document.querySelector("#chat-status");
+const resetChatButton = document.querySelector("#reset-chat");
+const sendChatButton = document.querySelector("#send-chat");
+const buildPlanButton = document.querySelector("#build-plan");
+const searchButton = document.querySelector("#approve-search");
+const briefSummaryPanel = document.querySelector("#brief-summary-panel");
 const profilesOnlyInput = document.querySelector("#profiles-only");
 const locationFilterInput = document.querySelector("#location-filter-enabled");
 const multiWaveInput = document.querySelector("#multi-wave-enabled");
-const refreshPlanButton = document.querySelector("#refresh-plan");
-const stackMessage = document.querySelector("#stack-message");
 const planStatus = document.querySelector("#plan-status");
 const queryList = document.querySelector("#query-list");
 const reportStatus = document.querySelector("#report-status");
@@ -16,14 +18,21 @@ const reportGrid = document.querySelector("#report-grid");
 const contributionList = document.querySelector("#contribution-list");
 const resultsStatus = document.querySelector("#results-status");
 const resultsList = document.querySelector("#results-list");
-const searchButton = searchForm.querySelector(".primary-button");
-const stackInputs = Array.from(document.querySelectorAll('input[name="stack"]'));
 
-let planRefreshTimer = null;
-let locationFilterTouched = false;
+let messages = [];
+let draftBrief = null;
+let normalizedBrief = null;
+let chatState = "drafting";
+let recommendedPlannerMode = "ai_with_fallback";
+let adaptedStructuredRequest = null;
 let latestPlannerData = null;
 let latestQueryPlan = null;
 let latestPlanFingerprint = null;
+let latestExecutablePlan = false;
+let chatRequestInFlight = false;
+let planRequestInFlight = false;
+let searchRequestInFlight = false;
+let interactionVersion = 0;
 
 const MULTI_WAVE_DEFAULTS = {
   max_waves: 5,
@@ -52,98 +61,91 @@ function displayValue(value, fallback = "n/a") {
   return value;
 }
 
-function selectedStack() {
-  return stackInputs.filter((input) => input.checked).map((input) => input.value);
+function displayList(values = [], fallback = "none") {
+  return values.length ? values.join(", ") : fallback;
 }
 
-function isUkraineLocation() {
-  return locationInput.value.trim().toLowerCase() === "ukraine";
-}
-
-function buildStructuredRequest() {
-  return {
-    role_family: roleFamilySelect.value,
-    technology: technologySelect.value,
-    stack: selectedStack(),
-    location: locationInput.value.trim(),
-    linkedin_profiles_only: profilesOnlyInput.checked,
-    location_filter_enabled: locationFilterInput.checked,
+function plannerLabel(value) {
+  const labels = {
+    rule_based: "Rule-based",
+    ai: "AI draft",
+    ai_with_fallback: "AI with fallback",
+    draft_query_plan: "Draft QueryPlan",
+    validated_not_executable: "Validated, not executable",
+    rejected: "Rejected",
+    rule_based_fallback: "Rule-based fallback",
+    needs_clarification: "Needs clarification",
   };
+
+  return labels[value] || displayValue(value);
 }
 
-function buildSearchBrief() {
-  const stack = selectedStack();
-  const roleFamily = roleFamilySelect.value;
-  const technology = technologySelect.value;
-  const location = locationInput.value.trim();
-  const missingFields = [];
-  const clarifyingQuestions = [];
-
-  if (!stack.length) {
-    missingFields.push("stack");
-    clarifyingQuestions.push(
-      "Which Java stack signals are important for this search: Spring, Kafka, AWS, Hibernate, or something else?"
-    );
-  }
-
-  return {
-    source_text: `${roleFamily} with ${technology} in ${location}`,
-    brief_status: missingFields.length ? "needs_clarification" : "ready_for_planning",
-    role_family: roleFamily,
-    technology,
-    stack,
-    location,
-    seniority: null,
-    must_have: technology ? [technology] : [],
-    nice_to_have: stack,
-    exclusions: [],
-    search_depth: multiWaveInput.checked ? "deep" : "standard",
-    profile_sources: ["linkedin_public"],
-    notes: null,
-    missing_fields: missingFields,
-    clarifying_questions: clarifyingQuestions,
-    assumptions: [],
-  };
-}
-
-function buildAgentQueryPlanRequest() {
-  return {
-    planner_mode: plannerModeSelect.value,
-    search_brief: buildSearchBrief(),
-  };
-}
-
-function buildSearchRequest(executionApproval = null) {
-  const request = buildStructuredRequest();
-
-  if (executionApproval) {
-    request.execution_approval = executionApproval;
-  }
-
-  if (!multiWaveInput.checked) {
-    return request;
-  }
-
-  return {
-    ...request,
-    ...MULTI_WAVE_DEFAULTS,
-  };
+function validationMessage(errors = []) {
+  return errors.map((error) => `${error.field}: ${error.message}`).join(" ");
 }
 
 function queryPlanFromPlannerData(data = {}) {
   return data.query_plan || data.fallback_query_plan || data.draft_query_plan || null;
 }
 
+function planFingerprintFromPlannerData(data = {}, queryPlan = null) {
+  return (
+    data.plan_fingerprint ||
+    data.fallback_plan_fingerprint ||
+    queryPlan?.plan_fingerprint ||
+    null
+  );
+}
+
+function isExecutablePlannerData(data = {}) {
+  const queryPlan = queryPlanFromPlannerData(data);
+  const fingerprint = planFingerprintFromPlannerData(data, queryPlan);
+  const mode = data.planner_mode;
+  const status = data.plan_status;
+
+  return Boolean(
+    data.ok &&
+      data.adapted_structured_request &&
+      queryPlan?.queries?.length &&
+      fingerprint &&
+      (mode === "rule_based" ||
+        mode === "rule_based_fallback" ||
+        status === "rule_based_fallback")
+  );
+}
+
 function rememberPlannerData(data = {}) {
   latestPlannerData = data;
   latestQueryPlan = queryPlanFromPlannerData(data);
-  latestPlanFingerprint = data.plan_fingerprint || latestQueryPlan?.plan_fingerprint || null;
+  latestPlanFingerprint = planFingerprintFromPlannerData(data, latestQueryPlan);
+  adaptedStructuredRequest = data.adapted_structured_request || null;
+  latestExecutablePlan = isExecutablePlannerData(data);
+  syncExecutionControlsFromPlan();
+  updateActionState();
 }
 
 function clearPlannerData() {
   latestPlannerData = null;
   latestQueryPlan = null;
   latestPlanFingerprint = null;
+  adaptedStructuredRequest = null;
+  latestExecutablePlan = false;
+  updateActionState();
+}
+
+function syncExecutionControlsFromPlan() {
+  if (!adaptedStructuredRequest) {
+    profilesOnlyInput.checked = true;
+    locationFilterInput.checked = true;
+    profilesOnlyInput.disabled = true;
+    locationFilterInput.disabled = true;
+    return;
+  }
+
+  profilesOnlyInput.checked = Boolean(adaptedStructuredRequest.linkedin_profiles_only);
+  locationFilterInput.checked = Boolean(adaptedStructuredRequest.location_filter_enabled);
+  profilesOnlyInput.disabled = true;
+  locationFilterInput.disabled = true;
 }
 
 function buildExecutionApproval() {
@@ -166,35 +168,55 @@ function searchEndpoint() {
     : "/api/structured-search";
 }
 
-function validationMessage(errors) {
-  return errors.map((error) => `${error.field}: ${error.message}`).join(" ");
-}
+function buildSearchRequest(executionApproval = null) {
+  if (!adaptedStructuredRequest) {
+    throw new Error("Build Plan before approving search.");
+  }
 
-function renderPlanErrors(errors) {
-  planStatus.textContent = validationMessage(errors);
-  queryList.innerHTML = "";
-}
-
-function displayList(values = [], fallback = "none") {
-  return values.length ? values.join(", ") : fallback;
-}
-
-function plannerLabel(value) {
-  const labels = {
-    rule_based: "Rule-based",
-    ai: "AI draft",
-    ai_with_fallback: "AI with fallback",
-    validated_not_executable: "Validated, not executable",
-    rejected: "Rejected",
-    rule_based_fallback: "Rule-based fallback",
-    needs_clarification: "Needs clarification",
+  const request = {
+    ...adaptedStructuredRequest,
+    execution_approval: executionApproval,
   };
 
-  return labels[value] || displayValue(value);
+  if (!multiWaveInput.checked) {
+    return request;
+  }
+
+  return {
+    ...request,
+    ...MULTI_WAVE_DEFAULTS,
+  };
 }
 
-function renderBriefSummary(brief = {}) {
+function renderChatMessages() {
+  if (!messages.length) {
+    chatMessagesElement.innerHTML = `
+      <article class="chat-message assistant-message">
+        <p>Describe the search in natural language. I will collect a Search Brief before planning.</p>
+      </article>
+    `;
+    return;
+  }
+
+  chatMessagesElement.innerHTML = messages
+    .map(
+      (message) => `
+        <article class="chat-message ${
+          message.role === "user" ? "user-message" : "assistant-message"
+        }">
+          <span>${escapeHtml(message.role === "user" ? "You" : "AI")}</span>
+          <p>${escapeHtml(message.content)}</p>
+        </article>
+      `
+    )
+    .join("");
+  chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+}
+
+function renderBriefSummaryCard(brief = normalizedBrief, state = chatState) {
   if (!brief || !Object.keys(brief).length) {
+    briefSummaryPanel.hidden = true;
+    briefSummaryPanel.innerHTML = "";
     return "";
   }
 
@@ -204,11 +226,15 @@ function renderBriefSummary(brief = {}) {
     ["Stack", displayList(brief.stack || [])],
     ["Location", brief.location],
     ["Depth", brief.search_depth],
+    ["Seniority", brief.seniority || "n/a"],
   ];
 
-  return `
+  const markup = `
     <div class="planner-section">
-      <h3>Search Brief</h3>
+      <div class="brief-heading">
+        <h3>Search Brief</h3>
+        <span>${escapeHtml(plannerLabel(state))}</span>
+      </div>
       <div class="brief-grid">
         ${fields
           .map(
@@ -222,12 +248,25 @@ function renderBriefSummary(brief = {}) {
           .join("")}
       </div>
       ${
-        brief.clarifying_questions?.length
-          ? `<p class="planner-note">${escapeHtml(brief.clarifying_questions.join(" "))}</p>`
+        brief.assumptions?.length
+          ? `<p class="planner-note">Assumptions: ${escapeHtml(brief.assumptions.join(", "))}</p>`
+          : ""
+      }
+      ${
+        brief.missing_fields?.length
+          ? `<p class="planner-note">Missing: ${escapeHtml(brief.missing_fields.join(", "))}</p>`
           : ""
       }
     </div>
   `;
+
+  briefSummaryPanel.hidden = false;
+  briefSummaryPanel.innerHTML = markup;
+  return markup;
+}
+
+function renderBriefSummary(brief = {}) {
+  return renderBriefSummaryCard(brief, brief.brief_status || chatState);
 }
 
 function renderValidationErrors(errors = []) {
@@ -255,7 +294,7 @@ function renderValidationErrors(errors = []) {
 function renderPlannerDetails(data = {}) {
   const warnings = data.warnings || [];
   const assumptions = data.assumptions || [];
-  const mode = data.planner_mode || plannerModeSelect.value;
+  const mode = data.planner_mode || recommendedPlannerMode;
   const status = data.plan_status || "draft_query_plan";
 
   return `
@@ -290,45 +329,19 @@ function renderPlannerDetails(data = {}) {
   `;
 }
 
-function renderSearchErrors(errors) {
+function renderPlanErrors(errors = []) {
+  clearPlannerData();
+  planStatus.textContent = validationMessage(errors);
+  queryList.innerHTML = renderValidationErrors(errors);
+}
+
+function renderSearchErrors(errors = []) {
   const message = validationMessage(errors);
   resultsStatus.textContent = message;
   reportStatus.textContent = message;
   resultsList.innerHTML = "";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
-}
-
-function updateLocationFilterToggle() {
-  const isUkraine = isUkraineLocation();
-  locationFilterInput.disabled = !isUkraine;
-
-  if (!isUkraine) {
-    locationFilterInput.checked = false;
-    return;
-  }
-
-  if (!locationFilterTouched) {
-    locationFilterInput.checked = true;
-  }
-}
-
-function updateStackState() {
-  const chosenStack = selectedStack();
-  const reachedLimit = chosenStack.length >= 3;
-
-  stackInputs.forEach((input) => {
-    input.disabled = !input.checked && reachedLimit;
-  });
-
-  if (!chosenStack.length) {
-    stackMessage.textContent = "Select at least one stack item.";
-    searchButton.disabled = false;
-    return false;
-  }
-
-  stackMessage.textContent = `${chosenStack.length} selected.`;
-  return true;
 }
 
 function renderQueryPlan(queryPlan, plannerData = null) {
@@ -376,10 +389,20 @@ function renderAgentQueryPlan(data) {
   if (!queryPlan) {
     planStatus.textContent = plannerLabel(data.plan_status || "rejected");
     queryList.innerHTML = renderPlannerDetails(data);
+    resultsStatus.textContent = "Build a valid plan before approving search.";
     return;
   }
 
   renderQueryPlan(queryPlan, data);
+
+  if (latestExecutablePlan) {
+    resultsStatus.textContent =
+      "Visible rule-based plan is ready. Approve & Search will run through the backend approval gate.";
+    return;
+  }
+
+  resultsStatus.textContent =
+    "Plan preview is not executable yet. Use a rule-based or rule-based fallback plan to search.";
 }
 
 async function fetchAgentQueryPlan() {
@@ -388,7 +411,10 @@ async function fetchAgentQueryPlan() {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(buildAgentQueryPlanRequest()),
+    body: JSON.stringify({
+      planner_mode: recommendedPlannerMode || "ai_with_fallback",
+      search_brief: normalizedBrief,
+    }),
   });
   const data = await response.json();
 
@@ -399,34 +425,159 @@ async function fetchAgentQueryPlan() {
   return data;
 }
 
-async function refreshQueryPlan() {
-  updateLocationFilterToggle();
-  updateStackState();
+async function buildPlanFromChat() {
+  if (!normalizedBrief || chatState !== "ready_for_planning") {
+    planStatus.textContent = "Complete the Search Brief in chat before building a plan.";
+    return null;
+  }
+
+  const requestVersion = interactionVersion;
+  planRequestInFlight = true;
+  updateActionState();
   planStatus.textContent = "Building plan...";
   queryList.innerHTML = "";
+  clearPlannerData();
 
   try {
     const data = await fetchAgentQueryPlan();
+    if (requestVersion !== interactionVersion) {
+      return null;
+    }
 
     if (!data.ok) {
-      clearPlannerData();
-      renderPlanErrors(data.errors || []);
-      return;
+      renderPlanErrors(data.errors || data.validation_errors || []);
+      return null;
     }
 
     renderAgentQueryPlan(data);
     return data;
   } catch (error) {
+    if (requestVersion !== interactionVersion) {
+      return null;
+    }
+
     clearPlannerData();
     planStatus.textContent = error.message;
     queryList.innerHTML = "";
     return null;
+  } finally {
+    if (requestVersion === interactionVersion) {
+      planRequestInFlight = false;
+      updateActionState();
+    }
   }
 }
 
-function schedulePlanRefresh() {
-  window.clearTimeout(planRefreshTimer);
-  planRefreshTimer = window.setTimeout(refreshQueryPlan, 180);
+function updateActionState() {
+  const isBusy = chatRequestInFlight || planRequestInFlight || searchRequestInFlight;
+  const canBuildPlan =
+    chatState === "ready_for_planning" && Boolean(normalizedBrief) && !isBusy;
+  buildPlanButton.disabled = !canBuildPlan;
+  searchButton.disabled = !latestExecutablePlan || isBusy;
+  sendChatButton.disabled = isBusy;
+  chatInput.disabled = isBusy;
+}
+
+function updateChatStateFromResponse(data = {}) {
+  chatState = data.state || "needs_clarification";
+  recommendedPlannerMode = data.recommended_planner_mode || "ai_with_fallback";
+  draftBrief = data.normalized_brief || draftBrief;
+  normalizedBrief = data.normalized_brief || null;
+  clearPlannerData();
+
+  if (data.assistant_message) {
+    messages.push({ role: "assistant", content: data.assistant_message });
+  }
+
+  if (chatState === "ready_for_planning") {
+    chatStatusElement.textContent = "Search Brief ready. Build a plan to continue.";
+  } else if (chatState === "refused") {
+    chatStatusElement.textContent = "Request refused by product safety boundaries.";
+  } else {
+    chatStatusElement.textContent = "Answer the clarification to complete the Search Brief.";
+  }
+
+  renderChatMessages();
+  renderBriefSummaryCard(normalizedBrief, chatState);
+  updateActionState();
+}
+
+async function sendChatTurn(userText) {
+  const requestVersion = interactionVersion;
+  messages.push({ role: "user", content: userText });
+  renderChatMessages();
+  chatRequestInFlight = true;
+  clearPlannerData();
+  chatStatusElement.textContent = "Updating Search Brief...";
+  updateActionState();
+
+  try {
+    const response = await fetch("/api/recruiter-chat/turn", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages,
+        draft_brief: draftBrief,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Recruiter chat request failed.");
+    }
+
+    if (requestVersion !== interactionVersion) {
+      return;
+    }
+
+    updateChatStateFromResponse(data);
+  } catch (error) {
+    if (requestVersion !== interactionVersion) {
+      return;
+    }
+
+    messages.push({
+      role: "assistant",
+      content: error.message,
+    });
+    chatStatusElement.textContent = error.message;
+    renderChatMessages();
+    updateActionState();
+  } finally {
+    if (requestVersion === interactionVersion) {
+      chatRequestInFlight = false;
+      updateActionState();
+      chatInput.focus();
+    }
+  }
+}
+
+function resetChat() {
+  interactionVersion += 1;
+  messages = [];
+  draftBrief = null;
+  normalizedBrief = null;
+  chatState = "drafting";
+  recommendedPlannerMode = "ai_with_fallback";
+  chatRequestInFlight = false;
+  planRequestInFlight = false;
+  searchRequestInFlight = false;
+  clearPlannerData();
+  chatInput.value = "";
+  chatStatusElement.textContent = "Describe the search in Russian or English.";
+  planStatus.textContent = "Build a plan from the chat brief.";
+  queryList.innerHTML = "";
+  reportStatus.textContent = "Run a search to see counts.";
+  reportGrid.innerHTML = "";
+  contributionList.innerHTML = "";
+  resultsStatus.textContent = "Run a search to see deduped candidates.";
+  resultsList.innerHTML = "";
+  renderChatMessages();
+  renderBriefSummaryCard(null);
+  syncExecutionControlsFromPlan();
+  updateActionState();
 }
 
 function renderReport(report) {
@@ -681,21 +832,15 @@ function renderResults(dedupedResults, report) {
 }
 
 async function runStructuredSearch() {
-  if (plannerModeSelect.value !== "rule_based") {
+  if (!latestExecutablePlan) {
     resultsStatus.textContent =
-      "AI planner previews cannot be executed yet. Switch Planner mode to Rule-based to run the current search.";
-    reportStatus.textContent = "Search execution still requires the future approval flow.";
+      "Build an executable rule-based or fallback plan before approving search.";
     return;
   }
 
-  if (!updateStackState()) {
-    resultsStatus.textContent = "Select at least one stack item before searching.";
-    resultsList.innerHTML = "";
-    return;
-  }
-
-  searchButton.disabled = true;
-  refreshPlanButton.disabled = true;
+  const requestVersion = interactionVersion;
+  searchRequestInFlight = true;
+  updateActionState();
   resultsStatus.textContent = "Preparing approval for the visible QueryPlan...";
   reportStatus.textContent = "Validating current plan before Tavily execution...";
   resultsList.innerHTML = "";
@@ -703,17 +848,6 @@ async function runStructuredSearch() {
   contributionList.innerHTML = "";
 
   try {
-    const planData = await fetchAgentQueryPlan();
-    if (!planData.ok) {
-      clearPlannerData();
-      renderPlanErrors(planData.errors || []);
-      resultsStatus.textContent = validationMessage(planData.errors || []);
-      reportStatus.textContent = "Search was not approved.";
-      return;
-    }
-
-    renderAgentQueryPlan(planData);
-
     if (!latestPlanFingerprint || !latestQueryPlan?.queries?.length) {
       throw new Error("Current QueryPlan is missing approval fingerprint.");
     }
@@ -735,6 +869,9 @@ async function runStructuredSearch() {
       body: JSON.stringify(buildSearchRequest(executionApproval)),
     });
     const data = await response.json();
+    if (requestVersion !== interactionVersion) {
+      return;
+    }
 
     if (!response.ok) {
       throw new Error(data.detail || "Structured search request failed.");
@@ -747,18 +884,25 @@ async function runStructuredSearch() {
 
     renderQueryPlan(data.query_plan, {
       planner_mode: "rule_based",
+      normalized_brief: normalizedBrief,
     });
     renderReport(data.report);
     renderResults(data.deduped_results || [], data.report);
   } catch (error) {
+    if (requestVersion !== interactionVersion) {
+      return;
+    }
+
     resultsStatus.textContent = error.message;
     reportStatus.textContent = error.message;
     resultsList.innerHTML = "";
     reportGrid.innerHTML = "";
     contributionList.innerHTML = "";
   } finally {
-    searchButton.disabled = false;
-    refreshPlanButton.disabled = false;
+    if (requestVersion === interactionVersion) {
+      searchRequestInFlight = false;
+      updateActionState();
+    }
   }
 }
 
@@ -766,37 +910,19 @@ if (statusElement) {
   statusElement.textContent = "Frontend ready";
 }
 
-locationFilterInput.addEventListener("change", () => {
-  locationFilterTouched = true;
-  schedulePlanRefresh();
-});
-
-[
-  roleFamilySelect,
-  technologySelect,
-  locationInput,
-  profilesOnlyInput,
-  plannerModeSelect,
-  multiWaveInput,
-].forEach((input) => {
-  input.addEventListener("input", schedulePlanRefresh);
-  input.addEventListener("change", schedulePlanRefresh);
-});
-
-stackInputs.forEach((input) => {
-  input.addEventListener("change", () => {
-    updateStackState();
-    schedulePlanRefresh();
-  });
-});
-
-refreshPlanButton.addEventListener("click", refreshQueryPlan);
-
-searchForm.addEventListener("submit", (event) => {
+chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  runStructuredSearch();
+  const userText = chatInput.value.trim();
+  if (!userText) {
+    return;
+  }
+  chatInput.value = "";
+  sendChatTurn(userText);
 });
 
-updateLocationFilterToggle();
-updateStackState();
-refreshQueryPlan();
+resetChatButton.addEventListener("click", resetChat);
+buildPlanButton.addEventListener("click", buildPlanFromChat);
+searchButton.addEventListener("click", runStructuredSearch);
+multiWaveInput.addEventListener("change", updateActionState);
+
+resetChat();

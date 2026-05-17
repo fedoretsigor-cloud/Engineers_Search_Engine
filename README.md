@@ -14,16 +14,16 @@ Status:
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
 - Current active phase: Phase 5 `Recruiter Chat UX + Search Brief conversation`.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`.
 - `P5-002` added `POST /api/recruiter-chat/turn` and is limited to `chat messages -> draft Search Brief -> validation -> one assistant response`.
-- Next task to review: `P5-003 Replace structured form with recruiter chat UI`.
+- `P5-003` made recruiter chat the primary frontend input and keeps execution tied to planner response `adapted_structured_request`.
 
 Current pipeline:
 
-- structured inputs: `Role Family`, `Technology`, `Stack`, `Location`;
+- recruiter chat collects a validated `Search Brief` from natural-language recruiter messages;
+- `Build Plan` converts the chat-produced brief into a visible planner preview;
 - `RuleBasedQueryPlanner v1` generates a visible 10-query `QueryPlan`;
 - optional explicit AI planner mode can draft and explain a non-executable plan;
-- recruiter chat turn endpoint can convert natural recruiter messages into a validated `Search Brief`;
 - backend validates AI draft plans deterministically and can show rule-based fallback;
 - rule-based Tavily execution requires explicit approval bound to action, query count, and current `QueryPlan` fingerprint;
 - Tavily executes the generated queries;
