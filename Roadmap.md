@@ -270,7 +270,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
 - Preserve absolute product boundaries as prohibited behavior: no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
-- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, and `P5-004 Make Build Plan produce an approvable Search Plan` are completed.
+- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, and `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback` are completed.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
@@ -310,7 +310,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001`, `P5-002`, `P5-003`, and `P5-004 Make Build Plan produce an approvable Search Plan` are completed.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-007` are completed.
 
 ### Phase 5 Approved Contract
 
@@ -334,7 +334,7 @@ Recommended implementation order after the contract:
 - `P5-004 Make Build Plan produce an approvable Search Plan` - implemented.
 - `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline` - implemented.
 - `P5-006 Add post-results Agent Response in chat` - implemented.
-- `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback` - added for review, not approved, not implemented.
+- `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback` - implemented.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 
@@ -346,9 +346,11 @@ Recommended implementation order after the contract:
 
 `P5-006` implementation result: approved search responses now return deterministic backend-generated `agent_response` grounded only in executed QueryPlan/request/report/results/quality data. The frontend passes minimal `agent_language`, shows the response as a local-only `AI Agent` chat message after results, and keeps suggested next actions inert text. No extra Tavily/LLM/web/LinkedIn calls, broad agent context, autonomous execution, persistence, or executable next-action buttons were added.
 
-Proposed next Phase 5 direction for review:
+Implemented `P5-007` result:
 
-- `P5-007` should add LLM-assisted Agent Plan/Response wording with deterministic fallback, bounded payloads, and no execution authority.
+- Agent Plan and Agent Response wording can be LLM-assisted when OpenAI is configured.
+- Deterministic fallback remains available without OpenAI configuration or when LLM output is unsafe/invalid.
+- LLM wording is backend-only, bounded to text overlay fields, and has no execution authority.
 
 ### Done
 

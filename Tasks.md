@@ -1994,6 +1994,8 @@ Verification:
 
 ### Backlog
 
+- [ ] P5-008 Improve recruiter chat conversational tone and greeting behavior
+
 ### In Progress
 
 ### Done
@@ -2041,7 +2043,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2080,7 +2082,7 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
-- [ ] P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
+- [ ] P5-008 Improve recruiter chat conversational tone and greeting behavior
 
 ### In Progress
 
@@ -2092,6 +2094,7 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-004 Make Build Plan produce an approvable Search Plan
 - [x] P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline
 - [x] P5-006 Add post-results Agent Response in chat
+- [x] P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
 
 ### Current Phase 5 strategy note
 
@@ -2429,7 +2432,9 @@ After an approved search completes, show a grounded Agent Response in chat that 
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Implemented.
+
+Implementation result: Agent Plan and Agent Response now support LLM-assisted wording as a backend-only optional overlay after deterministic objects are built. If `OPENAI_API_KEY` and `OPENAI_MODEL` are configured, backend attempts bounded JSON wording through the existing OpenAI Chat Completions path; otherwise it uses deterministic fallback. The LLM payload excludes raw candidate URLs and full candidate records, suggested next actions remain deterministic/inert, and validation rejects unsafe content, wrong-language output, unknown fields, disallowed numbers, or any attempt to change facts, actions, fingerprints, approval state, planner mode, filters, scoring, dedupe, or location logic. `/api/agent/plan`, `/api/structured-search`, and `/api/structured-search/multi-wave` keep the same public flow and now include wording provenance metadata.
 
 ### Context
 
@@ -2437,49 +2442,224 @@ Draft. Added to the task list for review. Not approved. Not implemented.
 
 ### Goal
 
-Use ChatGPT/LLM to improve Agent Plan and Agent Response wording while preserving deterministic backend validation, approval gates, and fallback behavior.
+Use ChatGPT/LLM to improve Agent Plan and Agent Response wording while preserving deterministic backend validation, approval gates, facts, action contracts, and fallback behavior.
 
 ### Steps
 
-1. Define the bounded LLM input payload.
-   - Search Brief.
-   - planner metadata.
-   - QueryPlan summary.
+1. Limit P5-007 to wording/synthesis only.
+   - Improve `Agent Plan` wording from `P5-005`.
+   - Improve `Agent Response` wording from `P5-006`.
+   - Do not generate or change QueryPlans.
+   - Do not make AI-generated QueryPlans executable.
+   - Do not change proposed actions, fingerprints, approval rules, filters, scoring, location logic, dedupe, or candidate ordering.
+2. Enable LLM-assisted wording by default when OpenAI is configured.
+   - If `OPENAI_API_KEY` is available, backend may attempt LLM-assisted wording.
+   - If OpenAI is not configured, use deterministic wording.
+   - Do not require a new frontend switch for P5-007.
+3. Define two bounded backend use cases.
+   - `Agent Plan wording`: after ready supported Search Brief and deterministic `agent_plan` exists.
+   - `Agent Response wording`: after approved search results and deterministic `agent_response` exists.
+   - Both use cases must start from deterministic backend facts/contracts.
+4. Implement LLM wording as backend helpers, not a new public endpoint.
+   - Add helper such as `apply_llm_wording_to_agent_plan(...)`.
+   - Add helper such as `apply_llm_wording_to_agent_response(...)`.
+   - Do not add `/api/llm-wording` or any standalone LLM wording endpoint in P5-007.
+   - Keep the LLM path inside the existing Agent Plan / Agent Response backend flow.
+5. Define the bounded LLM input payload for Agent Plan wording.
+   - normalized Search Brief or supported Agent Plan input snapshot.
+   - proposed action metadata.
+   - approval requirement.
+   - known product boundaries.
+   - current chat language.
+6. Define the bounded LLM input payload for Agent Response wording.
+   - executed `QueryPlan` input snapshot.
    - report metrics.
+   - quality buckets.
    - quality signals and review flags.
-   - known limitations.
-2. Define strict output shape.
-   - Agent Plan explanation.
-   - Agent Response summary.
-   - suggested next actions.
-   - warnings/limitations.
-3. Keep the LLM away from execution authority.
+   - known public-snippet limitations.
+   - current chat language.
+   - Do not send raw candidate URLs to the LLM.
+   - Do not send full candidate records to the LLM.
+   - If examples are needed, use anonymized aggregate signal examples only.
+7. Keep suggested next actions deterministic.
+   - LLM must not generate a new `suggested_next_actions` list.
+   - Existing deterministic inert next actions remain source of truth.
+   - LLM may reference deterministic next actions in prose only if it does not add new actions or make them executable.
+8. Define strict LLM output shape.
+   - `message`.
+   - `warnings`.
+   - `limitations`.
+   - No executable actions.
+   - No query text.
+   - No changed facts/counts.
+9. Keep deterministic backend data as source of truth.
+   - LLM may only rewrite/summarize wording.
+   - Backend must first build the full deterministic `agent_plan` or `agent_response`.
+   - LLM output is an optional overlay on top of the deterministic object.
+   - If accepted, LLM output may replace only text fields such as `message`, `warnings`, and `limitations`.
+   - Backend keeps `proposed_action`, `brief_fingerprint`, `plan_fingerprint`, counts, quality buckets, limitations, and suggested action `executable=false`.
+   - Frontend should not need a new flow; it renders the same `agent_plan.message` and `agent_response.message`.
+10. Add provenance metadata.
+   - `wording_mode`: `llm_assisted` or `deterministic_fallback`.
+   - `fallback_reason` when fallback is used.
+   - `llm_warnings` when available.
+11. Add deterministic fallback.
+   - If API key/model is unavailable, use deterministic wording.
+   - If LLM request times out or fails, use deterministic wording.
+   - Use a short LLM timeout, roughly 6-8 seconds.
+   - If timeout happens, fallback silently in UI with provenance metadata.
+   - If LLM output is invalid JSON or wrong shape, use deterministic wording.
+   - If LLM output changes facts, counts, action metadata, or executability, use deterministic wording.
+   - If LLM output uses the wrong language, use deterministic wording.
+   - If LLM output is too promotional, overconfident, or dishonest about snippet limits, use deterministic wording.
+12. Add strict LLM prompt boundaries.
+   - The prompt must prohibit web search.
+   - The prompt must prohibit LinkedIn login/scraping/restriction bypass.
+   - The prompt must prohibit candidate messaging/outreach.
+   - The prompt must prohibit user or third-party account actions.
+   - The prompt must prohibit changing facts, counts, actions, filters, scoring, location logic, dedupe, or planner behavior.
+   - The prompt must prohibit inventing candidates or claiming direct LinkedIn inspection.
+13. Add safety checks.
+   - Reject or fallback on prohibited content.
+   - Build an explicit whitelist of allowed numbers from the bounded facts payload.
+   - Fallback if output contains numbers not present in that allowed facts whitelist.
+   - LLM should avoid adding new numbers; for example, say `top candidates` rather than inventing `top 3 candidates` unless `3` is an allowed fact.
+   - Fallback if output says or implies that the agent already contacted candidates, ran a search, searched LinkedIn directly, logged in, scraped, or used an account.
+   - Fallback on executable/action language such as `I will run`, `I contacted`, `I searched LinkedIn directly`, or equivalent RU wording.
+   - No direct web-search outside the approved backend pipeline.
+   - No direct LinkedIn access/automation.
+   - No LinkedIn login.
+   - No LinkedIn scraping or restriction bypass.
+   - No candidate messaging or outreach.
+   - No user or third-party account actions.
+14. Keep the LLM away from execution authority.
    - LLM must not call Tavily.
    - LLM must not approve actions.
-   - LLM must not change filters, scoring, location logic, or dedupe.
-4. Add deterministic fallback.
-   - If API key/model is unavailable, use deterministic wording.
-   - If LLM output is invalid, use deterministic wording.
-5. Add safety checks.
-   - Reject prohibited content.
-   - Do not include direct LinkedIn access/automation.
-   - Do not include messaging/account actions.
-6. Verify no autonomous execution.
+   - LLM must not propose executable buttons.
+   - LLM must not change filters, scoring, location logic, dedupe, or planner behavior.
+15. Verify no autonomous execution.
+   - No Tavily call is made by wording generation.
+   - No search execution happens from the LLM path.
+   - Deterministic fallback works without OpenAI configuration.
+   - LLM-assisted path remains bounded to text-only fields.
+
+### LLM overlay field boundaries
+
+- LLM may return text fields; backend must validate the returned object and apply only the explicitly allowed overlay fields.
+- For `agent_plan`, accepted LLM output may replace only `agent_plan.message` and add/update wording provenance metadata.
+- For `agent_response`, accepted LLM output may replace only `agent_response.message`, optional wording inside existing `limitations`, and optional `llm_warnings`.
+- LLM must not change `summary_facts`, `quality_notes`, `suggested_next_actions`, `proposed_action`, fingerprints, counts, approval state, executable flags, planner mode, filters, scoring, dedupe, or location logic.
 
 ### Non-goals
 
-- Do not make AI-generated QueryPlans executable.
+- Do not generate or make AI-generated QueryPlans executable.
 - Do not add a generic autonomous agent loop.
 - Do not add persistence, database, shortlist, export, or candidate workspace.
 - Do not perform direct web-search outside the approved backend pipeline.
 - Do not access LinkedIn directly.
+- Do not add frontend controls for LLM mode in this task.
+- Do not make suggested next actions executable.
+- Do not add a public LLM wording endpoint.
+- Do not send raw candidate URLs or full candidate records to the LLM.
+- Do not let the LLM generate new suggested next actions.
 
 ### Acceptance criteria
 
-- Agent Plan/Response can be LLM-assisted when configured.
+- Agent Plan and Agent Response wording can be LLM-assisted when OpenAI is configured.
 - Deterministic fallback works without OpenAI configuration.
 - LLM output remains grounded in bounded backend payload.
+- LLM output is applied only as an optional overlay on text fields after deterministic `agent_plan` / `agent_response` is built.
+- LLM output cannot change facts, counts, proposed actions, fingerprints, approval requirements, filters, scoring, location logic, dedupe, or suggested action executability.
+- LLM output cannot introduce numbers outside the explicit allowed facts whitelist.
+- LLM payload does not include raw candidate URLs or full candidate records.
+- Suggested next actions remain deterministic and inert.
+- LLM timeout falls back to deterministic wording without blocking the product flow.
+- Unsafe, overconfident, promotional, wrong-language, or fact-changing LLM output falls back to deterministic wording.
+- Responses include wording provenance metadata.
 - No execution occurs from the LLM path.
+- No prohibited behavior is introduced.
+
+---
+
+## Task: P5-008 Improve recruiter chat conversational tone and greeting behavior
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+After `P5-007`, Agent Plan and Agent Response wording can be LLM-assisted, but the normal recruiter chat turn still feels too cold and robotic for simple conversational moments such as `привет` / `hello`.
+
+This matters because Phase 5 is the user-facing recruiter chat phase. If the chat cannot greet, orient, and guide the recruiter naturally, the product does not feel like an AI Agent even though the backend flow is becoming agentic.
+
+### Goal
+
+Make the recruiter chat feel warmer and more useful at the start of a conversation while preserving the existing safe contract:
+
+`chat messages -> draft Search Brief -> validation -> one assistant response`
+
+The agent should be able to greet the recruiter, explain what information it needs, and gently guide the recruiter toward a usable `Search Brief` without planning or executing search.
+
+### Steps
+
+1. Define conversational cases for v0.
+   - Greeting only: `привет`, `hello`, `hi`.
+   - Empty or near-empty message.
+   - Greeting plus vague intent: `привет, хочу найти разработчика`.
+   - Partial search intent with missing fields.
+   - Complete supported search intent.
+2. Add deterministic greeting/onboarding behavior.
+   - For greeting-only messages, return a friendly assistant message instead of a cold validation response.
+   - Keep the message short and useful.
+   - In Russian, respond in Russian.
+   - In English, respond in English.
+3. Keep the assistant oriented toward Search Brief collection.
+   - Ask for role, main technology, location, and stack when they are missing.
+   - Ask only one clear next question when possible.
+   - Do not pretend the agent can search before a brief is ready.
+4. Preserve the existing chat-to-brief guardrail.
+   - Do not build `QueryPlan` inside `/api/recruiter-chat/turn`.
+   - Do not call `/api/agent/query-plan` from the chat turn.
+   - Do not call Tavily.
+   - Do not execute search.
+   - Do not add an agent loop.
+5. Decide how LLM output and deterministic tone interact.
+   - If OpenAI returns a usable assistant message, keep validation as source of truth.
+   - If OpenAI is unavailable or returns a poor/cold message, use deterministic friendly fallback.
+   - Backend validation still owns `state`, `normalized_brief`, `missing_fields`, `can_build_plan`, and `build_plan_action`.
+6. Keep product boundaries absolute.
+   - No direct web-search by the agent outside the approved backend pipeline.
+   - No direct LinkedIn access/automation.
+   - No LinkedIn login.
+   - No LinkedIn scraping or restriction bypass.
+   - No candidate messaging or automatic outreach.
+   - No autonomous execution.
+   - No user or third-party account actions.
+7. Verify with no-Tavily chat tests.
+   - RU greeting-only returns a warm onboarding response.
+   - EN greeting-only returns a warm onboarding response.
+   - Greeting-only does not create a ready Search Brief.
+   - Partial intent still asks one useful missing-field question.
+   - Complete supported intent still reaches `ready_for_planning`.
+   - Prohibited requests still refuse and do not get softened into allowed behavior.
+
+### Non-goals
+
+- Do not redesign the frontend UI in this task.
+- Do not add persistence or chat memory.
+- Do not add candidate workspace/table behavior.
+- Do not make suggested actions executable.
+- Do not change planner, Tavily execution, scoring, filters, dedupe, or location logic.
+
+### Acceptance criteria
+
+- The recruiter chat responds naturally to simple greetings in RU and EN.
+- Greeting-only input guides the recruiter toward a useful search brief without marking the brief ready.
+- Partial intent gets one friendly clarification question.
+- Complete supported intent still produces the existing ready Search Brief flow.
+- Existing safety refusals remain strict.
+- No Tavily/search/planner execution happens inside the chat turn.
 - No prohibited behavior is introduced.
 
 ---

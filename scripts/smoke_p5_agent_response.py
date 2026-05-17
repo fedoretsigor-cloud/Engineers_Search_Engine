@@ -134,14 +134,20 @@ async def forbidden_openai_call(*args, **kwargs):
 
 async def run_smoke() -> None:
     original_tavily_key = os.environ.get("TAVILY_API_KEY")
+    original_openai_key = os.environ.get("OPENAI_API_KEY")
+    original_openai_model = os.environ.get("OPENAI_MODEL")
     original_run_query_plan_wave = main.run_query_plan_wave
     original_chat_llm = main.run_openai_json_recruiter_chat
     original_planner_llm = main.run_openai_json_planner
+    original_wording_llm = main.run_openai_json_agent_wording
 
     os.environ["TAVILY_API_KEY"] = "fake-no-network-key"
+    os.environ.pop("OPENAI_API_KEY", None)
+    os.environ.pop("OPENAI_MODEL", None)
     main.run_query_plan_wave = fake_run_query_plan_wave
     main.run_openai_json_recruiter_chat = forbidden_openai_call
     main.run_openai_json_planner = forbidden_openai_call
+    main.run_openai_json_agent_wording = forbidden_openai_call
 
     try:
         assert main.StructuredSearchRequest(agent_language="ru").agent_language == "ru"
@@ -177,10 +183,19 @@ async def run_smoke() -> None:
         main.run_query_plan_wave = original_run_query_plan_wave
         main.run_openai_json_recruiter_chat = original_chat_llm
         main.run_openai_json_planner = original_planner_llm
+        main.run_openai_json_agent_wording = original_wording_llm
         if original_tavily_key is None:
             os.environ.pop("TAVILY_API_KEY", None)
         else:
             os.environ["TAVILY_API_KEY"] = original_tavily_key
+        if original_openai_key is None:
+            os.environ.pop("OPENAI_API_KEY", None)
+        else:
+            os.environ["OPENAI_API_KEY"] = original_openai_key
+        if original_openai_model is None:
+            os.environ.pop("OPENAI_MODEL", None)
+        else:
+            os.environ["OPENAI_MODEL"] = original_openai_model
 
 
 if __name__ == "__main__":
