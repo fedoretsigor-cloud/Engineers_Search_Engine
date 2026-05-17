@@ -19,11 +19,13 @@ const contributionList = document.querySelector("#contribution-list");
 const resultsStatus = document.querySelector("#results-status");
 const resultsList = document.querySelector("#results-list");
 
+const PRIMARY_BUILD_PLAN_MODE = "rule_based";
+
 let messages = [];
 let draftBrief = null;
 let normalizedBrief = null;
 let chatState = "drafting";
-let recommendedPlannerMode = "ai_with_fallback";
+let recommendedPlannerMode = PRIMARY_BUILD_PLAN_MODE;
 let adaptedStructuredRequest = null;
 let latestPlannerData = null;
 let latestQueryPlan = null;
@@ -67,13 +69,13 @@ function displayList(values = [], fallback = "none") {
 
 function plannerLabel(value) {
   const labels = {
-    rule_based: "Rule-based",
-    ai: "AI draft",
-    ai_with_fallback: "AI with fallback",
+    rule_based: "Search Plan",
+    ai: "AI preview",
+    ai_with_fallback: "AI-assisted preview",
     draft_query_plan: "Draft QueryPlan",
-    validated_not_executable: "Validated, not executable",
+    validated_not_executable: "Validated preview",
     rejected: "Rejected",
-    rule_based_fallback: "Rule-based fallback",
+    rule_based_fallback: "Fallback Search Plan",
     needs_clarification: "Needs clarification",
   };
 
@@ -82,6 +84,33 @@ function plannerLabel(value) {
 
 function validationMessage(errors = []) {
   return errors.map((error) => `${error.field}: ${error.message}`).join(" ");
+}
+
+function plannerModeForBuildPlan() {
+  return PRIMARY_BUILD_PLAN_MODE;
+}
+
+function isBackendSearchPlan(data = {}) {
+  return (
+    data.planner_mode === "rule_based" ||
+    data.planner_mode === "rule_based_fallback" ||
+    data.plan_status === "rule_based_fallback"
+  );
+}
+
+function plannerStatusLabel(status, mode) {
+  if (
+    status === "validated_not_executable" &&
+    isBackendSearchPlan({ planner_mode: mode, plan_status: status })
+  ) {
+    return "Ready for approval";
+  }
+
+  if (status === "validated_not_executable" && mode === "ai") {
+    return "Preview only";
+  }
+
+  return plannerLabel(status);
 }
 
 function queryPlanFromPlannerData(data = {}) {
@@ -301,7 +330,7 @@ function renderPlannerDetails(data = {}) {
     <div class="planner-meta">
       <div class="planner-badges">
         <span>${escapeHtml(plannerLabel(mode))}</span>
-        <span>${escapeHtml(plannerLabel(status))}</span>
+        <span>${escapeHtml(plannerStatusLabel(status, mode))}</span>
       </div>
       ${renderBriefSummary(data.normalized_brief)}
       ${
@@ -346,14 +375,16 @@ function renderSearchErrors(errors = []) {
 
 function renderQueryPlan(queryPlan, plannerData = null) {
   const queries = queryPlan.queries || [];
-  const modeText = plannerData?.planner_mode
-    ? `${plannerLabel(plannerData.planner_mode)}: `
-    : "";
-  planStatus.textContent = `${modeText}${queryPlan.planner_version} generated ${queries.length} ${pluralize(
-    queries.length,
-    "query",
-    "queries"
-  )}.`;
+  const queryCountText = `${queries.length} ${pluralize(queries.length, "query", "queries")}`;
+
+  if (plannerData && isBackendSearchPlan(plannerData)) {
+    planStatus.textContent = `Search plan is ready: ${queryPlan.planner_version} generated ${queryCountText}.`;
+  } else {
+    const modeText = plannerData?.planner_mode
+      ? `${plannerLabel(plannerData.planner_mode)}: `
+      : "";
+    planStatus.textContent = `${modeText}${queryPlan.planner_version} generated ${queryCountText}.`;
+  }
 
   const queryMarkup = queries
     .map((querySlot) => {
@@ -397,7 +428,7 @@ function renderAgentQueryPlan(data) {
 
   if (latestExecutablePlan) {
     resultsStatus.textContent =
-      "Visible rule-based plan is ready. Approve & Search will run through the backend approval gate.";
+      "Search plan is ready. Review the queries before running search.";
     return;
   }
 
@@ -412,7 +443,7 @@ async function fetchAgentQueryPlan() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      planner_mode: recommendedPlannerMode || "ai_with_fallback",
+      planner_mode: plannerModeForBuildPlan(),
       search_brief: normalizedBrief,
     }),
   });
@@ -480,7 +511,7 @@ function updateActionState() {
 
 function updateChatStateFromResponse(data = {}) {
   chatState = data.state || "needs_clarification";
-  recommendedPlannerMode = data.recommended_planner_mode || "ai_with_fallback";
+  recommendedPlannerMode = data.recommended_planner_mode || PRIMARY_BUILD_PLAN_MODE;
   draftBrief = data.normalized_brief || draftBrief;
   normalizedBrief = data.normalized_brief || null;
   clearPlannerData();
@@ -560,7 +591,7 @@ function resetChat() {
   draftBrief = null;
   normalizedBrief = null;
   chatState = "drafting";
-  recommendedPlannerMode = "ai_with_fallback";
+  recommendedPlannerMode = PRIMARY_BUILD_PLAN_MODE;
   chatRequestInFlight = false;
   planRequestInFlight = false;
   searchRequestInFlight = false;

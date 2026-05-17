@@ -48,7 +48,7 @@ PLANNER_MODES = {
     PLANNER_MODE_AI,
     PLANNER_MODE_AI_WITH_FALLBACK,
 }
-RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_AI_WITH_FALLBACK
+RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_RULE_BASED
 RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
 RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
 RECRUITER_CHAT_STATE_REFUSED = "refused"
@@ -3576,7 +3576,9 @@ def build_agent_rule_based_plan_response(
         "assumptions": normalized_brief.get("assumptions", []),
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": "This plan is not executed yet. Search execution requires approval.",
+        "approval_notice": (
+            "Search plan is ready. Review the queries before running search."
+        ),
     }
 
 
@@ -3611,7 +3613,9 @@ def build_rule_based_fallback_response(
         "repair_attempts": repair_attempts,
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": "This fallback plan is not executed yet. Search execution requires approval.",
+        "approval_notice": (
+            "Fallback search plan is ready. Review the queries before running search."
+        ),
     }
 
 

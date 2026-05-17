@@ -50,15 +50,19 @@ Current product direction:
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
 - The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has recruiter chat as the primary input, a `Search Brief` summary, `Build Plan`, planner explanation UI, and approval-gated search controls.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, and `P5-003 Replace structured form with recruiter chat UI`.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, and `P5-004 Make Build Plan produce an approvable Search Plan`.
 - `P5-002` guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
 - `P5-003` made recruiter chat the primary frontend input.
 - `P5-003` guardrail: search execution uses `adapted_structured_request` from the planner response, not old structured-form DOM fields.
+- `P5-004` made primary chat `Build Plan` use `planner_mode = rule_based` so supported briefs produce an approvable Search Plan. This is an AI Agent step: the agent now has a safe executable planning bridge behind an approval gate while AI planning capability remains available for the next agent-planning evolution.
 
 ## Product Rules
 
+- Every product step should move the system toward a real AI Agent experience: dialogue, intent understanding, planning, tool boundaries, approval gates, execution, result analysis, and iterative follow-up.
+- The AI Agent must stay human-approved, not autonomous. It may suggest, prepare, explain, validate, and analyze, but it must not independently execute searches, deep/multi-wave runs, outreach, account actions, or other externally meaningful actions.
 - Current frontend search starts from recruiter chat that produces a validated `Search Brief`.
 - Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
+- Primary chat `Build Plan` uses `planner_mode = rule_based` and produces an approvable Search Plan.
 - `RuleBasedQueryPlanner v1` builds the visible `QueryPlan`.
 - Tavily receives only generated queries from the visible `QueryPlan`.
 - `LinkedIn profiles only` is an explicit visible filter.
@@ -69,7 +73,7 @@ Current product direction:
 - Explicit foreign current location hides a candidate as `excluded_foreign_current_location`, even if the URL is `ua.linkedin.com/in/...`.
 - Non-UA LinkedIn profiles can be rescued only when Tavily public header/current-location text contains supported target-location terms.
 - Unknown current location falls back to country-domain/header/weak/unknown signals.
-- `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` remains the default execution planner; explicit AI planner mode can draft non-executable plans for backend validation/fallback.
+- `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` is the current approved executable tool for the agent; explicit AI planner mode can draft plans for backend validation/fallback and should be evolved toward safe executable planning through reviewed tasks.
 - Rule-based Tavily execution requires explicit approval bound to action, query count, and the current `QueryPlan` fingerprint.
 - `POST /api/recruiter-chat/turn` can prepare a `Search Brief`, but it must not build `QueryPlan`, call Tavily, execute search, or change frontend UI.
 - AI QueryPlan validation checks safety, alignment, and strict coverage for the Java/Ukraine standard baseline through `AIPlannerCoveragePolicy v0`; unsupported briefs return a visible coverage-policy warning.
@@ -79,14 +83,14 @@ Current product direction:
 - Tavily live result sets vary between runs; use snapshots for deterministic analysis and treat live unique counts as a range, not a fixed guarantee.
 - Tavily execution must stay inside the approved backend pipeline.
 - The legacy raw `/api/search` Tavily path is disabled.
-- Absolute product boundaries: no direct web-search bypass, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, and no user/third-party account actions.
+- Absolute product boundaries: no direct web-search bypass, no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, no autonomous execution, and no user/third-party account actions.
 
 ## Working Rules
 
 - Read `instructions`, `ProjectStatus.md`, `Roadmap.md`, `Tasks.md`, `docs/phase-1-poc-findings.md`, `docs/phase-3-quality-baseline.md`, and `docs/phase-3-multi-wave-evaluation.md` before changing behavior.
 - Follow the collaboration rules in `instructions`.
 - Do not change files or behavior without explicit user approval.
-- Keep the project within the public-search scope. LinkedIn login, LinkedIn scraping or restriction bypass, candidate messaging/automatic outreach, and user or third-party account actions are absolute prohibited behavior. Database, shortlist, authentication, and autonomous agent behavior require separate explicit approval.
+- Keep the project within the public-search scope. Direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping or restriction bypass, candidate messaging/automatic outreach, autonomous execution, and user or third-party account actions are absolute prohibited behavior. Database, shortlist, and authentication require separate explicit approval.
 - Prefer focused, small changes with verification.
 
 ## Verification

@@ -10,6 +10,8 @@
 
 Конечная цель - AI агент на базе протестированного движка и веб приложения.
 
+Принцип движения: каждая фаза и каждая задача должны приближать продукт к реальному AI Agent experience: живой диалог с рекрутером, понимание intent, планирование, approved backend tools, безопасное execution, анализ результатов и последующий уточняющий цикл. Deterministic planners допустимы, когда они являются безопасными executable tools для агента, а не заменой AI Agent направления. Агент не должен быть автономным исполнителем: он предлагает, объясняет, валидирует и анализирует, а execution требует явного approval.
+
 
 
 Все разбиваем на фазы.
@@ -120,7 +122,7 @@ POC прототип с легким фронтом и одним поисков
 
 - LinkedIn login.
 - Scraping или обход ограничений LinkedIn.
-- Автоматическое открытие и парсинг LinkedIn-профилей.
+- Автоматическое или прямое открытие/парсинг LinkedIn-профилей.
 - Автоматическая отправка сообщений кандидатам.
 - Любые действия с user или third-party accounts.
 
@@ -129,7 +131,7 @@ POC прототип с легким фронтом и одним поисков
 - Phase 3 - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking. В Phase 3 также добавить adaptive multi-wave runner как supporting capability для quality evaluation: несколько волн одного `QueryPlan`, dedupe across waves, stop по incremental unique gain.
 - Phase 4 - `AI Agent Foundation`: сохранить текущий deterministic engine как безопасный tool layer, добавить `Search Brief`, AI-assisted planning, agent action/tool boundaries, explanation и approval перед Tavily execution.
 - Phase 5 - `Recruiter Chat UX + Search Brief conversation`: добавить внутренний чат, где рекрутер живым диалогом описывает задачу, AI уточняет brief, задает вопросы и готовит действия через Phase 4 agent foundation.
-- Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в agent loop: AI получает цель, планирует шаги, вызывает доступные инструменты (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг с approval для дорогих или важных действий.
+- Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в bounded human-approved tool loop: AI получает цель, планирует шаги, готовит вызовы доступных инструментов (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг; execution не автономный и требует approval.
 - Phase 7 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 8 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
@@ -267,12 +269,12 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Decision to capture: backend foundation is ready for Phase 5 because Search Brief, AI-assisted planning, deterministic validation/fallback, coverage policy, explanations, and approval-gated execution boundaries exist.
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
-- Preserve absolute product boundaries as prohibited behavior: no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, and no user or third-party account actions.
-- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, and `P5-003 Replace structured form with recruiter chat UI` are completed.
+- Preserve absolute product boundaries as prohibited behavior: no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
+- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, and `P5-004 Make Build Plan produce an approvable Search Plan` are completed.
 
-Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам и любые действия с user или third-party accounts.
+Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
-Не входит в Phase 4: persistent memory/database, shortlist, export, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Chat UI относится к Phase 5, tool-calling runtime к Phase 6, candidate workspace/shortlist/export к Phase 7, persistence/memory/saved searches к Phase 8.
+Не входит в Phase 4: persistent memory/database, shortlist, export, autonomous execution, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Autonomous execution и fully autonomous loop запрещены; human-approved tool runtime относится к Phase 6, chat UI относится к Phase 5, candidate workspace/shortlist/export к Phase 7, persistence/memory/saved searches к Phase 8.
 
 Фазы 5-8 описывают путь к настоящему AI Agent внутри приложения. Agent здесь означает не просто чат, а AI-модель с целью, контекстом, инструментами, approval flow и циклом действий: понять задачу, собрать brief, запустить инструменты, оценить результат, уточнить план и вернуть кандидатов в виде таблицы.
 
@@ -281,7 +283,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 - Минимум до AI Agent v0: Phase 4 + Phase 5 + Phase 6.
 - Phase 4 дает foundation: `Search Brief`, LLM-assisted planning, AI planner mode, agent tools contract, deterministic validation, approval gates, fallback и объяснения.
 - Phase 5 делает агентный UX через recruiter chat и согласованный `Search Brief`.
-- Phase 6 добавляет настоящий tool loop: агент планирует следующий шаг, вызывает доступные инструменты после approval, анализирует результат и предлагает итерацию.
+- Phase 6 добавляет настоящий human-approved tool loop: агент планирует следующий шаг, готовит вызов доступных инструментов, выполняет execution только после approval, анализирует результат и предлагает итерацию.
 - Для реально удобного recruiter workflow нужна еще Phase 7: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
 - Phase 8 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
 
@@ -308,7 +310,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001`, `P5-002`, and `P5-003 Replace structured form with recruiter chat UI` are completed.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001`, `P5-002`, `P5-003`, and `P5-004 Make Build Plan produce an approvable Search Plan` are completed.
 
 ### Phase 5 Approved Contract
 
@@ -321,18 +323,21 @@ Approved decisions:
 - Make recruiter chat the primary UX over time, replacing the current structured form.
 - Show a normalized brief summary before `Build Plan`.
 - Treat `Build Plan` as planner preview only, not Tavily execution.
-- Use `ai_with_fallback` as the default planner mode for chat `Build Plan`, unless an advanced/developer control explicitly overrides it.
+- Use `rule_based` as the primary executable planner mode for chat `Build Plan` after `P5-004`, so supported briefs produce an approvable Search Plan. This is a safe agent-tool bridge, not a rollback from AI planning; preserve AI planner modes for the next reviewed step toward AI-assisted executable planning.
 - Keep Tavily execution behind explicit backend approval.
-- Preserve prohibited behavior as hard boundaries: no direct web-search bypass, no LinkedIn login, no LinkedIn scraping/restriction bypass, no candidate messaging/automatic outreach, and no user or third-party account actions.
+- Preserve prohibited behavior as hard boundaries: no direct web-search bypass, no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping/restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
 
 Recommended implementation order after the contract:
 
 - `P5-002 Add backend chat-to-brief adapter` - implemented.
 - `P5-003 Replace structured form with recruiter chat UI` - implemented.
+- `P5-004 Make Build Plan produce an approvable Search Plan` - implemented.
 
-`P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = ai_with_fallback`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
+`P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 
 `P5-003` implementation result: the primary frontend input is now recruiter chat. Search execution uses `adapted_structured_request` from the planner response, not stale structured-form DOM fields. The implemented path is `chat -> normalizedBrief -> Build Plan -> adapted_structured_request/query_plan -> Approve & Search`. AI draft plans remain visible but non-executable; rule-based and rule-based fallback plans remain the executable paths behind approval.
+
+`P5-004` implementation result: the recruiter-facing flow is now `Chat -> Search Brief -> Build Plan -> Review Search Plan -> Approve & Search -> Results`. The primary `Build Plan` action produces an approvable deterministic backend plan for supported briefs by using `planner_mode = rule_based`. This gives the AI Agent path a working executable tool and approval gate now; the existing AI planner capability is preserved for the next reviewed step toward validated AI-assisted executable planning, explanation, comparison, diagnostics, and iterative agent work.
 
 ### Done
 

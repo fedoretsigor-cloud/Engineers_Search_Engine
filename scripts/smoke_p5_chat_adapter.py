@@ -96,9 +96,10 @@ async def run_smoke() -> None:
         assert ru_complete["normalized_brief"]["technology"] == "Java"
         assert ru_complete["normalized_brief"]["location"] == "Ukraine"
         assert ru_complete["normalized_brief"]["stack"] == ["Spring", "Kafka"]
-        assert ru_complete["recommended_planner_mode"] == "ai_with_fallback"
+        assert ru_complete["recommended_planner_mode"] == "rule_based"
         assert ru_complete["can_build_plan"] is True
         assert ru_complete["build_plan_action"]["endpoint"] == "/api/agent/query-plan"
+        assert ru_complete["build_plan_action"]["planner_mode"] == "rule_based"
 
         en_complete = await main.recruiter_chat_turn_response(
             chat_request(
@@ -109,7 +110,7 @@ async def run_smoke() -> None:
         )
         assert en_complete["ok"] is True
         assert en_complete["state"] == "ready_for_planning"
-        assert en_complete["recommended_planner_mode"] == "ai_with_fallback"
+        assert en_complete["recommended_planner_mode"] == "rule_based"
 
         incomplete = await main.recruiter_chat_turn_response(
             chat_request("Найди Java разработчиков.", language="ru")
