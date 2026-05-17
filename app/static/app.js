@@ -20,18 +20,26 @@ const resultsStatus = document.querySelector("#results-status");
 const resultsList = document.querySelector("#results-list");
 
 const PRIMARY_BUILD_PLAN_MODE = "rule_based";
+const AGENT_PLAN_ENDPOINT = "/api/agent/plan";
+const AGENT_QUERY_PLAN_ENDPOINT = "/api/agent/query-plan";
+const AGENT_ACTION_BUILD_QUERY_PLAN = "build_query_plan";
 
 let messages = [];
 let draftBrief = null;
 let normalizedBrief = null;
 let chatState = "drafting";
 let recommendedPlannerMode = PRIMARY_BUILD_PLAN_MODE;
+let currentChatLanguage = "en";
+let currentAgentPlanData = null;
+let currentAgentPlan = null;
+let currentAgentAction = null;
 let adaptedStructuredRequest = null;
 let latestPlannerData = null;
 let latestQueryPlan = null;
 let latestPlanFingerprint = null;
 let latestExecutablePlan = false;
 let chatRequestInFlight = false;
+let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
 let searchRequestInFlight = false;
 let interactionVersion = 0;
@@ -87,7 +95,17 @@ function validationMessage(errors = []) {
 }
 
 function plannerModeForBuildPlan() {
-  return PRIMARY_BUILD_PLAN_MODE;
+  return currentAgentAction?.planner_mode || PRIMARY_BUILD_PLAN_MODE;
+}
+
+function hasSupportedAgentAction() {
+  return Boolean(
+    currentAgentPlan?.brief_fingerprint &&
+      currentAgentAction?.action === AGENT_ACTION_BUILD_QUERY_PLAN &&
+      currentAgentAction?.endpoint === AGENT_QUERY_PLAN_ENDPOINT &&
+      currentAgentAction?.planner_mode === PRIMARY_BUILD_PLAN_MODE &&
+      currentAgentAction?.requires_approval === false
+  );
 }
 
 function isBackendSearchPlan(data = {}) {
@@ -162,6 +180,22 @@ function clearPlannerData() {
   updateActionState();
 }
 
+function clearAgentPlanData() {
+  currentAgentPlanData = null;
+  currentAgentPlan = null;
+  currentAgentAction = null;
+  messages = messages.filter((message) => message.kind !== "agent_plan");
+}
+
+function chatMessagesForBackend() {
+  return messages
+    .filter((message) => !message.localOnly)
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+}
+
 function syncExecutionControlsFromPlan() {
   if (!adaptedStructuredRequest) {
     profilesOnlyInput.checked = true;
@@ -229,14 +263,22 @@ function renderChatMessages() {
 
   chatMessagesElement.innerHTML = messages
     .map(
-      (message) => `
+      (message) => {
+        const speaker =
+          message.kind === "agent_plan"
+            ? "AI Agent"
+            : message.role === "user"
+              ? "You"
+              : "AI";
+        return `
         <article class="chat-message ${
           message.role === "user" ? "user-message" : "assistant-message"
         }">
-          <span>${escapeHtml(message.role === "user" ? "You" : "AI")}</span>
+          <span>${escapeHtml(speaker)}</span>
           <p>${escapeHtml(message.content)}</p>
         </article>
-      `
+      `;
+      }
     )
     .join("");
   chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
@@ -436,8 +478,100 @@ function renderAgentQueryPlan(data) {
     "Plan preview is not executable yet. Use a rule-based or rule-based fallback plan to search.";
 }
 
+function rememberAgentPlanData(data = {}) {
+  currentAgentPlanData = data;
+  currentAgentPlan = data.agent_plan || null;
+  currentAgentAction = currentAgentPlan?.proposed_action || null;
+}
+
+function appendAgentPlanMessage(data = {}) {
+  const content =
+    data.agent_plan?.message ||
+    data.message ||
+    "Agent Plan is not available for this Search Brief.";
+
+  messages = messages.filter((message) => message.kind !== "agent_plan");
+  messages.push({
+    role: "assistant",
+    content,
+    kind: "agent_plan",
+    localOnly: true,
+  });
+}
+
+async function fetchAgentPlanForCurrentBrief() {
+  if (!normalizedBrief || chatState !== "ready_for_planning") {
+    return null;
+  }
+
+  const requestVersion = interactionVersion;
+  agentPlanRequestInFlight = true;
+  updateActionState();
+  chatStatusElement.textContent = "Preparing Agent Plan...";
+
+  try {
+    const response = await fetch(AGENT_PLAN_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        search_brief: normalizedBrief,
+        language: currentChatLanguage,
+      }),
+    });
+    const data = await response.json();
+
+    if (requestVersion !== interactionVersion) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Agent Plan request failed.");
+    }
+
+    rememberAgentPlanData(data);
+    appendAgentPlanMessage(data);
+    renderChatMessages();
+
+    if (data.agent_plan_status === "supported" && hasSupportedAgentAction()) {
+      chatStatusElement.textContent = "Agent Plan ready. Build Plan is available.";
+    } else if (data.agent_plan_status === "unsupported") {
+      chatStatusElement.textContent = "Agent v0 does not support this brief yet.";
+    } else {
+      chatStatusElement.textContent = "Agent Plan needs clarification before Build Plan.";
+    }
+
+    return data;
+  } catch (error) {
+    if (requestVersion !== interactionVersion) {
+      return null;
+    }
+
+    clearAgentPlanData();
+    messages.push({
+      role: "assistant",
+      content: error.message,
+      kind: "agent_plan",
+      localOnly: true,
+    });
+    renderChatMessages();
+    chatStatusElement.textContent = error.message;
+    return null;
+  } finally {
+    if (requestVersion === interactionVersion) {
+      agentPlanRequestInFlight = false;
+      updateActionState();
+    }
+  }
+}
+
 async function fetchAgentQueryPlan() {
-  const response = await fetch("/api/agent/query-plan", {
+  if (!hasSupportedAgentAction()) {
+    throw new Error("Build Plan requires a supported Agent Plan action.");
+  }
+
+  const response = await fetch(currentAgentAction.endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -445,6 +579,8 @@ async function fetchAgentQueryPlan() {
     body: JSON.stringify({
       planner_mode: plannerModeForBuildPlan(),
       search_brief: normalizedBrief,
+      agent_plan_brief_fingerprint: currentAgentPlan.brief_fingerprint,
+      agent_plan_action: currentAgentAction,
     }),
   });
   const data = await response.json();
@@ -500,9 +636,16 @@ async function buildPlanFromChat() {
 }
 
 function updateActionState() {
-  const isBusy = chatRequestInFlight || planRequestInFlight || searchRequestInFlight;
+  const isBusy =
+    chatRequestInFlight ||
+    agentPlanRequestInFlight ||
+    planRequestInFlight ||
+    searchRequestInFlight;
   const canBuildPlan =
-    chatState === "ready_for_planning" && Boolean(normalizedBrief) && !isBusy;
+    chatState === "ready_for_planning" &&
+    Boolean(normalizedBrief) &&
+    hasSupportedAgentAction() &&
+    !isBusy;
   buildPlanButton.disabled = !canBuildPlan;
   searchButton.disabled = !latestExecutablePlan || isBusy;
   sendChatButton.disabled = isBusy;
@@ -511,17 +654,19 @@ function updateActionState() {
 
 function updateChatStateFromResponse(data = {}) {
   chatState = data.state || "needs_clarification";
+  currentChatLanguage = data.language || currentChatLanguage;
   recommendedPlannerMode = data.recommended_planner_mode || PRIMARY_BUILD_PLAN_MODE;
   draftBrief = data.normalized_brief || draftBrief;
   normalizedBrief = data.normalized_brief || null;
   clearPlannerData();
+  clearAgentPlanData();
 
   if (data.assistant_message) {
     messages.push({ role: "assistant", content: data.assistant_message });
   }
 
   if (chatState === "ready_for_planning") {
-    chatStatusElement.textContent = "Search Brief ready. Build a plan to continue.";
+    chatStatusElement.textContent = "Search Brief ready. Preparing Agent Plan...";
   } else if (chatState === "refused") {
     chatStatusElement.textContent = "Request refused by product safety boundaries.";
   } else {
@@ -531,11 +676,16 @@ function updateChatStateFromResponse(data = {}) {
   renderChatMessages();
   renderBriefSummaryCard(normalizedBrief, chatState);
   updateActionState();
+
+  if (chatState === "ready_for_planning") {
+    fetchAgentPlanForCurrentBrief();
+  }
 }
 
 async function sendChatTurn(userText) {
   const requestVersion = interactionVersion;
   messages.push({ role: "user", content: userText });
+  clearAgentPlanData();
   renderChatMessages();
   chatRequestInFlight = true;
   clearPlannerData();
@@ -549,7 +699,7 @@ async function sendChatTurn(userText) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        messages,
+        messages: chatMessagesForBackend(),
         draft_brief: draftBrief,
       }),
     });
@@ -592,10 +742,13 @@ function resetChat() {
   normalizedBrief = null;
   chatState = "drafting";
   recommendedPlannerMode = PRIMARY_BUILD_PLAN_MODE;
+  currentChatLanguage = "en";
   chatRequestInFlight = false;
+  agentPlanRequestInFlight = false;
   planRequestInFlight = false;
   searchRequestInFlight = false;
   clearPlannerData();
+  clearAgentPlanData();
   chatInput.value = "";
   chatStatusElement.textContent = "Describe the search in Russian or English.";
   planStatus.textContent = "Build a plan from the chat brief.";

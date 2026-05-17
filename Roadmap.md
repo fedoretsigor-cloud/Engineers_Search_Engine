@@ -332,12 +332,22 @@ Recommended implementation order after the contract:
 - `P5-002 Add backend chat-to-brief adapter` - implemented.
 - `P5-003 Replace structured form with recruiter chat UI` - implemented.
 - `P5-004 Make Build Plan produce an approvable Search Plan` - implemented.
+- `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline` - implemented.
+- `P5-006 Add post-results Agent Response in chat` - added for review, not approved, not implemented.
+- `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback` - added for review, not approved, not implemented.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 
 `P5-003` implementation result: the primary frontend input is now recruiter chat. Search execution uses `adapted_structured_request` from the planner response, not stale structured-form DOM fields. The implemented path is `chat -> normalizedBrief -> Build Plan -> adapted_structured_request/query_plan -> Approve & Search`. AI draft plans remain visible but non-executable; rule-based and rule-based fallback plans remain the executable paths behind approval.
 
 `P5-004` implementation result: the recruiter-facing flow is now `Chat -> Search Brief -> Build Plan -> Review Search Plan -> Approve & Search -> Results`. The primary `Build Plan` action produces an approvable deterministic backend plan for supported briefs by using `planner_mode = rule_based`. This gives the AI Agent path a working executable tool and approval gate now; the existing AI planner capability is preserved for the next reviewed step toward validated AI-assisted executable planning, explanation, comparison, diagnostics, and iterative agent work.
+
+`P5-005` implementation result: after a ready supported Java/Ukraine Search Brief, the UI calls `POST /api/agent/plan`, shows an Agent Plan in chat, and enables `Build Plan` only from the supported `agent_plan.proposed_action`. The action points to `/api/agent/query-plan` with `planner_mode = rule_based`; the backend validates the Search Brief fingerprint and rejects stale or mismatched actions. This instantiates Agent v0 without adding autonomous execution, Tavily calls before approval, direct LinkedIn access, persistence, generic tool loops, or new LLM behavior.
+
+Proposed next Phase 5 direction for review:
+
+- `P5-006` should add a post-results Agent Response in chat, grounded only in already returned backend results and suggested next actions that do not execute automatically.
+- `P5-007` should add LLM-assisted Agent Plan/Response wording with deterministic fallback, bounded payloads, and no execution authority.
 
 ### Done
 

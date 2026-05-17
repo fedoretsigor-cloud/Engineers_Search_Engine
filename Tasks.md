@@ -2080,6 +2080,9 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
+- [ ] P5-006 Add post-results Agent Response in chat
+- [ ] P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
+
 ### In Progress
 
 ### Done
@@ -2088,6 +2091,7 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-002 Add backend chat-to-brief adapter
 - [x] P5-003 Replace structured form with recruiter chat UI
 - [x] P5-004 Make Build Plan produce an approvable Search Plan
+- [x] P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline
 
 ### Current Phase 5 strategy note
 
@@ -2106,6 +2110,324 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - candidate messaging or automatic outreach;
 - autonomous execution;
 - user or third-party account actions.
+
+---
+
+## Task: P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline
+
+### Status
+
+Approved and implemented.
+
+Implementation result: added `POST /api/agent/plan`, deterministic Agent Plan messages for the supported Java/Ukraine baseline, frontend chat rendering for the current Agent Plan, and `Build Plan` execution through `agent_plan.proposed_action`. The frontend clears stale Agent Plans when the Search Brief changes, keeps Build Plan disabled until a supported proposed action exists, and sends the Agent Plan brief fingerprint for backend validation. No Tavily execution, LinkedIn access, generic tool loop, persistent backend state, or new LLM behavior was added.
+
+### Context
+
+`P4-001` already approved the AI Agent Foundation contract, and `P4-004` already approved Agent Tools v0. `P5-005` must not create a new contract. It should instantiate the first narrow Agent v0 slice on top of the existing contracts.
+
+The current Phase 5 flow is:
+
+`Recruiter Chat -> Search Brief -> Build Plan -> Review Search Plan -> Approve & Search -> Results`
+
+This is a strong approved flow, but the agent is not yet explicit as a product concept. `P5-005` should make the agent visible in the chat through an `Agent Plan` and a proposed `Agent Action`, while preserving the existing human-approved execution path.
+
+### Baseline scope
+
+First Agent v0 baseline:
+
+`Backend Developer with main skill Java in Ukraine`, public LinkedIn profiles, existing supported Java stack values, `standard` depth.
+
+Do not expand roles, countries, sources, persistence, workspace, execution modes, or stack vocabulary in this task.
+
+### Goal
+
+Show the first human-approved Agent v0 path for one baseline scenario:
+
+`Recruiter Chat -> Search Brief -> Agent Plan in chat -> proposed Agent Action -> Build Search Plan -> Approval -> Search`
+
+The agent should explain what it understood and which approved backend tool path it proposes, but it must not execute anything autonomously.
+
+### Steps
+
+1. Keep the baseline narrow.
+   - Support only the current Java/Ukraine baseline.
+   - Treat other roles/countries as unsupported or as future expansion.
+   - Do not add new role/country policy logic in this task.
+2. Add minimal `Agent State v0` for the current session only.
+   - Track current `Search Brief`.
+   - Track current `Agent Plan`.
+   - Track proposed `Agent Action`.
+   - Track current `QueryPlan` fingerprint and approval state.
+   - Do not add database, memory, saved sessions, or persistence.
+3. Add a separate backend Agent Plan endpoint.
+   - Add `POST /api/agent/plan`.
+   - Frontend calls it automatically only after `/api/recruiter-chat/turn` returns a ready Search Brief.
+   - Keep `/api/recruiter-chat/turn` focused on `chat messages -> draft Search Brief -> validation -> one assistant response`.
+   - Do not let `/api/recruiter-chat/turn` grow into agent planning/runtime.
+4. Show `Agent Plan` in the recruiter chat.
+   - The plan should say what the agent understood.
+   - The plan should say that it will use the approved backend `build_query_plan` path.
+   - The plan should say what requires approval before execution.
+   - Do not show this as a separate side panel in this task.
+5. Add a proposed `Agent Action`.
+   - For the baseline, the proposed action is to build a Search Plan from the validated brief.
+   - The action must map to existing approved tools/contracts.
+   - The action must be readable to the recruiter.
+   - The minimal action shape should include `action`, `endpoint`, `planner_mode`, and `requires_approval`.
+   - For P5-005 the expected action is:
+
+```json
+{
+  "action": "build_query_plan",
+  "endpoint": "/api/agent/query-plan",
+  "planner_mode": "rule_based",
+  "requires_approval": false
+}
+```
+
+6. Keep `Build Plan` as the human-review step.
+   - `Build Plan` still creates the visible approvable Search Plan.
+   - It must not call Tavily.
+   - It must not execute search automatically.
+7. Keep `Approve & Search` as the only execution gate.
+   - Search execution remains approval-gated.
+   - Approval remains bound to action, query count, and plan fingerprint.
+   - No autonomous execution.
+8. Do not add post-results Agent Response in this task.
+   - Post-results explanation belongs to `P5-006`.
+9. Do not add new LLM behavior in this task.
+   - LLM-assisted Agent Plan/Response belongs to `P5-007`.
+   - Deterministic wording is acceptable for this first Agent v0 slice.
+10. Preserve all product boundaries.
+   - No direct web-search outside the approved backend pipeline.
+   - No direct LinkedIn access/automation.
+   - No LinkedIn login.
+   - No LinkedIn scraping or restriction bypass.
+   - No candidate messaging or automatic outreach.
+   - No autonomous execution.
+   - No user or third-party account actions.
+11. Verify the baseline flow.
+   - Chat reaches a valid Search Brief.
+   - Agent Plan appears in chat.
+   - Proposed Agent Action is visible.
+   - Build Plan still creates the approvable Search Plan.
+   - Approve & Search remains disabled until a visible plan exists.
+   - No search runs without explicit approval.
+
+### Critical implementation rules
+
+- `Agent Plan` must not be decorative text. It must be the source for the next `Build Plan` action.
+- `Build Plan` must execute the current `agent_plan.proposed_action`, not an independent hardcoded frontend path.
+- The primary frontend flow must read action metadata from the current `agent_plan.proposed_action`, including action name, endpoint, planner mode, and approval requirements.
+- For P5-005, allowed proposed action is only `build_query_plan` with endpoint `/api/agent/query-plan` and planner mode `rule_based`.
+- P5-005 must not add backend session storage, database state, or persistent agent memory.
+- Backend returns the current `agent_plan`; frontend may keep it only as current UI/session state.
+- `agent_plan` must include a `brief_fingerprint` or `input_snapshot` so stale proposed actions can be detected.
+- If the `Search Brief` changes after an `Agent Plan` is created, the old `agent_plan` and `proposed_action` must be cleared as stale.
+- `Build Plan` must send the current `agent_plan.brief_fingerprint`; backend must recompute/check the fingerprint instead of trusting frontend state blindly.
+- If the brief/action fingerprint is stale, unsupported, or mismatched, `Build Plan` must reject instead of falling back to an old non-agent path.
+- `Build Plan` must remain disabled until a supported `agent_plan.proposed_action` exists.
+- If the baseline is unsupported, backend should return a clear unsupported Agent v0 message and no executable `proposed_action`.
+- Unsupported baseline must not silently fall back to the old non-agent Build Plan path.
+- If the recruiter omits stack for the Java/Ukraine baseline, keep the current clarification behavior: ask for stack and do not build an Agent Plan.
+- `POST /api/agent/plan` must require a ready Search Brief; incomplete briefs must not produce an Agent Plan.
+- `POST /api/agent/plan` should return a clear status such as `supported`, `needs_clarification`, or `unsupported`.
+- `POST /api/agent/plan` must not call Tavily, build the final Search Plan, or execute search.
+- Stack must be validated against the existing supported Java stack values; P5-005 must not add new stack values or stack policy.
+- The source of truth for supported stack values must remain the existing backend validation/normalization logic; do not create a separate Agent Plan stack list.
+- Agent Plan chat message should follow the current chat language, using deterministic RU/EN templates for P5-005.
+
+### Implementation notes
+
+- Keep frontend state minimal and do not overcomplicate it; `agent_plan` should be current UI/session state, not a second application model.
+- Add no-Tavily smoke tests for supported baseline, unsupported baseline, stale/mismatched `agent_plan.proposed_action`, and missing stack.
+- Add browser verification that `Build Plan` is disabled until a supported `agent_plan.proposed_action` exists.
+
+### `/api/agent/plan` response shape
+
+Supported baseline:
+
+```json
+{
+  "ok": true,
+  "agent_plan_status": "supported",
+  "agent_plan": {
+    "brief_fingerprint": "...",
+    "input_snapshot": {},
+    "message": "I understood the search and can build a Search Plan for the supported Java/Ukraine baseline.",
+    "proposed_action": {
+      "action": "build_query_plan",
+      "endpoint": "/api/agent/query-plan",
+      "planner_mode": "rule_based",
+      "requires_approval": false
+    }
+  },
+  "errors": []
+}
+```
+
+Needs clarification:
+
+```json
+{
+  "ok": true,
+  "agent_plan_status": "needs_clarification",
+  "agent_plan": null,
+  "message": "I need the missing stack before I can create an Agent Plan.",
+  "errors": []
+}
+```
+
+Unsupported baseline:
+
+```json
+{
+  "ok": true,
+  "agent_plan_status": "unsupported",
+  "agent_plan": null,
+  "message": "Agent v0 currently supports only Backend Developer with Java in Ukraine.",
+  "errors": []
+}
+```
+
+### Non-goals
+
+- Do not implement a generic tool loop.
+- Do not implement post-results Agent Response.
+- Do not add new ChatGPT/LLM behavior.
+- Do not make AI-generated QueryPlans executable.
+- Do not expand beyond Java/Ukraine baseline.
+- Do not add database, memory, saved searches, shortlist, export, authentication, or candidate workspace.
+- Do not add direct LinkedIn access/automation, LinkedIn login, scraping, restriction bypass, candidate messaging, autonomous execution, or account actions.
+
+### Acceptance criteria
+
+- After a supported Search Brief is ready, the chat can show a clear `Agent Plan`.
+- The `Agent Plan` is grounded in the current Search Brief.
+- The plan identifies the proposed backend tool path and approval requirement.
+- `Build Plan` and `Approve & Search` behavior remain approval-gated and non-autonomous.
+- Unsupported roles/countries are not silently treated as supported Agent v0 baselines.
+- No Tavily execution happens before explicit approval.
+- No prohibited behavior is introduced.
+
+---
+
+## Task: P5-006 Add post-results Agent Response in chat
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+`P5-005` makes the agent explicit before execution through an Agent Plan in chat. The next step is to complete the first human-approved Agent v0 loop after results exist.
+
+This task should implement `Agent Response` from the already approved `P4-001` contract, but only for already returned backend results.
+
+### Goal
+
+After an approved search completes, show a grounded Agent Response in chat that explains the results and proposes the next safe step.
+
+### Steps
+
+1. Use only already available backend data.
+   - Search Brief.
+   - QueryPlan.
+   - report counts.
+   - deduped candidates.
+   - Candidate Quality Layer signals.
+   - review flags and known limitations.
+2. Summarize the search result in chat.
+   - Candidate count.
+   - Quality distribution.
+   - strongest signals.
+   - weakest signals.
+   - location/stack/seniority uncertainty.
+3. Suggest next actions without executing them.
+   - Review top candidates.
+   - Adjust stack.
+   - Consider multi-wave.
+   - Narrow or broaden the brief.
+4. Make every next action human-approved.
+   - Suggestions must not trigger search automatically.
+   - Any new execution must go through the existing approval gate.
+5. Preserve all product boundaries.
+
+### Non-goals
+
+- Do not add a generic tool loop.
+- Do not add LLM behavior yet; that belongs to `P5-007`.
+- Do not call Tavily from the Agent Response path.
+- Do not access LinkedIn directly.
+- Do not message candidates or act on accounts.
+- Do not add persistence or candidate workspace.
+
+### Acceptance criteria
+
+- After an approved search, the chat shows an Agent Response grounded in report/results data.
+- The response explains useful and weak signals without pretending snippets are complete.
+- Suggested next actions are visible but not executed automatically.
+- No extra Tavily call is made by summary generation.
+- No prohibited behavior is introduced.
+
+---
+
+## Task: P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+`P5-005` and `P5-006` should first establish the human-approved Agent v0 shape with deterministic behavior. Once that shape is stable, ChatGPT can assist with bounded explanation and synthesis.
+
+### Goal
+
+Use ChatGPT/LLM to improve Agent Plan and Agent Response wording while preserving deterministic backend validation, approval gates, and fallback behavior.
+
+### Steps
+
+1. Define the bounded LLM input payload.
+   - Search Brief.
+   - planner metadata.
+   - QueryPlan summary.
+   - report metrics.
+   - quality signals and review flags.
+   - known limitations.
+2. Define strict output shape.
+   - Agent Plan explanation.
+   - Agent Response summary.
+   - suggested next actions.
+   - warnings/limitations.
+3. Keep the LLM away from execution authority.
+   - LLM must not call Tavily.
+   - LLM must not approve actions.
+   - LLM must not change filters, scoring, location logic, or dedupe.
+4. Add deterministic fallback.
+   - If API key/model is unavailable, use deterministic wording.
+   - If LLM output is invalid, use deterministic wording.
+5. Add safety checks.
+   - Reject prohibited content.
+   - Do not include direct LinkedIn access/automation.
+   - Do not include messaging/account actions.
+6. Verify no autonomous execution.
+
+### Non-goals
+
+- Do not make AI-generated QueryPlans executable.
+- Do not add a generic autonomous agent loop.
+- Do not add persistence, database, shortlist, export, or candidate workspace.
+- Do not perform direct web-search outside the approved backend pipeline.
+- Do not access LinkedIn directly.
+
+### Acceptance criteria
+
+- Agent Plan/Response can be LLM-assisted when configured.
+- Deterministic fallback works without OpenAI configuration.
+- LLM output remains grounded in bounded backend payload.
+- No execution occurs from the LLM path.
+- No prohibited behavior is introduced.
 
 ---
 
