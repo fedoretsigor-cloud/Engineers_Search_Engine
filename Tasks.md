@@ -2080,7 +2080,6 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
-- [ ] P5-006 Add post-results Agent Response in chat
 - [ ] P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
 
 ### In Progress
@@ -2092,6 +2091,7 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-003 Replace structured form with recruiter chat UI
 - [x] P5-004 Make Build Plan produce an approvable Search Plan
 - [x] P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline
+- [x] P5-006 Add post-results Agent Response in chat
 
 ### Current Phase 5 strategy note
 
@@ -2316,7 +2316,9 @@ Unsupported baseline:
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Approved and implemented.
+
+Implementation result: `/api/structured-search` and `/api/structured-search/multi-wave` now return deterministic backend-generated `agent_response` built from executed `QueryPlan` input snapshot, normalized request, report counts, deduped candidates, quality signals, review flags, and known limitations. The frontend passes minimal `agent_language`, renders the response as a local-only `AI Agent` chat message after search results, and keeps suggested next actions as inert text. No extra Tavily, LLM, web, LinkedIn, autonomous execution, persistence, or executable next-action buttons were added.
 
 ### Context
 
@@ -2330,34 +2332,81 @@ After an approved search completes, show a grounded Agent Response in chat that 
 
 ### Steps
 
-1. Use only already available backend data.
-   - Search Brief.
-   - QueryPlan.
+1. Generate the Agent Response in the backend.
+   - Build the response inside the existing approved search response path.
+   - Include it in `/api/structured-search` and `/api/structured-search/multi-wave` responses as `agent_response`.
+   - Do not create an independent analysis endpoint in this task.
+   - Do not let the frontend invent the analytical summary from raw UI state.
+2. Use only already available backend data.
+   - Executed `QueryPlan` input snapshot.
+   - normalized structured request.
    - report counts.
    - deduped candidates.
    - Candidate Quality Layer signals.
    - review flags and known limitations.
-2. Summarize the search result in chat.
+   - Full Search Brief fields may be used only if already available, but P5-006 must not introduce a broad `agent_context` payload.
+3. Do not make any extra external calls.
+   - No additional Tavily call.
+   - No OpenAI/LLM call in this task.
+   - No direct web-search.
+   - No LinkedIn access.
+4. Return a small structured Agent Response contract.
+   - `message`.
+   - `summary_facts`.
+   - `quality_notes`.
+   - `limitations`.
+   - `suggested_next_actions`.
+5. Pass only minimal language context into search execution.
+   - Add an optional `agent_language` field to the structured search request.
+   - Frontend should pass the current chat language as `ru` or `en`.
+   - Do not add a broad `agent_context` object in this task.
+   - Do not pass the full chat history or full Search Brief just to build Agent Response.
+   - If `agent_language` is missing, default to English.
+6. Use deterministic quality buckets.
+   - `strong`: quality score `>= 80`.
+   - `review`: quality score `60-79`.
+   - `weak`: quality score `< 60`.
+   - Keep this as v0 display logic, not a new ranking model.
+7. Summarize the search result in chat.
    - Candidate count.
    - Quality distribution.
    - strongest signals.
    - weakest signals.
    - location/stack/seniority uncertainty.
-3. Suggest next actions without executing them.
+8. Keep the language aligned with the current chat.
+   - If the recruiter chat is Russian, show Russian Agent Response text.
+   - If the recruiter chat is English, show English Agent Response text.
+   - Use deterministic RU/EN templates for P5-006.
+9. Be honest about public snippet limits.
+   - If selected stack is not visible, say it is not visible in public snippets.
+   - Do not imply the candidate lacks a stack item just because it was not visible.
+   - Treat missing seniority as `not visible`/`n/a`, not as a negative fact.
+   - Treat location uncertainty conservatively and explain it as a public-data limitation.
+10. Suggest next actions without executing them.
    - Review top candidates.
    - Adjust stack.
    - Consider multi-wave.
    - Narrow or broaden the brief.
-4. Make every next action human-approved.
+11. Keep suggested next actions inert in this task.
+   - Suggested actions are text only.
+   - Do not add executable buttons for next actions in P5-006.
+   - Executable next-step actions belong to a later reviewed task.
+12. Make every next action human-approved.
    - Suggestions must not trigger search automatically.
    - Any new execution must go through the existing approval gate.
-5. Preserve all product boundaries.
+13. Render the Agent Response as a chat message.
+   - Show it as an `AI Agent` message after search results are returned.
+   - Keep it `localOnly` in frontend state, like Agent Plan, so it does not pollute future chat-to-brief context.
+   - Do not add persistence, saved sessions, or backend memory.
+14. Preserve all product boundaries.
 
 ### Non-goals
 
 - Do not add a generic tool loop.
 - Do not add LLM behavior yet; that belongs to `P5-007`.
 - Do not call Tavily from the Agent Response path.
+- Do not create a separate autonomous analysis flow.
+- Do not add executable next-action buttons.
 - Do not access LinkedIn directly.
 - Do not message candidates or act on accounts.
 - Do not add persistence or candidate workspace.
@@ -2365,8 +2414,12 @@ After an approved search completes, show a grounded Agent Response in chat that 
 ### Acceptance criteria
 
 - After an approved search, the chat shows an Agent Response grounded in report/results data.
+- `/api/structured-search` and `/api/structured-search/multi-wave` can return `agent_response` without extra Tavily/LLM calls.
 - The response explains useful and weak signals without pretending snippets are complete.
-- Suggested next actions are visible but not executed automatically.
+- Search requests can pass minimal `agent_language` so deterministic Agent Response text matches the current chat language.
+- Quality distribution uses deterministic v0 buckets: `strong >= 80`, `review 60-79`, `weak < 60`.
+- Suggested next actions are visible as inert text and are not executed automatically.
+- The Agent Response is rendered in chat as a local-only `AI Agent` message.
 - No extra Tavily call is made by summary generation.
 - No prohibited behavior is introduced.
 

@@ -14,18 +14,20 @@ Status:
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
 - Current active phase: Phase 5 `Recruiter Chat UX + Search Brief conversation`.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`.
-- Phase 5 tasks added for review, not yet approved or implemented: `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`.
+- Phase 5 tasks added for review, not yet approved or implemented: `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`.
 - `P5-002` added `POST /api/recruiter-chat/turn` and is limited to `chat messages -> draft Search Brief -> validation -> one assistant response`.
 - `P5-003` made recruiter chat the primary frontend input and keeps execution tied to planner response `adapted_structured_request`.
 - `P5-004` made primary chat `Build Plan` produce an approvable deterministic backend Search Plan as a safe executable bridge toward the AI Agent flow. AI planner capability remains in the product and should be evolved through reviewed tasks.
 - `P5-005` added `POST /api/agent/plan`, shows Agent Plan in chat for the supported Java/Ukraine baseline, and makes `Build Plan` execute the current `agent_plan.proposed_action` with backend fingerprint validation.
+- `P5-006` added backend-generated `agent_response` to approved search responses and renders it as a local-only `AI Agent` chat message after results.
 
 Current pipeline:
 
 - recruiter chat collects a validated `Search Brief` from natural-language recruiter messages;
 - the supported Java/Ukraine baseline gets a current Agent Plan in chat before planning;
 - `Build Plan` executes the Agent Plan's proposed backend action and converts the chat-produced brief into a visible approvable Search Plan;
+- approved search responses include a grounded deterministic Agent Response in chat;
 - `RuleBasedQueryPlanner v1` generates a visible 10-query `QueryPlan`;
 - optional explicit AI planner mode can draft and explain a plan for backend validation/fallback;
 - backend validates AI draft plans deterministically and can show rule-based fallback;

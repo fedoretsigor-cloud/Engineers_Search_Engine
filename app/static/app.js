@@ -239,6 +239,7 @@ function buildSearchRequest(executionApproval = null) {
   const request = {
     ...adaptedStructuredRequest,
     execution_approval: executionApproval,
+    agent_language: currentChatLanguage,
   };
 
   if (!multiWaveInput.checked) {
@@ -265,7 +266,7 @@ function renderChatMessages() {
     .map(
       (message) => {
         const speaker =
-          message.kind === "agent_plan"
+          message.kind?.startsWith("agent_")
             ? "AI Agent"
             : message.role === "user"
               ? "You"
@@ -497,6 +498,20 @@ function appendAgentPlanMessage(data = {}) {
     kind: "agent_plan",
     localOnly: true,
   });
+}
+
+function appendAgentResponseMessage(agentResponse = null) {
+  if (!agentResponse?.message) {
+    return;
+  }
+
+  messages.push({
+    role: "assistant",
+    content: agentResponse.message,
+    kind: "agent_response",
+    localOnly: true,
+  });
+  renderChatMessages();
 }
 
 async function fetchAgentPlanForCurrentBrief() {
@@ -1072,6 +1087,7 @@ async function runStructuredSearch() {
     });
     renderReport(data.report);
     renderResults(data.deduped_results || [], data.report);
+    appendAgentResponseMessage(data.agent_response);
   } catch (error) {
     if (requestVersion !== interactionVersion) {
       return;
