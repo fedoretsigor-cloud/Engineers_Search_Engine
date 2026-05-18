@@ -130,12 +130,15 @@ POC прототип с легким фронтом и одним поисков
 
 - Phase 3 - `Candidate Quality Layer`: оставить rule-based planner, но улучшить name extraction, location confidence, stack/seniority scoring и ranking. В Phase 3 также добавить adaptive multi-wave runner как supporting capability для quality evaluation: несколько волн одного `QueryPlan`, dedupe across waves, stop по incremental unique gain.
 - Phase 4 - `AI Agent Foundation`: сохранить текущий deterministic engine как безопасный tool layer, добавить `Search Brief`, AI-assisted planning, agent action/tool boundaries, explanation и approval перед Tavily execution.
-- Phase 5 - `Recruiter Chat UX + Search Brief conversation`: добавить внутренний чат, где рекрутер живым диалогом описывает задачу, AI уточняет brief, задает вопросы и готовит действия через Phase 4 agent foundation.
+- Phase 5 - `Recruiter Chat UX + Search Brief conversation`: довести один узкий Java/Ukraine flow до качества: чат собирает и уточняет `Search Brief`, умеет менять brief через follow-up, показывает Agent Plan, запускает поиск только после approval и после результатов ведет к следующей итерации.
+- Phase 5.5 - `Technical modularization before Agent Runtime`: без изменения поведения разделить большой backend в `app/main.py` на модули перед настоящим tool-calling runtime.
 - Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в bounded human-approved tool loop: AI получает цель, планирует шаги, готовит вызовы доступных инструментов (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг; execution не автономный и требует approval.
 - Phase 7 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 8 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
 Phase 4 завершена как `AI Agent Foundation`. Текущий активный этап - Phase 5 `Recruiter Chat UX + Search Brief conversation`.
+
+Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 должна закрыть именно агентный UX на этом flow: onboarding, clarification, brief refinement, approved search и result-to-next-iteration loop. После этого нужна техническая Phase 5.5, чтобы модульно подготовить backend к Phase 6 tool runtime.
 
 Фаза 4 - AI Agent Foundation
 
@@ -280,14 +283,15 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 Ориентир по пути к AI Agent:
 
-- Минимум до AI Agent v0: Phase 4 + Phase 5 + Phase 6.
+- Минимум до надежного AI Agent v0: Phase 4 + Phase 5 + Phase 5.5 + Phase 6.
 - Phase 4 дает foundation: `Search Brief`, LLM-assisted planning, AI planner mode, agent tools contract, deterministic validation, approval gates, fallback и объяснения.
-- Phase 5 делает агентный UX через recruiter chat и согласованный `Search Brief`.
+- Phase 5 делает агентный UX через recruiter chat, согласованный `Search Brief`, refinement через follow-up и result-to-next-iteration loop на узком Java/Ukraine flow.
+- Phase 5.5 технически готовит код к runtime: разделяет `app/main.py` на модули без изменения поведения.
 - Phase 6 добавляет настоящий human-approved tool loop: агент планирует следующий шаг, готовит вызов доступных инструментов, выполняет execution только после approval, анализирует результат и предлагает итерацию.
 - Для реально удобного recruiter workflow нужна еще Phase 7: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
 - Phase 8 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
 
-Вывод: через 3 фазы после Phase 3 можно получить AI Agent v0; через 4 фазы - agent-based sourcing workflow, которым уже можно пользоваться как рабочим продуктом.
+Вывод: через Phase 5 + Phase 5.5 + Phase 6 можно получить более надежный AI Agent v0. Phase 7 и Phase 8 нужны, чтобы превратить его в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
 
 ### Ideas
 
@@ -304,13 +308,14 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### Planned
 
+- Phase 5.5: `Technical modularization before Agent Runtime`.
 - Phase 6: `Tool-Calling Agent Runtime`.
 - Phase 7: `Candidate Workspace/Table + Shortlist`.
 - Phase 8: `Persistent Memory + Saved Searches`.
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-007.1` are completed; next task to review is `P5-008 Improve recruiter chat conversational tone and greeting behavior`.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-007.1` are completed; next task to review is `P5-008 Chat onboarding and clarification quality`.
 
 ### Phase 5 Approved Contract
 
@@ -336,6 +341,20 @@ Recommended implementation order after the contract:
 - `P5-006 Add post-results Agent Response in chat` - implemented.
 - `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback` - implemented.
 - `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail` - implemented.
+- `P5-008 Chat onboarding and clarification quality` - next to review.
+- `P5-009 Search Brief refinement through chat` - planned.
+- `P5-010 Result-to-next-iteration loop` - planned.
+- `P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision` - planned.
+
+Phase 5 completion target:
+
+- keep the product focused on `Backend Developer + Java + Ukraine`;
+- make chat capable of collecting and refining the `Search Brief`;
+- keep `Agent Plan` and `Build Plan` separate from Tavily execution;
+- require explicit approval for search and multi-wave search;
+- after results, let the agent guide the recruiter toward the next iteration without executing it automatically.
+
+After Phase 5, Phase 5.5 should modularize the backend before Phase 6. Do not start Phase 6 tool runtime directly on the current monolithic `app/main.py`.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

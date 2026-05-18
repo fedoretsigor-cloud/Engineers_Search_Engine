@@ -23,6 +23,14 @@ Status:
 - `P5-007` added optional LLM-assisted wording for Agent Plan/Response with deterministic fallback.
 - `P5-007.1` synchronized Phase 5 docs and tightened `/api/agent/query-plan` so Build Plan requires the current Agent Plan action and brief fingerprint.
 
+Agreed next direction:
+
+- keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
+- finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, and a Phase 5 closeout decision;
+- add Phase 5.5 technical modularization before Phase 6, splitting the current backend without changing product behavior;
+- only then move to Phase 6 human-approved tool-calling runtime;
+- keep candidate workspace/shortlist for Phase 7 and persistence/memory for Phase 8.
+
 Current pipeline:
 
 - recruiter chat collects a validated `Search Brief` from natural-language recruiter messages;

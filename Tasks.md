@@ -1994,8 +1994,6 @@ Verification:
 
 ### Backlog
 
-- [ ] P5-008 Improve recruiter chat conversational tone and greeting behavior
-
 ### In Progress
 
 ### Done
@@ -2082,7 +2080,10 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
-- [ ] P5-008 Improve recruiter chat conversational tone and greeting behavior
+- [ ] P5-008 Chat onboarding and clarification quality
+- [ ] P5-009 Search Brief refinement through chat
+- [ ] P5-010 Result-to-next-iteration loop
+- [ ] P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision
 
 ### In Progress
 
@@ -2101,9 +2102,23 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 Phase 5 should build the user-facing recruiter chat on top of the Phase 4 foundation.
 
+Current focus: finish one narrow high-quality flow first, not expand countries or technologies yet. The target flow is `Backend Developer + Java + Ukraine` with the existing Java stack choices and public LinkedIn/Tavily pipeline.
+
 The chat should collect and refine a `Search Brief` through dialogue, show the generated plan and approval state clearly, and reuse existing backend contracts instead of bypassing them.
 
 Phase 5 should not introduce autonomous execution, persistence, or candidate workspace. Any future tool runtime must remain human-approved and approval-gated.
+
+Phase 5 exit criteria:
+
+- recruiter chat can collect a ready Java/Ukraine `Search Brief`;
+- recruiter chat can ask useful one-at-a-time clarifying questions;
+- recruiter chat can refine an existing `Search Brief` through follow-up messages;
+- `Agent Plan` appears only for a ready supported brief;
+- `Build Plan` remains a non-executing plan step;
+- Tavily search runs only after explicit approval;
+- after results, the agent can suggest the next iteration and turn an approved direction into the next brief/plan step.
+
+After Phase 5, add a technical Phase 5.5 before Phase 6. Phase 5.5 should modularize the current backend without changing product behavior, so the later human-approved tool-calling runtime is not built directly on top of the large `app/main.py` monolith.
 
 Phase 5 must preserve absolute product boundaries. The following are prohibited, not merely out of scope:
 
@@ -2114,6 +2129,123 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - candidate messaging or automatic outreach;
 - autonomous execution;
 - user or third-party account actions.
+
+---
+
+## Phase 5.5 - Technical modularization before Agent Runtime
+
+### Approved
+
+### Backlog
+
+- [ ] P5.5-001 Define backend module boundaries and migration order
+- [ ] P5.5-002 Extract Search Brief validation and adapter module
+- [ ] P5.5-003 Extract planner and AI planner validation modules
+- [ ] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
+- [ ] P5.5-005 Extract Candidate Quality module
+- [ ] P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules
+- [ ] P5.5-007 Split FastAPI routes from domain logic
+- [ ] P5.5-008 Run no-behavior-change regression checks and close Phase 5.5
+
+### In Progress
+
+### Done
+
+### Current Phase 5.5 strategy note
+
+Phase 5.5 is a technical preparation phase between Phase 5 and Phase 6.
+
+Goal: split the large backend in `app/main.py` into focused modules before implementing the Phase 6 tool-calling runtime.
+
+Rules:
+
+- do not change product behavior;
+- do not change planner output, scoring, filtering, dedupe, location logic, approval logic, or frontend behavior unless separately approved;
+- preserve existing smoke tests and add focused regression checks around the agent flow;
+- keep `RuleBasedQueryPlanner v1` as the only approved executable planner;
+- keep AI-generated plans non-executable until a later reviewed task explicitly changes that.
+
+Suggested target modules:
+
+- Search Brief validation and adapter;
+- planner and AI planner validation/coverage policy;
+- Tavily/search executor, snapshots, and multi-wave runner;
+- Candidate Quality;
+- Agent Plan, Agent Response, tool contracts, and OpenAI client;
+- FastAPI routes.
+
+---
+
+## Phase 6 - Human-approved Tool-Calling Agent Runtime
+
+### Approved
+
+### Backlog
+
+- [ ] P6-001 Define human-approved Agent Runtime contract
+- [ ] P6-002 Implement typed tool registry and tool-call envelopes
+- [ ] P6-003 Add frontend agent action review queue
+- [ ] P6-004 Implement first approved tool loop for Java/Ukraine baseline
+- [ ] P6-005 Add runtime guardrail and stale-approval regression tests
+- [ ] P6-006 Close Phase 6 with AI Agent v0 decision
+
+### In Progress
+
+### Done
+
+### Current Phase 6 strategy note
+
+Phase 6 should start only after Phase 5 is closed and Phase 5.5 modularization is complete.
+
+Goal: let the agent choose from allowlisted backend tools, propose typed tool calls, wait for explicit user approval when execution is meaningful, execute only approved backend actions, inspect returned results, and suggest the next iteration.
+
+Phase 6 must not introduce autonomous execution. AI-generated query plans should remain non-executable unless a later reviewed task explicitly enables them through deterministic validation and approval.
+
+---
+
+## Phase 7 - Candidate Workspace/Table + Shortlist
+
+### Approved
+
+### Backlog
+
+- [ ] P7-001 Define candidate workspace contract
+- [ ] P7-002 Build recruiter-facing candidate table
+- [ ] P7-003 Add sorting and filtering by quality signals
+- [ ] P7-004 Add shortlist, notes, and statuses
+- [ ] P7-005 Add candidate-level agent explanations
+- [ ] P7-006 Prepare export workflow
+
+### In Progress
+
+### Done
+
+### Current Phase 7 strategy note
+
+Phase 7 should start only after the approved agent loop exists. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+
+---
+
+## Phase 8 - Persistent Memory + Saved Searches
+
+### Approved
+
+### Backlog
+
+- [ ] P8-001 Choose persistence approach
+- [ ] P8-002 Save chat sessions and Search Briefs
+- [ ] P8-003 Save search runs, QueryPlans, reports, and snapshots metadata
+- [ ] P8-004 Save candidates, shortlist, notes, and statuses
+- [ ] P8-005 Add saved searches and resume workflow
+- [ ] P8-006 Add agent memory boundaries and privacy rules
+
+### In Progress
+
+### Done
+
+### Current Phase 8 strategy note
+
+Phase 8 is where database/persistence becomes useful. It should not be pulled into Phase 5 unless separately approved, because the immediate goal is to stabilize one Java/Ukraine agent flow first.
 
 ---
 
@@ -2635,7 +2767,7 @@ Use ChatGPT/LLM to improve Agent Plan and Agent Response wording while preservin
 
 ---
 
-## Task: P5-008 Improve recruiter chat conversational tone and greeting behavior
+## Task: P5-008 Chat onboarding and clarification quality
 
 ### Status
 
@@ -2646,6 +2778,8 @@ Draft. Added to the task list for review. Not approved. Not implemented.
 After `P5-007`, Agent Plan and Agent Response wording can be LLM-assisted, but the normal recruiter chat turn still feels too cold and robotic for simple conversational moments such as `привет` / `hello`.
 
 This matters because Phase 5 is the user-facing recruiter chat phase. If the chat cannot greet, orient, and guide the recruiter naturally, the product does not feel like an AI Agent even though the backend flow is becoming agentic.
+
+Strategic note: this task is not the main agent-runtime step. It is a small but necessary UX/contract cleanup before the more important `P5-009 Search Brief refinement through chat`. Keep the scope narrow and focused on the Java/Ukraine flow.
 
 ### Goal
 
@@ -2715,6 +2849,150 @@ The agent should be able to greet the recruiter, explain what information it nee
 - Existing safety refusals remain strict.
 - No Tavily/search/planner execution happens inside the chat turn.
 - No prohibited behavior is introduced.
+
+---
+
+## Task: P5-009 Search Brief refinement through chat
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+The current chat can collect a `Search Brief`, but the next practical agent step is refinement. A recruiter should be able to update the current brief through follow-up messages instead of resetting the whole flow.
+
+Examples:
+
+- `добавь Docker`;
+- `убери Kafka`;
+- `оставь только Spring`;
+- `ищем senior`;
+- `сделай deep search`.
+
+For now, the product focus remains the narrow Java/Ukraine flow. Do not expand country or technology support in this task.
+
+### Goal
+
+Let recruiter chat safely update an existing `Search Brief` through dialogue and clear stale downstream agent state when the brief changes.
+
+### Proposed steps
+
+1. Define allowed refinement intents for the current Java/Ukraine flow.
+   - Add selected stack item.
+   - Remove selected stack item.
+   - Replace selected stack list.
+   - Set seniority metadata.
+   - Change search depth between `standard` and `deep` without auto-running deep search.
+   - Reconfirm current Java/Ukraine role/technology/location.
+2. Keep validation as source of truth.
+   - Reuse existing Search Brief validation.
+   - Reuse existing structured request adapter.
+   - Do not trust LLM output blindly.
+3. Prevent accidental unsupported expansion.
+   - Unsupported role, technology, country, source, or stack values should produce clarification or unsupported response.
+   - Do not silently adapt unsupported inputs into the Java/Ukraine baseline.
+4. Clear stale agent state after every brief change.
+   - Old `Agent Plan`, `Build Plan`, plan fingerprint, and approval state must become stale.
+   - The user must rebuild plan before search.
+5. Preserve execution boundaries.
+   - No Tavily calls.
+   - No `/api/agent/query-plan` calls inside `/api/recruiter-chat/turn`.
+   - No autonomous execution.
+6. Verify with no-Tavily tests.
+   - Add stack.
+   - Remove stack.
+   - Replace stack.
+   - Set seniority.
+   - Change depth to `deep` without executing multi-wave.
+   - Unsupported country/technology does not create executable state.
+
+### Non-goals
+
+- Do not add database or persistent memory.
+- Do not add candidate workspace.
+- Do not expand beyond Java/Ukraine.
+- Do not make AI-generated plans executable.
+- Do not run search from chat refinement.
+
+---
+
+## Task: P5-010 Result-to-next-iteration loop
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+`P5-006` added an Agent Response after approved search results, but suggested next actions are currently inert text. To move toward a real AI Agent experience, the agent should be able to turn post-results analysis into a proposed next iteration while still requiring user approval before any execution.
+
+### Goal
+
+After results are returned, let the agent propose a next search iteration and let the recruiter choose one direction that becomes an updated `Search Brief` or a new `Agent Plan` step.
+
+### Proposed steps
+
+1. Define allowed next-iteration suggestions for Java/Ukraine.
+   - Broaden selected stack.
+   - Narrow selected stack.
+   - Try `Multi-wave`.
+   - Keep only high-quality candidates as review focus.
+   - Ask recruiter for missing preference when results are ambiguous.
+2. Keep suggestions non-executable by default.
+   - Suggested next actions remain text until the user explicitly chooses or writes a follow-up.
+   - Choosing a direction should update brief/plan state, not run Tavily.
+3. Convert chosen iteration into a validated brief change.
+   - Reuse `P5-009` refinement behavior.
+   - Clear stale plan/approval state.
+4. Preserve approval boundaries.
+   - New search still requires Build Plan and explicit approval.
+   - Multi-wave still requires its own approval action.
+5. Verify without direct web/LinkedIn access.
+   - Use mocked or saved search data where possible.
+   - Tavily live execution only if separately approved for a measurement task.
+
+### Non-goals
+
+- Do not add autonomous execution.
+- Do not add candidate messaging.
+- Do not add persistent memory.
+- Do not add shortlist/workspace yet.
+
+---
+
+## Task: P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+Phase 5 should close only when the narrow Java/Ukraine flow behaves like a coherent human-approved agent UX, not just a set of endpoints.
+
+### Goal
+
+Document whether the Phase 5 Java/Ukraine flow is ready for technical modularization and later Phase 6 tool-calling runtime.
+
+### Proposed checklist
+
+1. Chat can collect a ready Java/Ukraine `Search Brief`.
+2. Chat can ask useful one-at-a-time clarifying questions.
+3. Chat can refine an existing brief through follow-up messages.
+4. Agent Plan appears only for ready supported brief.
+5. Build Plan remains separate from Tavily execution.
+6. Search requires explicit backend approval.
+7. Agent Response summarizes results without inventing facts.
+8. Post-results next iteration can lead to a new brief/plan step.
+9. No autonomous execution or prohibited LinkedIn behavior exists.
+10. Docs are updated with the decision and Phase 5.5 handoff.
+
+### Non-goals
+
+- Do not implement Phase 5.5 refactor in this task.
+- Do not implement Phase 6 tool runtime in this task.
+- Do not add database, shortlist, or workspace.
 
 ---
 

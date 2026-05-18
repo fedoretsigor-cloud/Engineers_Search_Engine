@@ -31,7 +31,14 @@ Implemented Phase 5 tasks:
 
 Next task to review:
 
-- `P5-008 Improve recruiter chat conversational tone and greeting behavior`
+- `P5-008 Chat onboarding and clarification quality`
+
+Agreed next direction:
+
+- keep the product focused on one narrow Java/Ukraine flow first;
+- finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, and a closeout decision;
+- add Phase 5.5 technical modularization before Phase 6;
+- do not expand countries/technologies, add database, or start tool-calling runtime until the narrow flow is stable.
 
 ## Current approved Agent v0 flow
 
@@ -46,6 +53,7 @@ Recruiter Chat
 -> Approval
 -> Search
 -> Agent Response
+-> Next iteration suggestion
 ```
 
 Important guardrail:

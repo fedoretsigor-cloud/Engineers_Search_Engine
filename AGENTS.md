@@ -45,6 +45,8 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation`
+- Phase 5.5: `Technical modularization before Agent Runtime`
+- Phase 6: `Tool-Calling Agent Runtime`
 - Phase 4 is completed as `AI Agent Foundation` through `P4-011`.
 - `P4-003` through `P4-010` are implemented in code.
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
@@ -59,12 +61,14 @@ Current product direction:
 - `P5-006` added backend-generated post-results `agent_response` grounded only in already returned search data and rendered as a local-only `AI Agent` chat message.
 - `P5-007` added optional LLM-assisted wording with deterministic fallback for Agent Plan/Response.
 - `P5-007.1` tightened `/api/agent/query-plan`: Build Plan now requires the current Agent Plan action and brief fingerprint at the backend boundary.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, and closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime.
 
 ## Product Rules
 
 - Every product step should move the system toward a real AI Agent experience: dialogue, intent understanding, planning, tool boundaries, approval gates, execution, result analysis, and iterative follow-up.
 - The AI Agent must stay human-approved, not autonomous. It may suggest, prepare, explain, validate, and analyze, but it must not independently execute searches, deep/multi-wave runs, outreach, account actions, or other externally meaningful actions.
 - Current frontend search starts from recruiter chat that produces a validated `Search Brief`.
+- Current product focus is one high-quality supported flow first: `Backend Developer + Java + Ukraine`; do not expand countries or technologies without a separate reviewed task.
 - Current recruiter chat and AI planner paths require `OPENAI_API_KEY` and `OPENAI_MODEL`; LLM-assisted Agent Plan/Response wording falls back to deterministic wording when configuration or validation fails.
 - Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
 - Primary chat `Build Plan` uses `planner_mode = rule_based` and produces an approvable Search Plan.
