@@ -15,6 +15,7 @@ NORMALIZED_REQUEST = {
     "technology": "Java",
     "stack": ["Spring", "Kafka"],
     "location": "Ukraine",
+    "search_depth": "standard",
     "linkedin_profiles_only": True,
     "location_filter_enabled": True,
 }
@@ -167,6 +168,26 @@ async def run_smoke() -> None:
             action["executable"] is False
             for action in single_wave["agent_response"]["suggested_next_actions"]
         )
+        assert all(
+            "multi-wave" not in action["label"].lower()
+            for action in single_wave["agent_response"]["suggested_next_actions"]
+        )
+        next_options = single_wave["agent_response"]["next_iteration_options"]
+        assert [option["id"] for option in next_options] == [
+            "review_high_quality_candidates",
+            "try_deep_search_depth",
+        ]
+        assert all(
+            option["requires_approval_before_execution"] is True
+            and option["is_executable_now"] is False
+            and option["proposed_brief_patch"]["operations"]
+            for option in next_options
+        )
+        assert next_options[1]["proposed_brief_patch"]["operations"][0] == {
+            "operation": main.BRIEF_PATCH_SET_SEARCH_DEPTH,
+            "field": "search_depth",
+            "value": main.SEARCH_DEPTH_DEEP,
+        }
         assert "public snippets" in single_wave["agent_response"]["limitations"][0][
             "message"
         ]
@@ -178,6 +199,10 @@ async def run_smoke() -> None:
             multi_wave["agent_response"]["summary_facts"]["mode"] == "multi_wave"
         )
         assert "agent_response" in multi_wave
+        assert all(
+            option["id"] != "try_deep_search_depth"
+            for option in multi_wave["agent_response"]["next_iteration_options"]
+        )
 
     finally:
         main.run_query_plan_wave = original_run_query_plan_wave

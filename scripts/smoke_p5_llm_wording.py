@@ -15,6 +15,7 @@ NORMALIZED_REQUEST = {
     "technology": "Java",
     "stack": ["Spring", "Kafka"],
     "location": "Ukraine",
+    "search_depth": "standard",
     "linkedin_profiles_only": True,
     "location_filter_enabled": True,
 }
@@ -135,6 +136,12 @@ async def run_smoke() -> None:
             action["executable"] is False
             for action in agent_response["suggested_next_actions"]
         )
+        assert agent_response["next_iteration_options"]
+        assert all(
+            option["requires_approval_before_execution"] is True
+            and option["is_executable_now"] is False
+            for option in agent_response["next_iteration_options"]
+        )
         assert agent_response["llm_warnings"] == ["Public snippets are incomplete."]
         assert (
             agent_response["limitations"][0]["message"]
@@ -179,6 +186,7 @@ async def run_smoke() -> None:
             "agent_plan",
             "agent_response",
         }
+        assert all("proposed_brief_patch" not in str(payload) for payload in captured_payloads)
 
     finally:
         main.run_openai_json_agent_wording = original_wording_llm

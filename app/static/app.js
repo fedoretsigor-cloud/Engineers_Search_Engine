@@ -187,6 +187,23 @@ function clearAgentPlanData() {
   messages = messages.filter((message) => message.kind !== "agent_plan");
 }
 
+function clearSearchResultsData() {
+  messages = messages.filter((message) => message.kind !== "agent_response");
+  reportStatus.textContent = "Run a search to see counts.";
+  reportGrid.innerHTML = "";
+  contributionList.innerHTML = "";
+  resultsStatus.textContent = "Run a search to see deduped candidates.";
+  resultsList.innerHTML = "";
+}
+
+function clearDownstreamStateAfterBriefChange() {
+  clearPlannerData();
+  clearAgentPlanData();
+  clearSearchResultsData();
+  planStatus.textContent = "Build a plan from the updated chat brief.";
+  queryList.innerHTML = "";
+}
+
 function chatMessagesForBackend() {
   return messages
     .filter((message) => !message.localOnly)
@@ -500,14 +517,40 @@ function appendAgentPlanMessage(data = {}) {
   });
 }
 
+function formatNextIterationOptions(agentResponse = {}) {
+  const options = agentResponse.next_iteration_options || [];
+  if (!options.length) {
+    return "";
+  }
+
+  const optionLines = options.map((option, index) => {
+    const label = option.label || option.id || "Next option";
+    const reason = option.reason || "Grounded in the returned search data.";
+    return `${index + 1}. ${label} - ${reason}`;
+  });
+
+  return [
+    "",
+    "Next iteration options (not executable):",
+    ...optionLines,
+    "Write a manual follow-up in chat if you want to change the Search Brief.",
+  ].join("\n");
+}
+
+function agentResponseMessageContent(agentResponse = {}) {
+  const message = agentResponse.message || "";
+  return `${message}${formatNextIterationOptions(agentResponse)}`.trim();
+}
+
 function appendAgentResponseMessage(agentResponse = null) {
-  if (!agentResponse?.message) {
+  const content = agentResponseMessageContent(agentResponse || {});
+  if (!content) {
     return;
   }
 
   messages.push({
     role: "assistant",
-    content: agentResponse.message,
+    content,
     kind: "agent_response",
     localOnly: true,
   });
@@ -673,8 +716,10 @@ function updateChatStateFromResponse(data = {}) {
   recommendedPlannerMode = data.recommended_planner_mode || PRIMARY_BUILD_PLAN_MODE;
   draftBrief = data.normalized_brief || draftBrief;
   normalizedBrief = data.normalized_brief || null;
-  clearPlannerData();
-  clearAgentPlanData();
+
+  if (data.stale_state_should_clear) {
+    clearDownstreamStateAfterBriefChange();
+  }
 
   if (data.assistant_message) {
     messages.push({ role: "assistant", content: data.assistant_message });
@@ -692,7 +737,7 @@ function updateChatStateFromResponse(data = {}) {
   renderBriefSummaryCard(normalizedBrief, chatState);
   updateActionState();
 
-  if (chatState === "ready_for_planning") {
+  if (chatState === "ready_for_planning" && (!currentAgentPlan || data.stale_state_should_clear)) {
     fetchAgentPlanForCurrentBrief();
   }
 }
@@ -700,10 +745,8 @@ function updateChatStateFromResponse(data = {}) {
 async function sendChatTurn(userText) {
   const requestVersion = interactionVersion;
   messages.push({ role: "user", content: userText });
-  clearAgentPlanData();
   renderChatMessages();
   chatRequestInFlight = true;
-  clearPlannerData();
   chatStatusElement.textContent = "Updating Search Brief...";
   updateActionState();
 

@@ -274,7 +274,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
 - Preserve absolute product boundaries as prohibited behavior: no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
-- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, and `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail` are completed.
+- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, and `P5-010 Result-to-next-iteration loop` are completed.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
@@ -318,7 +318,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-007.1` are completed; next task to review is `P5-008 Chat onboarding and clarification quality`.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-010` are completed; next task to review is `P5-011 Apply AI Agent visual direction / dark workspace refresh`.
 
 ### Phase 5 Approved Contract
 
@@ -344,9 +344,9 @@ Recommended implementation order after the contract:
 - `P5-006 Add post-results Agent Response in chat` - implemented.
 - `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback` - implemented.
 - `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail` - implemented.
-- `P5-008 Chat onboarding and clarification quality` - next to review.
-- `P5-009 Search Brief refinement through chat` - planned.
-- `P5-010 Result-to-next-iteration loop` - planned.
+- `P5-008 Chat onboarding and clarification quality` - implemented.
+- `P5-009 Search Brief refinement through chat` - implemented.
+- `P5-010 Result-to-next-iteration loop` - implemented.
 - `P5-011 Apply AI Agent visual direction / dark workspace refresh` - planned.
 - `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` - planned.
 
@@ -384,6 +384,33 @@ Implemented `P5-007.1` stabilization result:
 - Current recruiter chat / AI planner paths explicitly require `OPENAI_API_KEY` and `OPENAI_MODEL`; LLM-assisted wording still has deterministic fallback.
 - `/api/agent/query-plan` now requires the current Agent Plan action and Search Brief fingerprint so backend behavior matches the approved Agent v0 flow.
 - Handoff details for another workstation are summarized in `docs/phase-5-agent-stabilization.md`.
+
+Implemented `P5-008` result:
+
+- Recruiter chat handles greeting-only RU/EN messages deterministically before OpenAI extraction.
+- Greeting-only and near-empty turns do not call OpenAI and do not create a ready `Search Brief`.
+- Existing draft briefs are preserved when the recruiter sends a greeting/near-empty message.
+- Safety refusal remains first before onboarding/LLM extraction.
+- Planner, Tavily execution, scoring, filters, dedupe, location logic, Agent Plan, Agent Response, and Search Brief refinement were not changed.
+
+Implemented `P5-009` result:
+
+- Recruiter chat can refine an existing `Search Brief` through deterministic `brief_patch.operations`.
+- Supported baseline operations include Java stack add/remove/replace, seniority, and search depth.
+- Patches are atomic; unsupported mixed patches do not apply partial valid changes.
+- Removing the last stack item is blocked unless a valid replacement is in the same patch.
+- Backend returns `brief_changed` and `stale_state_should_clear`.
+- Frontend clears stale Agent Plan, Build Plan, QueryPlan, approval/results UI, and Agent Response only when `stale_state_should_clear = true`.
+- Chat refinement still does not call Tavily, build QueryPlan, execute search, or expand beyond Java/Ukraine.
+
+Implemented `P5-010` result:
+
+- Approved search responses now include deterministic `agent_response.next_iteration_options`.
+- Each option has `id`, `label`, `reason`, `proposed_brief_patch`, `requires_approval_before_execution = true`, and `is_executable_now = false`.
+- Options are grounded only in returned QueryPlan/report/results/quality data and are not generated or selected by LLM wording.
+- Frontend displays options as readable Agent Response text and adds no Apply/action buttons.
+- `search_depth` is preserved as metadata in the adapted structured request and QueryPlan input snapshot, so `search_depth = deep` suggestions are grounded.
+- Option generation does not call Tavily, LinkedIn, web search, Build Plan, `/api/agent/query-plan`, multi-wave, or any autonomous execution.
 
 ### Done
 

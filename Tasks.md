@@ -2041,7 +2041,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2080,9 +2080,6 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
-- [ ] P5-008 Chat onboarding and clarification quality
-- [ ] P5-009 Search Brief refinement through chat
-- [ ] P5-010 Result-to-next-iteration loop
 - [ ] P5-011 Apply AI Agent visual direction / dark workspace refresh
 - [ ] P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision
 
@@ -2098,6 +2095,9 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-006 Add post-results Agent Response in chat
 - [x] P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
 - [x] P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail
+- [x] P5-008 Chat onboarding and clarification quality
+- [x] P5-009 Search Brief refinement through chat
+- [x] P5-010 Result-to-next-iteration loop
 
 ### Current Phase 5 strategy note
 
@@ -2800,7 +2800,7 @@ Use ChatGPT/LLM to improve Agent Plan and Agent Response wording while preservin
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Implemented.
 
 ### Context
 
@@ -2904,13 +2904,37 @@ The agent should be able to greet the recruiter, explain what information it nee
 - No Tavily/search/planner execution happens inside the chat turn.
 - No prohibited behavior is introduced.
 
+### Implementation result
+
+Implemented as a narrow backend chat-routing cleanup.
+
+Changed:
+
+- `/api/recruiter-chat/turn` now detects greeting-only messages such as `привет`, `hello`, and `hi` before OpenAI extraction.
+- Greeting-only messages return deterministic RU/EN onboarding wording and ask for role, main technology, location, and 1-3 stack signals.
+- Near-empty backend messages return deterministic onboarding clarification and do not create a ready `Search Brief`.
+- If an existing draft brief is present, greeting/near-empty messages preserve it instead of wiping the current brief.
+- Safety refusal still runs before onboarding/LLM extraction.
+
+Not changed:
+
+- Search Brief refinement behavior; it remains for `P5-009`.
+- Planner, `QueryPlan`, Tavily execution, scoring, filters, dedupe, location logic, Agent Plan, or Agent Response logic.
+- Ordinary chat wording remains deterministic; LLM-assisted ordinary conversation stays planned for Phase 7.
+
+Verification:
+
+- `python -m compileall app scripts`
+- `node --check app/static/app.js`
+- `scripts/smoke_p5_chat_adapter.py`
+
 ---
 
 ## Task: P5-009 Search Brief refinement through chat
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Implemented.
 
 ### Context
 
@@ -2928,38 +2952,89 @@ For now, the product focus remains the narrow Java/Ukraine flow. Do not expand c
 
 ### Goal
 
-Let recruiter chat safely update an existing `Search Brief` through dialogue and clear stale downstream agent state when the brief changes.
+Let recruiter chat safely update an existing `Search Brief` through explicit, validated `brief_patch` operations and clear stale downstream agent state when the brief changes.
 
 ### Proposed steps
 
-1. Define allowed refinement intents for the current Java/Ukraine flow.
-   - Add selected stack item.
-   - Remove selected stack item.
-   - Replace selected stack list.
+1. Define the `brief_patch` contract before coding.
+   - `brief_patch.operations`: ordered list of patch operations, even when there is only one operation.
+   - Each operation has `operation`: `add_stack`, `remove_stack`, `replace_stack`, `set_seniority`, `set_search_depth`, `reconfirm_field`, `unsupported`, or `noop`.
+   - Each operation has `field`: the Search Brief field being changed, when applicable.
+   - Each operation has `value` / `values`: normalized candidate value(s), when applicable.
+   - `source_message`: the recruiter message that caused the patch.
+   - `requires_clarification`: whether the patch cannot be safely applied.
+   - `assistant_message`: deterministic or validated response explaining the result.
+2. Define the response contract before coding.
+   - `brief_patch`: the accepted or rejected patch object.
+   - `brief_changed`: `true` only when the normalized brief actually changed.
+   - `stale_state_should_clear`: `true` only when downstream Agent Plan / Build Plan / QueryPlan / approval / results / Agent Response must be cleared.
+   - `normalized_brief`: the updated or preserved normalized brief.
+   - `assistant_message`: recruiter-facing explanation.
+   - `validation_errors`: structured errors when the patch cannot be applied.
+3. Use deterministic-first patch extraction.
+   - Handle simple explicit commands without LLM: `добавь Docker`, `убери Kafka`, `оставь только Spring`, `ищем senior`, `сделай deep`, `standard search`.
+   - Deterministic extraction should cover the main Java/Ukraine refinement cases first.
+   - This keeps common refinement fast, testable, and predictable.
+4. Use optional LLM fallback only for patch extraction.
+   - If deterministic extraction cannot understand the refinement, the LLM may propose only `brief_patch.operations`, not a full replacement `Search Brief`.
+   - Backend validation remains final authority.
+   - LLM fallback must not change planner, execution, approval, scoring, filters, candidate order, or results.
+   - If OpenAI is unavailable or returns invalid/unsafe patch output, return clarification instead of applying a risky change.
+   - LLM fallback is optional for `P5-009`, not required for the baseline refinement flow to pass.
+   - Deterministic refinement commands must work even when OpenAI is unavailable.
+5. Apply patch only to an existing draft brief.
+   - If no current `draft_brief` exists, refinement messages like `добавь Docker` should ask for the initial brief first.
+   - Do not create a ready Search Brief from a refinement-only message without a current draft.
+6. Define allowed refinement operations for the current Java/Ukraine flow.
+   - Add selected Java stack item.
+   - Remove selected Java stack item.
+   - Replace selected Java stack list.
    - Set seniority metadata.
-   - Change search depth between `standard` and `deep` without auto-running deep search.
-   - Reconfirm current Java/Ukraine role/technology/location.
-2. Keep validation as source of truth.
-   - Reuse existing Search Brief validation.
-   - Reuse existing structured request adapter.
+   - Change search depth between `standard` and `deep` without executing search or multi-wave.
+   - Reconfirm current Java/Ukraine role, technology, or location.
+7. Keep validation as source of truth.
+   - Apply `brief_patch` to a candidate brief, then run existing Search Brief validation.
+   - Reuse the existing structured request adapter after validation.
    - Do not trust LLM output blindly.
-3. Prevent accidental unsupported expansion.
+   - If LLM extraction is used, it may propose a patch only; backend validation decides whether it is accepted.
+   - Multi-operation patches are atomic: either all operations validate and apply, or no operation is applied.
+   - If a patch mixes valid and unsupported operations, do not apply the valid subset; ask for clarification instead.
+8. Prevent accidental unsupported expansion.
    - Unsupported role, technology, country, source, or stack values should produce clarification or unsupported response.
    - Do not silently adapt unsupported inputs into the Java/Ukraine baseline.
-4. Clear stale agent state after every brief change.
-   - Old `Agent Plan`, `Build Plan`, plan fingerprint, and approval state must become stale.
-   - The user must rebuild plan before search.
-5. Preserve execution boundaries.
+   - Current Java stack additions must come from the existing allowed Java stack config.
+   - Example: `добавь Docker` can be accepted; `добавь React`, `ищем Python`, or `ищем Poland` should not create executable state.
+9. Detect no-op changes safely.
+   - Removing a stack item that is not present should not break the brief.
+   - Removing the last remaining stack item is blocked unless the same atomic patch also provides a valid replacement stack.
+   - If the recruiter tries to remove the last stack item without replacement, ask them to choose a replacement stack item.
+   - Adding a duplicate stack item should not duplicate it.
+   - Reconfirming the same Java/Ukraine fields should preserve the brief and explain that nothing changed.
+   - `brief_changed = false` for `noop`.
+   - `stale_state_should_clear = false` for `noop`.
+10. Clear stale agent state after every real brief change.
+   - Old `Agent Plan`, `Build Plan`, `QueryPlan`, fingerprints, approval state, results, and Agent Response must become stale.
+   - The user must rebuild the plan before any new search.
+   - `brief_changed = true` should imply `stale_state_should_clear = true`.
+   - Frontend responsibility: when backend returns `stale_state_should_clear = true`, frontend must clear Agent Plan, Build Plan, QueryPlan, approval state, results, and Agent Response from the visible UI/state.
+   - Frontend must not clear downstream state for `noop` or unsupported patches where `stale_state_should_clear = false`.
+11. Preserve execution boundaries.
    - No Tavily calls.
    - No `/api/agent/query-plan` calls inside `/api/recruiter-chat/turn`.
+   - No search execution.
    - No autonomous execution.
-6. Verify with no-Tavily tests.
+12. Verify with no-Tavily tests.
    - Add stack.
    - Remove stack.
    - Replace stack.
    - Set seniority.
    - Change depth to `deep` without executing multi-wave.
-   - Unsupported country/technology does not create executable state.
+   - Unsupported country/technology/stack does not create executable state.
+   - Refinement without draft asks for initial brief.
+   - Duplicate add and missing remove are safe no-ops.
+   - Brief change clears stale plan/approval/result state.
+   - Deterministic path is covered as the mandatory baseline.
+   - LLM fallback can be mocked and must fail safely into clarification.
 
 ### Non-goals
 
@@ -2969,13 +3044,63 @@ Let recruiter chat safely update an existing `Search Brief` through dialogue and
 - Do not make AI-generated plans executable.
 - Do not run search from chat refinement.
 
+### Acceptance criteria
+
+- Refinement works as validated `brief_patch` operations against the current draft brief.
+- `brief_patch` uses an ordered `operations: []` list, even for one operation.
+- Simple explicit refinement commands are handled deterministic-first.
+- LLM fallback, if used, proposes only patch operations and never a full replacement brief.
+- LLM fallback is optional; deterministic refinement remains usable when OpenAI is unavailable or invalid output is returned.
+- Existing Search Brief validation and adapter remain the source of truth after patch application.
+- Response includes `brief_patch`, `brief_changed`, `stale_state_should_clear`, `normalized_brief`, `assistant_message`, and structured validation errors when relevant.
+- Supported Java/Ukraine refinements update the brief without resetting unrelated fields.
+- Unsupported role, technology, country, source, or stack values do not become executable state.
+- Multi-operation patches are atomic; partial valid subsets are not applied when another operation is unsupported.
+- Refinement-only messages without a current draft do not create a ready brief.
+- Removing the last stack item without a valid replacement is blocked and asks for replacement.
+- Every real brief change returns `brief_changed = true` and `stale_state_should_clear = true`.
+- No-op changes return `brief_changed = false` and do not clear stale downstream state.
+- Frontend clears stale Agent Plan / Build Plan / QueryPlan / approval / results / Agent Response only when `stale_state_should_clear = true`.
+- No Tavily/search/planner execution happens inside the chat refinement turn.
+- No prohibited behavior is introduced.
+
+### Implementation result
+
+Implemented as deterministic-first Search Brief refinement.
+
+Changed:
+
+- `/api/recruiter-chat/turn` now recognizes explicit refinement commands and returns a `brief_patch` response.
+- `brief_patch.operations` is always an ordered list.
+- Supported deterministic operations: `add_stack`, `remove_stack`, `replace_stack`, `set_seniority`, `set_search_depth`, `reconfirm_field`, `unsupported`, and `noop`.
+- Supported baseline commands include add/remove/replace Java stack, seniority, and `standard`/`deep` search depth.
+- Multi-operation patches are atomic: unsupported mixed patches do not apply any valid subset.
+- Removing the last stack item is blocked unless the same atomic patch provides a valid replacement.
+- `brief_changed` and `stale_state_should_clear` are returned by backend.
+- Frontend clears Agent Plan, Build Plan, QueryPlan, approval/results UI, and Agent Response only when `stale_state_should_clear = true`.
+
+Not changed:
+
+- No Tavily calls from chat refinement.
+- No `/api/agent/query-plan` calls from chat refinement.
+- No search execution.
+- No autonomous execution.
+- No expansion beyond the current Java/Ukraine flow.
+- Optional LLM fallback for patch extraction was intentionally not required for the baseline; deterministic refinement works without OpenAI.
+
+Verification:
+
+- `python -m compileall app scripts`
+- `node --check app/static/app.js`
+- `scripts/smoke_p5_chat_adapter.py`
+
 ---
 
 ## Task: P5-010 Result-to-next-iteration loop
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Implemented.
 
 ### Context
 
@@ -2983,26 +3108,44 @@ Draft. Added to the task list for review. Not approved. Not implemented.
 
 ### Goal
 
-After results are returned, let the agent propose a next search iteration and let the recruiter choose one direction that becomes an updated `Search Brief` or a new `Agent Plan` step.
+After results are returned, let the agent propose structured next-iteration options that can update the current `Search Brief` through `P5-009`-style `brief_patch` operations, without executing search automatically.
 
 ### Proposed steps
 
-1. Define allowed next-iteration suggestions for Java/Ukraine.
+1. Define the `next_iteration_options` contract.
+   - `id`: stable option id.
+   - `label`: short recruiter-facing label.
+   - `reason`: why this option is suggested, grounded in current results/report.
+   - `proposed_brief_patch`: proposed `brief_patch.operations` compatible with `P5-009`, not yet accepted or applied.
+   - `requires_approval_before_execution`: always `true`.
+   - `is_executable_now`: always `false`.
+2. Build options only from already returned search data.
+   - Use existing report counts, candidate quality signals, review flags, stack evidence, location/filter report, and Agent Response inputs.
+   - Do not call Tavily.
+   - Do not call LinkedIn or open profiles.
+   - Do not perform new web search.
+   - Use deterministic backend rules for option generation.
+   - Do not use LLM to invent or select next-iteration options in this task.
+3. Define allowed next-iteration suggestions for Java/Ukraine.
    - Broaden selected stack.
    - Narrow selected stack.
-   - Try `Multi-wave`.
+   - Try `deep` search depth through `search_depth = deep`.
    - Keep only high-quality candidates as review focus.
    - Ask recruiter for missing preference when results are ambiguous.
-2. Keep suggestions non-executable by default.
-   - Suggested next actions remain text until the user explicitly chooses or writes a follow-up.
-   - Choosing a direction should update brief/plan state, not run Tavily.
-3. Convert chosen iteration into a validated brief change.
-   - Reuse `P5-009` refinement behavior.
-   - Clear stale plan/approval state.
-4. Preserve approval boundaries.
+4. Keep suggestions non-executable by default.
+   - Suggested next actions are structured options, but not execution buttons.
+   - Do not add Apply/action buttons in this task.
+   - Frontend may display the options as readable suggestions only.
+   - Recruiter can still write a manual follow-up, and `P5-009` refinement handles it.
+5. Convert chosen iteration into a validated brief change.
+   - Reuse `P5-009` refinement behavior and response semantics.
+   - Future chosen option must become `brief_patch.operations`.
+   - Validate the patch atomically.
+   - Clear stale plan/approval/result state only when the brief actually changes.
+6. Preserve approval boundaries.
    - New search still requires Build Plan and explicit approval.
-   - Multi-wave still requires its own approval action.
-5. Verify without direct web/LinkedIn access.
+   - Multi-wave is not part of this task because it is an execution mode, not a `Search Brief` field.
+7. Verify without direct web/LinkedIn access.
    - Use mocked or saved search data where possible.
    - Tavily live execution only if separately approved for a measurement task.
 
@@ -3012,6 +3155,35 @@ After results are returned, let the agent propose a next search iteration and le
 - Do not add candidate messaging.
 - Do not add persistent memory.
 - Do not add shortlist/workspace yet.
+- Do not add execution buttons that run search directly.
+- Do not add Apply/action buttons for options in this task.
+- Do not add or suggest Multi-wave as a structured option in this task.
+- Do not call Tavily, LinkedIn, or external web from next-iteration generation.
+- Do not use LLM to generate or select next-iteration options.
+
+### Acceptance criteria
+
+- Search results include structured `next_iteration_options` or equivalent Agent Response payload.
+- Each option has `id`, `label`, `reason`, `proposed_brief_patch`, `requires_approval_before_execution = true`, and `is_executable_now = false`.
+- Options are grounded only in already returned results/report/quality data.
+- Options are generated by deterministic backend rules, not by LLM.
+- Frontend displays options but does not add Apply/action buttons in this task.
+- Applying an option is left for a later task; manual recruiter follow-up still uses `P5-009` refinement.
+- No option directly runs Tavily, multi-wave, Build Plan, or `/api/agent/query-plan`.
+- New search still requires Build Plan and explicit approval.
+- Unsupported or ambiguous option patches do not create executable state.
+- No prohibited behavior is introduced.
+
+### Implementation result
+
+- Approved search responses now include `agent_response.next_iteration_options`.
+- Each option has `id`, `label`, `reason`, `proposed_brief_patch`, `requires_approval_before_execution = true`, and `is_executable_now = false`.
+- Options are deterministic and grounded only in the returned `QueryPlan`, report counts, candidate quality/review flags, stack evidence, and current Search Brief metadata.
+- Supported generated options include high-quality review focus, stack narrowing, stack broadening from observed returned snippets, stack clarification, and `search_depth = deep`.
+- `search_depth` is now preserved as metadata in `StructuredSearchRequest`, normalized request, and `QueryPlan` input snapshot so deep-search suggestions are grounded.
+- Frontend displays options as readable text in the Agent Response chat message and adds no Apply/action buttons.
+- LLM-assisted wording does not generate, select, or mutate next-iteration options.
+- No Tavily, LinkedIn, web search, Build Plan, `/api/agent/query-plan`, multi-wave execution, or autonomous execution is triggered by option generation.
 
 ---
 

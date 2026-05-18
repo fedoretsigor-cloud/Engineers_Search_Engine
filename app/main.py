@@ -57,6 +57,14 @@ RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
 RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
 RECRUITER_CHAT_STATE_REFUSED = "refused"
 RECRUITER_CHAT_ALLOWED_MESSAGE_ROLES = {"assistant", "recruiter", "user"}
+BRIEF_PATCH_ADD_STACK = "add_stack"
+BRIEF_PATCH_REMOVE_STACK = "remove_stack"
+BRIEF_PATCH_REPLACE_STACK = "replace_stack"
+BRIEF_PATCH_SET_SENIORITY = "set_seniority"
+BRIEF_PATCH_SET_SEARCH_DEPTH = "set_search_depth"
+BRIEF_PATCH_RECONFIRM_FIELD = "reconfirm_field"
+BRIEF_PATCH_UNSUPPORTED = "unsupported"
+BRIEF_PATCH_NOOP = "noop"
 EXECUTION_ACTION_SINGLE_WAVE = "run_single_wave_search"
 EXECUTION_ACTION_MULTI_WAVE = "run_multi_wave_search"
 FORBIDDEN_AI_QUERY_TERMS = [
@@ -541,6 +549,7 @@ class StructuredSearchRequest(BaseModel):
     technology: str | None = None
     stack: list[str] | None = None
     location: str | None = None
+    search_depth: str | None = None
     linkedin_profiles_only: bool | None = None
     location_filter_enabled: bool | None = None
     execution_approval: ExecutionApproval | None = None
@@ -2409,8 +2418,8 @@ def agent_response_message_en(summary_facts: dict) -> str:
         f"stack was not visible in public snippets for "
         f"{signals['selected_stack_not_visible']} candidates, and seniority was not "
         f"visible for {signals['seniority_not_visible']} candidates. Suggested next "
-        "step: review the strongest candidates first; if coverage feels narrow, "
-        "consider multi-wave or adjust the stack through the normal approval flow."
+        "step: review the strongest candidates first, then choose a non-executable "
+        "next iteration option if the brief should change."
     )
 
 
@@ -2439,12 +2448,13 @@ def agent_response_message_ru(summary_facts: dict) -> str:
         f"seniority \u043d\u0435 \u0432\u0438\u0434\u0435\u043d \u0443 "
         f"{signals['seniority_not_visible']}. \u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 "
         "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 \u0448\u0430\u0433: "
-        "\u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c "
-        "\u0441\u0438\u043b\u044c\u043d\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432; "
-        "\u0435\u0441\u043b\u0438 coverage \u0443\u0437\u043a\u0438\u0439, "
-        "\u0440\u0430\u0441\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c multi-wave "
-        "\u0438\u043b\u0438 \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c stack "
-        "\u0447\u0435\u0440\u0435\u0437 \u043e\u0431\u044b\u0447\u043d\u044b\u0439 approval flow."
+        "\u043f\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c "
+        "\u0441\u0438\u043b\u044c\u043d\u044b\u0445 "
+        "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u0438 "
+        "\u0432\u044b\u0431\u0440\u0430\u0442\u044c \u043e\u0434\u043d\u0443 "
+        "\u0438\u0437 non-executable next iteration options "
+        "\u043d\u0438\u0436\u0435, \u0435\u0441\u043b\u0438 Search Brief "
+        "\u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c."
     )
 
 
@@ -2561,7 +2571,6 @@ def agent_response_suggested_next_actions(
     language: str,
     summary_facts: dict,
 ) -> list[dict[str, object]]:
-    mode = summary_facts.get("mode")
     if language == "ru":
         actions = [
             {
@@ -2584,18 +2593,6 @@ def agent_response_suggested_next_actions(
                 "executable": False,
             },
         ]
-        if mode != "multi_wave":
-            actions.append(
-                {
-                    "label": "\u0420\u0430\u0441\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c multi-wave",
-                    "description": (
-                        "\u0417\u0430\u043f\u0443\u0441\u043a \u0432\u043e\u0437\u043c\u043e\u0436\u0435\u043d "
-                        "\u0442\u043e\u043b\u044c\u043a\u043e \u0447\u0435\u0440\u0435\u0437 "
-                        "\u044f\u0432\u043d\u044b\u0439 approval gate."
-                    ),
-                    "executable": False,
-                }
-            )
         return actions
 
     actions = [
@@ -2613,17 +2610,208 @@ def agent_response_suggested_next_actions(
             "executable": False,
         },
     ]
-    if mode != "multi_wave":
-        actions.append(
-            {
-                "label": "Consider multi-wave",
-                "description": (
-                    "A new run must still go through the explicit approval gate."
-                ),
-                "executable": False,
-            }
-        )
     return actions
+
+
+def next_iteration_option(
+    option_id: str,
+    label: str,
+    reason: str,
+    operations: list[dict],
+    *,
+    requires_clarification: bool = False,
+) -> dict[str, object]:
+    return {
+        "id": option_id,
+        "label": label,
+        "reason": reason,
+        "proposed_brief_patch": build_brief_patch(
+            source_message=f"next_iteration_option:{option_id}",
+            operations=operations,
+            requires_clarification=requires_clarification,
+        ),
+        "requires_approval_before_execution": True,
+        "is_executable_now": False,
+    }
+
+
+def stack_term_visibility_counts(
+    deduped_results: list[dict],
+    stack_terms: list[str],
+) -> dict[str, int]:
+    counts = {term: 0 for term in stack_terms}
+    if not stack_terms:
+        return counts
+
+    for item in deduped_results:
+        result = item.get("result") or {}
+        sources = candidate_text_sources(result)
+        evidence = collect_term_evidence(sources, stack_terms)
+        for term in terms_from_evidence(evidence, stack_terms):
+            counts[term] += 1
+
+    return counts
+
+
+def next_iteration_stack_observation_threshold(candidate_count: int) -> int:
+    if candidate_count <= 0:
+        return 2
+    return max(2, min(5, (candidate_count + 11) // 12))
+
+
+def agent_response_next_iteration_options(
+    query_plan: dict,
+    summary_facts: dict,
+    deduped_results: list[dict],
+) -> list[dict[str, object]]:
+    input_snapshot = (
+        query_plan.get("input_snapshot")
+        or summary_facts.get("input_snapshot")
+        or {}
+    )
+    candidate_count = int(summary_facts.get("candidate_count") or 0)
+    quality = summary_facts.get("quality_distribution") or {}
+    signals = summary_facts.get("strong_signal_counts") or {}
+    selected_stack = input_snapshot.get("stack") or []
+    search_depth = input_snapshot.get("search_depth") or SEARCH_DEPTH_STANDARD
+    mode = summary_facts.get("mode")
+    domain_config = search_domain_config_for(
+        input_snapshot.get("role_family") or "",
+        input_snapshot.get("technology") or "",
+    )
+    allowed_stack = (
+        domain_config.get("quality", {})
+        .get("stack", {})
+        .get("allowed_terms", [])
+    )
+    selected_stack = [term for term in selected_stack if term in allowed_stack]
+    selected_counts = stack_term_visibility_counts(deduped_results, selected_stack)
+    unselected_stack = [term for term in allowed_stack if term not in selected_stack]
+    unselected_counts = stack_term_visibility_counts(deduped_results, unselected_stack)
+    options: list[dict[str, object]] = []
+
+    strong_count = int(quality.get("strong") or 0)
+    if strong_count:
+        options.append(
+            next_iteration_option(
+                "review_high_quality_candidates",
+                "Review high-quality candidates first",
+                (
+                    f"{strong_count} candidates are in the strong quality bucket. "
+                    "This is a review-focus suggestion only and does not change the Search Brief."
+                ),
+                [
+                    {
+                        "operation": BRIEF_PATCH_NOOP,
+                        "field": "review_focus",
+                        "value": "high_quality_candidates",
+                    }
+                ],
+            )
+        )
+
+    visible_selected_stack = [
+        term for term in selected_stack if selected_counts.get(term, 0) > 0
+    ]
+    missing_selected_stack = [
+        term for term in selected_stack if selected_counts.get(term, 0) == 0
+    ]
+    if (
+        len(selected_stack) > 1
+        and visible_selected_stack
+        and missing_selected_stack
+        and visible_selected_stack != selected_stack
+    ):
+        options.append(
+            next_iteration_option(
+                "narrow_to_visible_selected_stack",
+                "Narrow stack to visible selected terms",
+                (
+                    "Current results directly show "
+                    f"{', '.join(visible_selected_stack)}, while "
+                    f"{', '.join(missing_selected_stack)} is not visible in returned snippets."
+                ),
+                [
+                    {
+                        "operation": BRIEF_PATCH_REPLACE_STACK,
+                        "field": "stack",
+                        "values": visible_selected_stack[:3],
+                    }
+                ],
+            )
+        )
+
+    observation_threshold = next_iteration_stack_observation_threshold(candidate_count)
+    observed_unselected_stack = [
+        (term, count)
+        for term, count in unselected_counts.items()
+        if count >= observation_threshold
+    ]
+    observed_unselected_stack.sort(key=lambda item: (-item[1], item[0]))
+    if selected_stack and len(selected_stack) < 3 and observed_unselected_stack:
+        term, count = observed_unselected_stack[0]
+        options.append(
+            next_iteration_option(
+                "broaden_with_observed_stack",
+                f"Broaden stack with {term}",
+                (
+                    f"{term} is visible in {count} returned candidates but is not "
+                    "part of the selected stack."
+                ),
+                [
+                    {
+                        "operation": BRIEF_PATCH_ADD_STACK,
+                        "field": "stack",
+                        "value": term,
+                    }
+                ],
+            )
+        )
+
+    if (
+        selected_stack
+        and not visible_selected_stack
+        and int(signals.get("selected_stack_not_visible") or 0) > 0
+    ):
+        options.append(
+            next_iteration_option(
+                "clarify_stack_preference",
+                "Clarify stack preference",
+                (
+                    "Selected stack is not directly visible in the returned public snippets. "
+                    "The safest next step is to ask whether to keep or replace it."
+                ),
+                [
+                    {
+                        "operation": BRIEF_PATCH_RECONFIRM_FIELD,
+                        "field": "stack",
+                        "value": "current",
+                    }
+                ],
+                requires_clarification=True,
+            )
+        )
+
+    if search_depth != SEARCH_DEPTH_DEEP and mode != "multi_wave":
+        options.append(
+            next_iteration_option(
+                "try_deep_search_depth",
+                "Try deep search depth",
+                (
+                    "The current Search Brief uses standard depth. Deep depth is "
+                    "a brief-level change that still requires Build Plan and approval."
+                ),
+                [
+                    {
+                        "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,
+                        "field": "search_depth",
+                        "value": SEARCH_DEPTH_DEEP,
+                    }
+                ],
+            )
+        )
+
+    return options[:4]
 
 
 def build_agent_response(
@@ -2658,6 +2846,11 @@ def build_agent_response(
         "suggested_next_actions": agent_response_suggested_next_actions(
             normalized_language,
             summary_facts,
+        ),
+        "next_iteration_options": agent_response_next_iteration_options(
+            query_plan,
+            summary_facts,
+            deduped_results,
         ),
         "language": normalized_language,
         "source": "backend_returned_search_data",
@@ -3225,6 +3418,11 @@ def normalize_structured_search_request(
     if not location:
         add_validation_error(errors, "location", "Location is required.")
 
+    search_depth = normalize_text_value(request.search_depth) or SEARCH_DEPTH_STANDARD
+    if search_depth not in SEARCH_DEPTH_VALUES:
+        add_validation_error(errors, "search_depth", "Unsupported search depth.")
+        search_depth = SEARCH_DEPTH_STANDARD
+
     normalized_stack: list[str] = []
     if technology == "Java":
         normalized_stack, stack_errors = normalize_stack_items(request.stack)
@@ -3257,6 +3455,7 @@ def normalize_structured_search_request(
             "technology": technology,
             "stack": normalized_stack,
             "location": location,
+            "search_depth": search_depth,
             "linkedin_profiles_only": linkedin_profiles_only,
             "location_filter_enabled": location_filter_enabled,
         },
@@ -3383,6 +3582,7 @@ def build_structured_request_from_brief(normalized_brief: dict) -> StructuredSea
         technology=normalized_brief.get("technology"),
         stack=normalized_brief.get("stack") or [],
         location=normalized_brief.get("location"),
+        search_depth=normalized_brief.get("search_depth") or SEARCH_DEPTH_STANDARD,
         linkedin_profiles_only=True,
         location_filter_enabled=(
             location_filter_config_for(normalized_brief.get("location") or "") is not None
@@ -3824,6 +4024,332 @@ def recruiter_chat_language(request: RecruiterChatTurnRequest) -> str:
     return "en"
 
 
+def latest_recruiter_chat_user_text(messages: list[RecruiterChatMessage]) -> str:
+    for message in reversed(messages):
+        role = (normalize_text_value(message.role) or "").lower()
+        if role in {"user", "recruiter"}:
+            return message.content
+
+    if messages:
+        return messages[-1].content
+
+    return ""
+
+
+def normalized_chat_control_text(text: str) -> str:
+    lowered_text = (normalize_text_value(text) or "").lower()
+    cleaned_text = re.sub(r"[\"'`“”‘’()\[\]{}<>]+", " ", lowered_text)
+    cleaned_text = re.sub(r"[\s,!.?;:…/\\|+-]+", " ", cleaned_text)
+    return compact_spaces(cleaned_text)
+
+
+def is_greeting_only_chat_message(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+
+    greetings = {
+        "hi",
+        "hello",
+        "hey",
+        "hello there",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "привет",
+        "приветствую",
+        "здравствуй",
+        "здравствуйте",
+        "добрый день",
+        "доброе утро",
+        "добрый вечер",
+    }
+    return normalized_text in greetings
+
+
+def is_near_empty_chat_message(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return True
+
+    return len(normalized_text) <= 1
+
+
+def text_matches_any_pattern(text: str, patterns: list[str]) -> bool:
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def split_refinement_segments(text: str) -> list[str]:
+    normalized_text = normalized_chat_control_text(text)
+    return [
+        segment.strip()
+        for segment in re.split(r"\b(?:and|but|и|но)\b|[,;]+", normalized_text)
+        if segment.strip()
+    ]
+
+
+def java_stack_terms_in_text(text: str) -> list[str]:
+    lowered_text = (normalize_text_value(text) or "").lower()
+    stack_terms: list[str] = []
+    occupied_spans: list[tuple[int, int]] = []
+
+    stack_aliases = sorted(JAVA_STACK_VALUES.items(), key=lambda item: len(item[0]), reverse=True)
+    for alias, canonical_stack_item in stack_aliases:
+        pattern = rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])"
+        for match in re.finditer(pattern, lowered_text):
+            span = match.span()
+            if any(span[0] < end and start < span[1] for start, end in occupied_spans):
+                continue
+            occupied_spans.append(span)
+            if canonical_stack_item not in stack_terms:
+                stack_terms.append(canonical_stack_item)
+            break
+
+    return stack_terms
+
+
+UNSUPPORTED_REFINEMENT_PATTERNS = [
+    (r"(?<![a-z0-9])react(?![a-z0-9])", "stack", "React"),
+    (r"(?<![a-z0-9])javascript(?![a-z0-9])", "technology", "JavaScript"),
+    (r"(?<![a-z0-9])python(?![a-z0-9])", "technology", "Python"),
+    (r"(?<![a-z0-9])node(?:\.js|js| js)(?![a-z0-9])", "technology", "Node.js"),
+    (r"(?<![a-z0-9])c#(?![a-z0-9])", "technology", "C#"),
+    (r"(?<![a-z0-9])go(?:lang)?(?![a-z0-9])", "technology", "Go"),
+    (r"(?<![a-z0-9])php(?![a-z0-9])", "technology", "PHP"),
+    (r"(?<![a-z0-9])poland(?![a-z0-9])|польш", "location", "Poland"),
+    (r"(?<![a-z0-9])germany(?![a-z0-9])|герман", "location", "Germany"),
+    (r"(?<![a-z0-9])frontend(?![a-z0-9])|фронтенд", "role_family", "Frontend Developer"),
+    (r"(?<![a-z0-9])devops(?![a-z0-9])", "role_family", "DevOps"),
+]
+
+
+def unsupported_refinement_operations(text: str) -> list[dict]:
+    lowered_text = (normalize_text_value(text) or "").lower()
+    operations: list[dict] = []
+    seen_values: set[tuple[str, str]] = set()
+
+    for pattern, field_name, value in UNSUPPORTED_REFINEMENT_PATTERNS:
+        if not re.search(pattern, lowered_text, flags=re.IGNORECASE):
+            continue
+        value_key = (field_name, value)
+        if value_key in seen_values:
+            continue
+        seen_values.add(value_key)
+        operations.append(
+            {
+                "operation": BRIEF_PATCH_UNSUPPORTED,
+                "field": field_name,
+                "value": value,
+                "reason": "Unsupported value for the current Java/Ukraine flow.",
+            }
+        )
+
+    return operations
+
+
+ADD_REFINEMENT_PATTERNS = [
+    r"\badd\b",
+    r"\binclude\b",
+    r"добав",
+]
+REMOVE_REFINEMENT_PATTERNS = [
+    r"\bremove\b",
+    r"\bdrop\b",
+    r"\bexclude\b",
+    r"\bwithout\b",
+    r"\bno\b",
+    r"убер",
+    r"удал",
+    r"исключ",
+    r"\bбез\b",
+]
+REPLACE_REFINEMENT_PATTERNS = [
+    r"\bonly\b",
+    r"\breplace\b",
+    r"остав.*только",
+    r"\bтолько\b",
+    r"замен",
+]
+REFINEMENT_INTENT_PATTERNS = (
+    ADD_REFINEMENT_PATTERNS
+    + REMOVE_REFINEMENT_PATTERNS
+    + REPLACE_REFINEMENT_PATTERNS
+    + [
+        r"\bsenior\b",
+        r"\bmiddle\b",
+        r"\bjunior\b",
+        r"\blead\b",
+        r"сеньор|сениор|старш",
+        r"мидл|middle",
+        r"джун|junior",
+        r"\bdeep\b|глубок",
+        r"\bstandard\b|стандарт|обычн",
+        r"\bищем\b",
+    ]
+)
+
+
+def is_refinement_like_chat_message(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+
+    return (
+        text_matches_any_pattern(normalized_text, REFINEMENT_INTENT_PATTERNS)
+        or bool(unsupported_refinement_operations(normalized_text))
+    )
+
+
+def detected_seniority_value(text: str) -> str | None:
+    lowered_text = normalized_chat_control_text(text)
+    seniority_patterns = [
+        (r"\blead\b|лид", "Lead"),
+        (r"\bsenior\b|сеньор|сениор|старш", "Senior"),
+        (r"\bmiddle\b|\bmid\b|мидл", "Middle"),
+        (r"\bjunior\b|\bjun\b|джун", "Junior"),
+    ]
+    for pattern, value in seniority_patterns:
+        if re.search(pattern, lowered_text, flags=re.IGNORECASE):
+            return value
+    return None
+
+
+def detected_search_depth_value(text: str) -> str | None:
+    lowered_text = normalized_chat_control_text(text)
+    if re.search(r"\bdeep\b|глубок", lowered_text, flags=re.IGNORECASE):
+        return SEARCH_DEPTH_DEEP
+    if re.search(r"\bstandard\b|стандарт|обычн", lowered_text, flags=re.IGNORECASE):
+        return SEARCH_DEPTH_STANDARD
+    return None
+
+
+def build_brief_patch(
+    *,
+    source_message: str,
+    operations: list[dict],
+    requires_clarification: bool = False,
+    assistant_message: str | None = None,
+) -> dict:
+    return {
+        "operations": operations,
+        "source_message": source_message,
+        "requires_clarification": requires_clarification,
+        "assistant_message": assistant_message,
+    }
+
+
+def deterministic_brief_patch_from_message(
+    text: str,
+    language: str,
+) -> dict | None:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return None
+
+    operations: list[dict] = []
+
+    replace_intent = text_matches_any_pattern(normalized_text, REPLACE_REFINEMENT_PATTERNS)
+    if replace_intent:
+        stack_terms = java_stack_terms_in_text(normalized_text)
+        if stack_terms:
+            operations.append(
+                {
+                    "operation": BRIEF_PATCH_REPLACE_STACK,
+                    "field": "stack",
+                    "values": stack_terms,
+                }
+            )
+        operations.extend(unsupported_refinement_operations(normalized_text))
+    else:
+        for segment in split_refinement_segments(normalized_text):
+            segment_stack_terms = java_stack_terms_in_text(segment)
+            segment_unsupported_operations = unsupported_refinement_operations(segment)
+            has_add_intent = text_matches_any_pattern(segment, ADD_REFINEMENT_PATTERNS)
+            has_remove_intent = text_matches_any_pattern(segment, REMOVE_REFINEMENT_PATTERNS)
+
+            if has_remove_intent:
+                for stack_item in segment_stack_terms:
+                    operations.append(
+                        {
+                            "operation": BRIEF_PATCH_REMOVE_STACK,
+                            "field": "stack",
+                            "value": stack_item,
+                        }
+                    )
+                operations.extend(segment_unsupported_operations)
+                continue
+
+            if has_add_intent:
+                for stack_item in segment_stack_terms:
+                    operations.append(
+                        {
+                            "operation": BRIEF_PATCH_ADD_STACK,
+                            "field": "stack",
+                            "value": stack_item,
+                        }
+                    )
+                operations.extend(segment_unsupported_operations)
+
+    seniority = detected_seniority_value(normalized_text)
+    if seniority:
+        operations.append(
+            {
+                "operation": BRIEF_PATCH_SET_SENIORITY,
+                "field": "seniority",
+                "value": seniority,
+            }
+        )
+
+    search_depth = detected_search_depth_value(normalized_text)
+    if search_depth:
+        operations.append(
+            {
+                "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,
+                "field": "search_depth",
+                "value": search_depth,
+            }
+        )
+
+    if (
+        not operations
+        and re.search(r"\b(java|ukraine|backend)\b|украин|україн", normalized_text)
+        and re.search(r"\b(yes|same|correct|keep|ok)\b|да|верно|подтверж|оставим", normalized_text)
+    ):
+        operations.append(
+            {
+                "operation": BRIEF_PATCH_RECONFIRM_FIELD,
+                "field": "search_brief",
+                "value": "current",
+            }
+        )
+
+    if not operations and is_refinement_like_chat_message(normalized_text):
+        message = (
+            "Уточни, что именно изменить в текущем Search Brief."
+            if language == "ru"
+            else "Please clarify what to change in the current Search Brief."
+        )
+        return build_brief_patch(
+            source_message=text,
+            operations=[],
+            requires_clarification=True,
+            assistant_message=message,
+        )
+
+    if not operations:
+        return None
+
+    requires_clarification = any(
+        operation.get("operation") == BRIEF_PATCH_UNSUPPORTED
+        for operation in operations
+    )
+    return build_brief_patch(
+        source_message=text,
+        operations=operations,
+        requires_clarification=requires_clarification,
+    )
+
+
 def validate_recruiter_chat_messages(
     messages: list[RecruiterChatMessage],
 ) -> list[dict[str, str]]:
@@ -4225,6 +4751,9 @@ def build_recruiter_chat_response(
     next_question: str | None = None,
     planner_mode: str = RECRUITER_CHAT_DEFAULT_PLANNER_MODE,
     assistant_message: str | None = None,
+    brief_patch: dict | None = None,
+    brief_changed: bool = False,
+    stale_state_should_clear: bool = False,
 ) -> dict:
     normalized_brief = normalized_brief or {}
     validation_errors = validation_errors or []
@@ -4265,7 +4794,451 @@ def build_recruiter_chat_response(
         "recommended_planner_mode": planner_mode,
         "can_build_plan": can_build_plan,
         "build_plan_action": build_plan_action,
+        "brief_patch": brief_patch,
+        "brief_changed": brief_changed,
+        "stale_state_should_clear": stale_state_should_clear,
     }
+
+
+def recruiter_chat_onboarding_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Привет. Расскажи, кого ищем: роль, основная технология, локация "
+            "и 1-3 сигнала стека."
+        )
+
+    return (
+        "Hi. Tell me who we should find: role, main technology, location, "
+        "and 1-3 stack signals."
+    )
+
+
+def recruiter_chat_near_empty_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Напиши, пожалуйста, кого ищем: роль, основная технология, локация "
+            "и 1-3 сигнала стека."
+        )
+
+    return (
+        "Please tell me who we should find: role, main technology, location, "
+        "and 1-3 stack signals."
+    )
+
+
+def recruiter_chat_draft_preserved_message(
+    normalized_brief: dict,
+    language: str,
+    fallback_message: str,
+) -> str:
+    if normalized_brief.get("brief_status") == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        if language == "ru":
+            return "Привет. Текущий Search Brief сохранен и готов к Build Plan."
+        return "Hi. The current Search Brief is still saved and ready for Build Plan."
+
+    next_question = one_clarifying_question(normalized_brief, language)
+    if next_question:
+        if language == "ru":
+            return f"Текущий Search Brief сохранен. {next_question}"
+        return f"The current Search Brief is still saved. {next_question}"
+
+    return fallback_message
+
+
+def build_recruiter_chat_onboarding_response(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    assistant_message: str,
+) -> dict:
+    if not request.draft_brief:
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            assistant_message=assistant_message,
+            planner_mode=planner_mode,
+        )
+
+    brief_response = search_brief_validation_response(request.draft_brief)
+    normalized_brief = brief_response["normalized_brief"]
+    validation_errors = brief_response["errors"]
+    next_question = one_clarifying_question(normalized_brief, language)
+    state = RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION
+    ok = not validation_errors
+
+    if ok and normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        state = RECRUITER_CHAT_STATE_READY_FOR_PLANNING
+
+    return build_recruiter_chat_response(
+        ok=ok,
+        state=state,
+        language=language,
+        normalized_brief=normalized_brief,
+        validation_errors=validation_errors,
+        next_question=next_question,
+        planner_mode=planner_mode,
+        assistant_message=recruiter_chat_draft_preserved_message(
+            normalized_brief,
+            language,
+            assistant_message,
+        ),
+    )
+
+
+def patch_validation_error(field: str, code: str, message: str) -> dict[str, str]:
+    return {
+        "field": field,
+        "code": code,
+        "message": message,
+    }
+
+
+def normalized_brief_state_payload(normalized_brief: dict | None) -> dict:
+    normalized_brief = normalized_brief or {}
+    return {
+        "brief_status": normalized_brief.get("brief_status"),
+        "role_family": normalized_brief.get("role_family"),
+        "technology": normalized_brief.get("technology"),
+        "stack": normalized_brief.get("stack") or [],
+        "location": normalized_brief.get("location"),
+        "seniority": normalized_brief.get("seniority"),
+        "must_have": normalized_brief.get("must_have") or [],
+        "nice_to_have": normalized_brief.get("nice_to_have") or [],
+        "exclusions": normalized_brief.get("exclusions") or [],
+        "search_depth": normalized_brief.get("search_depth"),
+        "profile_sources": normalized_brief.get("profile_sources") or [],
+    }
+
+
+def current_brief_validation_context(brief: SearchBrief | None) -> dict:
+    if not brief:
+        return {
+            "ok": True,
+            "state": RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            "normalized_brief": None,
+            "errors": [],
+            "next_question": None,
+        }
+
+    brief_response = search_brief_validation_response(brief)
+    normalized_brief = brief_response["normalized_brief"]
+    validation_errors = brief_response["errors"]
+    state = RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION
+    if not validation_errors and normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        state = RECRUITER_CHAT_STATE_READY_FOR_PLANNING
+
+    return {
+        "ok": not validation_errors,
+        "state": state,
+        "normalized_brief": normalized_brief,
+        "errors": validation_errors,
+        "next_question": None,
+    }
+
+
+def current_brief_context_for_language(
+    brief: SearchBrief | None,
+    language: str,
+) -> dict:
+    context = current_brief_validation_context(brief)
+    normalized_brief = context.get("normalized_brief")
+    if normalized_brief:
+        context["next_question"] = one_clarifying_question(normalized_brief, language)
+    return context
+
+
+def refinement_requires_initial_brief_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Сначала соберем initial Search Brief: роль, основная технология, "
+            "локация и 1-3 stack сигнала."
+        )
+    return (
+        "Let's collect the initial Search Brief first: role, main technology, "
+        "location, and 1-3 stack signals."
+    )
+
+
+def unsupported_patch_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Это изменение вне текущего Java/Ukraine flow. Уточни изменение "
+            "в рамках Backend Developer, Java, Ukraine и поддержанного Java stack."
+        )
+    return (
+        "That change is outside the current Java/Ukraine flow. Please refine it "
+        "within Backend Developer, Java, Ukraine, and the supported Java stack."
+    )
+
+
+def last_stack_item_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Нельзя убрать последний stack item без замены. Выбери replacement "
+            "из поддержанного Java stack."
+        )
+    return (
+        "I cannot remove the last stack item without a replacement. Choose a "
+        "replacement from the supported Java stack."
+    )
+
+
+def patch_success_message(patch: dict, language: str, changed: bool) -> str:
+    if not changed:
+        if language == "ru":
+            return "Search Brief не изменился. Текущий план можно оставить."
+        return "Search Brief did not change. The current plan can stay as is."
+
+    operations = patch.get("operations") or []
+    operation_labels = [
+        operation.get("operation", "update").replace("_", " ")
+        for operation in operations
+        if operation.get("operation") not in {BRIEF_PATCH_NOOP, BRIEF_PATCH_RECONFIRM_FIELD}
+    ]
+    action_summary = ", ".join(operation_labels) if operation_labels else "updated"
+
+    if language == "ru":
+        return f"Обновил Search Brief ({action_summary}). Нужно заново построить план."
+    return f"Updated the Search Brief ({action_summary}). Build a new plan before search."
+
+
+def build_recruiter_chat_patch_response(
+    *,
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    patch: dict,
+    assistant_message: str,
+    validation_errors: list[dict[str, str]] | None = None,
+) -> dict:
+    context = current_brief_context_for_language(request.draft_brief, language)
+    return build_recruiter_chat_response(
+        ok=context["ok"],
+        state=context["state"],
+        language=language,
+        normalized_brief=context["normalized_brief"],
+        validation_errors=validation_errors or [],
+        next_question=context["next_question"],
+        planner_mode=planner_mode,
+        assistant_message=assistant_message,
+        brief_patch=patch,
+        brief_changed=False,
+        stale_state_should_clear=False,
+    )
+
+
+def apply_brief_patch_to_draft(
+    request: RecruiterChatTurnRequest,
+    patch: dict,
+    chat_text: str,
+    language: str,
+) -> tuple[SearchBrief | None, dict | None, bool, list[dict[str, str]], str]:
+    operations = patch.get("operations") or []
+    if any(operation.get("operation") == BRIEF_PATCH_UNSUPPORTED for operation in operations):
+        patch["requires_clarification"] = True
+        return None, None, False, [
+            patch_validation_error(
+                "brief_patch.operations",
+                "unsupported_patch_operation",
+                "Patch contains unsupported values for the current Java/Ukraine flow.",
+            )
+        ], unsupported_patch_message(language)
+
+    candidate = clean_search_brief_dict(request.draft_brief)
+    current_stack, current_stack_errors = normalize_brief_stack_items(candidate.get("stack"))
+    if current_stack_errors:
+        return None, None, False, current_stack_errors, validation_error_message(current_stack_errors, language)
+
+    next_stack = current_stack[:]
+    changed = False
+    stack_touched = False
+
+    for operation in operations:
+        operation_name = operation.get("operation")
+
+        if operation_name == BRIEF_PATCH_ADD_STACK:
+            stack_item = canonical_value(operation.get("value"), JAVA_STACK_VALUES)
+            if stack_item and stack_item not in next_stack:
+                next_stack.append(stack_item)
+                changed = True
+                stack_touched = True
+            continue
+
+        if operation_name == BRIEF_PATCH_REMOVE_STACK:
+            stack_item = canonical_value(operation.get("value"), JAVA_STACK_VALUES)
+            if stack_item and stack_item in next_stack:
+                next_stack.remove(stack_item)
+                changed = True
+                stack_touched = True
+            continue
+
+        if operation_name == BRIEF_PATCH_REPLACE_STACK:
+            replacement_stack, replacement_errors = normalize_brief_stack_items(
+                operation.get("values")
+            )
+            if replacement_errors:
+                return None, None, False, replacement_errors, validation_error_message(
+                    replacement_errors,
+                    language,
+                )
+            if next_stack != replacement_stack:
+                next_stack = replacement_stack
+                changed = True
+                stack_touched = True
+            continue
+
+        if operation_name == BRIEF_PATCH_SET_SENIORITY:
+            seniority = normalize_text_value(operation.get("value"))
+            if seniority and seniority != normalize_text_value(candidate.get("seniority")):
+                candidate["seniority"] = seniority
+                changed = True
+            continue
+
+        if operation_name == BRIEF_PATCH_SET_SEARCH_DEPTH:
+            search_depth = normalize_text_value(operation.get("value"))
+            if search_depth in SEARCH_DEPTH_VALUES and search_depth != (
+                normalize_text_value(candidate.get("search_depth")) or SEARCH_DEPTH_STANDARD
+            ):
+                candidate["search_depth"] = search_depth
+                changed = True
+            continue
+
+        if operation_name in {BRIEF_PATCH_RECONFIRM_FIELD, BRIEF_PATCH_NOOP}:
+            continue
+
+    if stack_touched and not next_stack:
+        patch["requires_clarification"] = True
+        return None, None, False, [
+            patch_validation_error(
+                "stack",
+                "last_stack_item_requires_replacement",
+                "Removing the last stack item requires a replacement.",
+            )
+        ], last_stack_item_message(language)
+
+    if stack_touched:
+        candidate["stack"] = next_stack
+        candidate["nice_to_have"] = next_stack
+
+    if changed:
+        candidate["source_text"] = chat_text
+
+    if "search_depth" not in candidate:
+        candidate["search_depth"] = SEARCH_DEPTH_STANDARD
+    if "profile_sources" not in candidate:
+        candidate["profile_sources"] = [PROFILE_SOURCE_LINKEDIN_PUBLIC]
+
+    try:
+        candidate_brief = SearchBrief(**candidate)
+    except ValidationError as exc:
+        return None, None, False, [
+            {
+                "field": "brief_patch",
+                "message": f"Patched Search Brief is invalid: {error['msg']}",
+            }
+            for error in exc.errors()
+        ], validation_error_message([], language)
+
+    candidate_response = search_brief_validation_response(candidate_brief)
+    candidate_errors = candidate_response["errors"]
+    if candidate_errors:
+        patch["requires_clarification"] = True
+        return None, None, False, candidate_errors, validation_error_message(
+            candidate_errors,
+            language,
+        )
+
+    existing_context = current_brief_context_for_language(request.draft_brief, language)
+    existing_payload = normalized_brief_state_payload(existing_context["normalized_brief"])
+    candidate_payload = normalized_brief_state_payload(candidate_response["normalized_brief"])
+    changed = changed and existing_payload != candidate_payload
+
+    return (
+        candidate_brief,
+        candidate_response["normalized_brief"],
+        changed,
+        [],
+        patch_success_message(patch, language, changed),
+    )
+
+
+def build_recruiter_chat_refinement_response(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    patch: dict,
+    chat_text: str,
+) -> dict:
+    if not request.draft_brief:
+        patch["requires_clarification"] = True
+        message = refinement_requires_initial_brief_message(language)
+        patch["assistant_message"] = message
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            assistant_message=message,
+            planner_mode=planner_mode,
+            brief_patch=patch,
+            brief_changed=False,
+            stale_state_should_clear=False,
+        )
+
+    if patch.get("requires_clarification"):
+        message = patch.get("assistant_message") or unsupported_patch_message(language)
+        patch["assistant_message"] = message
+        return build_recruiter_chat_patch_response(
+            request=request,
+            language=language,
+            planner_mode=planner_mode,
+            patch=patch,
+            assistant_message=message,
+            validation_errors=[
+                patch_validation_error(
+                    "brief_patch.operations",
+                    "patch_requires_clarification",
+                    message,
+                )
+            ],
+        )
+
+    candidate_brief, normalized_brief, changed, patch_errors, message = apply_brief_patch_to_draft(
+        request,
+        patch,
+        chat_text,
+        language,
+    )
+    if patch_errors or candidate_brief is None or normalized_brief is None:
+        patch["assistant_message"] = message
+        return build_recruiter_chat_patch_response(
+            request=request,
+            language=language,
+            planner_mode=planner_mode,
+            patch=patch,
+            assistant_message=message,
+            validation_errors=patch_errors,
+        )
+
+    patch["assistant_message"] = message
+    next_question = one_clarifying_question(normalized_brief, language)
+    state = RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION
+    if normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        state = RECRUITER_CHAT_STATE_READY_FOR_PLANNING
+
+    return build_recruiter_chat_response(
+        ok=True,
+        state=state,
+        language=language,
+        normalized_brief=normalized_brief,
+        validation_errors=[],
+        next_question=next_question,
+        planner_mode=planner_mode,
+        assistant_message=message,
+        brief_patch=patch,
+        brief_changed=changed,
+        stale_state_should_clear=changed,
+    )
 
 
 async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dict:
@@ -4307,6 +5280,33 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             planner_mode=planner_mode,
         )
 
+    latest_user_text = latest_recruiter_chat_user_text(request.messages)
+    if is_greeting_only_chat_message(latest_user_text):
+        return build_recruiter_chat_onboarding_response(
+            request,
+            language,
+            planner_mode,
+            recruiter_chat_onboarding_message(language),
+        )
+
+    if is_near_empty_chat_message(latest_user_text):
+        return build_recruiter_chat_onboarding_response(
+            request,
+            language,
+            planner_mode,
+            recruiter_chat_near_empty_message(language),
+        )
+
+    brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
+    if brief_patch is not None:
+        return build_recruiter_chat_refinement_response(
+            request,
+            language,
+            planner_mode,
+            brief_patch,
+            chat_text,
+        )
+
     ai_output, ai_errors = await run_openai_json_recruiter_chat(request)
     if ai_errors or ai_output is None:
         return build_recruiter_chat_response(
@@ -4335,6 +5335,9 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     normalized_brief = brief_response["normalized_brief"]
     validation_errors = brief_response["errors"]
     next_question = one_clarifying_question(normalized_brief, language)
+    brief_changed = normalized_brief_state_payload(
+        current_brief_context_for_language(request.draft_brief, language)["normalized_brief"]
+    ) != normalized_brief_state_payload(normalized_brief)
 
     if validation_errors:
         return build_recruiter_chat_response(
@@ -4345,6 +5348,8 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             validation_errors=validation_errors,
             next_question=next_question,
             planner_mode=planner_mode,
+            brief_changed=brief_changed,
+            stale_state_should_clear=brief_changed,
         )
 
     if normalized_brief["brief_status"] != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
@@ -4355,6 +5360,8 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             normalized_brief=normalized_brief,
             next_question=next_question,
             planner_mode=planner_mode,
+            brief_changed=brief_changed,
+            stale_state_should_clear=brief_changed,
         )
 
     return build_recruiter_chat_response(
@@ -4363,6 +5370,8 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         language=language,
         normalized_brief=normalized_brief,
         planner_mode=planner_mode,
+        brief_changed=brief_changed,
+        stale_state_should_clear=brief_changed,
     )
 
 

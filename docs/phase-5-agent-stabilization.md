@@ -4,6 +4,8 @@ Date: 2026-05-18
 
 Task: `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`
 
+Latest update: `P5-010 Result-to-next-iteration loop`
+
 ## Why this exists
 
 After pulling work from another computer, the code and smoke checks were healthy, but the project handoff was not fully clear:
@@ -16,7 +18,7 @@ This stabilization task makes the documentation and backend guardrail match the 
 
 ## Current Phase 5 status
 
-Completed through `P5-007.1`.
+Completed through `P5-010`.
 
 Implemented Phase 5 tasks:
 
@@ -28,15 +30,18 @@ Implemented Phase 5 tasks:
 - `P5-006 Add post-results Agent Response in chat`
 - `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`
 - `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`
+- `P5-008 Chat onboarding and clarification quality`
+- `P5-009 Search Brief refinement through chat`
+- `P5-010 Result-to-next-iteration loop`
 
 Next task to review:
 
-- `P5-008 Chat onboarding and clarification quality`
+- `P5-011 Apply AI Agent visual direction / dark workspace refresh`
 
 Agreed next direction:
 
 - keep the product focused on one narrow Java/Ukraine flow first;
-- finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, AI Agent visual direction, and a closeout decision;
+- finish Phase 5 through result-to-next-iteration, AI Agent visual direction, and a closeout decision;
 - add Phase 5.5 technical modularization before Phase 6;
 - keep ordinary LLM-assisted agent conversation wording for Phase 7, after the runtime message taxonomy is stable;
 - do not expand countries/technologies, add database, or start tool-calling runtime until the narrow flow is stable.
@@ -102,3 +107,9 @@ git diff --check
 ```
 
 `scripts/smoke_p5_agent_plan.py` now verifies that `/api/agent/query-plan` rejects missing Agent Plan action/fingerprint.
+
+`P5-008` added deterministic RU/EN onboarding before OpenAI extraction for greeting-only and near-empty recruiter chat turns. Those turns do not call OpenAI, do not create a ready `Search Brief`, and preserve an existing draft brief. The verification set now also includes chat adapter checks for RU/EN greetings, near-empty input, prohibited refusal, partial/complete intent, and draft preservation.
+
+`P5-009` added deterministic-first Search Brief refinement through `brief_patch.operations`. Supported baseline refinements include Java stack add/remove/replace, seniority, and search depth. Patches are atomic, unsupported mixed patches do not partially apply, last-stack removal without replacement is blocked, and no-op changes preserve downstream state. The frontend now clears stale Agent Plan, Build Plan, QueryPlan, approval/results UI, and Agent Response only when backend returns `stale_state_should_clear = true`.
+
+`P5-010` added deterministic `agent_response.next_iteration_options` after approved search results. Options are grounded only in returned QueryPlan/report/results/quality data, carry `proposed_brief_patch` operations, require approval before any future execution, and are not executable now. Frontend renders them as readable text with no Apply/action buttons. `search_depth` is now preserved as structured-search metadata so `deep` suggestions are grounded. LLM wording does not generate or mutate these options.

@@ -245,6 +245,7 @@ textarea:focus {
   color: var(--text);
   font-size: 14px;
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 .assistant-message {
