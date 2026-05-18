@@ -30,6 +30,9 @@ MULTI_WAVE_MAX_ALLOWED_WAVES = 7
 MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE = 3
 MULTI_WAVE_DEFAULT_PATIENCE = 2
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS = 1200
+OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS = 3000
+OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS = 800
 SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION = "needs_clarification"
 SEARCH_BRIEF_STATUS_READY_FOR_PLANNING = "ready_for_planning"
 SEARCH_BRIEF_STATUSES = {
@@ -2737,6 +2740,7 @@ async def run_openai_json_agent_wording(
             {"role": "user", "content": agent_wording_user_prompt(payload)},
         ],
         "temperature": 0.2,
+        "max_completion_tokens": OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS,
         "response_format": {"type": "json_object"},
     }
 
@@ -3745,9 +3749,6 @@ def validate_agent_query_plan_action(
     action = request.agent_plan_action
     fingerprint = request.agent_plan_brief_fingerprint
 
-    if action is None and not fingerprint:
-        return errors
-
     expected_fingerprint = search_brief_fingerprint(normalized_brief)
     if not fingerprint:
         add_plan_validation_error(
@@ -4162,6 +4163,7 @@ async def run_openai_json_recruiter_chat(
             {"role": "user", "content": recruiter_chat_brief_user_prompt(request)},
         ],
         "temperature": 0.1,
+        "max_completion_tokens": OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS,
         "response_format": {"type": "json_object"},
     }
 
@@ -5000,6 +5002,7 @@ async def run_openai_json_planner(
             },
         ],
         "temperature": 0.2,
+        "max_completion_tokens": OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS,
         "response_format": {"type": "json_object"},
     }
 

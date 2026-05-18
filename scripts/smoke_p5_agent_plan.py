@@ -47,6 +47,23 @@ async def run_smoke() -> None:
         "requires_approval": False,
     }
 
+    missing_agent_context = await main.create_agent_query_plan(
+        main.AgentQueryPlanRequest(
+            planner_mode="rule_based",
+            search_brief=ready_brief(),
+        )
+    )
+    assert missing_agent_context["ok"] is False
+    assert missing_agent_context["plan_status"] == "rejected"
+    assert any(
+        error.get("code") == "missing_agent_plan_fingerprint"
+        for error in missing_agent_context["errors"]
+    )
+    assert any(
+        error.get("code") == "missing_agent_plan_action"
+        for error in missing_agent_context["errors"]
+    )
+
     executable_plan = await main.create_agent_query_plan(
         main.AgentQueryPlanRequest(
             planner_mode="rule_based",

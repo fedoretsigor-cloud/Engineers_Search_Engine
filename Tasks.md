@@ -2043,7 +2043,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2095,6 +2095,7 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline
 - [x] P5-006 Add post-results Agent Response in chat
 - [x] P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback
+- [x] P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail
 
 ### Current Phase 5 strategy note
 
@@ -2113,6 +2114,59 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - candidate messaging or automatic outreach;
 - autonomous execution;
 - user or third-party account actions.
+
+---
+
+## Task: P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail
+
+### Status
+
+Approved and implemented as a stabilization task after syncing work from another computer.
+
+### Context
+
+After pulling the latest work, the code and smoke tests were healthy, but there were two Phase 5 consistency issues:
+
+- `ProjectStatus.md`, `Roadmap.md`, and `Tasks.md` correctly said `P5-007` was implemented, while `README.md` and `AGENTS.md` still described it as not yet approved/implemented.
+- The frontend `Build Plan` flow sends `agent_plan_brief_fingerprint` and `agent_plan_action`, but backend `/api/agent/query-plan` still accepted a direct request without those fields.
+
+The second issue did not bypass Tavily execution, because Tavily still requires approval later, but it weakened the agreed Agent v0 flow:
+
+`Recruiter Chat -> Search Brief -> Agent Plan -> proposed Agent Action -> Build Search Plan`
+
+### Goal
+
+Keep Phase 5 documentation and backend behavior aligned with the approved Agent v0 contract.
+
+### Implemented changes
+
+1. Updated `README.md` and `AGENTS.md` so they agree that `P5-007` is implemented.
+2. Clarified that `OPENAI_API_KEY` and `OPENAI_MODEL` are required for the current primary recruiter chat / AI planner path, while LLM-assisted wording still has deterministic fallback behavior.
+   - OpenAI Chat Completions requests use `max_completion_tokens`, not legacy `max_tokens`, for `gpt-5.4-mini` compatibility.
+3. Tightened `/api/agent/query-plan` validation:
+   - `agent_plan_brief_fingerprint` is now required;
+   - `agent_plan_action` is now required;
+   - stale or mismatched fingerprints are still rejected;
+   - unsupported action payloads are still rejected.
+4. Updated `P5 Agent Plan` smoke coverage to verify that missing Agent Plan action/fingerprint is rejected.
+5. Added `docs/phase-5-agent-stabilization.md` as a short handoff note for work from another computer.
+
+### Constraints
+
+- No Tavily calls.
+- No frontend redesign.
+- No planner/scoring/filter/dedupe/location changes.
+- No new LLM behavior.
+- No autonomous execution.
+
+### Verification
+
+- `python -m compileall app scripts`
+- `node --check app/static/app.js`
+- `scripts/smoke_p5_chat_adapter.py`
+- `scripts/smoke_p5_agent_plan.py`
+- `scripts/smoke_p5_agent_response.py`
+- `scripts/smoke_p5_llm_wording.py`
 
 ---
 

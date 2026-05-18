@@ -16,11 +16,11 @@ Phase 4 - AI Agent Foundation is completed.
 
 Current phase: `Phase 5 - Recruiter Chat UX + Search Brief conversation`.
 
-Completed through `P5-007`: Phase 4 is closed as an AI Agent Foundation, and Phase 5 now has its recruiter chat contract, backend chat-to-brief adapter, primary recruiter chat frontend, approvable `Build Plan` path, first human-approved Agent v0 slice for the Java/Ukraine baseline, deterministic post-results Agent Response in chat, and bounded LLM-assisted wording for Agent Plan/Response with deterministic fallback. The backend has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, `POST /api/recruiter-chat/turn`, `POST /api/agent/plan`, and `agent_response` on approved search responses. This is still not a complete autonomous recruiter agent.
+Completed through `P5-007.1`: Phase 4 is closed as an AI Agent Foundation, and Phase 5 now has its recruiter chat contract, backend chat-to-brief adapter, primary recruiter chat frontend, approvable `Build Plan` path, first human-approved Agent v0 slice for the Java/Ukraine baseline, deterministic post-results Agent Response in chat, bounded LLM-assisted wording for Agent Plan/Response with deterministic fallback, and synchronized Phase 5 documentation/guardrails. The backend has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, `POST /api/recruiter-chat/turn`, `POST /api/agent/plan`, and `agent_response` on approved search responses. This is still not a complete autonomous recruiter agent.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`.
 
-Phase 5 currently has no reviewed-but-unimplemented task recorded after `P5-007`.
+Next task to review: `P5-008 Improve recruiter chat conversational tone and greeting behavior`.
 
 `P5-001` is completed as a docs-only contract task. The approved recruiter chat contract supports Russian and English input, asks one clarifying question at a time, replaces the structured form as the primary UX over time, shows a normalized brief summary before `Build Plan`, and keeps `Build Plan` separate from Tavily execution. After `P5-004`, primary chat `Build Plan` defaults to `rule_based` so supported briefs produce an approvable Search Plan. Tavily execution remains behind explicit backend approval. Direct web-search bypass, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, autonomous execution, and user or third-party account actions remain prohibited behavior.
 
@@ -35,6 +35,8 @@ Phase 5 currently has no reviewed-but-unimplemented task recorded after `P5-007`
 `P5-006` is implemented. Approved search responses now include deterministic backend-generated `agent_response` grounded only in already returned search data: executed `QueryPlan` input snapshot, normalized structured request, report counts, deduped candidates, quality signals, review flags, and known limitations. The frontend passes minimal `agent_language` and renders the response as a local-only `AI Agent` chat message after results. Suggested next actions stay inert text. No broad `agent_context`, full chat history, extra Tavily/LLM/web/LinkedIn calls, executable next-action buttons, persistence, or autonomous behavior was added.
 
 `P5-007` is implemented. Agent Plan and Agent Response now support LLM-assisted wording as an optional backend overlay after deterministic objects are built. The LLM receives bounded payloads only, with no raw candidate URLs or full candidate records. Backend validation rejects unsafe, wrong-language, fact-changing, action-changing, or number-inventing output and falls back to deterministic wording with provenance metadata. The LLM has no execution authority and cannot change `QueryPlan`, approval, Tavily execution, filters, scoring, dedupe, location logic, fingerprints, suggested next actions, or candidate ordering.
+
+`P5-007.1` is implemented as a stabilization task. `README.md`, `AGENTS.md`, `ProjectStatus.md`, `Roadmap.md`, and `Tasks.md` now agree that `P5-007` is implemented. The docs clarify that `OPENAI_API_KEY` and `OPENAI_MODEL` are required for the current primary recruiter chat / AI planner paths, while LLM-assisted Agent Plan/Response wording has deterministic fallback. OpenAI Chat Completions requests use `max_completion_tokens`, not legacy `max_tokens`, for `gpt-5.4-mini` compatibility. Backend `/api/agent/query-plan` now requires the current Agent Plan action and Search Brief fingerprint instead of allowing a direct Build Plan call without Agent Plan context.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -318,7 +320,7 @@ Final baseline numbers remain above the Phase 2 success criterion:
 
 Recommended next steps:
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts. `P5-001` through `P5-007` are completed.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on a chat UI that turns recruiter dialogue into a validated `Search Brief` and uses Phase 4 planner/approval contracts. `P5-001` through `P5-007.1` are completed.
 - Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded, human-approved agent loop that can choose approved backend tools, inspect results, and suggest next iterations without autonomous execution.
 
 Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief conversation is now the active Phase 5 direction. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
@@ -358,6 +360,7 @@ Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief co
 - Phase 4 `P4-011` docs-only closeout completed: Phase 4 is completed as AI Agent Foundation and Phase 5 is the next active phase.
 - Phase 5 `P5-004` implementation checks passed: backend compile, frontend syntax, chat adapter smoke, git whitespace check, and browser smoke for RU chat -> Search Brief -> `Build Plan` -> `Search Plan` / `Ready for approval` with 10 rule-based queries and enabled `Approve & Search`. Tavily execution was not triggered.
 - Phase 5 `P5-005`-`P5-007` implementation checks passed: backend compile, frontend syntax, no-Tavily Agent Plan smoke, no-Tavily Agent Response smoke, and LLM wording smoke for assisted wording, deterministic fallback, disallowed-number fallback, provenance metadata, and no raw LinkedIn URL/full candidate payload.
+- Phase 5 `P5-007.1` stabilization checks passed: backend compile, frontend syntax, Phase 5 smoke scripts, and missing Agent Plan action/fingerprint rejection in `/api/agent/query-plan`.
 
 ## Current known limitations
 
@@ -379,6 +382,7 @@ Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief co
 
 - `Roadmap.md`
 - `Tasks.md`
+- `docs/phase-5-agent-stabilization.md`
 - `docs/phase-1-poc-findings.md`
 - `docs/phase-3-quality-baseline.md`
 - `docs/phase-3-multi-wave-evaluation.md`

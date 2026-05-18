@@ -50,20 +50,22 @@ Current product direction:
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
 - The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has recruiter chat as the primary input, a `Search Brief` summary, `Build Plan`, planner explanation UI, and approval-gated search controls.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, and `P5-006 Add post-results Agent Response in chat`.
-- Phase 5 tasks added for review, not yet approved or implemented: `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, and `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`.
 - `P5-002` guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
 - `P5-003` made recruiter chat the primary frontend input.
 - `P5-003` guardrail: search execution uses `adapted_structured_request` from the planner response, not old structured-form DOM fields.
 - `P5-004` made primary chat `Build Plan` use `planner_mode = rule_based` so supported briefs produce an approvable Search Plan. This is an AI Agent step: the agent now has a safe executable planning bridge behind an approval gate while AI planning capability remains available for the next agent-planning evolution.
 - `P5-005` added `POST /api/agent/plan`, Agent Plan chat rendering for the supported Java/Ukraine baseline, and Build Plan execution through the current `agent_plan.proposed_action` with backend fingerprint validation.
-- `P5-006` added backend-generated post-results `agent_response` grounded only in already returned search data and rendered as a local-only `AI Agent` chat message. `P5-007` owns LLM-assisted wording with deterministic fallback.
+- `P5-006` added backend-generated post-results `agent_response` grounded only in already returned search data and rendered as a local-only `AI Agent` chat message.
+- `P5-007` added optional LLM-assisted wording with deterministic fallback for Agent Plan/Response.
+- `P5-007.1` tightened `/api/agent/query-plan`: Build Plan now requires the current Agent Plan action and brief fingerprint at the backend boundary.
 
 ## Product Rules
 
 - Every product step should move the system toward a real AI Agent experience: dialogue, intent understanding, planning, tool boundaries, approval gates, execution, result analysis, and iterative follow-up.
 - The AI Agent must stay human-approved, not autonomous. It may suggest, prepare, explain, validate, and analyze, but it must not independently execute searches, deep/multi-wave runs, outreach, account actions, or other externally meaningful actions.
 - Current frontend search starts from recruiter chat that produces a validated `Search Brief`.
+- Current recruiter chat and AI planner paths require `OPENAI_API_KEY` and `OPENAI_MODEL`; LLM-assisted Agent Plan/Response wording falls back to deterministic wording when configuration or validation fails.
 - Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
 - Primary chat `Build Plan` uses `planner_mode = rule_based` and produces an approvable Search Plan.
 - `RuleBasedQueryPlanner v1` builds the visible `QueryPlan`.
@@ -90,7 +92,7 @@ Current product direction:
 
 ## Working Rules
 
-- Read `instructions`, `ProjectStatus.md`, `Roadmap.md`, `Tasks.md`, `docs/phase-1-poc-findings.md`, `docs/phase-3-quality-baseline.md`, and `docs/phase-3-multi-wave-evaluation.md` before changing behavior.
+- Read `instructions`, `ProjectStatus.md`, `Roadmap.md`, `Tasks.md`, `docs/phase-5-agent-stabilization.md`, `docs/phase-1-poc-findings.md`, `docs/phase-3-quality-baseline.md`, and `docs/phase-3-multi-wave-evaluation.md` before changing behavior.
 - Follow the collaboration rules in `instructions`.
 - Do not change files or behavior without explicit user approval.
 - Keep the project within the public-search scope. Direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping or restriction bypass, candidate messaging/automatic outreach, autonomous execution, and user or third-party account actions are absolute prohibited behavior. Database, shortlist, and authentication require separate explicit approval.
