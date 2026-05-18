@@ -2141,9 +2141,10 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Approved
 
+- [x] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
+
 ### Backlog
 
-- [ ] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
 - [ ] P5.5-008 Split FastAPI routes from domain logic
 - [ ] P5.5-009 Run no-behavior-change regression checks and close Phase 5.5
 
@@ -3388,6 +3389,161 @@ Verification completed:
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`;
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`;
 - focused `main.*` compatibility, import-direction, endpoint/action constant, and `normalize_agent_language` checks.
+
+---
+
+## Task: P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
+
+### Status
+
+Approved / not implemented.
+
+### Context
+
+`P5.5-006` extracted Agent Tools and deterministic Agent Plan logic while intentionally leaving Agent Response, bounded LLM wording, and OpenAI wording orchestration in `app/main.py`.
+
+`P5.5-007` should continue Phase 5.5 as a behavior-preserving extraction task. It should not improve wording, change prompts, change frontend behavior, or introduce Phase 6 runtime behavior.
+
+### Goal
+
+Extract Agent Response, shared brief patch helpers needed by Agent Response, and bounded Agent Plan/Agent Response wording logic from `app/main.py` into focused modules without changing behavior, endpoints, payloads, fallback behavior, approval semantics, planner behavior, execution behavior, or frontend behavior.
+
+### Proposed modules
+
+1. `app/agent_response.py`
+   - `normalize_agent_language`.
+   - Agent Response quality bucket/distribution helpers.
+   - Agent Response signal counts and review flag summaries.
+   - Agent Response summary facts.
+   - Deterministic RU/EN Agent Response messages.
+   - Agent Response quality notes.
+   - Agent Response limitations.
+   - Agent Response suggested next actions.
+   - Agent Response next-iteration options.
+   - `build_agent_response`.
+2. `app/brief_patch.py`
+   - `BRIEF_PATCH_ADD_STACK`.
+   - `BRIEF_PATCH_REMOVE_STACK`.
+   - `BRIEF_PATCH_REPLACE_STACK`.
+   - `BRIEF_PATCH_SET_SENIORITY`.
+   - `BRIEF_PATCH_SET_SEARCH_DEPTH`.
+   - `BRIEF_PATCH_RECONFIRM_FIELD`.
+   - `BRIEF_PATCH_UNSUPPORTED`.
+   - `BRIEF_PATCH_NOOP`.
+   - `build_brief_patch`.
+3. `app/agent_wording.py`
+   - wording-local default Chat Completions URL used by the Agent Plan/Agent Response wording helper.
+   - `AGENT_WORDING_MODE_LLM_ASSISTED`.
+   - `AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK`.
+   - `AGENT_WORDING_FALLBACK_NOT_CONFIGURED`.
+   - `AGENT_WORDING_TIMEOUT_SECONDS`.
+   - `OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS`.
+   - Agent wording hard boundaries.
+   - Agent wording system/user prompts.
+   - OpenAI wording request helper.
+   - Agent wording validators: disallowed fields, language, prohibited content, allowed numbers, warnings, and limitations.
+   - Agent wording metadata helper.
+   - Agent Plan wording payload.
+   - Agent Response wording payload.
+   - `apply_llm_wording_to_agent_plan`.
+   - `apply_llm_wording_to_agent_response`.
+
+### Proposed steps
+
+1. Inventory current Agent Response and Agent Wording functions/constants in `app/main.py`.
+2. Create `app/brief_patch.py`.
+3. Move shared `BRIEF_PATCH_*` constants and `build_brief_patch` into `app/brief_patch.py`.
+4. Preserve `main.*` compatibility for all moved brief patch constants and `build_brief_patch`, including `main.BRIEF_PATCH_SET_SEARCH_DEPTH` used by `scripts/smoke_p5_agent_response.py`.
+5. Create `app/agent_response.py`.
+6. Move `normalize_agent_language`, deterministic Agent Response helpers, and `build_agent_response` into `app/agent_response.py`.
+7. Import brief patch constants/helper from `app.brief_patch`, not from `app.main`.
+8. Create `app/agent_wording.py`.
+9. Move bounded wording constants, prompts, OpenAI wording request helper, validators, metadata helpers, payload builders, and apply functions into `app/agent_wording.py`.
+   - Move only the Agent Plan/Agent Response wording OpenAI helper in this task.
+   - Do not turn this task into a shared OpenAI client extraction for recruiter chat or AI planner.
+10. Preserve `main.*` compatibility for moved names used by scripts, routes, or smoke tests.
+    - Preserve `main.normalize_agent_language`.
+    - Preserve `main.AGENT_WORDING_MODE_LLM_ASSISTED`.
+    - Preserve `main.AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK`.
+    - Preserve `main.AGENT_WORDING_FALLBACK_NOT_CONFIGURED`.
+    - Preserve `main.AGENT_WORDING_TIMEOUT_SECONDS`.
+    - Preserve `main.OPENAI_CHAT_COMPLETIONS_URL` without making `app.agent_wording` the owner of shared OpenAI config.
+    - Preserve `main.OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS`.
+11. Preserve `main.run_openai_json_agent_wording` monkeypatch compatibility used by `scripts/smoke_p5_llm_wording.py`.
+12. Keep `main.apply_llm_wording_to_agent_plan` and `main.apply_llm_wording_to_agent_response` as wrappers, or inject `main.run_openai_json_agent_wording` as a runner dependency, so monkeypatching `main.run_openai_json_agent_wording` still changes wording behavior.
+13. Keep FastAPI route handlers in `app/main.py`.
+14. Ensure extracted modules do not import `app.main`.
+15. Keep all endpoint paths, request payloads, response fields, validation errors, approval checks, QueryPlan output, fingerprints, execution behavior, frontend behavior, Agent Plan behavior, recruiter chat behavior, and LLM fallback behavior unchanged.
+16. Run the standard Phase 5.5 verification baseline plus focused wording/Agent Response compatibility checks.
+
+### Critical risks
+
+- Preserve `main.run_openai_json_agent_wording` monkeypatch compatibility used by `scripts/smoke_p5_llm_wording.py`.
+- Do not create reverse imports from extracted modules into `app.main`.
+- Keep Agent Response payload shape and LLM fallback behavior compatible for existing smoke cases.
+- Avoid leaving Agent Response dependent on `app.main` for `BRIEF_PATCH_*` constants or `build_brief_patch`; use `app/brief_patch.py` instead.
+- Avoid moving wording apply functions in a way that bypasses the existing `main.run_openai_json_agent_wording` monkeypatch path.
+- Do not replace `main.apply_llm_wording_to_agent_plan` or `main.apply_llm_wording_to_agent_response` with direct same-name imports if that would bind them to `app.agent_wording.run_openai_json_agent_wording` and bypass monkeypatching `main.run_openai_json_agent_wording`.
+- Avoid broadening this task into a general OpenAI client extraction; recruiter chat and AI planner OpenAI orchestration stay out of scope.
+
+### Focused checks
+
+- Monkeypatching `main.run_openai_json_agent_wording` still affects `main.apply_llm_wording_to_agent_plan` and `main.apply_llm_wording_to_agent_response`.
+- `main.apply_llm_wording_to_agent_plan` and `main.apply_llm_wording_to_agent_response` are verified as wrappers or dependency-injected call paths, not direct imports that bypass `main.run_openai_json_agent_wording`.
+- Invalid or unsafe LLM wording still falls back to deterministic wording with the same metadata fields.
+- Extracted `app/brief_patch.py`, `app/agent_response.py`, and `app/agent_wording.py` do not import `app.main`.
+- `main.BRIEF_PATCH_SET_SEARCH_DEPTH`, all other `main.BRIEF_PATCH_*` names, and `main.build_brief_patch` remain available.
+- `main.normalize_agent_language("ru")` and `main.normalize_agent_language("en")` behavior remains unchanged.
+- `main.AGENT_WORDING_*` constants, `main.OPENAI_CHAT_COMPLETIONS_URL`, and `main.OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS` remain available.
+- Agent wording OpenAI request keeps the same env override behavior: `OPENAI_CHAT_COMPLETIONS_URL` environment variable overrides the wording helper default URL.
+- Recruiter chat and AI planner OpenAI orchestration do not import from `app.agent_wording`.
+- `app.agent_wording` does not become a shared/general OpenAI config owner.
+- Existing Agent Response fields remain present: `message`, `summary_facts`, `quality_notes`, `limitations`, `suggested_next_actions`, `next_iteration_options`, `language`, `source`, and `requires_approval_for_execution`.
+- Existing wording metadata fields remain present when applicable: `wording_mode`, `fallback_reason`, and `llm_warnings`.
+
+### Verification baseline
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- bundled Node `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+
+### Non-goals
+
+- Do not change Agent Response text, facts, counts, quality logic, next-iteration options, or response shape.
+- Do not change brief patch operation names, patch payload shape, patch validation behavior, or recruiter chat refinement behavior.
+- Do not change bounded wording prompts or validation behavior except where strictly necessary to preserve behavior after extraction.
+- Do not move recruiter chat OpenAI orchestration.
+- Do not move AI planner OpenAI orchestration.
+- Do not create a shared/general OpenAI client in this task.
+- Do not make recruiter chat or AI planner depend on `app.agent_wording` for OpenAI URL/config.
+- Do not change Agent Plan behavior.
+- Do not change recruiter chat behavior.
+- Do not change frontend behavior.
+- Do not change planner, Tavily execution, approval, filters, scoring, dedupe, location logic, snapshots, or API contracts.
+- Do not introduce Phase 6 runtime behavior.
+- Do not make AI-generated plans executable.
+- Do not add database, persistence, shortlist, workspace, export, new sources, LinkedIn automation, autonomous execution, or automatic candidate messaging.
+
+### Acceptance criteria
+
+- Shared brief patch constants/helper live in `app/brief_patch.py`.
+- Agent Response logic lives in `app/agent_response.py`.
+- Bounded wording/OpenAI wording logic lives in `app/agent_wording.py`.
+- `app/brief_patch.py`, `app/agent_response.py`, and `app/agent_wording.py` do not import `app.main`.
+- `app/main.py` preserves existing `main.*` compatibility for moved functions/constants.
+- `main.normalize_agent_language` remains available and behavior-compatible.
+- `main.run_openai_json_agent_wording` monkeypatch compatibility remains intact.
+- `main.apply_llm_wording_to_agent_plan` and `main.apply_llm_wording_to_agent_response` continue to use the monkeypatchable `main.run_openai_json_agent_wording` path.
+- `main.apply_llm_wording_to_agent_plan` and `main.apply_llm_wording_to_agent_response` are wrappers or dependency-injected call paths rather than direct imports that bypass monkeypatching.
+- `main.BRIEF_PATCH_*` constants and `main.build_brief_patch` remain available.
+- `main.AGENT_WORDING_*` constants, `main.OPENAI_CHAT_COMPLETIONS_URL`, and `main.OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS` remain available.
+- Agent wording OpenAI request keeps the same `OPENAI_CHAT_COMPLETIONS_URL` env override behavior.
+- Recruiter chat and AI planner OpenAI orchestration do not import from `app.agent_wording` and do not change ownership of OpenAI URL/config.
+- Existing P5 wording smoke passes unchanged.
+- No Agent Response fields, wording metadata, fallback reasons, brief patch payloads, approval behavior, fingerprints, next-iteration options, planner behavior, execution behavior, recruiter chat refinement behavior, or frontend behavior change.
 
 ## Phase 6 - Human-approved Tool-Calling Agent Runtime
 
