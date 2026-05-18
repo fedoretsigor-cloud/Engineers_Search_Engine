@@ -28,7 +28,8 @@ Current agreed strategy:
 - do not expand countries or technologies yet;
 - finish Phase 5 by making chat collect, clarify, refine, plan, run approved search, summarize results, guide the next iteration, and present a coherent AI Agent visual style;
 - add Phase 5.5 after Phase 5 to modularize the backend before the Phase 6 tool-calling runtime;
-- keep database, shortlist, workspace, and persistent memory for later phases.
+- keep ordinary LLM-assisted agent conversation wording for Phase 7, after the runtime message taxonomy is stable;
+- keep candidate workspace/shortlist for Phase 8 and database/persistent memory for Phase 9.
 
 Planned Phase 5 order:
 
@@ -39,6 +40,13 @@ Planned Phase 5 order:
 5. `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 
 Planned Phase 5.5 order: technical modularization before Agent Runtime, with no product behavior changes.
+
+Planned later phases:
+
+- Phase 6: `Human-approved Tool-Calling Agent Runtime`.
+- Phase 7: `Agent Conversation Wording Layer`.
+- Phase 8: `Candidate Workspace/Table + Shortlist`.
+- Phase 9: `Persistent Memory + Saved Searches`.
 
 `P5-001` is completed as a docs-only contract task. The approved recruiter chat contract supports Russian and English input, asks one clarifying question at a time, replaces the structured form as the primary UX over time, shows a normalized brief summary before `Build Plan`, and keeps `Build Plan` separate from Tavily execution. After `P5-004`, primary chat `Build Plan` defaults to `rule_based` so supported briefs produce an approvable Search Plan. Tavily execution remains behind explicit backend approval. Direct web-search bypass, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, autonomous execution, and user or third-party account actions remain prohibited behavior.
 
@@ -341,6 +349,9 @@ Recommended next steps:
 - Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on one narrow Java/Ukraine flow where chat collects and refines a validated `Search Brief`, uses Phase 4 planner/approval contracts, guides a next iteration after results, and gets a coherent AI Agent visual style. `P5-001` through `P5-007.1` are completed; `P5-008` through `P5-012` are planned next.
 - Phase 5.5: `Technical modularization before Agent Runtime`, focused on splitting `app/main.py` into focused modules without changing product behavior before the tool-calling runtime.
 - Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded, human-approved agent loop that can choose approved backend tools, inspect results, and suggest next iterations without autonomous execution.
+- Phase 7: `Agent Conversation Wording Layer`, focused on LLM-assisted wording after the runtime message taxonomy is stable.
+- Phase 8: `Candidate Workspace/Table + Shortlist`.
+- Phase 9: `Persistent Memory + Saved Searches`.
 
 Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief conversation is now the active Phase 5 direction. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
 

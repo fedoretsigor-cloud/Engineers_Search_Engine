@@ -2205,18 +2205,18 @@ Phase 6 must not introduce autonomous execution. AI-generated query plans should
 
 ---
 
-## Phase 7 - Candidate Workspace/Table + Shortlist
+## Phase 7 - Agent Conversation Wording Layer
 
 ### Approved
 
 ### Backlog
 
-- [ ] P7-001 Define candidate workspace contract
-- [ ] P7-002 Build recruiter-facing candidate table
-- [ ] P7-003 Add sorting and filtering by quality signals
-- [ ] P7-004 Add shortlist, notes, and statuses
-- [ ] P7-005 Add candidate-level agent explanations
-- [ ] P7-006 Prepare export workflow
+- [ ] P7-001 Define agent conversation message taxonomy
+- [ ] P7-002 Define LLM-assisted conversation wording contract
+- [ ] P7-003 Add bounded wording payloads for agent conversation messages
+- [ ] P7-004 Add deterministic fallback and validation for conversation wording
+- [ ] P7-005 Add frontend display states for worded agent messages
+- [ ] P7-006 Close Phase 7 with wording quality and guardrail evaluation
 
 ### In Progress
 
@@ -2224,22 +2224,26 @@ Phase 6 must not introduce autonomous execution. AI-generated query plans should
 
 ### Current Phase 7 strategy note
 
-Phase 7 should start only after the approved agent loop exists. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+Phase 7 should start only after the Phase 6 approved tool runtime baseline exists.
+
+Goal: improve ordinary agent conversation wording after the runtime message taxonomy is stable. The LLM may rewrite or polish approved backend messages, but it must not change state, tools, approval, Search Brief, QueryPlan, candidates, counts, scoring, filters, or suggested action executability.
+
+This phase is intentionally later than `P5-008`: Phase 5 keeps ordinary chat wording deterministic so the state machine is reliable first.
 
 ---
 
-## Phase 8 - Persistent Memory + Saved Searches
+## Phase 8 - Candidate Workspace/Table + Shortlist
 
 ### Approved
 
 ### Backlog
 
-- [ ] P8-001 Choose persistence approach
-- [ ] P8-002 Save chat sessions and Search Briefs
-- [ ] P8-003 Save search runs, QueryPlans, reports, and snapshots metadata
-- [ ] P8-004 Save candidates, shortlist, notes, and statuses
-- [ ] P8-005 Add saved searches and resume workflow
-- [ ] P8-006 Add agent memory boundaries and privacy rules
+- [ ] P8-001 Define candidate workspace contract
+- [ ] P8-002 Build recruiter-facing candidate table
+- [ ] P8-003 Add sorting and filtering by quality signals
+- [ ] P8-004 Add shortlist, notes, and statuses
+- [ ] P8-005 Add candidate-level agent explanations
+- [ ] P8-006 Prepare export workflow
 
 ### In Progress
 
@@ -2247,7 +2251,30 @@ Phase 7 should start only after the approved agent loop exists. Its goal is to t
 
 ### Current Phase 8 strategy note
 
-Phase 8 is where database/persistence becomes useful. It should not be pulled into Phase 5 unless separately approved, because the immediate goal is to stabilize one Java/Ukraine agent flow first.
+Phase 8 should start after the approved agent loop and conversation wording layer exist. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+
+---
+
+## Phase 9 - Persistent Memory + Saved Searches
+
+### Approved
+
+### Backlog
+
+- [ ] P9-001 Choose persistence approach
+- [ ] P9-002 Save chat sessions and Search Briefs
+- [ ] P9-003 Save search runs, QueryPlans, reports, and snapshots metadata
+- [ ] P9-004 Save candidates, shortlist, notes, and statuses
+- [ ] P9-005 Add saved searches and resume workflow
+- [ ] P9-006 Add agent memory boundaries and privacy rules
+
+### In Progress
+
+### Done
+
+### Current Phase 9 strategy note
+
+Phase 9 is where database/persistence becomes useful. It should not be pulled into Phase 5 unless separately approved, because the immediate goal is to stabilize one Java/Ukraine agent flow first.
 
 ---
 
@@ -2783,6 +2810,8 @@ This matters because Phase 5 is the user-facing recruiter chat phase. If the cha
 
 Strategic note: this task is not the main agent-runtime step. It is a small but necessary UX/contract cleanup before the more important `P5-009 Search Brief refinement through chat`. Keep the scope narrow and focused on the Java/Ukraine flow.
 
+Wording strategy: ordinary recruiter chat wording in `P5-008` should stay deterministic. Do not add LLM-assisted ordinary chat wording in this task. A broader LLM-assisted agent conversation wording layer belongs after the Phase 6 runtime baseline, now planned as Phase 7.
+
 ### Goal
 
 Make the recruiter chat feel warmer and more useful at the start of a conversation while preserving the existing safe contract:
@@ -2795,30 +2824,44 @@ The agent should be able to greet the recruiter, explain what information it nee
 
 1. Define conversational cases for v0.
    - Greeting only: `привет`, `hello`, `hi`.
-   - Empty or near-empty message.
+   - Empty input.
+   - Near-empty message.
    - Greeting plus vague intent: `привет, хочу найти разработчика`.
    - Partial search intent with missing fields.
    - Complete supported search intent.
-2. Add deterministic greeting/onboarding behavior.
+2. Keep safety routing first.
+   - Prohibited requests are detected and refused before any LLM call.
+   - Refusal wording remains strict and must not be softened by onboarding behavior.
+3. Add deterministic greeting/onboarding behavior before LLM extraction.
    - For greeting-only messages, return a friendly assistant message instead of a cold validation response.
    - Keep the message short and useful.
+   - Ask the recruiter to provide role, main technology, location, and 1-3 stack signals.
+   - Do not call OpenAI for greeting-only messages.
    - In Russian, respond in Russian.
    - In English, respond in English.
-3. Keep the assistant oriented toward Search Brief collection.
+4. Handle empty and near-empty messages predictably.
+   - Empty frontend input should not be submitted when possible.
+   - Near-empty backend input should return a deterministic onboarding clarification.
+   - Near-empty input must not create a ready Search Brief.
+5. Keep the assistant oriented toward Search Brief collection.
    - Ask for role, main technology, location, and stack when they are missing.
    - Ask only one clear next question when possible.
    - Do not pretend the agent can search before a brief is ready.
-4. Preserve the existing chat-to-brief guardrail.
+6. Use the existing LLM chat-to-brief adapter only when there is actual search intent.
+   - Greeting-only and near-empty cases should not call OpenAI.
+   - Partial and complete search intent can use the existing OpenAI extraction path.
+   - Backend validation remains source of truth for `state`, `normalized_brief`, `missing_fields`, `can_build_plan`, and `build_plan_action`.
+   - Do not add LLM-assisted ordinary chat wording in this task.
+7. Do not wipe an existing draft brief accidentally.
+   - If a draft brief already exists and the recruiter sends a greeting-like message, do not clear the current brief.
+   - If the new message does not contain an explicit refinement intent, leave refinement behavior for `P5-009`.
+8. Preserve the existing chat-to-brief guardrail.
    - Do not build `QueryPlan` inside `/api/recruiter-chat/turn`.
    - Do not call `/api/agent/query-plan` from the chat turn.
    - Do not call Tavily.
    - Do not execute search.
    - Do not add an agent loop.
-5. Decide how LLM output and deterministic tone interact.
-   - If OpenAI returns a usable assistant message, keep validation as source of truth.
-   - If OpenAI is unavailable or returns a poor/cold message, use deterministic friendly fallback.
-   - Backend validation still owns `state`, `normalized_brief`, `missing_fields`, `can_build_plan`, and `build_plan_action`.
-6. Keep product boundaries absolute.
+9. Keep product boundaries absolute.
    - No direct web-search by the agent outside the approved backend pipeline.
    - No direct LinkedIn access/automation.
    - No LinkedIn login.
@@ -2826,13 +2869,17 @@ The agent should be able to greet the recruiter, explain what information it nee
    - No candidate messaging or automatic outreach.
    - No autonomous execution.
    - No user or third-party account actions.
-7. Verify with no-Tavily chat tests.
+10. Verify with no-Tavily chat tests.
    - RU greeting-only returns a warm onboarding response.
    - EN greeting-only returns a warm onboarding response.
+   - Greeting-only does not call OpenAI.
    - Greeting-only does not create a ready Search Brief.
+   - Empty frontend input is not submitted or is handled safely.
+   - Near-empty input returns onboarding clarification.
    - Partial intent still asks one useful missing-field question.
    - Complete supported intent still reaches `ready_for_planning`.
    - Prohibited requests still refuse and do not get softened into allowed behavior.
+   - Existing draft brief is not wiped by greeting-only input.
 
 ### Non-goals
 
@@ -2841,13 +2888,18 @@ The agent should be able to greet the recruiter, explain what information it nee
 - Do not add candidate workspace/table behavior.
 - Do not make suggested actions executable.
 - Do not change planner, Tavily execution, scoring, filters, dedupe, or location logic.
+- Do not implement Search Brief refinement; that belongs to `P5-009`.
+- Do not add LLM-assisted ordinary chat wording; that belongs after the Phase 6 runtime baseline, now planned as Phase 7.
 
 ### Acceptance criteria
 
 - The recruiter chat responds naturally to simple greetings in RU and EN.
 - Greeting-only input guides the recruiter toward a useful search brief without marking the brief ready.
+- Greeting-only input does not call OpenAI.
+- Near-empty input returns a deterministic onboarding clarification.
 - Partial intent gets one friendly clarification question.
 - Complete supported intent still produces the existing ready Search Brief flow.
+- Existing draft brief is not wiped by a greeting-only message.
 - Existing safety refusals remain strict.
 - No Tavily/search/planner execution happens inside the chat turn.
 - No prohibited behavior is introduced.
@@ -3789,8 +3841,9 @@ Add explicit frontend state for:
 - В Phase 4 входят `Search Brief` contract, LLM-assisted brief/plan generation, agent tool boundaries, AI Query Planner mode, deterministic validation, rule-based fallback, approval gates, explanations и baseline evaluation.
 - Полноценный recruiter chat UI относится к Phase 5.
 - Tool-calling agent runtime относится к Phase 6.
-- Candidate workspace, shortlist, notes/statuses и export workflow относятся к Phase 7.
-- Persistent memory/database, saved searches, saved sessions/runs/candidates и long-term memory относятся к Phase 8.
+- Agent conversation wording layer относится к Phase 7.
+- Candidate workspace, shortlist, notes/statuses и export workflow относятся к Phase 8.
+- Persistent memory/database, saved searches, saved sessions/runs/candidates и long-term memory относятся к Phase 9.
 - Multi-source search beyond Tavily, private/personal data sources, candidate outreach и account actions не входят в Phase 4; outreach/account actions запрещены absolute product boundaries.
 - `P4-001` approved: все 10 шагов AI Agent Foundation contract согласованы как постановка задачи; кодинг требует отдельного явного approval.
 

@@ -133,8 +133,9 @@ POC прототип с легким фронтом и одним поисков
 - Phase 5 - `Recruiter Chat UX + Search Brief conversation`: довести один узкий Java/Ukraine flow до качества: чат собирает и уточняет `Search Brief`, умеет менять brief через follow-up, показывает Agent Plan, запускает поиск только после approval и после результатов ведет к следующей итерации.
 - Phase 5.5 - `Technical modularization before Agent Runtime`: без изменения поведения разделить большой backend в `app/main.py` на модули перед настоящим tool-calling runtime.
 - Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в bounded human-approved tool loop: AI получает цель, планирует шаги, готовит вызовы доступных инструментов (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг; execution не автономный и требует approval.
-- Phase 7 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
-- Phase 8 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
+- Phase 7 - `Agent Conversation Wording Layer`: после Phase 6 runtime добавить LLM-assisted wording для обычных agent conversation messages с deterministic fallback и строгими guardrails.
+- Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
+- Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
 Phase 4 завершена как `AI Agent Foundation`. Текущий активный этап - Phase 5 `Recruiter Chat UX + Search Brief conversation`.
 
@@ -277,7 +278,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
-Не входит в Phase 4: persistent memory/database, shortlist, export, autonomous execution, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Autonomous execution и fully autonomous loop запрещены; human-approved tool runtime относится к Phase 6, chat UI относится к Phase 5, candidate workspace/shortlist/export к Phase 7, persistence/memory/saved searches к Phase 8.
+Не входит в Phase 4: persistent memory/database, shortlist, export, autonomous execution, fully autonomous tool-calling loop, полноценный recruiter chat UI, multi-source search beyond Tavily, private/personal data sources. Autonomous execution и fully autonomous loop запрещены; human-approved tool runtime относится к Phase 6, ordinary agent conversation wording к Phase 7, candidate workspace/shortlist/export к Phase 8, persistence/memory/saved searches к Phase 9.
 
 Фазы 5-8 описывают путь к настоящему AI Agent внутри приложения. Agent здесь означает не просто чат, а AI-модель с целью, контекстом, инструментами, approval flow и циклом действий: понять задачу, собрать brief, запустить инструменты, оценить результат, уточнить план и вернуть кандидатов в виде таблицы.
 
@@ -288,10 +289,11 @@ Absolute product boundaries: запрещены direct web-search агентом
 - Phase 5 делает агентный UX через recruiter chat, согласованный `Search Brief`, refinement через follow-up и result-to-next-iteration loop на узком Java/Ukraine flow.
 - Phase 5.5 технически готовит код к runtime: разделяет `app/main.py` на модули без изменения поведения.
 - Phase 6 добавляет настоящий human-approved tool loop: агент планирует следующий шаг, готовит вызов доступных инструментов, выполняет execution только после approval, анализирует результат и предлагает итерацию.
-- Для реально удобного recruiter workflow нужна еще Phase 7: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
-- Phase 8 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
+- Phase 7 добавляет LLM-assisted Agent Conversation Wording Layer поверх стабильного runtime/message taxonomy, без права менять state, tools, approval, Search Brief, QueryPlan, candidates, counts или actions.
+- Для реально удобного recruiter workflow нужна еще Phase 8: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
+- Phase 9 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
 
-Вывод: через Phase 5 + Phase 5.5 + Phase 6 можно получить более надежный AI Agent v0. Phase 7 и Phase 8 нужны, чтобы превратить его в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
+Вывод: через Phase 5 + Phase 5.5 + Phase 6 можно получить более надежный AI Agent v0. Phase 7 улучшает обычную речь агента после стабилизации runtime, а Phase 8 и Phase 9 превращают его в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
 
 ### Ideas
 
@@ -310,8 +312,9 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 - Phase 5.5: `Technical modularization before Agent Runtime`.
 - Phase 6: `Tool-Calling Agent Runtime`.
-- Phase 7: `Candidate Workspace/Table + Shortlist`.
-- Phase 8: `Persistent Memory + Saved Searches`.
+- Phase 7: `Agent Conversation Wording Layer`.
+- Phase 8: `Candidate Workspace/Table + Shortlist`.
+- Phase 9: `Persistent Memory + Saved Searches`.
 
 ### In Progress
 

@@ -29,7 +29,8 @@ Agreed next direction:
 - finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, AI Agent visual direction, and a Phase 5 closeout decision;
 - add Phase 5.5 technical modularization before Phase 6, splitting the current backend without changing product behavior;
 - only then move to Phase 6 human-approved tool-calling runtime;
-- keep candidate workspace/shortlist for Phase 7 and persistence/memory for Phase 8.
+- add ordinary agent conversation wording as Phase 7 after the runtime message taxonomy is stable;
+- keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 
 Current pipeline:
 

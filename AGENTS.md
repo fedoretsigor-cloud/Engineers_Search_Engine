@@ -47,6 +47,9 @@ Current product direction:
 - Phase 5: `Recruiter Chat UX + Search Brief conversation`
 - Phase 5.5: `Technical modularization before Agent Runtime`
 - Phase 6: `Tool-Calling Agent Runtime`
+- Phase 7: `Agent Conversation Wording Layer`
+- Phase 8: `Candidate Workspace/Table + Shortlist`
+- Phase 9: `Persistent Memory + Saved Searches`
 - Phase 4 is completed as `AI Agent Foundation` through `P4-011`.
 - `P4-003` through `P4-010` are implemented in code.
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
@@ -61,7 +64,7 @@ Current product direction:
 - `P5-006` added backend-generated post-results `agent_response` grounded only in already returned search data and rendered as a local-only `AI Agent` chat message.
 - `P5-007` added optional LLM-assisted wording with deterministic fallback for Agent Plan/Response.
 - `P5-007.1` tightened `/api/agent/query-plan`: Build Plan now requires the current Agent Plan action and brief fingerprint at the backend boundary.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, AI Agent visual direction, and closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through deterministic chat onboarding, Search Brief refinement, result-to-next-iteration, AI Agent visual direction, and closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime. Ordinary LLM-assisted agent conversation wording belongs after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 
