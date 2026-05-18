@@ -6,7 +6,7 @@ Engineers Search Engine is an AI-assisted recruiter sourcing search engine. It u
 
 ## Stack
 
-- Python FastAPI backend in `app/main.py`, with extracted shared modules in `app/schemas.py`, `app/domain_config.py`, `app/text_utils.py`, `app/search_validation.py`, `app/search_brief.py`, `app/planning.py`, and `app/ai_planning.py`
+- Python FastAPI backend in `app/main.py`, with extracted shared modules in `app/schemas.py`, `app/domain_config.py`, `app/text_utils.py`, `app/search_validation.py`, `app/search_brief.py`, `app/planning.py`, `app/ai_planning.py`, `app/search_execution.py`, and `app/search_snapshots.py`
 - Static frontend in `app/static/index.html`, `app/static/styles.css`, and `app/static/app.js`
 - Dependencies are listed in `requirements.txt`
 - Local secrets are loaded from `.env`
@@ -45,7 +45,7 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - completed and closed
-- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-003`
+- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-004`
 - Phase 6: `Tool-Calling Agent Runtime`
 - Phase 7: `Agent Conversation Wording Layer`
 - Phase 8: `Candidate Workspace/Table + Shortlist`
@@ -71,7 +71,8 @@ Current product direction:
 - `P5.5-001` defined backend module boundaries and migration order.
 - `P5.5-002` extracted shared schemas, domain config, text helpers, structured search validation, and Search Brief validation/adapter/fingerprinting into focused modules without behavior changes.
 - `P5.5-003` extracted rule-based planner, QueryPlan fingerprint helpers, planner explanation, deterministic AI QueryPlan prompt/validation/coverage helpers, and related shared planner config without behavior changes.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P5.5-004` extracted Tavily/query-wave execution and structured-search snapshot helpers into focused modules without behavior changes.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-005 Extract Candidate Quality module`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 

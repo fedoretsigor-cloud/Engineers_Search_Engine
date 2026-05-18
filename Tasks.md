@@ -2143,7 +2143,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
 - [ ] P5.5-005 Extract Candidate Quality module
 - [ ] P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules
 - [ ] P5.5-007 Split FastAPI routes from domain logic
@@ -2156,6 +2155,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-001 Define backend module boundaries and migration order
 - [x] P5.5-002 Extract shared schemas, domain config, and Search Brief validation/adapter
 - [x] P5.5-003 Extract rule-based planner and deterministic AI QueryPlan validation modules
+- [x] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
 
 ### Current Phase 5.5 strategy note
 
@@ -2705,6 +2705,210 @@ Verification completed:
 - focused Java/Ukraine QueryPlan/fingerprint/AI coverage regression check
 
 ---
+
+## Task: P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
+
+### Status
+
+Implemented.
+
+### Context
+
+`P5.5-003` extracted the planning layer while keeping execution, snapshots, and route orchestration in `app/main.py`.
+
+The next extraction should move the search execution edge out of the monolith without changing behavior:
+
+- Tavily HTTP execution;
+- QueryPlan slot execution;
+- QueryPlan wave execution;
+- structured-search snapshot helpers;
+- multi-wave execution loop.
+
+The main caution is dependency direction. The current multi-wave loop calls `build_deduped_results_and_report`, and that function still depends on location filtering and Candidate Quality logic that intentionally remain in `app/main.py` until later extraction tasks. `P5.5-004` must not force a new module to import from `app.main`.
+
+### Goal
+
+Extract the search execution foundation without changing product behavior:
+
+- keep single-wave and multi-wave search responses unchanged;
+- keep Tavily payloads, error semantics, query result shapes, report fields, snapshots, approval behavior, and frontend behavior unchanged;
+- prepare Phase 6 runtime to call search execution through a cleaner service boundary later.
+
+### Proposed modules
+
+1. `app/search_execution.py`
+   - `run_tavily_query`.
+   - `run_query_slot`.
+   - `run_query_plan_wave`.
+   - `run_multi_wave_query_plan_core`, or equivalent internal helper, that accepts injected dependencies instead of importing `app.main`.
+2. `app/search_snapshots.py`
+   - `snapshot_slug`.
+   - `structured_search_snapshot_filename`.
+   - `query_result_status_summary`.
+   - `build_structured_search_snapshot`.
+   - `write_structured_search_snapshot`.
+   - `SEARCH_RUN_LOG_DIR`, if keeping the same project-relative log directory is cleanest.
+3. `app/main.py`
+   - keeps FastAPI route handlers for now;
+   - imports extracted executor/snapshot helpers;
+   - keeps `main.*` compatibility names for smoke scripts and internal callers;
+   - keeps a compatibility wrapper for `run_multi_wave_query_plan` if needed, so existing monkeypatching of `main.run_query_plan_wave` continues to affect multi-wave smoke tests.
+
+### Keep in `app/main.py` for now
+
+- `structured_search` route handler.
+- `structured_search_multi_wave` route handler.
+- `validate_execution_approval`.
+- `build_deduped_results_and_report`.
+- LinkedIn URL normalization, location filtering, location signal classification, and profile filtering.
+- Candidate Quality scoring/evidence/review flags.
+- Agent Response generation and LLM wording.
+- FastAPI app setup and routes.
+
+### Critical scope decision
+
+Do not extract `build_deduped_results_and_report` in this task.
+
+Reason: it currently combines dedupe, location filtering, query source metadata, Candidate Quality, and report building. Moving it now would either create a bad dependency from a new module back to `app.main`, or prematurely drag Candidate Quality/location filtering into this task.
+
+Preferred approach for multi-wave:
+
+- extract the repeat-wave loop as a dependency-injected helper;
+- pass the current `run_query_plan_wave` and `build_deduped_results_and_report` from `app/main.py`;
+- preserve the current public behavior and smoke-test monkeypatch behavior.
+
+### Import direction
+
+- `app/main.py` can import `app.search_execution` and `app.search_snapshots`.
+- `app/search_execution.py` can import `os`, `httpx`, and `fastapi.HTTPException` for the current error contract.
+- `app/search_execution.py` can import constants from `app.domain_config` if needed.
+- `app/search_execution.py` must not import `app.main`.
+- `app/search_execution.py` must not import Candidate Quality, Agent Response, frontend code, or route handlers.
+- `app/search_snapshots.py` can import `app.planning` fingerprint helpers and `app.text_utils.compact_spaces`.
+- `app/search_snapshots.py` must not import `app.main`.
+- Future `app/candidate_quality.py` and `app/location_filtering.py` must not be forced to import from `app.search_execution`.
+
+### Approved steps
+
+1. Inventory current execution/snapshot functions and callers.
+   - `run_tavily_query`.
+   - `run_query_slot`.
+   - `run_query_plan_wave`.
+   - `snapshot_slug`.
+   - `structured_search_snapshot_filename`.
+   - `query_result_status_summary`.
+   - `build_structured_search_snapshot`.
+   - `write_structured_search_snapshot`.
+   - `run_multi_wave_query_plan`.
+   - route handlers that call them.
+   - smoke scripts that monkeypatch or call `main.run_query_plan_wave`, `main.structured_search`, or `main.structured_search_multi_wave`.
+2. Create `app/search_execution.py` for Tavily and QueryPlan execution helpers.
+3. Move `run_tavily_query`, `run_query_slot`, and `run_query_plan_wave` into `app/search_execution.py` without changing payloads, timeout, error handling, or returned dictionaries.
+4. Create `app/search_snapshots.py` for structured-search snapshot helpers.
+5. Move snapshot helpers into `app/search_snapshots.py` without changing filenames, JSON payload shape, encoding, timestamp format, or log directory.
+   - Preserve `main.SEARCH_RUN_LOG_DIR` as a compatibility alias with the same value.
+6. Extract multi-wave loop carefully.
+   - Use a dependency-injected helper, for example `run_multi_wave_query_plan_core(query_plan, settings, run_wave, build_report)`.
+   - Keep a `main.run_multi_wave_query_plan` compatibility wrapper that passes `main.run_query_plan_wave` and `main.build_deduped_results_and_report`.
+   - This preserves current smoke tests that monkeypatch `main.run_query_plan_wave`.
+   - The wrapper must read `main.run_query_plan_wave` at call time, not freeze the imported implementation at import time.
+   - `build_deduped_results_and_report` must remain in `app/main.py` for this task because it still combines dedupe, location filtering, Candidate Quality, and report semantics.
+7. Update `app/main.py` imports and remove only the moved deterministic/execution definitions.
+8. Preserve `main.*` compatibility for:
+   - `main.TAVILY_SEARCH_URL`;
+   - `main.SEARCH_RUN_LOG_DIR`;
+   - `main.run_tavily_query`;
+   - `main.run_query_slot`;
+   - `main.run_query_plan_wave`;
+   - `main.run_multi_wave_query_plan`;
+   - `main.write_structured_search_snapshot`;
+   - snapshot helper functions if currently referenced.
+9. Keep route handlers in `app/main.py` unchanged except for calling imported or wrapper helpers.
+10. Keep all endpoint paths, request payloads, response fields, approval checks, Tavily payloads, query result shapes, report fields, snapshot shape, snapshot filenames, Agent Response behavior, and frontend behavior unchanged.
+11. Run the verification baseline and focused execution checks.
+
+### Verification baseline
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+
+Focused checks:
+
+- Existing `scripts\smoke_p5_agent_response.py` still monkeypatches `main.run_query_plan_wave` successfully for both single-wave and multi-wave paths.
+- `main.run_multi_wave_query_plan` uses the current `main.run_query_plan_wave` at call time, so monkeypatch behavior is preserved.
+- `main.TAVILY_SEARCH_URL`, `main.SEARCH_RUN_LOG_DIR`, and snapshot helper aliases remain available after extraction.
+- Single-wave structured search with fake query results returns the same top-level response fields.
+- Multi-wave structured search with fake query results returns the same top-level response fields and report metadata.
+- Query result dictionaries keep the same keys and error semantics.
+- Snapshot filename format and snapshot JSON shape are unchanged.
+- No extracted execution/snapshot module imports from `app.main`.
+
+### Non-goals
+
+- Do not change Tavily payloads, timeout, include domains, max results, or error messages.
+- Do not change QueryPlan output or fingerprints.
+- Do not change approval logic.
+- Do not change route paths or API contracts.
+- Do not change structured search response fields.
+- Do not change report fields or counting semantics.
+- Do not change snapshot filenames or JSON shape.
+- Do not change LinkedIn URL normalization, location filtering, profile filtering, dedupe, Candidate Quality, Agent Response, LLM wording, frontend behavior, or route structure.
+- Do not introduce Phase 6 tool runtime behavior.
+- Do not make AI-generated plans executable.
+- Do not add new Tavily calls, new sources, database, persistence, shortlist, workspace, export, LinkedIn automation, or autonomous execution.
+
+### Acceptance criteria
+
+- Tavily and QueryPlan wave execution helpers are extracted to `app/search_execution.py` or a clearly justified equivalent module.
+- Snapshot helpers are extracted to `app/search_snapshots.py` or a clearly justified equivalent module.
+- Multi-wave execution loop is extracted or wrapped in a way that keeps dependency direction clean and preserves current smoke-test monkeypatch behavior.
+- Extracted execution/snapshot modules do not import from `app.main`.
+- Existing `main.*` compatibility used by smoke scripts is preserved.
+- Single-wave and multi-wave API responses remain unchanged.
+- Snapshot shape and filenames remain unchanged.
+- Existing Phase 5 smoke checks pass.
+- Focused execution/snapshot checks pass.
+- The extraction is behavior-preserving.
+
+### Review checklist
+
+- Scope reviewed: Tavily execution, QueryPlan wave execution, snapshots, and multi-wave loop only.
+- Internal dependencies reviewed: multi-wave depends on dedupe/report builder, which must stay in `app.main` until location filtering and Candidate Quality are extracted.
+- External references reviewed: `scripts/smoke_p5_agent_response.py` monkeypatches `main.run_query_plan_wave` and calls `main.structured_search` / `main.structured_search_multi_wave`.
+- Constants/config/defaults reviewed: Tavily URL, payload, timeout, max results, include domains, snapshot directory, snapshot filename format, and report fields must not change.
+- Import direction reviewed: extracted modules must not import `app.main`; dependency injection is preferred for multi-wave report building.
+- Future extraction direction reviewed: this task must not make future `candidate_quality.py` or `location_filtering.py` depend on `search_execution.py`.
+- Backward compatibility reviewed: preserve `main.*` helper names, `main.TAVILY_SEARCH_URL`, `main.SEARCH_RUN_LOG_DIR`, and current smoke-script monkeypatch behavior.
+- Verification reviewed: run standard Phase 5.5 checks plus focused fake-execution/snapshot checks.
+
+### Codex verdict
+
+Approved for implementation. The task should remain a behavior-preserving extraction only; no coding should start until the user explicitly says to run/code `P5.5-004`.
+
+### Implementation result
+
+- Added `app/search_execution.py` for Tavily HTTP execution, query-slot execution, query-plan wave execution, and dependency-injected multi-wave core execution.
+- Added `app/search_snapshots.py` for structured-search snapshot slugging, filenames, summary shape, snapshot payload construction, and snapshot writing.
+- Updated `app/main.py` to import execution/snapshot helpers and remove the moved definitions from the monolith.
+- Preserved `main.*` compatibility for `TAVILY_SEARCH_URL`, `SEARCH_RUN_LOG_DIR`, `run_tavily_query`, `run_query_slot`, `run_query_plan_wave`, `run_multi_wave_query_plan`, `write_structured_search_snapshot`, `build_structured_search_snapshot`, `structured_search_snapshot_filename`, `query_result_status_summary`, and `snapshot_slug`.
+- Kept `main.run_multi_wave_query_plan` as a wrapper that reads the current `main.run_query_plan_wave` at call time, preserving existing smoke-test monkeypatch behavior.
+- Kept `build_deduped_results_and_report`, LinkedIn URL normalization, location filtering, Candidate Quality, Agent Response, LLM wording, FastAPI route handlers, and approval logic in `app/main.py`.
+- Confirmed extracted execution/snapshot modules do not import from `app.main`.
+- No endpoint paths, request payloads, response fields, approval checks, Tavily payloads, query result shapes, report fields, snapshot shape, snapshot filenames, Agent Response behavior, frontend behavior, QueryPlan output, QueryPlan fingerprints, scoring, filtering, dedupe, location logic, Candidate Quality, or Phase 6 runtime behavior changed.
+
+Verification completed:
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+- focused execution/snapshot regression check for `main.*` aliases, snapshot filename/shape, query-slot no-key error shape, and multi-wave monkeypatch behavior
 
 ## Phase 6 - Human-approved Tool-Calling Agent Runtime
 

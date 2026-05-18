@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-003`; next task to review is `P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules`.
+- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-004`; next task to review is `P5.5-005 Extract Candidate Quality module`.
 
 ### Completed
 
@@ -370,7 +370,8 @@ Phase 5.5 progress:
 - `P5.5-001` completed the docs-only module-boundary and migration-order decision.
 - `P5.5-002` extracted shared schemas, domain config, text helpers, structured search validation, and Search Brief validation/adapter/fingerprinting into focused modules while preserving behavior and `main.*` compatibility.
 - `P5.5-003` extracted rule-based planner, QueryPlan fingerprint helpers, planner explanation, deterministic AI QueryPlan prompt/validation/coverage helpers, and related shared planner config while preserving behavior and `main.*` compatibility.
-- Next planned extraction is search executor, Tavily, snapshots, and multi-wave modules.
+- `P5.5-004` extracted Tavily/query-wave execution and structured-search snapshot helpers while preserving behavior and `main.*` compatibility.
+- Next planned extraction is Candidate Quality.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 
