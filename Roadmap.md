@@ -274,7 +274,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
 - Preserve absolute product boundaries as prohibited behavior: no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
-- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, and `P5-010 Result-to-next-iteration loop` are completed.
+- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, and `P5-011 Apply AI Agent visual direction / dark workspace refresh` are completed.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
@@ -318,7 +318,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-010` are completed; next task to review is `P5-011 Apply AI Agent visual direction / dark workspace refresh`.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-011` are completed; next task to review is `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 
 ### Phase 5 Approved Contract
 
@@ -347,7 +347,7 @@ Recommended implementation order after the contract:
 - `P5-008 Chat onboarding and clarification quality` - implemented.
 - `P5-009 Search Brief refinement through chat` - implemented.
 - `P5-010 Result-to-next-iteration loop` - implemented.
-- `P5-011 Apply AI Agent visual direction / dark workspace refresh` - planned.
+- `P5-011 Apply AI Agent visual direction / dark workspace refresh` - implemented.
 - `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` - planned.
 
 Phase 5 completion target:
@@ -411,6 +411,13 @@ Implemented `P5-010` result:
 - Frontend displays options as readable Agent Response text and adds no Apply/action buttons.
 - `search_depth` is preserved as metadata in the adapted structured request and QueryPlan input snapshot, so `search_depth = deep` suggestions are grounded.
 - Option generation does not call Tavily, LinkedIn, web search, Build Plan, `/api/agent/query-plan`, multi-wave, or any autonomous execution.
+
+Implemented `P5-011` result:
+
+- Applied a CSS-first/UI-only dark AI Agent visual refresh.
+- Added dark workspace tokens, layered navy/charcoal surfaces, teal/cyan action/status accents, darker controls, compact panels/cards, report metrics, candidate cards, review flags, and score details.
+- No backend code, `index.html`, `app.js`, API contracts, request payloads, state semantics, event flow, search behavior, or product logic changed.
+- The old MVP layout was not copied and no new product features were added.
 
 ### Done
 

@@ -2080,7 +2080,6 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
-- [ ] P5-011 Apply AI Agent visual direction / dark workspace refresh
 - [ ] P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision
 
 ### In Progress
@@ -2098,6 +2097,7 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-008 Chat onboarding and clarification quality
 - [x] P5-009 Search Brief refinement through chat
 - [x] P5-010 Result-to-next-iteration loop
+- [x] P5-011 Apply AI Agent visual direction / dark workspace refresh
 
 ### Current Phase 5 strategy note
 
@@ -3191,7 +3191,7 @@ After results are returned, let the agent propose structured next-iteration opti
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Implemented.
 
 ### Context
 
@@ -3244,23 +3244,39 @@ Style direction:
    - Do not copy the old MVP placement.
    - Do not redesign the product flow.
    - Do not change backend behavior.
-4. Preserve usability.
+4. Keep the implementation CSS-first and UI-only.
+   - Prefer changing `app/static/styles.css`.
+   - `app/static/index.html` and `app/static/app.js` may be changed only for minimal visual class hooks or wrappers if CSS-only is not enough.
+   - Do not change frontend behavior, event flow, request payloads, API calls, search logic, or state semantics.
+5. Preserve usability.
    - Text contrast must be readable.
    - Buttons and disabled states must be clear.
    - Dense candidate data must remain scannable.
    - Mobile layout must not break.
-5. Verify visually.
-   - Browser check desktop and mobile viewport.
-   - Check no text overlap.
-   - Check chat, plan, report, results, and empty states.
+   - Do not make the interface a single dark-blue mass; keep distinct surface levels, readable text hierarchy, and use teal/cyan accents mainly for actions and AI/status signals.
+6. Keep verification minimal for this task.
+   - Run frontend syntax check.
+   - Do not require separate desktop/mobile visual QA as an acceptance step.
+   - Deeper visual QA can be done later when the UI direction is stable.
 
 ### Non-goals
 
 - Do not change chat/brief/planner/search behavior.
 - Do not add new frontend product features.
+- Do not change backend code.
+- Do not change API contracts, request payloads, state semantics, or event flow.
 - Do not add authentication/logout behavior from the old MVP.
 - Do not copy the old three-column layout.
+- Do not require desktop/mobile visual QA in this task.
 - Do not add database, persistence, shortlist, or workspace behavior.
+
+### Implementation result
+
+- Applied the approved dark AI Agent visual direction as a CSS-first/UI-only refresh.
+- Updated `app/static/styles.css` with dark workspace tokens, layered navy/charcoal surfaces, teal/cyan action/status accents, darker form controls, cards, badges, report metrics, candidate cards, review flags, and score details.
+- Did not change backend code, `index.html`, `app.js`, API contracts, request payloads, state semantics, event flow, search behavior, or product logic.
+- Kept the current layout and product flow; did not copy the old MVP placement or add new product features.
+- Verification kept minimal as approved: frontend syntax check and diff whitespace check.
 
 ---
 

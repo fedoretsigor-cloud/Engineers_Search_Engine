@@ -55,7 +55,7 @@ Current product direction:
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
 - The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
 - The frontend has recruiter chat as the primary input, a `Search Brief` summary, `Build Plan`, planner explanation UI, and approval-gated search controls.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, and `P5-010 Result-to-next-iteration loop`.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, and `P5-011 Apply AI Agent visual direction / dark workspace refresh`.
 - `P5-002` guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
 - `P5-003` made recruiter chat the primary frontend input.
 - `P5-003` guardrail: search execution uses `adapted_structured_request` from the planner response, not old structured-form DOM fields.
@@ -67,7 +67,8 @@ Current product direction:
 - `P5-008` added deterministic RU/EN chat onboarding for greeting-only and near-empty turns without calling OpenAI, while preserving existing draft briefs.
 - `P5-009` added deterministic-first Search Brief refinement through atomic `brief_patch.operations` and frontend stale-state clearing only when backend returns `stale_state_should_clear = true`.
 - `P5-010` added deterministic non-executable `agent_response.next_iteration_options` after approved search results. Options are grounded only in returned search data and displayed without Apply/action buttons.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through result-to-next-iteration, AI Agent visual direction, and closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime. Ordinary LLM-assisted agent conversation wording belongs after the Phase 6 runtime baseline, in Phase 7.
+- `P5-011` applied a CSS-first/UI-only dark AI Agent visual refresh without changing backend code, frontend logic, API contracts, or product flow.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime. Ordinary LLM-assisted agent conversation wording belongs after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 
@@ -78,6 +79,7 @@ Current product direction:
 - Current recruiter chat and AI planner paths require `OPENAI_API_KEY` and `OPENAI_MODEL`; LLM-assisted Agent Plan/Response wording falls back to deterministic wording when configuration or validation fails.
 - Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
 - Primary chat `Build Plan` uses `planner_mode = rule_based` and produces an approvable Search Plan.
+- Phase 5 UI visual styling is CSS-first/UI-only; visual refreshes must not change backend code, frontend behavior, API contracts, request payloads, state semantics, or event flow unless separately approved.
 - `RuleBasedQueryPlanner v1` builds the visible `QueryPlan`.
 - Tavily receives only generated queries from the visible `QueryPlan`.
 - `LinkedIn profiles only` is an explicit visible filter.
