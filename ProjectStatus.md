@@ -14,26 +14,22 @@ Phase 3 - Candidate Quality Layer is completed.
 
 Phase 4 - AI Agent Foundation is completed.
 
-Current phase: `Phase 5 - Recruiter Chat UX + Search Brief conversation`.
+Current phase: `Phase 5.5 - Technical modularization before Agent Runtime`.
 
-Completed through `P5-011`: Phase 4 is closed as an AI Agent Foundation, and Phase 5 now has its recruiter chat contract, backend chat-to-brief adapter, primary recruiter chat frontend, approvable `Build Plan` path, first human-approved Agent v0 slice for the Java/Ukraine baseline, deterministic post-results Agent Response in chat, bounded LLM-assisted wording for Agent Plan/Response with deterministic fallback, synchronized Phase 5 documentation/guardrails, deterministic chat onboarding for greeting/near-empty turns, deterministic-first Search Brief refinement through `brief_patch` operations, deterministic result-to-next-iteration options, and a dark AI Agent visual direction. The backend has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, `POST /api/recruiter-chat/turn`, `POST /api/agent/plan`, `agent_response`, and `agent_response.next_iteration_options` on approved search responses. This is still not a complete autonomous recruiter agent.
+Completed through `P5-012`: Phase 4 is closed as an AI Agent Foundation, and Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation. Phase 5 has its recruiter chat contract, backend chat-to-brief adapter, primary recruiter chat frontend, approvable `Build Plan` path, first human-approved Agent v0 slice for the Java/Ukraine baseline, deterministic post-results Agent Response in chat, bounded LLM-assisted wording for Agent Plan/Response with deterministic fallback, synchronized Phase 5 documentation/guardrails, deterministic chat onboarding for greeting/near-empty turns, deterministic-first Search Brief refinement through `brief_patch` operations, deterministic result-to-next-iteration options, a dark AI Agent visual direction, and a closeout decision/handoff to Phase 5.5. The backend has Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, `POST /api/recruiter-chat/turn`, `POST /api/agent/plan`, `agent_response`, and `agent_response.next_iteration_options` on approved search responses. This is still not a complete autonomous recruiter agent.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, `P5-011 Apply AI Agent visual direction / dark workspace refresh`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, `P5-011 Apply AI Agent visual direction / dark workspace refresh`, `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 
-Next task to review: `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
+Next task to review: `P5.5-001 Define backend module boundaries and migration order`.
 
 Current agreed strategy:
 
-- finish one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
+- keep the completed narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - do not expand countries or technologies yet;
-- finish Phase 5 by making chat collect, clarify, refine, plan, run approved search, summarize results, guide the next iteration, and present a coherent AI Agent visual style;
-- add Phase 5.5 after Phase 5 to modularize the backend before the Phase 6 tool-calling runtime;
+- Phase 5 is closed as the narrow Java/Ukraine Agent UX foundation;
+- run Phase 5.5 after Phase 5 to modularize the backend before the Phase 6 tool-calling runtime;
 - keep ordinary LLM-assisted agent conversation wording for Phase 7, after the runtime message taxonomy is stable;
 - keep candidate workspace/shortlist for Phase 8 and database/persistent memory for Phase 9.
-
-Planned Phase 5 order:
-
-1. `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 
 Planned Phase 5.5 order: technical modularization before Agent Runtime, with no product behavior changes.
 
@@ -67,6 +63,8 @@ Planned later phases:
 `P5-010` is implemented. Approved search responses now include deterministic `agent_response.next_iteration_options` grounded only in returned QueryPlan/report/results/quality data. Options are structured with `proposed_brief_patch` operations, require approval before any execution, and are not executable now. The frontend displays them as readable Agent Response text with no Apply/action buttons. `search_depth` is preserved as metadata through the adapted structured request and QueryPlan input snapshot so `deep` suggestions are grounded. LLM wording does not generate, select, or mutate the options, and option generation does not call Tavily, LinkedIn, web search, Build Plan, `/api/agent/query-plan`, or multi-wave.
 
 `P5-011` is implemented as a CSS-first/UI-only visual refresh. The current Phase 5 UI now uses a dark intelligence workspace direction: layered navy/charcoal surfaces, teal/cyan action/status accents, darker controls, compact panels/cards, report metrics, candidate cards, review flags, and score details. No backend code, `index.html`, `app.js`, API contracts, request payloads, state semantics, event flow, search behavior, or product logic changed. The old MVP layout was not copied and no new product features were added.
+
+`P5-012` is completed as a docs-only closeout. Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation, not as a complete autonomous recruiter agent. The closeout decision: the supported flow is ready for Phase 5.5 technical modularization and later Phase 6 human-approved tool runtime. Broader communication scenarios and ordinary LLM-assisted recruiter chat wording are intentionally moved to Phase 7 after Phase 6 runtime/message taxonomy is stable. See `docs/phase-5-closeout.md`.
 
 Latest Phase 3 quality baseline used `Backend Developer + Java + Spring/Kafka + Ukraine` with visible profile/location filters enabled:
 
@@ -350,14 +348,14 @@ Final baseline numbers remain above the Phase 2 success criterion:
 
 Recommended next steps:
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on one narrow Java/Ukraine flow where chat collects and refines a validated `Search Brief`, uses Phase 4 planner/approval contracts, guides a next iteration after results, and gets a coherent AI Agent visual style. `P5-001` through `P5-011` are completed; `P5-012` is planned next.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on one narrow Java/Ukraine flow where chat collects and refines a validated `Search Brief`, uses Phase 4 planner/approval contracts, guides a next iteration after results, and gets a coherent AI Agent visual style. `P5-001` through `P5-012` are completed and Phase 5 is closed.
 - Phase 5.5: `Technical modularization before Agent Runtime`, focused on splitting `app/main.py` into focused modules without changing product behavior before the tool-calling runtime.
 - Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded, human-approved agent loop that can choose approved backend tools, inspect results, and suggest next iterations without autonomous execution.
 - Phase 7: `Agent Conversation Wording Layer`, focused on LLM-assisted wording after the runtime message taxonomy is stable.
 - Phase 8: `Candidate Workspace/Table + Shortlist`.
 - Phase 9: `Persistent Memory + Saved Searches`.
 
-Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief conversation is now the active Phase 5 direction. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
+Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is now the active technical preparation direction before Phase 6. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
 
 ## Verification
 
@@ -399,6 +397,7 @@ Phase 4 is completed as AI Agent Foundation. Recruiter Chat UX + Search Brief co
 - Phase 5 `P5-009` refinement checks passed: backend compile, frontend syntax, chat adapter smoke for deterministic add/remove/replace stack, seniority, search depth, unsupported atomic patch, refinement without draft, duplicate add, missing remove, and last-stack removal block.
 - Phase 5 `P5-010` next-iteration checks passed: backend compile, frontend syntax, Agent Response smoke for non-executable options/deep patch, LLM wording smoke proving options are preserved and not sent as mutable wording output, and git diff whitespace check.
 - Phase 5 `P5-011` visual refresh checks passed: frontend syntax check and git diff whitespace check. No desktop/mobile visual QA was required for this task by scope.
+- Phase 5 `P5-012` docs-only closeout completed: Phase 5 is closed as the narrow Java/Ukraine Agent UX foundation, Phase 5.5 is the next active phase, and broader conversation scenarios/ordinary chat wording are carried forward to Phase 7.
 
 ## Current known limitations
 

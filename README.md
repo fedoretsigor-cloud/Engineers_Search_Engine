@@ -13,8 +13,9 @@ Status:
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
-- Current active phase: Phase 5 `Recruiter Chat UX + Search Brief conversation`.
-- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, and `P5-011 Apply AI Agent visual direction / dark workspace refresh`.
+- Current active phase: Phase 5.5 `Technical modularization before Agent Runtime`.
+- Phase 5 `Recruiter Chat UX + Search Brief conversation` is completed and closed as a narrow Java/Ukraine Agent UX foundation.
+- Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, `P5-011 Apply AI Agent visual direction / dark workspace refresh`, and `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 - `P5-002` added `POST /api/recruiter-chat/turn` and is limited to `chat messages -> draft Search Brief -> validation -> one assistant response`.
 - `P5-003` made recruiter chat the primary frontend input and keeps execution tied to planner response `adapted_structured_request`.
 - `P5-004` made primary chat `Build Plan` produce an approvable deterministic backend Search Plan as a safe executable bridge toward the AI Agent flow. AI planner capability remains in the product and should be evolved through reviewed tasks.
@@ -26,12 +27,12 @@ Status:
 - `P5-009` added deterministic-first Search Brief refinement through atomic `brief_patch.operations` and frontend stale-state clearing only when backend returns `stale_state_should_clear = true`.
 - `P5-010` added deterministic non-executable `agent_response.next_iteration_options` after approved search results, displayed in chat with no Apply/action buttons.
 - `P5-011` applied a CSS-first/UI-only dark AI Agent visual refresh without changing backend code, frontend logic, API contracts, or product flow.
+- `P5-012` closed Phase 5 as a docs-only decision: the Java/Ukraine Agent UX foundation is ready for Phase 5.5 technical modularization, while broader conversation scenarios and ordinary LLM-assisted chat wording move to Phase 7.
 
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
-- finish Phase 5 through a Phase 5 closeout decision;
-- add Phase 5.5 technical modularization before Phase 6, splitting the current backend without changing product behavior;
+- run Phase 5.5 technical modularization before Phase 6, splitting the current backend without changing product behavior;
 - only then move to Phase 6 human-approved tool-calling runtime;
 - add ordinary agent conversation wording as Phase 7 after the runtime message taxonomy is stable;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.

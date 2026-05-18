@@ -137,9 +137,9 @@ POC прототип с легким фронтом и одним поисков
 - Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
-Phase 4 завершена как `AI Agent Foundation`. Текущий активный этап - Phase 5 `Recruiter Chat UX + Search Brief conversation`.
+Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Текущий активный этап - Phase 5.5 `Technical modularization before Agent Runtime`.
 
-Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 должна закрыть именно агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. После этого нужна техническая Phase 5.5, чтобы модульно подготовить backend к Phase 6 tool runtime.
+Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Дальше нужна техническая Phase 5.5, чтобы модульно подготовить backend к Phase 6 tool runtime.
 
 Фаза 4 - AI Agent Foundation
 
@@ -274,7 +274,7 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
 - Preserve absolute product boundaries as prohibited behavior: no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
-- Phase 5 is the active phase; `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, and `P5-011 Apply AI Agent visual direction / dark workspace refresh` are completed.
+- Phase 5 is completed and closed; `P5-001 Define recruiter chat and Search Brief conversation contract` through `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` are completed. Phase 5.5 is the next active phase before Phase 6 tool runtime.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
@@ -310,7 +310,6 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### Planned
 
-- Phase 5.5: `Technical modularization before Agent Runtime`.
 - Phase 6: `Tool-Calling Agent Runtime`.
 - Phase 7: `Agent Conversation Wording Layer`.
 - Phase 8: `Candidate Workspace/Table + Shortlist`.
@@ -318,7 +317,11 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-011` are completed; next task to review is `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
+- Phase 5.5: `Technical modularization before Agent Runtime` - next task to review is `P5.5-001 Define backend module boundaries and migration order`.
+
+### Completed
+
+- Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-012` are completed. Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation.
 
 ### Phase 5 Approved Contract
 
@@ -348,9 +351,9 @@ Recommended implementation order after the contract:
 - `P5-009 Search Brief refinement through chat` - implemented.
 - `P5-010 Result-to-next-iteration loop` - implemented.
 - `P5-011 Apply AI Agent visual direction / dark workspace refresh` - implemented.
-- `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` - planned.
+- `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` - implemented.
 
-Phase 5 completion target:
+Phase 5 closeout result:
 
 - keep the product focused on `Backend Developer + Java + Ukraine`;
 - make chat capable of collecting and refining the `Search Brief`;
@@ -358,6 +361,7 @@ Phase 5 completion target:
 - require explicit approval for search and multi-wave search;
 - after results, let the agent guide the recruiter toward the next iteration without executing it automatically.
 - apply a coherent dark AI Agent workspace style inspired by the first MVP visual direction, without copying its layout.
+- keep broader communication scenarios and ordinary LLM-assisted recruiter chat wording for Phase 7 after the Phase 6 runtime/message taxonomy is stable.
 
 After Phase 5, Phase 5.5 should modularize the backend before Phase 6. Do not start Phase 6 tool runtime directly on the current monolithic `app/main.py`.
 

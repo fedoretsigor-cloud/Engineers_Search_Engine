@@ -2041,7 +2041,7 @@ Current Phase 4 implementation status:
 
 `P4-011` completed the docs-only closeout: Phase 4 is an AI Agent Foundation, not a complete autonomous recruiter agent. The backend foundation is ready for Phase 5 recruiter chat/Search Brief conversation.
 
-Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`.
+Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, `P5-011 Apply AI Agent visual direction / dark workspace refresh`, `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 
 Phase 4 should not immediately implement a fully autonomous agent loop. The goal is the foundation:
 
@@ -2080,8 +2080,6 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 
 ### Backlog
 
-- [ ] P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision
-
 ### In Progress
 
 ### Done
@@ -2098,18 +2096,19 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [x] P5-009 Search Brief refinement through chat
 - [x] P5-010 Result-to-next-iteration loop
 - [x] P5-011 Apply AI Agent visual direction / dark workspace refresh
+- [x] P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision
 
 ### Current Phase 5 strategy note
 
-Phase 5 should build the user-facing recruiter chat on top of the Phase 4 foundation.
+Phase 5 is closed as the narrow Java/Ukraine recruiter chat and Search Brief agent UX foundation.
 
-Current focus: finish one narrow high-quality flow first, not expand countries or technologies yet. The target flow is `Backend Developer + Java + Ukraine` with the existing Java stack choices and public LinkedIn/Tavily pipeline.
+Current focus: preserve the completed narrow high-quality flow first, not expand countries or technologies yet. The target flow is `Backend Developer + Java + Ukraine` with the existing Java stack choices and public LinkedIn/Tavily pipeline.
 
 The chat should collect and refine a `Search Brief` through dialogue, show the generated plan and approval state clearly, and reuse existing backend contracts instead of bypassing them.
 
 Phase 5 should not introduce autonomous execution, persistence, or candidate workspace. Any future tool runtime must remain human-approved and approval-gated.
 
-Phase 5 exit criteria:
+Phase 5 exit criteria were accepted for the supported `Backend Developer + Java + Ukraine` flow:
 
 - recruiter chat can collect a ready Java/Ukraine `Search Brief`;
 - recruiter chat can ask useful one-at-a-time clarifying questions;
@@ -2119,6 +2118,10 @@ Phase 5 exit criteria:
 - Tavily search runs only after explicit approval;
 - after results, the agent can suggest the next iteration and turn an approved direction into the next brief/plan step.
 - the UI has a consistent AI Agent visual language inspired by the first MVP style, without copying its layout.
+
+Phase 5 closeout decision: the current Java/Ukraine flow is ready for Phase 5.5 technical modularization and later Phase 6 human-approved tool runtime work. It is not a complete autonomous recruiter agent.
+
+Communication scenarios and broader ordinary chat wording quality are intentionally not expanded in Phase 5. They move to Phase 7 after the Phase 6 runtime/message taxonomy is stable. Phase 5 keeps ordinary chat wording deterministic except for the already bounded Agent Plan/Response wording overlay.
 
 After Phase 5, add a technical Phase 5.5 before Phase 6. Phase 5.5 should modularize the current backend without changing product behavior, so the later human-approved tool-calling runtime is not built directly on top of the large `app/main.py` monolith.
 
@@ -3284,7 +3287,7 @@ Style direction:
 
 ### Status
 
-Draft. Added to the task list for review. Not approved. Not implemented.
+Implemented as a docs-only closeout.
 
 ### Context
 
@@ -3294,7 +3297,7 @@ Phase 5 should close only when the narrow Java/Ukraine flow behaves like a coher
 
 Document whether the Phase 5 Java/Ukraine flow is ready for technical modularization and later Phase 6 tool-calling runtime.
 
-### Proposed checklist
+### Closeout checklist
 
 1. Chat can collect a ready Java/Ukraine `Search Brief`.
 2. Chat can ask useful one-at-a-time clarifying questions.
@@ -3307,6 +3310,30 @@ Document whether the Phase 5 Java/Ukraine flow is ready for technical modulariza
 9. Current UI has a coherent AI Agent visual direction.
 10. No autonomous execution or prohibited LinkedIn behavior exists.
 11. Docs are updated with the decision and Phase 5.5 handoff.
+
+### Decision
+
+Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation.
+
+The result is a human-approved recruiter chat flow for `Backend Developer + Java + Ukraine`: chat collects and refines a `Search Brief`, Agent Plan appears for a ready supported brief, Build Plan produces a reviewable Search Plan, Tavily execution remains approval-gated, approved results produce a grounded Agent Response, and next-iteration options remain non-executable suggestions.
+
+This is not a complete autonomous recruiter agent. The next step is Phase 5.5 technical modularization before Phase 6 tool-calling runtime.
+
+### Carry-forward limitations
+
+- No autonomous execution.
+- No direct web-search outside the approved backend search pipeline.
+- No direct LinkedIn access/automation, LinkedIn login, scraping, restriction bypass, candidate messaging, or account actions.
+- No database, persistent memory, shortlist, candidate workspace, export workflow, or multi-source search.
+- `RuleBasedQueryPlanner v1` remains the only approved executable planner.
+- AI-generated plans remain non-executable until a later reviewed task explicitly changes that through deterministic validation and approval.
+- Broader conversation scenario work and ordinary LLM-assisted recruiter chat wording move to Phase 7 after Phase 6 runtime/message taxonomy is stable.
+
+### Implementation result
+
+- Updated `Tasks.md`, `Roadmap.md`, `ProjectStatus.md`, `README.md`, `AGENTS.md`, and `docs/phase-5-agent-stabilization.md` to mark Phase 5 closed and Phase 5.5 as the next active phase.
+- Added `docs/phase-5-closeout.md` as the Phase 5 handoff decision record.
+- No backend code, frontend code, API contracts, search behavior, approval behavior, or product logic changed.
 
 ### Non-goals
 

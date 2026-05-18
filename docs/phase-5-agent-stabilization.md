@@ -4,7 +4,7 @@ Date: 2026-05-18
 
 Task: `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`
 
-Latest update: `P5-011 Apply AI Agent visual direction / dark workspace refresh`
+Latest update: `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`
 
 ## Why this exists
 
@@ -18,7 +18,7 @@ This stabilization task makes the documentation and backend guardrail match the 
 
 ## Current Phase 5 status
 
-Completed through `P5-011`.
+Completed through `P5-012`.
 
 Implemented Phase 5 tasks:
 
@@ -34,18 +34,19 @@ Implemented Phase 5 tasks:
 - `P5-009 Search Brief refinement through chat`
 - `P5-010 Result-to-next-iteration loop`
 - `P5-011 Apply AI Agent visual direction / dark workspace refresh`
+- `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`
 
 Next task to review:
 
-- `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`
+- `P5.5-001 Define backend module boundaries and migration order`
 
 Agreed next direction:
 
 - keep the product focused on one narrow Java/Ukraine flow first;
-- finish Phase 5 through result-to-next-iteration, AI Agent visual direction, and a closeout decision;
+- Phase 5 is closed as the narrow Java/Ukraine Agent UX foundation;
 - add Phase 5.5 technical modularization before Phase 6;
 - keep ordinary LLM-assisted agent conversation wording for Phase 7, after the runtime message taxonomy is stable;
-- do not expand countries/technologies, add database, or start tool-calling runtime until the narrow flow is stable.
+- do not expand countries/technologies, add database, or start tool-calling runtime before Phase 5.5 prepares the backend for the approved runtime path.
 
 ## Current approved Agent v0 flow
 
@@ -116,3 +117,5 @@ git diff --check
 `P5-010` added deterministic `agent_response.next_iteration_options` after approved search results. Options are grounded only in returned QueryPlan/report/results/quality data, carry `proposed_brief_patch` operations, require approval before any future execution, and are not executable now. Frontend renders them as readable text with no Apply/action buttons. `search_depth` is now preserved as structured-search metadata so `deep` suggestions are grounded. LLM wording does not generate or mutate these options.
 
 `P5-011` applied a CSS-first/UI-only dark AI Agent visual refresh. It updated `app/static/styles.css` with layered dark workspace surfaces, teal/cyan action/status accents, dark controls, compact cards, report metrics, candidate cards, review flags, and score details. It did not change backend code, `index.html`, `app.js`, API contracts, request payloads, state semantics, event flow, search behavior, or product logic.
+
+`P5-012` closed Phase 5 as a docs-only decision. The supported `Backend Developer + Java + Ukraine` flow is ready for Phase 5.5 technical modularization and later Phase 6 human-approved tool runtime, but it is not a complete autonomous recruiter agent. Broader communication scenarios and ordinary LLM-assisted recruiter chat wording are intentionally carried forward to Phase 7 after the Phase 6 runtime/message taxonomy is stable. See `docs/phase-5-closeout.md`.
