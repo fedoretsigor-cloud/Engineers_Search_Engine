@@ -138,7 +138,7 @@ POC прототип с легким фронтом и одним поисков
 
 Phase 4 завершена как `AI Agent Foundation`. Текущий активный этап - Phase 5 `Recruiter Chat UX + Search Brief conversation`.
 
-Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 должна закрыть именно агентный UX на этом flow: onboarding, clarification, brief refinement, approved search и result-to-next-iteration loop. После этого нужна техническая Phase 5.5, чтобы модульно подготовить backend к Phase 6 tool runtime.
+Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 должна закрыть именно агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. После этого нужна техническая Phase 5.5, чтобы модульно подготовить backend к Phase 6 tool runtime.
 
 Фаза 4 - AI Agent Foundation
 
@@ -344,7 +344,8 @@ Recommended implementation order after the contract:
 - `P5-008 Chat onboarding and clarification quality` - next to review.
 - `P5-009 Search Brief refinement through chat` - planned.
 - `P5-010 Result-to-next-iteration loop` - planned.
-- `P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision` - planned.
+- `P5-011 Apply AI Agent visual direction / dark workspace refresh` - planned.
+- `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` - planned.
 
 Phase 5 completion target:
 
@@ -353,6 +354,7 @@ Phase 5 completion target:
 - keep `Agent Plan` and `Build Plan` separate from Tavily execution;
 - require explicit approval for search and multi-wave search;
 - after results, let the agent guide the recruiter toward the next iteration without executing it automatically.
+- apply a coherent dark AI Agent workspace style inspired by the first MVP visual direction, without copying its layout.
 
 After Phase 5, Phase 5.5 should modularize the backend before Phase 6. Do not start Phase 6 tool runtime directly on the current monolithic `app/main.py`.
 

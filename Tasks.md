@@ -2083,7 +2083,8 @@ Direction principle: every Phase 5+ task should move the product toward a real A
 - [ ] P5-008 Chat onboarding and clarification quality
 - [ ] P5-009 Search Brief refinement through chat
 - [ ] P5-010 Result-to-next-iteration loop
-- [ ] P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision
+- [ ] P5-011 Apply AI Agent visual direction / dark workspace refresh
+- [ ] P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision
 
 ### In Progress
 
@@ -2117,6 +2118,7 @@ Phase 5 exit criteria:
 - `Build Plan` remains a non-executing plan step;
 - Tavily search runs only after explicit approval;
 - after results, the agent can suggest the next iteration and turn an approved direction into the next brief/plan step.
+- the UI has a consistent AI Agent visual language inspired by the first MVP style, without copying its layout.
 
 After Phase 5, add a technical Phase 5.5 before Phase 6. Phase 5.5 should modularize the current backend without changing product behavior, so the later human-approved tool-calling runtime is not built directly on top of the large `app/main.py` monolith.
 
@@ -2961,7 +2963,84 @@ After results are returned, let the agent propose a next search iteration and le
 
 ---
 
-## Task: P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision
+## Task: P5-011 Apply AI Agent visual direction / dark workspace refresh
+
+### Status
+
+Draft. Added to the task list for review. Not approved. Not implemented.
+
+### Context
+
+The first MVP had a useful visual direction for this product: dark search intelligence workspace, navy/charcoal surfaces, teal/cyan accents, restrained gradients, and a professional sourcing cockpit mood.
+
+We should not copy the old layout. The current product is now an AI Agent flow, not the original form-based MVP. The visual direction should support the current Phase 5 agent states:
+
+- recruiter chat;
+- Search Brief;
+- Agent Plan;
+- Search Plan;
+- approval state;
+- results;
+- candidate evidence / agent review.
+
+### Goal
+
+Apply a coherent AI Agent visual style to the current Phase 5 UI after the main chat/brief/iteration logic is working.
+
+Style direction:
+
+- dark intelligence workspace;
+- deep navy/charcoal background;
+- teal/cyan as the main AI/action accent;
+- restrained glow/gradient accents;
+- compact professional cards;
+- strong readability for dense recruiting data;
+- no landing-page feel;
+- no copying the first MVP layout.
+
+### Proposed steps
+
+1. Define a small visual design token set.
+   - Background colors.
+   - Surface colors.
+   - Border colors.
+   - Text colors.
+   - Accent colors.
+   - Primary/secondary action states.
+2. Apply the style to existing Phase 5 components.
+   - Recruiter chat.
+   - Search Brief summary.
+   - Agent Plan message.
+   - Generated Search Plan.
+   - Approval controls.
+   - Report.
+   - Candidate result cards.
+   - Agent Response.
+3. Keep layout changes conservative.
+   - Do not copy the old MVP placement.
+   - Do not redesign the product flow.
+   - Do not change backend behavior.
+4. Preserve usability.
+   - Text contrast must be readable.
+   - Buttons and disabled states must be clear.
+   - Dense candidate data must remain scannable.
+   - Mobile layout must not break.
+5. Verify visually.
+   - Browser check desktop and mobile viewport.
+   - Check no text overlap.
+   - Check chat, plan, report, results, and empty states.
+
+### Non-goals
+
+- Do not change chat/brief/planner/search behavior.
+- Do not add new frontend product features.
+- Do not add authentication/logout behavior from the old MVP.
+- Do not copy the old three-column layout.
+- Do not add database, persistence, shortlist, or workspace behavior.
+
+---
+
+## Task: P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision
 
 ### Status
 
@@ -2985,8 +3064,9 @@ Document whether the Phase 5 Java/Ukraine flow is ready for technical modulariza
 6. Search requires explicit backend approval.
 7. Agent Response summarizes results without inventing facts.
 8. Post-results next iteration can lead to a new brief/plan step.
-9. No autonomous execution or prohibited LinkedIn behavior exists.
-10. Docs are updated with the decision and Phase 5.5 handoff.
+9. Current UI has a coherent AI Agent visual direction.
+10. No autonomous execution or prohibited LinkedIn behavior exists.
+11. Docs are updated with the decision and Phase 5.5 handoff.
 
 ### Non-goals
 

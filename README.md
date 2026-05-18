@@ -26,7 +26,7 @@ Status:
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
-- finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, and a Phase 5 closeout decision;
+- finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, AI Agent visual direction, and a Phase 5 closeout decision;
 - add Phase 5.5 technical modularization before Phase 6, splitting the current backend without changing product behavior;
 - only then move to Phase 6 human-approved tool-calling runtime;
 - keep candidate workspace/shortlist for Phase 7 and persistence/memory for Phase 8.

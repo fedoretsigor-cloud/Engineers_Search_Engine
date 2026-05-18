@@ -61,7 +61,7 @@ Current product direction:
 - `P5-006` added backend-generated post-results `agent_response` grounded only in already returned search data and rendered as a local-only `AI Agent` chat message.
 - `P5-007` added optional LLM-assisted wording with deterministic fallback for Agent Plan/Response.
 - `P5-007.1` tightened `/api/agent/query-plan`: Build Plan now requires the current Agent Plan action and brief fingerprint at the backend boundary.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, and closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, finish Phase 5 through chat onboarding, Search Brief refinement, result-to-next-iteration, AI Agent visual direction, and closeout, then run Phase 5.5 technical modularization before Phase 6 tool-calling runtime.
 
 ## Product Rules
 

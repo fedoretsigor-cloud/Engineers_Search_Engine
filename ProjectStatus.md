@@ -26,7 +26,7 @@ Current agreed strategy:
 
 - finish one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - do not expand countries or technologies yet;
-- finish Phase 5 by making chat collect, clarify, refine, plan, run approved search, summarize results, and guide the next iteration;
+- finish Phase 5 by making chat collect, clarify, refine, plan, run approved search, summarize results, guide the next iteration, and present a coherent AI Agent visual style;
 - add Phase 5.5 after Phase 5 to modularize the backend before the Phase 6 tool-calling runtime;
 - keep database, shortlist, workspace, and persistent memory for later phases.
 
@@ -35,7 +35,8 @@ Planned Phase 5 order:
 1. `P5-008 Chat onboarding and clarification quality`.
 2. `P5-009 Search Brief refinement through chat`.
 3. `P5-010 Result-to-next-iteration loop`.
-4. `P5-011 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
+4. `P5-011 Apply AI Agent visual direction / dark workspace refresh`.
+5. `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 
 Planned Phase 5.5 order: technical modularization before Agent Runtime, with no product behavior changes.
 
@@ -337,7 +338,7 @@ Final baseline numbers remain above the Phase 2 success criterion:
 
 Recommended next steps:
 
-- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on one narrow Java/Ukraine flow where chat collects and refines a validated `Search Brief`, uses Phase 4 planner/approval contracts, and guides a next iteration after results. `P5-001` through `P5-007.1` are completed; `P5-008` through `P5-011` are planned next.
+- Phase 5: `Recruiter Chat UX + Search Brief conversation`, focused on one narrow Java/Ukraine flow where chat collects and refines a validated `Search Brief`, uses Phase 4 planner/approval contracts, guides a next iteration after results, and gets a coherent AI Agent visual style. `P5-001` through `P5-007.1` are completed; `P5-008` through `P5-012` are planned next.
 - Phase 5.5: `Technical modularization before Agent Runtime`, focused on splitting `app/main.py` into focused modules without changing product behavior before the tool-calling runtime.
 - Phase 6: `Tool-Calling Agent Runtime`, focused on a bounded, human-approved agent loop that can choose approved backend tools, inspect results, and suggest next iterations without autonomous execution.
 
