@@ -2143,9 +2143,9 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules
-- [ ] P5.5-007 Split FastAPI routes from domain logic
-- [ ] P5.5-008 Run no-behavior-change regression checks and close Phase 5.5
+- [ ] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
+- [ ] P5.5-008 Split FastAPI routes from domain logic
+- [ ] P5.5-009 Run no-behavior-change regression checks and close Phase 5.5
 
 ### In Progress
 
@@ -2156,6 +2156,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-003 Extract rule-based planner and deterministic AI QueryPlan validation modules
 - [x] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
 - [x] P5.5-005 Extract Candidate Quality module
+- [x] P5.5-006 Extract Agent Tools and Agent Plan modules
 
 ### Current Phase 5.5 strategy note
 
@@ -2289,7 +2290,7 @@ This is a docs-only architecture task. It should not move code yet.
 - Import direction is explicitly documented.
 - Shared schema strategy is explicitly documented.
 - Config/constants strategy is explicitly documented.
-- Migration order for `P5.5-002` through `P5.5-008` is clear.
+- Migration order for `P5.5-002` through `P5.5-009` is clear.
 - No-behavior-change baseline and verification checks are documented.
 - The task remains docs-only.
 
@@ -2585,9 +2586,9 @@ Those belong to `P5.5-004`.
 
 Do not extract Candidate Quality in this task. That belongs to `P5.5-005`.
 
-Do not extract Agent Plan, Agent Response, tool contract, broad OpenAI client, or wording logic in this task. Those belong to `P5.5-006`.
+Do not extract Agent Plan, Agent Response, tool contract, broad OpenAI client, or wording logic in this task. Those belong to `P5.5-006` and `P5.5-007`.
 
-Do not split FastAPI routes in this task. That belongs to `P5.5-007`.
+Do not split FastAPI routes in this task. That belongs to `P5.5-008`.
 
 ### Import direction
 
@@ -2934,7 +2935,7 @@ The current Candidate Quality code is not isolated yet. It depends on:
 - location status fields already attached to normalized candidate results before quality scoring;
 - review flag taxonomy and score constants currently in `app/main.py`.
 
-The main caution is not to move Agent Response in this task. Agent Response consumes quality fields and a few evidence helpers for next-iteration options, but its response wording, summary facts, next-iteration suggestions, and LLM wording belong to `P5.5-006`.
+The main caution is not to move Agent Response in this task. Agent Response consumes quality fields and a few evidence helpers for next-iteration options, but its response wording, summary facts, next-iteration suggestions, and LLM wording belong to `P5.5-007`.
 
 ### Goal
 
@@ -3012,7 +3013,7 @@ Extract Candidate Quality production logic without changing behavior:
    - It still combines dedupe, location filtering, Candidate Quality attachment, and report counting.
    - It can call imported `build_candidate_quality`.
 2. Do not move Agent Response in this task.
-   - Agent Response consumes quality outputs but is its own module boundary in `P5.5-006`.
+   - Agent Response consumes quality outputs but is its own module boundary in `P5.5-007`.
    - Functions such as `agent_response_quality_distribution`, `agent_response_signal_counts`, `top_review_flag_counts`, `stack_term_visibility_counts`, and `agent_response_next_iteration_options` stay in `app/main.py`.
    - They may use imported `candidate_text_sources`, `collect_term_evidence`, and `terms_from_evidence`.
 3. Do not change quality scoring semantics.
@@ -3122,7 +3123,7 @@ Focused checks:
 - External references reviewed: `build_deduped_results_and_report` calls `build_candidate_quality`; Agent Response uses quality fields and a few evidence helpers; frontend reads quality fields but should not change.
 - Constants/config/defaults reviewed: score version, seniority config, review flag taxonomy, score weights, penalty groups, and Java quality config must not change.
 - Import direction reviewed: `candidate_quality.py` must not import `app.main`; Agent Response may later import Candidate Quality helpers, not the reverse.
-- Future extraction direction reviewed: this task should make `P5.5-006` easier by leaving Agent Response as a consumer of quality outputs.
+- Future extraction direction reviewed: this task should make `P5.5-007` easier by leaving Agent Response as a consumer of quality outputs.
 - Backward compatibility reviewed: preserve `main.*` aliases for quality helpers/config and moved text cleaners.
 - Verification reviewed: capture pre-extraction Candidate Quality fixture outputs, run standard Phase 5.5 checks, and compare exact Candidate Quality fixture parity after extraction.
 
@@ -3142,6 +3143,251 @@ Verification completed:
 - focused `main.*` compatibility check;
 - import-direction check confirming extracted Candidate Quality modules do not import `app.main`;
 - `git diff --check`.
+
+---
+
+## Task: P5.5-006 Extract Agent Tools and Agent Plan modules
+
+### Status
+
+Implemented.
+
+### Context
+
+`P5.5-005` extracted Candidate Quality while keeping Agent Plan, Agent Response, bounded LLM wording, OpenAI request orchestration, approval validation, and route handlers in `app/main.py`.
+
+The previous combined idea, `Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules`, is too broad for one safe no-behavior-change extraction. It is split into:
+
+- `P5.5-006`: Agent Tools and Agent Plan only.
+- `P5.5-007`: Agent Response and bounded wording/OpenAI modules.
+
+### Goal
+
+Extract the deterministic Agent Tools contract and Agent Plan logic without changing behavior, endpoints, payloads, approval semantics, planner behavior, execution behavior, or frontend behavior.
+
+`build_agent_plan_response_with_wording` is not pure deterministic Agent Plan logic. It may move only as a route-facing Agent Plan wrapper with injected wording behavior. The actual wording/OpenAI logic stays in `app/main.py` until `P5.5-007`.
+
+### Proposed modules
+
+1. `app/agent_tools.py`
+   - `AGENT_TOOL_APPROVAL_NOT_REQUIRED`.
+   - `AGENT_TOOL_APPROVAL_REQUIRED`.
+   - `AGENT_TOOL_APPROVAL_APPROVED`.
+   - `AGENT_TOOL_APPROVAL_REJECTED`.
+   - `EXECUTION_ACTION_SINGLE_WAVE`.
+   - `EXECUTION_ACTION_MULTI_WAVE`.
+   - `AGENT_ACTION_BUILD_QUERY_PLAN`.
+   - `AGENT_QUERY_PLAN_ENDPOINT`.
+   - `AGENT_TOOLS_V0`.
+   - `agent_tool_contract`.
+   - `execution_approval_metadata`.
+   - `validate_execution_approval`.
+2. `app/agent_plan.py`
+   - `AGENT_PLAN_STATUS_SUPPORTED`.
+   - `AGENT_PLAN_STATUS_NEEDS_CLARIFICATION`.
+   - `AGENT_PLAN_STATUS_UNSUPPORTED`.
+   - `agent_plan_language`.
+   - `agent_plan_proposed_action`.
+   - `is_supported_agent_v0_baseline`.
+   - `agent_plan_supported_message`.
+   - `agent_plan_needs_clarification_message`.
+   - `agent_plan_unsupported_message`.
+   - `build_agent_plan_response`.
+   - `build_agent_plan_response_with_wording` as a route-facing wrapper with injected wording behavior.
+   - `validate_agent_query_plan_action`.
+
+### Keep in `app/main.py` for now
+
+- Agent Response summary/wording/next-iteration option logic.
+- Bounded LLM wording helpers.
+- OpenAI request orchestration for recruiter chat, AI planner, and agent wording.
+- Recruiter chat adapter.
+- FastAPI route handlers.
+- Tavily execution and structured search orchestration.
+- Dedupe/report building.
+- Location filtering.
+- Candidate Quality imports/usages.
+
+### Critical scope decisions
+
+1. `validate_execution_approval` and `execution_approval_metadata` belong in `app/agent_tools.py`.
+   - They are approval/tool execution contract helpers, not route logic.
+   - They should be reusable by the future Phase 6 tool runtime.
+2. `build_agent_plan_response_with_wording` may move to `app/agent_plan.py`, but wording logic must not move in this task.
+   - Treat it as a route-facing Agent Plan wrapper, not as pure deterministic Agent Plan logic.
+   - Use dependency injection or a small callable parameter so the function can call the current wording overlay without importing `app.main`.
+   - Also preserve the validation-error message path used by the inner base plan response.
+   - Implementation may do this by passing `validation_error_formatter` through to `build_agent_plan_response`, or by injecting a `base_plan_builder` callable.
+   - Do not move `apply_llm_wording_to_agent_plan`, wording prompts, wording validators, or OpenAI wording calls here.
+3. `build_agent_plan_response` currently depends on `validation_error_message`, which remains outside Agent Plan for this task.
+   - Use dependency injection, for example `build_agent_plan_response(request, validation_error_formatter=...)`.
+   - `app/agent_plan.py` must not import `validation_error_message` from `app.main`.
+   - `app/main.py` should preserve a wrapper that passes the current `validation_error_message`.
+4. `main.build_agent_plan_response_with_wording` must remain a wrapper, not a simple re-export.
+   - Existing smoke scripts monkeypatch `main.run_openai_json_agent_wording`.
+   - The wrapper should pass `apply_llm_wording_to_agent_plan` as the wording dependency so monkeypatch behavior remains unchanged.
+5. Do not move Agent Response in this task.
+   - Agent Response belongs to `P5.5-007`.
+6. Do not introduce Phase 6 runtime behavior.
+   - No generic tool loop.
+   - No autonomous execution.
+   - No new tool execution paths.
+
+### Import direction
+
+- `app/main.py` can import `app.agent_tools` and `app.agent_plan`.
+- `app/agent_tools.py` may import:
+  - `ExecutionApproval` from `app.schemas`;
+  - `PLANNER_MODE_RULE_BASED` from `app.domain_config`;
+  - `add_plan_validation_error` and `query_plan_fingerprint` from `app.planning`.
+- `app/agent_plan.py` may import:
+  - `AgentPlanRequest` and `AgentQueryPlanRequest` from `app.schemas`;
+  - Search Brief validation/fingerprint helpers from `app.search_brief`;
+  - domain constants from `app.domain_config`;
+  - `normalize_text_value` from `app.text_utils`;
+  - Agent tool constants/helpers from `app.agent_tools`;
+  - `add_plan_validation_error` from `app.planning`.
+- `app/agent_plan.py` should receive current `validation_error_message` and wording behavior through callables/dependency injection instead of importing them.
+- `app/agent_tools.py` and `app/agent_plan.py` must not import `app.main`.
+- Neither module should import FastAPI routes, frontend/UI code, Tavily execution, search snapshots, Agent Response, OpenAI/LLM wording, or Candidate Quality internals.
+
+### Proposed steps
+
+1. Inventory Agent Tools and Agent Plan functions/constants and external callers.
+   - Agent tool constants and `AGENT_TOOLS_V0`.
+   - `agent_tool_contract`.
+   - `execution_approval_metadata`.
+   - `validate_execution_approval`.
+   - Agent Plan status constants.
+   - Agent Plan language/message/action helpers.
+   - `build_agent_plan_response`.
+   - `build_agent_plan_response_with_wording`.
+   - `validate_agent_query_plan_action`.
+   - Route usage in `/api/agent/plan`, `/api/agent/query-plan`, `/api/structured-search`, and `/api/structured-search/multi-wave`.
+   - `normalize_agent_language` usage that delegates to Agent Plan language detection.
+   - Recruiter chat prompt context that includes `AGENT_QUERY_PLAN_ENDPOINT`.
+   - Frontend `AGENT_QUERY_PLAN_ENDPOINT` constant and response-field expectations.
+   - Smoke script references and monkeypatch patterns.
+2. Create `app/agent_tools.py`.
+3. Move Agent Tools contract and execution approval helpers into `app/agent_tools.py` without changing returned dicts, error codes, messages, or approval semantics.
+4. Create `app/agent_plan.py`.
+5. Move deterministic Agent Plan helpers into `app/agent_plan.py`.
+6. Keep `build_agent_plan_response` validation-error wording unchanged through dependency injection:
+   - `build_agent_plan_response(request, validation_error_formatter=...)`;
+   - `app/main.py` wrapper passes current `validation_error_message`.
+7. Keep `build_agent_plan_response_with_wording` behavior unchanged through dependency injection:
+   - `build_agent_plan_response_with_wording(request, wording_applier=...)`;
+   - pass `validation_error_formatter=...` through to the inner base plan response, or inject a `base_plan_builder`;
+   - `app/agent_plan.py` must not import wording/OpenAI helpers directly from `app.main`.
+   - `app/main.py` wrapper passes current `apply_llm_wording_to_agent_plan` so `main.run_openai_json_agent_wording` monkeypatching still works through the existing wording path.
+8. Update `app/main.py` imports and wrappers/re-exports.
+   - Import moved implementations under private aliases where wrappers are needed, for example `_build_agent_plan_response`.
+   - Do not replace wrapper functions with direct same-name imports when dependency injection or monkeypatch compatibility is required.
+   - Avoid accidental recursive wrappers.
+9. Preserve `main.*` compatibility for:
+   - `main.AGENT_TOOL_APPROVAL_NOT_REQUIRED`;
+   - `main.AGENT_TOOL_APPROVAL_REQUIRED`;
+   - `main.AGENT_TOOL_APPROVAL_APPROVED`;
+   - `main.AGENT_TOOL_APPROVAL_REJECTED`;
+   - `main.EXECUTION_ACTION_SINGLE_WAVE`;
+   - `main.EXECUTION_ACTION_MULTI_WAVE`;
+   - `main.AGENT_ACTION_BUILD_QUERY_PLAN`;
+   - `main.AGENT_QUERY_PLAN_ENDPOINT`;
+   - `main.AGENT_TOOLS_V0`;
+   - `main.agent_tool_contract`;
+   - `main.execution_approval_metadata`;
+   - `main.validate_execution_approval`;
+   - `main.AGENT_PLAN_STATUS_SUPPORTED`;
+   - `main.AGENT_PLAN_STATUS_NEEDS_CLARIFICATION`;
+   - `main.AGENT_PLAN_STATUS_UNSUPPORTED`;
+   - `main.agent_plan_language`;
+   - `main.agent_plan_proposed_action`;
+   - `main.is_supported_agent_v0_baseline`;
+   - `main.agent_plan_supported_message`;
+   - `main.agent_plan_needs_clarification_message`;
+   - `main.agent_plan_unsupported_message`;
+   - `main.build_agent_plan_response`;
+   - `main.build_agent_plan_response_with_wording`;
+   - `main.validate_agent_query_plan_action`.
+10. Keep all endpoint paths, request payloads, response fields, validation errors, approval checks, QueryPlan output, fingerprints, execution behavior, frontend behavior, Agent Response behavior, LLM wording behavior, and smoke monkeypatch behavior unchanged.
+11. Run verification baseline and focused Agent Plan/Tools checks.
+
+### Verification baseline
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+
+Focused checks:
+
+- `main.*` compatibility names remain available.
+- `agent_tools.py` and `agent_plan.py` do not import `app.main`.
+- Supported Java/Ukraine Agent Plan output is unchanged for a fixed ready Search Brief.
+- Missing-stack and unsupported Agent Plan outputs are unchanged.
+- Agent Plan validation-error message path is unchanged for invalid Search Brief input.
+- Agent Plan wording wrapper preserves the same invalid Search Brief validation-error message path.
+- Stale/missing/mismatched Agent Plan action validation errors are unchanged.
+- Execution approval metadata and validation outputs are unchanged.
+- LLM wording smoke still passes, proving dependency injection did not change wording behavior.
+- `normalize_agent_language` output remains unchanged.
+- Frontend `AGENT_QUERY_PLAN_ENDPOINT` and recruiter chat prompt endpoint text remain unchanged.
+
+### Non-goals
+
+- Do not move Agent Response.
+- Do not move next-iteration option generation.
+- Do not move bounded LLM wording prompts/validators.
+- Do not move OpenAI recruiter chat, planner, or wording request functions.
+- Do not split FastAPI routes.
+- Do not change endpoint paths or API contracts.
+- Do not change Search Brief validation, recruiter chat adapter, planner, Tavily execution, dedupe, location filtering, Candidate Quality, report building, snapshots, frontend behavior, or Phase 6 runtime behavior.
+- Do not add database, persistence, shortlist, workspace, export, new sources, LinkedIn automation, autonomous execution, or automatic candidate messaging.
+
+### Acceptance criteria
+
+- Agent Tools contract and execution approval helpers live in `app/agent_tools.py`.
+- Deterministic Agent Plan helpers live in `app/agent_plan.py`.
+- New modules do not import `app.main`.
+- `app/main.py` preserves existing `main.*` compatibility.
+- `main.build_agent_plan_response` remains a wrapper that preserves current validation error message behavior.
+- `main.build_agent_plan_response_with_wording` remains a wrapper that preserves current wording monkeypatch behavior and current validation-error message behavior.
+- Agent Plan and approval outputs remain unchanged for fixed cases.
+- Existing Phase 5 smoke checks pass.
+- Focused Agent Tools/Agent Plan compatibility checks pass.
+- The extraction is behavior-preserving.
+
+### Review checklist
+
+- Scope reviewed: Agent Tools and Agent Plan only, not Agent Response or wording/OpenAI extraction.
+- Internal dependencies reviewed: approval helpers depend on `ExecutionApproval`, planner fingerprinting, planner mode constants, and plan validation errors; Agent Plan depends on Search Brief validation/fingerprint, normalized structured request, agent tool action constants, plan validation errors, and validation-error message formatting supplied by dependency injection.
+- External references reviewed: routes call Agent Plan/approval helpers; smoke scripts call and monkeypatch `main.*`; `normalize_agent_language` delegates to Agent Plan language detection; `AGENT_QUERY_PLAN_ENDPOINT` appears in recruiter chat prompt context; frontend uses the same endpoint constant and relies on unchanged response fields.
+- Constants/config/defaults reviewed: approval statuses, execution action names, Agent Plan statuses, endpoint string, planner mode, and Search Brief status values must not change.
+- Import direction reviewed: `agent_tools.py` and `agent_plan.py` must not import `app.main`; future Agent Response and wording modules should be consumers, not dependencies.
+- Future extraction direction reviewed: this task should make `P5.5-007` easier by isolating Agent Plan and approval contracts before moving Agent Response/wording.
+- Backward compatibility reviewed: preserve `main.*` aliases/wrappers for existing scripts, route code, validation message behavior, wording wrapper validation-error path, and wording monkeypatch behavior.
+- Verification reviewed: run standard Phase 5.5 smoke checks plus focused Agent Tools/Agent Plan parity checks, including invalid Search Brief validation message path and wording monkeypatch path.
+
+### Implementation result
+
+Implemented without intended behavior changes.
+
+- Added `app/agent_tools.py` for Agent Tools v0 constants, tool contract, execution approval metadata, and execution approval validation.
+- Added `app/agent_plan.py` for deterministic Agent Plan status constants, language/action/message helpers, Agent Plan response building, wording-wrapper dependency injection, and Agent Plan action validation.
+- `app/main.py` preserves existing `main.*` compatibility names and keeps wrappers for `build_agent_plan_response` and `build_agent_plan_response_with_wording`.
+- Agent Response, bounded wording/OpenAI logic, route handlers, Tavily execution, dedupe/report building, location filtering, and Candidate Quality remain outside this task.
+
+Verification completed:
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`;
+- `node --check app/static/app.js`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`;
+- focused `main.*` compatibility, import-direction, endpoint/action constant, and `normalize_agent_language` checks.
 
 ## Phase 6 - Human-approved Tool-Calling Agent Runtime
 

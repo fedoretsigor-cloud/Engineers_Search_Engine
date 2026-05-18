@@ -33,12 +33,13 @@ Status:
 - `P5.5-003` extracted rule-based planner, QueryPlan fingerprint helpers, planner explanation, deterministic AI QueryPlan prompt/validation/coverage helpers, and related shared planner config without behavior changes.
 - `P5.5-004` extracted Tavily/query-wave execution and structured-search snapshot helpers into focused modules without behavior changes.
 - `P5.5-005` extracted Candidate Quality producer logic, constants, and shared text/ordering helpers into focused modules without behavior changes.
+- `P5.5-006` extracted Agent Tools v0 contract/approval helpers and deterministic Agent Plan helpers into focused modules without behavior changes.
 
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - run Phase 5.5 technical modularization before Phase 6, splitting the current backend without changing product behavior;
-- next Phase 5.5 task to review: `P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules`;
+- next Phase 5.5 task to review: `P5.5-007 Extract Agent Response and bounded wording/OpenAI modules`;
 - only then move to Phase 6 human-approved tool-calling runtime;
 - add ordinary agent conversation wording as Phase 7 after the runtime message taxonomy is stable;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.

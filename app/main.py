@@ -68,6 +68,34 @@ from app.ai_planning import (
     validate_ai_query_plan,
     validate_ai_query_plan_coverage,
 )
+from app.agent_tools import (
+    AGENT_ACTION_BUILD_QUERY_PLAN,
+    AGENT_QUERY_PLAN_ENDPOINT,
+    AGENT_TOOL_APPROVAL_APPROVED,
+    AGENT_TOOL_APPROVAL_NOT_REQUIRED,
+    AGENT_TOOL_APPROVAL_REJECTED,
+    AGENT_TOOL_APPROVAL_REQUIRED,
+    AGENT_TOOLS_V0,
+    EXECUTION_ACTION_MULTI_WAVE,
+    EXECUTION_ACTION_SINGLE_WAVE,
+    agent_tool_contract,
+    execution_approval_metadata,
+    validate_execution_approval,
+)
+from app.agent_plan import (
+    AGENT_PLAN_STATUS_NEEDS_CLARIFICATION,
+    AGENT_PLAN_STATUS_SUPPORTED,
+    AGENT_PLAN_STATUS_UNSUPPORTED,
+    agent_plan_language,
+    agent_plan_needs_clarification_message,
+    agent_plan_proposed_action,
+    agent_plan_supported_message,
+    agent_plan_unsupported_message,
+    build_agent_plan_response as _build_agent_plan_response,
+    build_agent_plan_response_with_wording as _build_agent_plan_response_with_wording,
+    is_supported_agent_v0_baseline,
+    validate_agent_query_plan_action,
+)
 from app.planning import (
     RuleBasedQueryPlannerV1,
     add_plan_validation_error,
@@ -188,8 +216,6 @@ BRIEF_PATCH_SET_SEARCH_DEPTH = "set_search_depth"
 BRIEF_PATCH_RECONFIRM_FIELD = "reconfirm_field"
 BRIEF_PATCH_UNSUPPORTED = "unsupported"
 BRIEF_PATCH_NOOP = "noop"
-EXECUTION_ACTION_SINGLE_WAVE = "run_single_wave_search"
-EXECUTION_ACTION_MULTI_WAVE = "run_multi_wave_search"
 RECRUITER_CHAT_PROHIBITED_RULES = [
     {
         "code": "direct_web_search_bypass",
@@ -256,15 +282,6 @@ PLAN_STATUS_DRAFT = "draft_query_plan"
 PLAN_STATUS_VALIDATED_NOT_EXECUTABLE = "validated_not_executable"
 PLAN_STATUS_REJECTED = "rejected"
 PLAN_STATUS_RULE_BASED_FALLBACK = "rule_based_fallback"
-AGENT_TOOL_APPROVAL_NOT_REQUIRED = "not_required"
-AGENT_TOOL_APPROVAL_REQUIRED = "required"
-AGENT_TOOL_APPROVAL_APPROVED = "approved"
-AGENT_TOOL_APPROVAL_REJECTED = "rejected"
-AGENT_PLAN_STATUS_SUPPORTED = "supported"
-AGENT_PLAN_STATUS_NEEDS_CLARIFICATION = "needs_clarification"
-AGENT_PLAN_STATUS_UNSUPPORTED = "unsupported"
-AGENT_ACTION_BUILD_QUERY_PLAN = "build_query_plan"
-AGENT_QUERY_PLAN_ENDPOINT = "/api/agent/query-plan"
 AGENT_WORDING_MODE_LLM_ASSISTED = "llm_assisted"
 AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 AGENT_WORDING_FALLBACK_NOT_CONFIGURED = "openai_not_configured"
@@ -2232,244 +2249,19 @@ async def apply_llm_wording_to_agent_response(agent_response: dict) -> dict:
     return updated_agent_response
 
 
-def agent_plan_language(language: str | None, normalized_brief: dict | None = None) -> str:
-    normalized_language = (normalize_text_value(language) or "").lower()
-    if normalized_language.startswith(("ru", "\u0440\u0443\u0441")):
-        return "ru"
-    if normalized_language.startswith(("en", "\u0430\u043d\u0433\u043b")):
-        return "en"
-
-    source_text = (normalized_brief or {}).get("source_text") or ""
-    if re.search(r"[\u0400-\u04ff]", source_text):
-        return "ru"
-
-    return "en"
-
-
-def agent_plan_proposed_action() -> dict:
-    return {
-        "action": AGENT_ACTION_BUILD_QUERY_PLAN,
-        "endpoint": AGENT_QUERY_PLAN_ENDPOINT,
-        "planner_mode": PLANNER_MODE_RULE_BASED,
-        "requires_approval": False,
-    }
-
-
-def is_supported_agent_v0_baseline(
-    normalized_brief: dict,
-    normalized_request: dict | None,
-) -> bool:
-    if not normalized_request:
-        return False
-
-    return (
-        normalized_request.get("role_family") == "Backend Developer"
-        and normalized_request.get("technology") == "Java"
-        and normalized_request.get("location") == "Ukraine"
-        and bool(normalized_request.get("stack"))
-        and (normalized_brief.get("search_depth") or SEARCH_DEPTH_STANDARD)
-        == SEARCH_DEPTH_STANDARD
-    )
-
-
-def agent_plan_supported_message(language: str, normalized_request: dict) -> str:
-    stack_text = ", ".join(normalized_request.get("stack") or []) or "n/a"
-    if language == "ru":
-        return (
-            "\u042f \u043f\u043e\u043d\u044f\u043b \u0437\u0430\u0434\u0430\u0447\u0443: "
-            "\u0438\u0449\u0435\u043c Backend Developer \u0441 Java \u0432 "
-            f"\u0423\u043a\u0440\u0430\u0438\u043d\u0435, stack: {stack_text}. "
-            "\u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 "
-            "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 "
-            "\u0448\u0430\u0433 - Build Plan \u0447\u0435\u0440\u0435\u0437 "
-            "approved backend planner. \u041f\u043e\u0438\u0441\u043a "
-            "\u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0441\u044f "
-            "\u0431\u0435\u0437 approval."
-        )
-
-    return (
-        "I understood the task: find Backend Developer profiles with Java in "
-        f"Ukraine, stack: {stack_text}. The next safe step is Build Plan through "
-        "the approved backend planner. Search will not run without approval."
-    )
-
-
-def agent_plan_needs_clarification_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "\u041c\u043d\u0435 \u043d\u0443\u0436\u0435\u043d stack, "
-            "\u0447\u0442\u043e\u0431\u044b \u0441\u043e\u0437\u0434\u0430\u0442\u044c "
-            "Agent Plan \u0434\u043b\u044f Java/Ukraine baseline."
-        )
-
-    return "I need the missing stack before I can create an Agent Plan."
-
-
-def agent_plan_unsupported_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Agent v0 \u043f\u043e\u043a\u0430 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 "
-            "\u0442\u043e\u043b\u044c\u043a\u043e Backend Developer with Java in Ukraine."
-        )
-
-    return "Agent v0 currently supports only Backend Developer with Java in Ukraine."
-
-
 def build_agent_plan_response(request: AgentPlanRequest) -> dict:
-    brief_response = search_brief_validation_response(request.search_brief)
-    normalized_brief = brief_response["normalized_brief"]
-    language = agent_plan_language(request.language, normalized_brief)
-
-    if brief_response["errors"]:
-        return {
-            "ok": False,
-            "agent_plan_status": AGENT_PLAN_STATUS_NEEDS_CLARIFICATION,
-            "agent_plan": None,
-            "message": validation_error_message(brief_response["errors"], language),
-            "normalized_brief": normalized_brief,
-            "adapted_structured_request": None,
-            "missing_fields": brief_response["missing_fields"],
-            "clarifying_questions": brief_response["clarifying_questions"],
-            "errors": brief_response["errors"],
-            "validation_errors": brief_response["errors"],
-        }
-
-    if normalized_brief["brief_status"] != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
-        return {
-            "ok": True,
-            "agent_plan_status": AGENT_PLAN_STATUS_NEEDS_CLARIFICATION,
-            "agent_plan": None,
-            "message": agent_plan_needs_clarification_message(language),
-            "normalized_brief": normalized_brief,
-            "adapted_structured_request": None,
-            "missing_fields": normalized_brief.get("missing_fields", []),
-            "clarifying_questions": normalized_brief.get("clarifying_questions", []),
-            "errors": [],
-            "validation_errors": [],
-        }
-
-    normalized_request = brief_response["adapted_structured_request"]
-    if not is_supported_agent_v0_baseline(normalized_brief, normalized_request):
-        return {
-            "ok": True,
-            "agent_plan_status": AGENT_PLAN_STATUS_UNSUPPORTED,
-            "agent_plan": None,
-            "message": agent_plan_unsupported_message(language),
-            "normalized_brief": normalized_brief,
-            "adapted_structured_request": normalized_request,
-            "missing_fields": [],
-            "clarifying_questions": [],
-            "errors": [],
-            "validation_errors": [],
-        }
-
-    fingerprint = search_brief_fingerprint(normalized_brief)
-    message = agent_plan_supported_message(language, normalized_request)
-    agent_plan = {
-        "brief_fingerprint": fingerprint,
-        "input_snapshot": normalized_brief,
-        "message": message,
-        "proposed_action": agent_plan_proposed_action(),
-    }
-
-    return {
-        "ok": True,
-        "agent_plan_status": AGENT_PLAN_STATUS_SUPPORTED,
-        "agent_plan": agent_plan,
-        "message": message,
-        "normalized_brief": normalized_brief,
-        "adapted_structured_request": normalized_request,
-        "missing_fields": [],
-        "clarifying_questions": [],
-        "errors": [],
-        "validation_errors": [],
-    }
+    return _build_agent_plan_response(
+        request,
+        validation_error_formatter=validation_error_message,
+    )
 
 
 async def build_agent_plan_response_with_wording(request: AgentPlanRequest) -> dict:
-    response = build_agent_plan_response(request)
-    agent_plan = response.get("agent_plan")
-    normalized_request = response.get("adapted_structured_request")
-
-    if (
-        response.get("ok") is True
-        and response.get("agent_plan_status") == AGENT_PLAN_STATUS_SUPPORTED
-        and isinstance(agent_plan, dict)
-        and isinstance(normalized_request, dict)
-    ):
-        language = agent_plan_language(request.language, response.get("normalized_brief"))
-        worded_agent_plan = await apply_llm_wording_to_agent_plan(
-            agent_plan,
-            normalized_request,
-            language,
-        )
-        response["agent_plan"] = worded_agent_plan
-        response["message"] = worded_agent_plan["message"]
-
-    return response
-
-
-def validate_agent_query_plan_action(
-    request: AgentQueryPlanRequest,
-    normalized_brief: dict,
-    normalized_request: dict,
-) -> list[dict[str, str]]:
-    errors: list[dict[str, str]] = []
-    action = request.agent_plan_action
-    fingerprint = request.agent_plan_brief_fingerprint
-
-    expected_fingerprint = search_brief_fingerprint(normalized_brief)
-    if not fingerprint:
-        add_plan_validation_error(
-            errors,
-            "agent_plan_brief_fingerprint",
-            "missing_agent_plan_fingerprint",
-            "Build Plan requires the current Agent Plan fingerprint.",
-        )
-    elif fingerprint != expected_fingerprint:
-        add_plan_validation_error(
-            errors,
-            "agent_plan_brief_fingerprint",
-            "stale_or_mismatched_agent_plan_fingerprint",
-            "Agent Plan fingerprint does not match the current Search Brief.",
-        )
-
-    if not isinstance(action, dict):
-        add_plan_validation_error(
-            errors,
-            "agent_plan_action",
-            "missing_agent_plan_action",
-            "Build Plan requires a supported Agent Plan proposed_action.",
-        )
-        return errors
-
-    expected_action = agent_plan_proposed_action()
-    for field, expected_value in expected_action.items():
-        if action.get(field) != expected_value:
-            add_plan_validation_error(
-                errors,
-                f"agent_plan_action.{field}",
-                "unsupported_agent_plan_action",
-                "Build Plan proposed_action is not supported.",
-            )
-
-    if action.get("planner_mode") != request.planner_mode:
-        add_plan_validation_error(
-            errors,
-            "agent_plan_action.planner_mode",
-            "mismatched_agent_plan_planner_mode",
-            "Agent Plan planner_mode must match the Build Plan request.",
-        )
-
-    if not is_supported_agent_v0_baseline(normalized_brief, normalized_request):
-        add_plan_validation_error(
-            errors,
-            "agent_plan_action",
-            "unsupported_agent_v0_baseline",
-            "Agent v0 currently supports only Backend Developer with Java in Ukraine.",
-        )
-
-    return errors
+    return await _build_agent_plan_response_with_wording(
+        request,
+        validation_error_formatter=validation_error_message,
+        wording_applier=apply_llm_wording_to_agent_plan,
+    )
 
 
 def recruiter_chat_text(messages: list[RecruiterChatMessage]) -> str:
@@ -3842,147 +3634,6 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         brief_changed=brief_changed,
         stale_state_should_clear=brief_changed,
     )
-
-
-AGENT_TOOLS_V0 = {
-    "validate_search_brief": {
-        "requires_approval": False,
-        "description": "Validate and normalize Search Brief v0.",
-    },
-    "adapt_brief_to_structured_request": {
-        "requires_approval": False,
-        "description": "Adapt a ready Search Brief into StructuredSearchRequest.",
-    },
-    "build_query_plan": {
-        "requires_approval": False,
-        "description": "Build a QueryPlan without executing search.",
-    },
-    "validate_query_plan": {
-        "requires_approval": False,
-        "description": "Validate a QueryPlan deterministically before execution.",
-    },
-    "run_single_wave_search": {
-        "requires_approval": True,
-        "description": "Run single-wave Tavily search through the backend pipeline.",
-    },
-    "run_multi_wave_search": {
-        "requires_approval": True,
-        "description": "Run explicit multi-wave search through the backend pipeline.",
-    },
-    "analyze_candidate_quality": {
-        "requires_approval": False,
-        "description": "Analyze already returned candidate quality signals.",
-    },
-    "summarize_search_results": {
-        "requires_approval": False,
-        "description": "Summarize already available report and result data.",
-    },
-    "suggest_next_iteration": {
-        "requires_approval": False,
-        "description": "Suggest the next sourcing iteration without executing it.",
-    },
-}
-
-
-def agent_tool_contract() -> dict:
-    return {
-        "tools": AGENT_TOOLS_V0,
-        "approval_statuses": [
-            AGENT_TOOL_APPROVAL_NOT_REQUIRED,
-            AGENT_TOOL_APPROVAL_REQUIRED,
-            AGENT_TOOL_APPROVAL_APPROVED,
-            AGENT_TOOL_APPROVAL_REJECTED,
-        ],
-        "absolute_boundaries": [
-            "no_direct_web_search_bypass",
-            "no_linkedin_login",
-            "no_linkedin_scraping_or_bypass",
-            "no_automatic_candidate_messaging",
-            "no_account_actions",
-        ],
-    }
-
-
-def execution_approval_metadata(
-    approval: ExecutionApproval,
-    expected_action: str,
-    query_plan: dict,
-) -> dict:
-    return {
-        "approval_status": approval.approval_status,
-        "approved_action": approval.approved_action,
-        "approved_planner_mode": approval.approved_planner_mode,
-        "approved_query_count": approval.approved_query_count,
-        "approved_plan_fingerprint": approval.approved_plan_fingerprint,
-        "expected_action": expected_action,
-        "current_plan_fingerprint": query_plan_fingerprint(query_plan),
-        "current_query_count": len(query_plan.get("queries", [])),
-        "execution_allowed": True,
-    }
-
-
-def validate_execution_approval(
-    approval: ExecutionApproval | None,
-    expected_action: str,
-    query_plan: dict,
-) -> tuple[dict | None, list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-    current_fingerprint = query_plan_fingerprint(query_plan)
-    current_query_count = len(query_plan.get("queries", []))
-
-    if approval is None:
-        add_plan_validation_error(
-            errors,
-            "execution_approval",
-            "missing_execution_approval",
-            "Tavily execution requires explicit approval for the visible QueryPlan.",
-        )
-        return None, errors
-
-    if approval.approval_status != AGENT_TOOL_APPROVAL_APPROVED:
-        add_plan_validation_error(
-            errors,
-            "execution_approval.approval_status",
-            "approval_not_approved",
-            "Execution approval status must be approved.",
-        )
-
-    if approval.approved_action != expected_action:
-        add_plan_validation_error(
-            errors,
-            "execution_approval.approved_action",
-            "wrong_execution_action",
-            f"Approval must be for {expected_action}.",
-        )
-
-    if approval.approved_planner_mode != PLANNER_MODE_RULE_BASED:
-        add_plan_validation_error(
-            errors,
-            "execution_approval.approved_planner_mode",
-            "unsupported_execution_planner_mode",
-            "Only rule_based QueryPlan execution is supported in this phase.",
-        )
-
-    if approval.approved_query_count != current_query_count:
-        add_plan_validation_error(
-            errors,
-            "execution_approval.approved_query_count",
-            "stale_or_mismatched_query_count",
-            "Approved query count does not match the current QueryPlan.",
-        )
-
-    if approval.approved_plan_fingerprint != current_fingerprint:
-        add_plan_validation_error(
-            errors,
-            "execution_approval.approved_plan_fingerprint",
-            "stale_or_mismatched_plan_fingerprint",
-            "Approved plan fingerprint does not match the current QueryPlan.",
-        )
-
-    if errors:
-        return None, errors
-
-    return execution_approval_metadata(approval, expected_action, query_plan), []
 
 
 def build_agent_rule_based_plan_response(

@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-005`; next task to review is `P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules`.
+- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-006`; next task to review is `P5.5-007 Extract Agent Response and bounded wording/OpenAI modules`.
 
 ### Completed
 
@@ -372,7 +372,8 @@ Phase 5.5 progress:
 - `P5.5-003` extracted rule-based planner, QueryPlan fingerprint helpers, planner explanation, deterministic AI QueryPlan prompt/validation/coverage helpers, and related shared planner config while preserving behavior and `main.*` compatibility.
 - `P5.5-004` extracted Tavily/query-wave execution and structured-search snapshot helpers while preserving behavior and `main.*` compatibility.
 - `P5.5-005` extracted Candidate Quality producer logic into `app/candidate_quality.py`, moved Candidate Quality constants to `app/domain_config.py`, moved shared profile text/ordering helpers to `app/text_utils.py`, and preserved `main.*` compatibility without behavior changes.
-- Next planned extraction is Agent Plan, Agent Response, tool contract, and OpenAI client modules.
+- `P5.5-006` extracted Agent Tools v0 contract/approval helpers into `app/agent_tools.py` and deterministic Agent Plan helpers into `app/agent_plan.py`, while preserving `main.*` compatibility and current validation/wording wrapper behavior.
+- Next planned extraction is `P5.5-007` for Agent Response plus bounded wording/OpenAI modules.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 
