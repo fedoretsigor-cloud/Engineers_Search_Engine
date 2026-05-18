@@ -1,7 +1,6 @@
 from pathlib import Path
 import copy
 from datetime import datetime, timezone
-import hashlib
 import html
 import json
 import logging
@@ -17,8 +16,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.domain_config import (
+    AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING,
+    AI_PLANNER_COVERAGE_POLICIES,
+    AI_PLANNER_COVERAGE_POLICY_VERSION,
     CANONICAL_ROLE_FAMILIES,
+    FORBIDDEN_AI_QUERY_TERMS,
     IMPLEMENTED_BACKEND_TECHNOLOGIES,
+    JAVA_STACK_TERMS,
     JAVA_STACK_VALUES,
     KNOWN_BACKEND_TECHNOLOGIES,
     LOCATION_FILTER_CONFIG,
@@ -26,16 +30,53 @@ from app.domain_config import (
     MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE,
     MULTI_WAVE_DEFAULT_PATIENCE,
     MULTI_WAVE_MAX_ALLOWED_WAVES,
+    PLANNER_MODE_AI,
+    PLANNER_MODE_AI_WITH_FALLBACK,
     PLANNER_MODE_RULE_BASED,
+    PLANNER_MODES,
     PROFILE_SOURCE_LINKEDIN_PUBLIC,
     PROFILE_SOURCE_VALUES,
+    QUERY_PLAN_MAX_RESULTS,
+    QUERY_PLAN_REPORTING_FIELDS,
+    QUERY_PLANNER_VERSION,
     SEARCH_BRIEF_STATUSES,
     SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
     SEARCH_BRIEF_STATUS_READY_FOR_PLANNING,
+    SEARCH_DOMAIN_CONFIG,
     SEARCH_DEPTH_DEEP,
     SEARCH_DEPTH_STANDARD,
     SEARCH_DEPTH_VALUES,
     location_filter_config_for,
+    search_domain_config_for,
+)
+from app.ai_planning import (
+    ai_plan_output_assumptions,
+    ai_plan_output_warnings,
+    ai_planner_coverage_policy_for,
+    ai_planner_coverage_policy_prompt,
+    ai_query_planner_system_prompt,
+    ai_query_planner_user_prompt,
+    normalize_ai_text_list,
+    query_has_allowed_scope_only,
+    query_has_brief_signal,
+    query_has_forbidden_terms,
+    query_site_scopes,
+    query_slot_is_stack_focused,
+    query_slot_stack_terms,
+    role_phrase_key,
+    validate_ai_query_plan,
+    validate_ai_query_plan_coverage,
+)
+from app.planning import (
+    RuleBasedQueryPlannerV1,
+    add_plan_validation_error,
+    add_query_plan_fingerprint,
+    build_query_slot,
+    build_stack_or,
+    planner_explanation_for_rule_based,
+    query_plan_fingerprint,
+    query_plan_fingerprint_payload,
+    quote_query_value,
 )
 from app.schemas import (
     AIQueryPlanValidationRequest,
@@ -67,7 +108,13 @@ from app.search_validation import (
     normalize_stack_items,
     normalize_structured_search_request,
 )
-from app.text_utils import compact_spaces, normalize_text_list, normalize_text_value
+from app.text_utils import (
+    compact_spaces,
+    find_term_match,
+    normalize_text_list,
+    normalize_text_value,
+    term_match_pattern,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -75,20 +122,11 @@ PROJECT_DIR = BASE_DIR.parent
 STATIC_DIR = BASE_DIR / "static"
 SEARCH_RUN_LOG_DIR = PROJECT_DIR / "logs" / "search-runs"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
-QUERY_PLANNER_VERSION = "rule_based_v1"
-QUERY_PLAN_MAX_RESULTS = 20
 CANDIDATE_QUALITY_SCORE_VERSION = "candidate_quality_v1"
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS = 1200
 OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS = 3000
 OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS = 800
-PLANNER_MODE_AI = "ai"
-PLANNER_MODE_AI_WITH_FALLBACK = "ai_with_fallback"
-PLANNER_MODES = {
-    PLANNER_MODE_RULE_BASED,
-    PLANNER_MODE_AI,
-    PLANNER_MODE_AI_WITH_FALLBACK,
-}
 RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_RULE_BASED
 RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
 RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
@@ -104,21 +142,6 @@ BRIEF_PATCH_UNSUPPORTED = "unsupported"
 BRIEF_PATCH_NOOP = "noop"
 EXECUTION_ACTION_SINGLE_WAVE = "run_single_wave_search"
 EXECUTION_ACTION_MULTI_WAVE = "run_multi_wave_search"
-FORBIDDEN_AI_QUERY_TERMS = [
-    "linkedin.com/login",
-    "login",
-    "password",
-    "scrape",
-    "scraping",
-    "crawler",
-    "bypass",
-    "restriction bypass",
-    "inmail",
-    "send message",
-    "message candidate",
-    "contact candidate",
-    "account",
-]
 RECRUITER_CHAT_PROHIBITED_RULES = [
     {
         "code": "direct_web_search_bypass",
@@ -198,48 +221,10 @@ AGENT_WORDING_MODE_LLM_ASSISTED = "llm_assisted"
 AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 AGENT_WORDING_FALLBACK_NOT_CONFIGURED = "openai_not_configured"
 AGENT_WORDING_TIMEOUT_SECONDS = 8.0
-QUERY_PLAN_REPORTING_FIELDS = [
-    "queries_total",
-    "queries_succeeded",
-    "queries_failed",
-    "raw_total",
-    "normalized_total",
-    "unique_profiles",
-    "duplicates_removed",
-    "displayed",
-    "hidden_by_profile_filter",
-    "hidden_by_location_filter",
-    "rescued_by_header_location",
-    "hidden_by_foreign_current_location",
-    "weak_location_history_only",
-    "unknown_non_country_domain_location",
-    "location_filter_report",
-    "query_contribution",
-]
-AI_PLANNER_COVERAGE_POLICY_VERSION = "ai_planner_coverage_policy_v0"
-AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING = (
-    "coverage_policy_not_configured: Strict AI planner coverage policy is not "
-    "configured for this brief."
-)
 AI_PLANNER_UNDER_COVERED_FALLBACK_REASON = (
     "AI plan is structurally valid, but coverage is too narrow for the baseline. "
     "Falling back to rule-based planner."
 )
-AI_PLANNER_COVERAGE_POLICIES = [
-    {
-        "policy_id": "java_backend_ukraine_standard_v0",
-        "policy_version": AI_PLANNER_COVERAGE_POLICY_VERSION,
-        "role_family": "Backend Developer",
-        "technology": "Java",
-        "location": "Ukraine",
-        "search_depth": SEARCH_DEPTH_STANDARD,
-        "expected_query_count": 10,
-        "role_based_min": 6,
-        "stack_focused_min": 4,
-        "min_role_phrase_diversity": 5,
-        "max_ai_plan_revision_attempts": 1,
-    }
-]
 
 load_dotenv()
 
@@ -247,110 +232,6 @@ logger = logging.getLogger("engineers_search_engine")
 app = FastAPI(title="Engineers Search POC")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-
-JAVA_STACK_TERMS = [
-    "Spring",
-    "Spring Boot",
-    "Hibernate",
-    "Kafka",
-    "PostgreSQL",
-    "AWS",
-    "Docker",
-    "Kubernetes",
-    "Microservices",
-    "REST",
-]
-SEARCH_DOMAIN_CONFIG = {
-    "Backend Developer": {
-        "Java": {
-            "planner": {
-                "queries": [
-                    {
-                        "id": "Q01",
-                        "category": "role_based",
-                        "purpose": "Find broad Java Developer profiles for the selected location.",
-                        "role_phrase": "Java Developer",
-                        "uses_selected_stack": False,
-                    },
-                    {
-                        "id": "Q02",
-                        "category": "role_based",
-                        "purpose": "Find Java Software Engineer profiles for the selected location.",
-                        "role_phrase": "Java Software Engineer",
-                        "uses_selected_stack": False,
-                    },
-                    {
-                        "id": "Q03",
-                        "category": "backend_role",
-                        "purpose": "Find Java Backend Engineer profiles for the selected location.",
-                        "role_phrase": "Java Backend Engineer",
-                        "uses_selected_stack": False,
-                    },
-                    {
-                        "id": "Q04",
-                        "category": "role_based",
-                        "purpose": "Find Java Engineer profiles for the selected location.",
-                        "role_phrase": "Java Engineer",
-                        "uses_selected_stack": False,
-                    },
-                    {
-                        "id": "Q05",
-                        "category": "role_based",
-                        "purpose": "Find Java Programmer profiles for the selected location.",
-                        "role_phrase": "Java Programmer",
-                        "uses_selected_stack": False,
-                    },
-                    {
-                        "id": "Q06",
-                        "category": "role_based",
-                        "purpose": "Find Java Application Developer profiles for the selected location.",
-                        "role_phrase": "Java Application Developer",
-                        "uses_selected_stack": False,
-                    },
-                    {
-                        "id": "Q07",
-                        "category": "stack_focused",
-                        "purpose": "Find Java Developer profiles that mention selected stack signals.",
-                        "role_phrase": "Java Developer",
-                        "uses_selected_stack": True,
-                    },
-                    {
-                        "id": "Q08",
-                        "category": "stack_focused",
-                        "purpose": "Find Java Engineer profiles that mention selected stack signals.",
-                        "role_phrase": "Java Engineer",
-                        "uses_selected_stack": True,
-                    },
-                    {
-                        "id": "Q09",
-                        "category": "stack_focused",
-                        "purpose": "Find Java Backend Engineer profiles that mention selected stack signals.",
-                        "role_phrase": "Java Backend Engineer",
-                        "uses_selected_stack": True,
-                    },
-                    {
-                        "id": "Q10",
-                        "category": "stack_focused",
-                        "purpose": "Find Java Application Developer profiles that mention selected stack signals.",
-                        "role_phrase": "Java Application Developer",
-                        "uses_selected_stack": True,
-                    },
-                ]
-            },
-            "quality": {
-                "technology": {
-                    "exact_terms": ["Java"],
-                    "exclude_terms": ["JavaScript"],
-                    "related_terms": ["Kotlin", "Scala"],
-                },
-                "stack": {
-                    "allowed_terms": JAVA_STACK_TERMS,
-                    "related_terms": [],
-                },
-            },
-        },
-    },
-}
 CANDIDATE_SENIORITY_CONFIG = {
     "junior": {
         "display": "Junior",
@@ -1049,10 +930,6 @@ def append_unique_wave_source(wave_sources: list[dict], wave_source: dict) -> No
     wave_sources.append(wave_source)
 
 
-def search_domain_config_for(role_family: str, technology: str) -> dict:
-    return SEARCH_DOMAIN_CONFIG.get(role_family, {}).get(technology, {})
-
-
 def ordered_unique(values: list[str]) -> list[str]:
     seen_values: set[str] = set()
     unique_values: list[str] = []
@@ -1063,18 +940,6 @@ def ordered_unique(values: list[str]) -> list[str]:
             unique_values.append(value)
 
     return unique_values
-
-
-def term_match_pattern(term: str) -> str:
-    escaped_term = re.escape(term.strip()).replace(r"\ ", r"\s+")
-    return r"(?<![a-z0-9])" + escaped_term + r"(?![a-z0-9])"
-
-
-def find_term_match(text: str, term: str) -> re.Match | None:
-    if not text or not term:
-        return None
-
-    return re.search(term_match_pattern(term), text, flags=re.IGNORECASE)
 
 
 def match_config_terms(text: str, terms: list[str]) -> list[str]:
@@ -4891,48 +4756,6 @@ def agent_tool_contract() -> dict:
     }
 
 
-def quote_query_value(value: str) -> str:
-    escaped_value = value.replace('"', '\\"')
-    return f'"{escaped_value}"'
-
-
-def build_stack_or(stack: list[str]) -> str:
-    quoted_stack_values = [quote_query_value(item) for item in stack]
-    if len(quoted_stack_values) == 1:
-        return quoted_stack_values[0]
-
-    return "(" + " OR ".join(quoted_stack_values) + ")"
-
-
-def build_query_slot(
-    query_id: str,
-    category: str,
-    purpose: str,
-    role_phrase: str,
-    location: str,
-    stack: list[str] | None = None,
-) -> dict:
-    quoted_location = quote_query_value(location)
-    quoted_role_phrase = quote_query_value(role_phrase)
-    query_parts = ["site:linkedin.com/in", "AND", quoted_role_phrase]
-    uses_stack = stack or []
-
-    if uses_stack:
-        query_parts.extend(["AND", build_stack_or(uses_stack)])
-
-    query_parts.extend(["AND", quoted_location])
-
-    return {
-        "id": query_id,
-        "category": category,
-        "purpose": purpose,
-        "role_phrase": role_phrase,
-        "query": " ".join(query_parts),
-        "uses_stack": uses_stack,
-        "max_results": QUERY_PLAN_MAX_RESULTS,
-    }
-
-
 async def run_tavily_query(query: str, max_results: int) -> dict:
     api_key = os.getenv("TAVILY_API_KEY")
 
@@ -5028,74 +4851,6 @@ async def run_query_plan_wave(
     return query_results
 
 
-class RuleBasedQueryPlannerV1:
-    version = QUERY_PLANNER_VERSION
-
-    def build(self, normalized_request: dict) -> dict:
-        location = normalized_request["location"]
-        stack = normalized_request["stack"]
-        domain_config = search_domain_config_for(
-            normalized_request["role_family"],
-            normalized_request["technology"],
-        )
-        planner_queries = domain_config.get("planner", {}).get("queries", [])
-        queries = [
-            build_query_slot(
-                query_config["id"],
-                query_config["category"],
-                query_config["purpose"],
-                query_config["role_phrase"],
-                location,
-                stack if query_config.get("uses_selected_stack") else None,
-            )
-            for query_config in planner_queries
-        ]
-
-        return {
-            "planner_version": self.version,
-            "input_snapshot": normalized_request,
-            "queries": queries,
-            "filters": {
-                "linkedin_profiles_only": normalized_request["linkedin_profiles_only"],
-                "location_filter_enabled": normalized_request["location_filter_enabled"],
-            },
-            "execution": {
-                "mode": "sequential",
-                "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
-            },
-            "reporting": QUERY_PLAN_REPORTING_FIELDS,
-        }
-
-
-def query_plan_fingerprint_payload(query_plan: dict) -> dict:
-    return {
-        "planner_version": query_plan.get("planner_version"),
-        "planner_mode": query_plan.get("planner_mode", PLANNER_MODE_RULE_BASED),
-        "input_snapshot": query_plan.get("input_snapshot"),
-        "queries": query_plan.get("queries"),
-        "filters": query_plan.get("filters"),
-        "execution": query_plan.get("execution"),
-        "reporting": query_plan.get("reporting"),
-    }
-
-
-def query_plan_fingerprint(query_plan: dict) -> str:
-    payload = json.dumps(
-        query_plan_fingerprint_payload(query_plan),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def add_query_plan_fingerprint(query_plan: dict) -> dict:
-    return {
-        **query_plan,
-        "plan_fingerprint": query_plan_fingerprint(query_plan),
-    }
-
-
 def execution_approval_metadata(
     approval: ExecutionApproval,
     expected_action: str,
@@ -5178,10 +4933,6 @@ def validate_execution_approval(
     return execution_approval_metadata(approval, expected_action, query_plan), []
 
 
-def planner_explanation_for_rule_based() -> str:
-    return "Using tested Java Backend rule-based planner baseline."
-
-
 def build_agent_rule_based_plan_response(
     normalized_brief: dict,
     normalized_request: dict,
@@ -5245,199 +4996,6 @@ def build_rule_based_fallback_response(
             "Fallback search plan is ready. Review the queries before running search."
         ),
     }
-
-
-def ai_planner_coverage_policy_for(
-    normalized_brief: dict,
-    normalized_request: dict,
-) -> dict | None:
-    search_depth = normalized_brief.get("search_depth") or SEARCH_DEPTH_STANDARD
-
-    for policy in AI_PLANNER_COVERAGE_POLICIES:
-        if (
-            normalized_request.get("role_family") == policy["role_family"]
-            and normalized_request.get("technology") == policy["technology"]
-            and (normalized_request.get("location") or "").strip().lower()
-            == policy["location"].lower()
-            and search_depth == policy["search_depth"]
-        ):
-            policy_copy = dict(policy)
-            policy_copy["selected_stack"] = normalized_request.get("stack", [])
-            return policy_copy
-
-    return None
-
-
-def ai_planner_coverage_policy_prompt(
-    coverage_policy: dict | None,
-    normalized_request: dict,
-) -> dict:
-    if not coverage_policy:
-        return {
-            "configured": False,
-            "warning": AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING,
-        }
-
-    expected_plan = RuleBasedQueryPlannerV1().build(normalized_request)
-    return {
-        "configured": True,
-        "policy_id": coverage_policy["policy_id"],
-        "policy_version": coverage_policy["policy_version"],
-        "expected_query_count": coverage_policy["expected_query_count"],
-        "required_shape": {
-            "role_based_min": coverage_policy["role_based_min"],
-            "stack_focused_min": coverage_policy["stack_focused_min"],
-            "min_role_phrase_diversity": coverage_policy[
-                "min_role_phrase_diversity"
-            ],
-        },
-        "selected_stack": coverage_policy.get("selected_stack", []),
-        "max_ai_plan_revision_attempts": coverage_policy[
-            "max_ai_plan_revision_attempts"
-        ],
-        "query_slot_blueprint": [
-            {
-                "id": query["id"],
-                "category": query["category"],
-                "purpose": query["purpose"],
-                "role_phrase": query["role_phrase"],
-                "uses_stack": query.get("uses_stack", []),
-                "query": query["query"],
-                "max_results": query["max_results"],
-            }
-            for query in expected_plan.get("queries", [])
-        ],
-    }
-
-
-def normalize_ai_text_list(values: object) -> list[str]:
-    if not isinstance(values, list):
-        return []
-
-    return [str(value) for value in values if str(value or "").strip()]
-
-
-def ai_plan_output_warnings(ai_output: dict | None) -> list[str]:
-    if not isinstance(ai_output, dict):
-        return []
-
-    return normalize_ai_text_list(ai_output.get("warnings", []))
-
-
-def ai_plan_output_assumptions(ai_output: dict | None) -> list[str]:
-    if not isinstance(ai_output, dict):
-        return []
-
-    return normalize_ai_text_list(ai_output.get("assumptions", []))
-
-
-def ai_query_planner_system_prompt() -> str:
-    return (
-        "You are an AI Query Planner for a recruiter sourcing search engine. "
-        "Return only valid JSON. You may propose a draft QueryPlan, but you must not "
-        "execute searches, browse the web, scrape LinkedIn, log in to LinkedIn, send "
-        "messages, or act on accounts. Build LinkedIn public profile X-ray queries only "
-        "inside the approved QueryPlan contract."
-    )
-
-
-def ai_query_planner_user_prompt(
-    normalized_brief: dict,
-    normalized_request: dict,
-    repair_feedback: list[dict[str, str]] | None = None,
-    previous_draft_plan: dict | None = None,
-) -> str:
-    coverage_policy = ai_planner_coverage_policy_for(
-        normalized_brief,
-        normalized_request,
-    )
-    coverage_policy_prompt = ai_planner_coverage_policy_prompt(
-        coverage_policy,
-        normalized_request,
-    )
-    is_repair = bool(repair_feedback)
-    task = (
-        "Repair the previous draft QueryPlan using the coverage feedback."
-        if is_repair
-        else "Create a draft QueryPlan for recruiter sourcing."
-    )
-
-    return json.dumps(
-        {
-            "task": task,
-            "required_output": {
-                "planner_version": "ai_query_planner_v0",
-                "planner_mode": "ai",
-                "explanation": "Short explanation of the planning logic.",
-                "draft_query_plan": {
-                    "planner_version": "ai_query_planner_v0",
-                    "planner_mode": "ai",
-                    "input_snapshot": normalized_request,
-                    "queries": coverage_policy_prompt.get("query_slot_blueprint")
-                    or [
-                        {
-                            "id": "Q01",
-                            "category": "role_based",
-                            "purpose": "Why this query exists.",
-                            "role_phrase": "Role phrase used in query.",
-                            "query": "site:linkedin.com/in AND \"Role\" AND \"Location\"",
-                            "uses_stack": [],
-                            "max_results": QUERY_PLAN_MAX_RESULTS,
-                        }
-                    ],
-                    "filters": {
-                        "linkedin_profiles_only": normalized_request[
-                            "linkedin_profiles_only"
-                        ],
-                        "location_filter_enabled": normalized_request[
-                            "location_filter_enabled"
-                        ],
-                    },
-                    "execution": {
-                        "mode": "sequential",
-                        "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
-                    },
-                    "reporting": QUERY_PLAN_REPORTING_FIELDS,
-                },
-                "warnings": [],
-                "assumptions": [],
-            },
-            "search_brief": normalized_brief,
-            "normalized_structured_request": normalized_request,
-            "coverage_policy": coverage_policy_prompt,
-            "repair_feedback": repair_feedback or [],
-            "previous_draft_query_plan": previous_draft_plan if is_repair else None,
-            "hard_limits": {
-                "max_queries": 10,
-                "expected_queries_when_coverage_policy_configured": coverage_policy_prompt.get(
-                    "expected_query_count"
-                ),
-                "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
-                "allowed_source_scope": "site:linkedin.com/in",
-                "allowed_profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
-                "default_planner_remains": PLANNER_MODE_RULE_BASED,
-            },
-            "coverage_rules": [
-                "If coverage_policy.configured is true, return exactly the expected query count.",
-                "For the Java Backend Ukraine standard policy, return exactly 10 query slots.",
-                "Use role-based coverage plus stack-focused coverage; do not collapse the plan to one broad query.",
-                "For the Java Backend Ukraine standard policy, target at least 6 role-based slots and 4 stack-focused slots.",
-                "Use diverse role phrases instead of repeating the same phrase across all slots.",
-                "If selected stack terms are present, stack-focused slots must include those terms in the query text and uses_stack.",
-            ],
-            "safety_rules": [
-                "Every query must include site:linkedin.com/in.",
-                "Every query must include the target location.",
-                "Every query must include the main technology signal from the brief.",
-                "Every query must include a role signal from the brief or policy blueprint.",
-                "Do not include arbitrary domains.",
-                "Do not include LinkedIn login, scraping, bypass, messaging, or account-action behavior.",
-                "Do not change filters, scoring, dedupe, location filtering, or execution behavior.",
-            ],
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
 
 
 async def run_openai_json_planner(
@@ -5510,411 +5068,6 @@ async def run_openai_json_planner(
         return None, [{"field": "openai", "message": "OpenAI planner returned JSON that is not an object."}]
 
     return parsed_content, []
-
-
-def add_plan_validation_error(
-    errors: list[dict[str, str]],
-    field: str,
-    code: str,
-    message: str,
-) -> None:
-    errors.append({"field": field, "code": code, "message": message})
-
-
-def query_site_scopes(query: str) -> list[str]:
-    return re.findall(r"(?i)\bsite:([^\s)]+)", query or "")
-
-
-def query_has_forbidden_terms(query: str) -> bool:
-    lowered_query = (query or "").lower()
-    return any(term in lowered_query for term in FORBIDDEN_AI_QUERY_TERMS)
-
-
-def query_has_allowed_scope_only(query: str) -> bool:
-    scopes = [scope.lower().strip('"') for scope in query_site_scopes(query)]
-    return bool(scopes) and all(scope == "linkedin.com/in" for scope in scopes)
-
-
-def query_has_brief_signal(query: str, normalized_request: dict) -> bool:
-    technology = normalized_request.get("technology")
-    role_family = normalized_request.get("role_family")
-    if technology and find_term_match(query, technology):
-        return True
-    if role_family and all(
-        find_term_match(query, term)
-        for term in re.findall(r"[A-Za-z][A-Za-z+#.]*", role_family)
-    ):
-        return True
-    return False
-
-
-def validate_ai_query_plan(
-    draft_plan: dict | None,
-    normalized_brief: dict,
-    normalized_request: dict,
-) -> tuple[dict | None, list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-    if not isinstance(draft_plan, dict):
-        add_plan_validation_error(
-            errors,
-            "draft_query_plan",
-            "invalid_plan_shape",
-            "AI draft plan must be an object.",
-        )
-        return None, errors
-
-    for field in [
-        "planner_version",
-        "planner_mode",
-        "input_snapshot",
-        "queries",
-        "filters",
-        "execution",
-        "reporting",
-    ]:
-        if field not in draft_plan:
-            add_plan_validation_error(
-                errors,
-                field,
-                "missing_required_field",
-                f"QueryPlan is missing {field}.",
-            )
-
-    queries = draft_plan.get("queries")
-    if not isinstance(queries, list) or not queries:
-        add_plan_validation_error(
-            errors,
-            "queries",
-            "invalid_queries",
-            "QueryPlan must contain at least one query.",
-        )
-        queries = []
-
-    if len(queries) > 10:
-        add_plan_validation_error(
-            errors,
-            "queries",
-            "too_many_queries",
-            "Standard AI QueryPlan must not exceed 10 queries.",
-        )
-
-    planner_mode = draft_plan.get("planner_mode")
-    if planner_mode != PLANNER_MODE_AI:
-        add_plan_validation_error(
-            errors,
-            "planner_mode",
-            "invalid_planner_mode",
-            "AI QueryPlan must declare planner_mode as ai.",
-        )
-
-    seen_query_ids: set[str] = set()
-    for index, query_slot in enumerate(queries):
-        field_prefix = f"queries[{index}]"
-        if not isinstance(query_slot, dict):
-            add_plan_validation_error(
-                errors,
-                field_prefix,
-                "invalid_query_slot",
-                "Query slot must be an object.",
-            )
-            continue
-
-        for field in [
-            "id",
-            "category",
-            "purpose",
-            "role_phrase",
-            "query",
-            "uses_stack",
-            "max_results",
-        ]:
-            if field not in query_slot:
-                add_plan_validation_error(
-                    errors,
-                    f"{field_prefix}.{field}",
-                    "missing_required_field",
-                    f"Query slot is missing {field}.",
-                )
-
-        query_id = query_slot.get("id")
-        if query_id in seen_query_ids:
-            add_plan_validation_error(
-                errors,
-                f"{field_prefix}.id",
-                "duplicate_query_id",
-                "Query IDs must be unique.",
-            )
-        elif query_id:
-            seen_query_ids.add(query_id)
-
-        query = query_slot.get("query") or ""
-        if not query:
-            add_plan_validation_error(
-                errors,
-                f"{field_prefix}.query",
-                "empty_query",
-                "Query string must not be empty.",
-            )
-        else:
-            if not query_has_allowed_scope_only(query):
-                add_plan_validation_error(
-                    errors,
-                    f"{field_prefix}.query",
-                    "invalid_source_scope",
-                    "Query must use only site:linkedin.com/in.",
-                )
-            if query_has_forbidden_terms(query):
-                add_plan_validation_error(
-                    errors,
-                    f"{field_prefix}.query",
-                    "forbidden_query_behavior",
-                    "Query contains forbidden behavior terms.",
-                )
-            location = normalized_request.get("location")
-            if location and not find_term_match(query, location):
-                add_plan_validation_error(
-                    errors,
-                    f"{field_prefix}.query",
-                    "missing_target_location",
-                    f"Query does not include target location {location}.",
-                )
-            if not query_has_brief_signal(query, normalized_request):
-                add_plan_validation_error(
-                    errors,
-                    f"{field_prefix}.query",
-                    "missing_role_or_technology_signal",
-                    "Query must include a role or technology signal from the brief.",
-                )
-
-        max_results = query_slot.get("max_results")
-        if not isinstance(max_results, int) or max_results > QUERY_PLAN_MAX_RESULTS:
-            add_plan_validation_error(
-                errors,
-                f"{field_prefix}.max_results",
-                "invalid_max_results",
-                f"max_results must be an integer no greater than {QUERY_PLAN_MAX_RESULTS}.",
-            )
-
-        uses_stack = query_slot.get("uses_stack")
-        if uses_stack is not None and not isinstance(uses_stack, list):
-            add_plan_validation_error(
-                errors,
-                f"{field_prefix}.uses_stack",
-                "invalid_uses_stack",
-                "uses_stack must be a list.",
-            )
-
-    filters = draft_plan.get("filters") or {}
-    if filters:
-        if filters.get("linkedin_profiles_only") is False:
-            add_plan_validation_error(
-                errors,
-                "filters.linkedin_profiles_only",
-                "filter_override_not_allowed",
-                "AI plan must not disable LinkedIn profiles only filter.",
-            )
-        if filters.get("location_filter_enabled") is False:
-            add_plan_validation_error(
-                errors,
-                "filters.location_filter_enabled",
-                "filter_override_not_allowed",
-                "AI plan must not disable location filter.",
-            )
-
-    execution = draft_plan.get("execution") or {}
-    if execution and execution.get("mode") not in {None, "sequential"}:
-        add_plan_validation_error(
-            errors,
-            "execution.mode",
-            "unsupported_execution_mode",
-            "AI plan execution mode must remain sequential.",
-        )
-
-    if errors:
-        return None, errors
-
-    validated_plan = {
-        **draft_plan,
-        "planner_version": draft_plan.get("planner_version") or "ai_query_planner_v0",
-        "planner_mode": PLANNER_MODE_AI,
-        "input_snapshot": normalized_request,
-        "filters": {
-            "linkedin_profiles_only": normalized_request["linkedin_profiles_only"],
-            "location_filter_enabled": normalized_request["location_filter_enabled"],
-        },
-        "execution": {
-            "mode": "sequential",
-            "max_results_per_query": QUERY_PLAN_MAX_RESULTS,
-        },
-        "reporting": QUERY_PLAN_REPORTING_FIELDS,
-    }
-
-    return validated_plan, []
-
-
-def role_phrase_key(value: object) -> str:
-    return compact_spaces(str(value or "")).lower()
-
-
-def query_slot_stack_terms(query_slot: dict, selected_stack: list[str]) -> list[str]:
-    query = query_slot.get("query") or ""
-    uses_stack = query_slot.get("uses_stack")
-    if not isinstance(uses_stack, list):
-        uses_stack = []
-
-    matched_terms = []
-    for stack_term in selected_stack:
-        if stack_term in uses_stack and find_term_match(query, stack_term):
-            matched_terms.append(stack_term)
-
-    return matched_terms
-
-
-def query_slot_is_stack_focused(query_slot: dict, selected_stack: list[str]) -> bool:
-    return bool(query_slot_stack_terms(query_slot, selected_stack))
-
-
-def validate_ai_query_plan_coverage(
-    query_plan: dict,
-    normalized_brief: dict,
-    normalized_request: dict,
-) -> tuple[list[dict[str, str]], list[str], dict | None]:
-    coverage_policy = ai_planner_coverage_policy_for(
-        normalized_brief,
-        normalized_request,
-    )
-    if not coverage_policy:
-        return [], [AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING], None
-
-    errors: list[dict[str, str]] = []
-    queries = [
-        query
-        for query in query_plan.get("queries", [])
-        if isinstance(query, dict)
-    ]
-    selected_stack = coverage_policy.get("selected_stack", [])
-    expected_query_count = coverage_policy["expected_query_count"]
-
-    if len(queries) != expected_query_count:
-        add_plan_validation_error(
-            errors,
-            "coverage.query_count",
-            "undercovered_query_count",
-            (
-                f"AI plan returned {len(queries)} queries, but coverage policy "
-                f"requires exactly {expected_query_count} queries."
-            ),
-        )
-
-    stack_focused_queries = [
-        query for query in queries if query_slot_is_stack_focused(query, selected_stack)
-    ]
-    stack_focused_query_ids = {id(query) for query in stack_focused_queries}
-    role_based_queries = [
-        query for query in queries if id(query) not in stack_focused_query_ids
-    ]
-
-    if len(role_based_queries) < coverage_policy["role_based_min"]:
-        add_plan_validation_error(
-            errors,
-            "coverage.role_based",
-            "missing_role_based_coverage",
-            (
-                f"AI plan has {len(role_based_queries)} role-based queries, but "
-                f"coverage policy requires at least {coverage_policy['role_based_min']}."
-            ),
-        )
-
-    if selected_stack and len(stack_focused_queries) < coverage_policy["stack_focused_min"]:
-        add_plan_validation_error(
-            errors,
-            "coverage.stack_focused",
-            "missing_stack_focused_coverage",
-            (
-                f"AI plan has {len(stack_focused_queries)} stack-focused queries, but "
-                f"coverage policy requires at least {coverage_policy['stack_focused_min']}."
-            ),
-        )
-
-    role_phrase_count = len(
-        {
-            role_phrase_key(query.get("role_phrase"))
-            for query in queries
-            if role_phrase_key(query.get("role_phrase"))
-        }
-    )
-    if role_phrase_count < coverage_policy["min_role_phrase_diversity"]:
-        add_plan_validation_error(
-            errors,
-            "coverage.role_phrase_diversity",
-            "insufficient_role_phrase_diversity",
-            (
-                f"AI plan has {role_phrase_count} distinct role phrases, but "
-                "coverage policy requires at least "
-                f"{coverage_policy['min_role_phrase_diversity']}."
-            ),
-        )
-
-    technology = normalized_request.get("technology")
-    if technology:
-        missing_technology_indexes = [
-            str(index + 1)
-            for index, query in enumerate(queries)
-            if not find_term_match(query.get("query") or "", technology)
-        ]
-        if missing_technology_indexes:
-            add_plan_validation_error(
-                errors,
-                "coverage.technology",
-                "missing_technology_signal",
-                (
-                    "AI plan has queries without the required technology signal: "
-                    + ", ".join(missing_technology_indexes)
-                    + "."
-                ),
-            )
-
-    location = normalized_request.get("location")
-    if location:
-        missing_location_indexes = [
-            str(index + 1)
-            for index, query in enumerate(queries)
-            if not find_term_match(query.get("query") or "", location)
-        ]
-        if missing_location_indexes:
-            add_plan_validation_error(
-                errors,
-                "coverage.location",
-                "missing_target_location",
-                (
-                    "AI plan has queries without the required target location: "
-                    + ", ".join(missing_location_indexes)
-                    + "."
-                ),
-            )
-
-    if selected_stack:
-        stack_terms_seen = {
-            term
-            for query in stack_focused_queries
-            for term in query_slot_stack_terms(query, selected_stack)
-        }
-        missing_stack_terms = [
-            term for term in selected_stack if term not in stack_terms_seen
-        ]
-        if missing_stack_terms:
-            add_plan_validation_error(
-                errors,
-                "coverage.stack_terms",
-                "missing_selected_stack_terms",
-                (
-                    "AI plan stack-focused queries did not cover selected stack terms: "
-                    + ", ".join(missing_stack_terms)
-                    + "."
-                ),
-            )
-
-    return errors, [], coverage_policy
 
 
 def merge_warning_lists(*warning_lists: list[str]) -> list[str]:

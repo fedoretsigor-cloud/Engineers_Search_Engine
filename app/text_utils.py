@@ -5,6 +5,18 @@ def compact_spaces(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def term_match_pattern(term: str) -> str:
+    escaped_term = re.escape(term.strip()).replace(r"\ ", r"\s+")
+    return r"(?<![a-z0-9])" + escaped_term + r"(?![a-z0-9])"
+
+
+def find_term_match(text: str, term: str) -> re.Match | None:
+    if not text or not term:
+        return None
+
+    return re.search(term_match_pattern(term), text, flags=re.IGNORECASE)
+
+
 def normalize_text_value(value: str | None) -> str | None:
     normalized_value = compact_spaces(value or "")
     return normalized_value or None

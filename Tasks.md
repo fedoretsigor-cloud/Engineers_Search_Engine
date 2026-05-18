@@ -2143,7 +2143,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-003 Extract planner and AI planner validation modules
 - [ ] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
 - [ ] P5.5-005 Extract Candidate Quality module
 - [ ] P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules
@@ -2156,6 +2155,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 - [x] P5.5-001 Define backend module boundaries and migration order
 - [x] P5.5-002 Extract shared schemas, domain config, and Search Brief validation/adapter
+- [x] P5.5-003 Extract rule-based planner and deterministic AI QueryPlan validation modules
 
 ### Current Phase 5.5 strategy note
 
@@ -2476,6 +2476,233 @@ Verification completed:
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
 - focused sanity check for `main.*` compatibility and Search Brief / structured validation module parity
+
+---
+
+## Task: P5.5-003 Extract rule-based planner and deterministic AI QueryPlan validation modules
+
+### Status
+
+Implemented.
+
+### Context
+
+`P5.5-002` extracted shared schemas, domain config, text helpers, structured validation, and Search Brief validation/adapter.
+
+The next safe backend extraction is the planning layer, but the scope must stay narrow. The current `app/main.py` planner area mixes several concerns:
+
+- rule-based QueryPlan construction;
+- QueryPlan fingerprinting;
+- rule-based planner response/fallback helpers;
+- deterministic AI QueryPlan validation;
+- AI planner coverage policy checks;
+- AI planner prompt construction;
+- OpenAI planner request orchestration;
+- AI planner response orchestration;
+- Tavily query execution and query-plan waves.
+
+For this task, the safe extraction boundary is rule-based planning plus deterministic AI QueryPlan validation/coverage helpers. Tavily execution, OpenAI request orchestration, and AI planner response orchestration should stay in later tasks.
+
+### Goal
+
+Extract the planner foundation without changing behavior:
+
+- rule-based QueryPlanner v1;
+- QueryPlan slot construction;
+- QueryPlan fingerprint helpers;
+- deterministic AI QueryPlan validation;
+- AI planner coverage policy helpers;
+- AI planner prompt construction, without moving the OpenAI HTTP request function.
+
+### Proposed modules
+
+1. `app/planning.py`
+   - `quote_query_value`.
+   - `build_stack_or`.
+   - `build_query_slot`.
+   - `RuleBasedQueryPlannerV1`.
+   - `query_plan_fingerprint_payload`.
+   - `query_plan_fingerprint`.
+   - `add_query_plan_fingerprint`.
+   - `planner_explanation_for_rule_based`.
+   - `add_plan_validation_error`, because it is shared by planner validation, execution approval validation, and Agent QueryPlan action validation.
+2. `app/ai_planning.py`
+   - AI planner coverage constants and policies if not kept in `app/domain_config.py`.
+   - `ai_planner_coverage_policy_for`.
+   - `ai_planner_coverage_policy_prompt`.
+   - `ai_query_planner_system_prompt`.
+   - `ai_query_planner_user_prompt`.
+   - `query_site_scopes`.
+   - `query_has_forbidden_terms`.
+   - `query_has_allowed_scope_only`.
+   - `query_has_brief_signal`.
+   - `validate_ai_query_plan`.
+   - `validate_ai_query_plan_coverage`.
+   - `role_phrase_key`.
+   - `query_slot_stack_terms`.
+   - `query_slot_is_stack_focused`.
+   - AI plan warning/assumption helpers.
+3. `app/text_utils.py`
+   - Move shared term matching if needed by both planner validation and Candidate Quality:
+     - `term_match_pattern`.
+     - `find_term_match`.
+4. `app/domain_config.py`
+   - Move planner config/constants if needed by extracted modules:
+     - `SEARCH_DOMAIN_CONFIG`.
+     - `JAVA_STACK_TERMS`.
+     - `QUERY_PLANNER_VERSION`.
+     - `QUERY_PLAN_MAX_RESULTS`.
+     - `QUERY_PLAN_REPORTING_FIELDS`.
+     - `FORBIDDEN_AI_QUERY_TERMS`.
+     - `PLANNER_MODE_AI`.
+     - `PLANNER_MODE_AI_WITH_FALLBACK`.
+     - `PLANNER_MODES`.
+     - `search_domain_config_for`, because `SEARCH_DOMAIN_CONFIG` serves both planner and Candidate Quality code.
+     - AI planner coverage policy constants/config if cleaner than keeping them in `app/ai_planning.py`.
+
+### Keep in `app/main.py` for now
+
+- `run_openai_json_planner`, because smoke scripts monkeypatch `main.run_openai_json_planner` and this is OpenAI HTTP request orchestration, not deterministic validation.
+- `build_ai_query_plan_response`, because it orchestrates OpenAI call, validation, repair, and response selection.
+- `build_agent_rule_based_plan_response`, because it shapes the current Agent QueryPlan API response.
+- `build_rule_based_fallback_response`, because it shapes fallback API responses.
+- `build_ai_plan_rejected_response`, because it shapes rejected AI planner API responses.
+- `build_valid_ai_plan_response`, because it shapes validated AI planner API responses.
+- `validate_execution_approval` and `validate_agent_query_plan_action` may keep using imported `add_plan_validation_error`, but their own extraction is not required in this task.
+
+### Critical scope decision
+
+Do not extract Tavily execution in this task:
+
+- `run_tavily_query`;
+- `run_query_slot`;
+- `run_query_plan_wave`;
+- structured search orchestration;
+- snapshots;
+- multi-wave runner.
+
+Those belong to `P5.5-004`.
+
+Do not extract Candidate Quality in this task. That belongs to `P5.5-005`.
+
+Do not extract Agent Plan, Agent Response, tool contract, broad OpenAI client, or wording logic in this task. Those belong to `P5.5-006`.
+
+Do not split FastAPI routes in this task. That belongs to `P5.5-007`.
+
+### Import direction
+
+- `app/main.py` can import planner and AI planning helpers.
+- `app/planning.py` can import `app.domain_config` and `app.text_utils`.
+- `app/ai_planning.py` can import `app.domain_config`, `app.text_utils`, and `app.planning`.
+- `app/ai_planning.py` must not import `app.search_brief`; it should operate on already-normalized `normalized_brief` and `normalized_request`.
+- `app/planning.py` must not import `app.ai_planning`.
+- Future `app/candidate_quality.py` must be able to import shared domain config directly from `app.domain_config`, not from `app.planning`.
+- Extracted planner modules must not import from `app.main`.
+- Extracted planner modules must not import FastAPI route handlers or frontend/UI concepts.
+- Planner modules must not depend on Tavily execution.
+
+### Proposed steps
+
+1. Move planner constants/config needed by extracted code into `app/domain_config.py` without changing values.
+2. Move shared term matching helpers to `app/text_utils.py` only if required by extracted planner/AI validation code.
+3. Create `app/planning.py` and move rule-based QueryPlan construction and fingerprint helpers.
+4. Create `app/ai_planning.py` and move deterministic AI QueryPlan validation, coverage policy, and prompt helpers.
+5. Keep OpenAI request orchestration and AI planner response orchestration in `app/main.py` for now.
+6. Keep Tavily execution, query-plan wave execution, structured search orchestration, snapshots, and multi-wave in `app/main.py` for `P5.5-004`.
+7. Update `app/main.py` imports and remove only the moved definitions.
+8. Preserve existing `main.*` compatibility for:
+   - `main.RuleBasedQueryPlannerV1`;
+   - `main.query_plan_fingerprint`;
+   - `main.add_query_plan_fingerprint`;
+   - `main.validate_ai_query_plan`;
+   - `main.validate_ai_query_plan_coverage`;
+   - `main.run_openai_json_planner`;
+   - `main.PLANNER_MODE_AI`;
+   - `main.PLANNER_MODE_AI_WITH_FALLBACK`;
+   - `main.PLANNER_MODES`;
+   - any other helper currently used by smoke scripts.
+9. Keep all endpoint paths, response fields, validation messages, defaults, QueryPlan output, AI fallback behavior, fingerprints, and executable-policy behavior unchanged.
+10. Run the verification baseline and focused planner checks.
+
+### Verification baseline
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+
+Focused checks:
+
+- Rule-based QueryPlan for `Backend Developer + Java + Spring/Kafka + Ukraine` still has exactly 10 queries.
+- Rule-based QueryPlan query strings are exactly unchanged for the baseline input.
+- QueryPlan fingerprint is unchanged for the same baseline QueryPlan before/after extraction.
+- AI under-covered draft plan is still rejected or falls back according to existing mode behavior.
+- AI validated plans remain non-executable.
+- Planner mode constants and allowed planner mode set remain unchanged.
+- Existing `main.*` compatibility used by smoke scripts remains available.
+- No extracted planner module imports from `app.main`.
+
+### Non-goals
+
+- Do not change endpoint paths.
+- Do not change API contracts.
+- Do not change request payloads or response fields.
+- Do not change validation messages.
+- Do not change defaults.
+- Do not change QueryPlan output.
+- Do not change QueryPlan fingerprints.
+- Do not change AI fallback/repair behavior.
+- Do not move OpenAI request orchestration or introduce a broad OpenAI client abstraction.
+- Do not make AI-generated plans executable.
+- Do not change approval logic.
+- Do not change Tavily execution.
+- Do not change structured search orchestration, snapshots, multi-wave, scoring, filtering, dedupe, location logic, Candidate Quality, Agent Response, frontend behavior, or route structure.
+- Do not introduce Phase 6 runtime behavior.
+
+### Acceptance criteria
+
+- Rule-based planner code is extracted to `app/planning.py` or a clearly justified equivalent module.
+- Deterministic AI QueryPlan validation/coverage helpers are extracted to `app/ai_planning.py` or a clearly justified equivalent module.
+- Extracted modules do not import from `app.main`.
+- Planner modules do not depend on Tavily execution.
+- Existing `main.*` compatibility used by smoke scripts is preserved.
+- Rule-based QueryPlan output remains unchanged for the Java/Ukraine baseline.
+- QueryPlan fingerprints remain unchanged for the same QueryPlan.
+- AI QueryPlan validation and fallback semantics remain unchanged.
+- OpenAI planner request orchestration remains compatible with `main.run_openai_json_planner` monkeypatching in existing smoke scripts.
+- Existing Phase 5 smoke checks pass.
+- Focused planner/fingerprint/AI validation checks pass.
+- The extraction is behavior-preserving.
+
+### Before implementation
+
+Codex must restate the exact extraction boundary and explicitly confirm that Tavily execution, OpenAI client abstraction, Candidate Quality, Agent Response, routes, and Phase 6 runtime are out of scope for this task.
+
+### Implementation result
+
+- Added `app/planning.py` for rule-based QueryPlan construction, QueryPlan fingerprint helpers, planner explanation, and shared plan-validation error helper.
+- Added `app/ai_planning.py` for deterministic AI QueryPlan prompt helpers, structural validation, coverage policy lookup/prompting, coverage validation, and AI plan warning/assumption helpers.
+- Moved planner constants/config, Java quality/planner config, AI planner coverage policy config, forbidden AI query terms, and `search_domain_config_for` into `app/domain_config.py`.
+- Moved shared term matching helpers into `app/text_utils.py`.
+- Updated `app/main.py` to import the extracted planner/AI planning helpers and removed the moved definitions from the monolith.
+- Preserved existing `main.*` compatibility for planner classes, constants, QueryPlan fingerprint helpers, AI validation helpers, and smoke-script monkeypatching of `main.run_openai_json_planner`.
+- Kept Tavily execution, query-plan wave execution, structured search orchestration, snapshots, multi-wave, Candidate Quality, Agent Response, route handlers, OpenAI request orchestration, and Phase 6 runtime behavior out of scope.
+- Confirmed extracted planner modules do not import from `app.main`.
+- Confirmed rule-based Java/Ukraine QueryPlan still has the same 10 queries and the same fingerprint `d4f45e29a6d76d68da8a5e2506b63048ea40d2b75ec6cc7e5e032901085cc561`.
+- Confirmed AI under-covered draft coverage errors remain unchanged.
+- No endpoint paths, request payloads, response fields, validation messages, defaults, QueryPlan output, QueryPlan fingerprints, AI fallback/repair behavior, approval logic, Tavily execution, scoring, filtering, dedupe, location logic, Candidate Quality, Agent Response, frontend behavior, route structure, or Phase 6 runtime behavior changed.
+
+Verification completed:
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+- focused Java/Ukraine QueryPlan/fingerprint/AI coverage regression check
 
 ---
 
