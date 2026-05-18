@@ -2143,8 +2143,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-001 Define backend module boundaries and migration order
-- [ ] P5.5-002 Extract Search Brief validation and adapter module
 - [ ] P5.5-003 Extract planner and AI planner validation modules
 - [ ] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
 - [ ] P5.5-005 Extract Candidate Quality module
@@ -2155,6 +2153,9 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 ### In Progress
 
 ### Done
+
+- [x] P5.5-001 Define backend module boundaries and migration order
+- [x] P5.5-002 Extract shared schemas, domain config, and Search Brief validation/adapter
 
 ### Current Phase 5.5 strategy note
 
@@ -2178,6 +2179,303 @@ Suggested target modules:
 - Candidate Quality;
 - Agent Plan, Agent Response, tool contracts, and OpenAI client;
 - FastAPI routes.
+
+---
+
+## Task: P5.5-001 Define backend module boundaries and migration order
+
+### Status
+
+Implemented as a docs-only architecture task.
+
+### Context
+
+`app/main.py` is currently a large backend monolith of roughly 7,300 lines. It mixes Pydantic request/response models, validation, Search Brief logic, recruiter chat adapter, query planning, AI planning, approval/fingerprint logic, Tavily execution, snapshots, multi-wave runner, location/profile filtering, Candidate Quality, Agent Plan, Agent Response, OpenAI wording, and FastAPI routes.
+
+Phase 5.5 should prepare the backend for Phase 6 human-approved tool runtime by extracting modules without changing product behavior.
+
+### Goal
+
+Define the backend module boundaries, dependency direction, schema strategy, migration order, and no-behavior-change verification baseline before any extraction work begins.
+
+This is a docs-only architecture task. It should not move code yet.
+
+### Proposed steps
+
+1. Inventory the current `app/main.py` responsibilities.
+   - Pydantic models and request contracts.
+   - Search Brief validation and adapter.
+   - Recruiter chat adapter and deterministic brief patching.
+   - Agent Plan and Agent QueryPlan action validation.
+   - Rule-based planner.
+   - AI planner, coverage policy, validation, repair, and fallback.
+   - Tavily query execution.
+   - Structured search, multi-wave runner, snapshots, and report building.
+   - LinkedIn URL normalization, profile filters, location classification, and dedupe.
+   - Candidate Quality scoring/evidence/review flags.
+   - Agent Response and next-iteration options.
+   - OpenAI client calls for planner/chat/wording.
+   - FastAPI routes.
+2. Define practical target modules.
+   - `app/domain_config.py` for supported values, product boundary constants, planner/status constants, location config, review flag metadata, and quality rule configs.
+   - `app/schemas.py` for shared Pydantic request/response models at first.
+   - `app/search_brief.py` for Search Brief validation, normalization, adapter, and fingerprinting.
+   - `app/recruiter_chat.py` for chat-to-brief, deterministic onboarding, and brief patch logic.
+   - `app/planning.py` for rule-based QueryPlanner, QueryPlan fingerprinting, and planner responses.
+   - `app/ai_planning.py` for AI planner prompt, OpenAI planner call, AI plan validation, coverage policy, repair, and fallback.
+   - `app/search_execution.py` for Tavily query execution, query plan waves, structured search orchestration, snapshots, and multi-wave runner.
+   - `app/location_filtering.py` for LinkedIn URL normalization, country-domain signals, current-location extraction/classification, and location/profile filtering.
+   - `app/candidate_quality.py` for candidate evidence, scoring, review flags, and quality details.
+   - `app/agent_response.py` for Agent Response, quality summaries, limitations, and next-iteration options.
+   - `app/agent_wording.py` for bounded LLM-assisted Agent Plan/Response wording and validation.
+   - `app/agent_tools.py` for tool contracts and future tool registry alignment.
+   - `app/routes.py` for FastAPI route handlers after domain logic is extracted.
+   - `app/main.py` should end as a thin application entrypoint that creates `FastAPI`, mounts static files, and includes routes.
+3. Define import direction.
+   - FastAPI routes can import schemas and domain/service modules.
+   - Domain modules must not import FastAPI route handlers or frontend/UI concepts.
+   - Planner modules must not depend on Tavily execution.
+   - Candidate Quality must not depend on FastAPI routes or frontend state.
+   - Tavily/OpenAI integration code should stay at system edges.
+   - Future Phase 6 runtime should call approved tool/service contracts, not reach into route handlers.
+4. Define schema strategy.
+   - Start with one shared `app/schemas.py` to reduce migration risk.
+   - Do not split schemas into many per-module files until extraction is stable.
+   - Preserve existing request/response fields and API contracts.
+5. Define config/constants strategy.
+   - Keep shared product constants and domain config in one place first.
+   - Do not scatter supported values, status strings, location config, review flag metadata, or quality rules across extracted modules.
+   - Do not change any configured values during extraction.
+6. Define migration order.
+   - Extract shared config/constants and schemas first.
+   - Extract Search Brief validation/adapter foundation next: shared schemas, domain config, structured request validation, and Search Brief-specific logic.
+   - Extract planner and AI planner validation modules.
+   - Extract search execution, Tavily, snapshots, and multi-wave modules.
+   - Extract Candidate Quality.
+   - Extract Agent Plan, Agent Response, tool contract, OpenAI wording/client modules.
+   - Split FastAPI routes from domain logic last.
+7. Define no-behavior-change baseline.
+   - No changes to QueryPlan output.
+   - No changes to scoring, filtering, dedupe, location logic, approval logic, snapshots, frontend behavior, API contracts, request payloads, or response semantics.
+   - `RuleBasedQueryPlanner v1` remains the only approved executable planner.
+   - AI-generated plans remain non-executable.
+   - No Phase 6 tool runtime behavior is implemented in Phase 5.5.
+8. Define verification baseline for each extraction task.
+   - `.\.venv\Scripts\python.exe -m compileall app scripts`
+   - `node --check app/static/app.js`
+   - `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+   - `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+   - `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+   - `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+   - focused approval/fingerprint regression checks when route/planner/approval code is touched.
+9. Confirm that Phase 5.5 uses a strangler/refactor-by-extraction approach.
+   - Move one bounded responsibility at a time.
+   - Keep behavior identical after each step.
+   - Avoid broad redesign, renaming churn, or style-only cleanup.
+
+### Non-goals
+
+- Do not move code in this task.
+- Do not change backend behavior.
+- Do not change frontend behavior.
+- Do not change API contracts, request payloads, response fields, QueryPlan output, planner behavior, scoring, filtering, dedupe, location logic, approval logic, snapshots, or tests.
+- Do not introduce Phase 6 tool runtime.
+- Do not make AI-generated plans executable.
+- Do not add database, persistence, shortlist, workspace, export, new sources, LinkedIn automation, or autonomous execution.
+
+### Acceptance criteria
+
+- `Tasks.md` contains a clear module map.
+- Import direction is explicitly documented.
+- Shared schema strategy is explicitly documented.
+- Config/constants strategy is explicitly documented.
+- Migration order for `P5.5-002` through `P5.5-008` is clear.
+- No-behavior-change baseline and verification checks are documented.
+- The task remains docs-only.
+
+### Implementation result
+
+- Documented the target backend module map.
+- Documented import direction and future Phase 6 runtime boundary.
+- Documented shared schema strategy through `app/schemas.py`.
+- Documented shared domain config strategy through `app/domain_config.py`.
+- Documented migration order and no-behavior-change verification baseline.
+- No code, backend behavior, frontend behavior, API contracts, request payloads, response fields, QueryPlan output, planner behavior, scoring, filtering, dedupe, location logic, approval logic, snapshots, or tests were changed.
+
+---
+
+## Task: P5.5-002 Extract shared schemas, domain config, and Search Brief validation/adapter
+
+### Status
+
+Implemented.
+
+### Context
+
+This is the first real extraction task after `P5.5-001`.
+
+The initial idea was to extract only Search Brief validation and adapter logic, but the current implementation in `app/main.py` has important dependencies:
+
+- `SearchBrief`
+- `ExecutionApproval`
+- `StructuredSearchRequest`
+- `MultiWaveStructuredSearchRequest`
+- structured request validation
+- supported values and status constants
+- Java stack values
+- search depth constants
+- multi-wave constants
+- planner mode constants used by schema defaults
+- profile source constants
+- location filter config
+- `location_filter_config_for`
+- text normalization helpers
+- `compact_spaces`
+
+Extracting `search_brief.py` alone would likely force it to import from `app/main.py`, creating poor dependency direction and making Phase 6 runtime harder to build later.
+
+### Goal
+
+Extract the minimal foundation needed for Search Brief validation/adapter without changing product behavior:
+
+- shared Pydantic schemas;
+- shared domain constants/config;
+- structured request validation;
+- Search Brief-specific validation, adapter, and fingerprinting.
+
+### Proposed modules
+
+1. `app/domain_config.py`
+   - Supported role families.
+   - Known/implemented backend technologies.
+   - Java stack values.
+   - Search depth constants.
+   - Multi-wave constants.
+   - Planner mode constants, including `PLANNER_MODE_RULE_BASED`.
+   - Search Brief status constants.
+   - Profile source constants.
+   - Location filter config.
+   - `location_filter_config_for`.
+   - Product boundary constants only if needed by the extracted code.
+2. `app/schemas.py`
+   - `SearchRequest`.
+   - `ExecutionApproval`.
+   - `StructuredSearchRequest`.
+   - `MultiWaveStructuredSearchRequest`.
+   - `SearchBrief`.
+   - `AgentQueryPlanRequest`.
+   - `AgentPlanRequest`.
+   - `AIQueryPlanValidationRequest`.
+   - `RecruiterChatMessage`.
+   - `RecruiterChatTurnRequest`.
+   - Keep existing `main.*` schema-name compatibility for smoke scripts during Phase 5.5 extraction.
+3. `app/text_utils.py`
+   - `compact_spaces`.
+   - `normalize_text_value`.
+   - `normalize_text_list`.
+4. `app/search_validation.py`
+   - `canonical_value`.
+   - `normalize_location_value`.
+   - `add_validation_error`.
+   - `normalize_stack_items`.
+   - `normalize_structured_search_request`.
+   - `normalize_multi_wave_search_request`.
+5. `app/search_brief.py`
+   - `clarifying_question_for_missing_field`.
+   - `normalize_brief_stack_items`.
+   - `build_structured_request_from_brief`.
+   - `validate_and_normalize_search_brief`.
+   - `adapt_search_brief_to_structured_request`.
+   - `search_brief_validation_response`.
+   - `search_brief_fingerprint_payload`.
+   - `search_brief_fingerprint`.
+
+### Import direction
+
+- `app/main.py` can import schemas and extracted functions.
+- `app/search_brief.py` can import `app.schemas`, `app.domain_config`, `app.search_validation`, and `app.text_utils`.
+- `app/search_validation.py` can import `app.schemas`, `app.domain_config`, and `app.text_utils`.
+- `app/search_validation.py` must not import `app.search_brief`.
+- `app.search_brief.py` and `app.search_validation.py` must not import from `app.main`.
+- Extracted modules must not import FastAPI route handlers.
+- Extracted modules must not import frontend/UI concepts.
+- Avoid importing from `app.main` in any extracted module.
+
+### Proposed steps
+
+1. Create `app/domain_config.py` and move only the constants/config needed by this task.
+2. Create `app/schemas.py` and move shared Pydantic models needed by this task.
+3. Create `app/text_utils.py` and move shared text normalization helpers needed by this task.
+4. Create `app/search_validation.py` and move structured request validation helpers.
+5. Create `app/search_brief.py` and move Search Brief-specific helpers.
+6. Update `app/main.py` imports and remove the moved definitions from `main.py`.
+7. Keep imported schema names available from `app/main.py` so existing smoke scripts using `main.SearchRequest`, `main.SearchBrief`, `main.StructuredSearchRequest`, `main.MultiWaveStructuredSearchRequest`, `main.ExecutionApproval`, `main.AgentPlanRequest`, `main.AgentQueryPlanRequest`, `main.AIQueryPlanValidationRequest`, `main.RecruiterChatTurnRequest`, and `main.RecruiterChatMessage` continue to work.
+8. Keep moved constants available from `app/main.py` when existing smoke scripts or callers use them, including `main.SEARCH_DEPTH_DEEP`.
+9. Keep moved helper functions available from `app/main.py` when existing smoke scripts or callers use them, including `main.normalize_location_value`.
+10. Keep all route handlers and endpoint paths unchanged.
+11. Keep all response fields, validation messages, defaults, fingerprints, and behavior unchanged.
+12. Run the verification baseline.
+
+### Verification baseline
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+- focused sanity checks for Search Brief validation response stability.
+- focused sanity checks for structured search validation response stability.
+- focused sanity checks for Search Brief fingerprint stability for the same normalized brief.
+
+### Non-goals
+
+- Do not change endpoint paths.
+- Do not change API contracts.
+- Do not change request payloads or response fields.
+- Do not change validation messages.
+- Do not change defaults.
+- Do not change Search Brief fingerprints.
+- Do not change QueryPlan output.
+- Do not change planner, Tavily execution, scoring, filtering, dedupe, location logic, approval logic, snapshots, frontend behavior, or tests except import updates if required.
+- Do not change smoke scripts if existing `main.*` compatibility can preserve them.
+- Do not introduce Phase 6 runtime behavior.
+- Do not make AI-generated plans executable.
+
+### Acceptance criteria
+
+- No extracted module imports from `app.main`.
+- `app/main.py` imports the extracted schemas/functions and keeps the same endpoint behavior.
+- Existing `main.*` schema-name compatibility used by smoke scripts is preserved during Phase 5.5 extraction.
+- Existing `main.*` compatibility for moved constants used by smoke scripts is preserved during Phase 5.5 extraction.
+- Existing `main.*` compatibility for moved helper functions used by smoke scripts is preserved during Phase 5.5 extraction.
+- Search Brief validation and adapter outputs remain unchanged.
+- Structured search validation outputs remain unchanged.
+- Search Brief fingerprints remain unchanged for the same normalized brief.
+- Existing Phase 5 smoke checks pass.
+- The extraction is behavior-preserving.
+
+### Implementation result
+
+- Added `app/domain_config.py` for shared product/domain constants, including supported values, Search Brief status constants, search depth constants, multi-wave constants, planner mode constants, profile source constants, location filter config, and `location_filter_config_for`.
+- Added `app/schemas.py` for shared Pydantic request models used by Search Brief, structured search, approval, agent planning, AI QueryPlan validation, and recruiter chat.
+- Added `app/text_utils.py` for `compact_spaces`, `normalize_text_value`, and `normalize_text_list`.
+- Added `app/search_validation.py` for structured search normalization and validation helpers.
+- Added `app/search_brief.py` for Search Brief normalization, validation, adapter, response, and fingerprint helpers.
+- Updated `app/main.py` to import the extracted schemas/constants/helpers and removed the moved definitions from the monolith.
+- Preserved `main.*` compatibility for moved schema classes, constants, and helper functions used by smoke scripts and internal callers.
+- Confirmed no extracted module imports from `app.main`.
+- No endpoint paths, request payloads, response fields, validation messages, defaults, Search Brief fingerprints, QueryPlan output, planner behavior, Tavily execution, scoring, filtering, dedupe, location logic, approval logic, snapshots, frontend behavior, or Phase 6 runtime behavior were changed.
+
+Verification completed:
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+- focused sanity check for `main.*` compatibility and Search Brief / structured validation module parity
 
 ---
 

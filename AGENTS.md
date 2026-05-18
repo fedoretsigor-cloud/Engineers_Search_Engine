@@ -45,7 +45,7 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - completed and closed
-- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase
+- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-002`
 - Phase 6: `Tool-Calling Agent Runtime`
 - Phase 7: `Agent Conversation Wording Layer`
 - Phase 8: `Candidate Workspace/Table + Shortlist`
@@ -68,7 +68,9 @@ Current product direction:
 - `P5-009` added deterministic-first Search Brief refinement through atomic `brief_patch.operations` and frontend stale-state clearing only when backend returns `stale_state_should_clear = true`.
 - `P5-010` added deterministic non-executable `agent_response.next_iteration_options` after approved search results. Options are grounded only in returned search data and displayed without Apply/action buttons.
 - `P5-011` applied a CSS-first/UI-only dark AI Agent visual refresh without changing backend code, frontend logic, API contracts, or product flow.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, run Phase 5.5 technical modularization before Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P5.5-001` defined backend module boundaries and migration order.
+- `P5.5-002` extracted shared schemas, domain config, text helpers, structured search validation, and Search Brief validation/adapter/fingerprinting into focused modules without behavior changes.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-003 Extract planner and AI planner validation modules`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 

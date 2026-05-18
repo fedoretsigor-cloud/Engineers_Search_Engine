@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5.5: `Technical modularization before Agent Runtime` - next task to review is `P5.5-001 Define backend module boundaries and migration order`.
+- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-002`; next task to review is `P5.5-003 Extract planner and AI planner validation modules`.
 
 ### Completed
 
@@ -364,6 +364,12 @@ Phase 5 closeout result:
 - keep broader communication scenarios and ordinary LLM-assisted recruiter chat wording for Phase 7 after the Phase 6 runtime/message taxonomy is stable.
 
 After Phase 5, Phase 5.5 should modularize the backend before Phase 6. Do not start Phase 6 tool runtime directly on the current monolithic `app/main.py`.
+
+Phase 5.5 progress:
+
+- `P5.5-001` completed the docs-only module-boundary and migration-order decision.
+- `P5.5-002` extracted shared schemas, domain config, text helpers, structured search validation, and Search Brief validation/adapter/fingerprinting into focused modules while preserving behavior and `main.*` compatibility.
+- Next planned extraction is planner and AI planner validation modules.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

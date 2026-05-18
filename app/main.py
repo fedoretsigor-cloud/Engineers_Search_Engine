@@ -12,9 +12,62 @@ from urllib.parse import urlparse
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from app.domain_config import (
+    CANONICAL_ROLE_FAMILIES,
+    IMPLEMENTED_BACKEND_TECHNOLOGIES,
+    JAVA_STACK_VALUES,
+    KNOWN_BACKEND_TECHNOLOGIES,
+    LOCATION_FILTER_CONFIG,
+    MULTI_WAVE_DEFAULT_MAX_WAVES,
+    MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE,
+    MULTI_WAVE_DEFAULT_PATIENCE,
+    MULTI_WAVE_MAX_ALLOWED_WAVES,
+    PLANNER_MODE_RULE_BASED,
+    PROFILE_SOURCE_LINKEDIN_PUBLIC,
+    PROFILE_SOURCE_VALUES,
+    SEARCH_BRIEF_STATUSES,
+    SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
+    SEARCH_BRIEF_STATUS_READY_FOR_PLANNING,
+    SEARCH_DEPTH_DEEP,
+    SEARCH_DEPTH_STANDARD,
+    SEARCH_DEPTH_VALUES,
+    location_filter_config_for,
+)
+from app.schemas import (
+    AIQueryPlanValidationRequest,
+    AgentPlanRequest,
+    AgentQueryPlanRequest,
+    ExecutionApproval,
+    MultiWaveStructuredSearchRequest,
+    RecruiterChatMessage,
+    RecruiterChatTurnRequest,
+    SearchBrief,
+    SearchRequest,
+    StructuredSearchRequest,
+)
+from app.search_brief import (
+    adapt_search_brief_to_structured_request,
+    build_structured_request_from_brief,
+    clarifying_question_for_missing_field,
+    normalize_brief_stack_items,
+    search_brief_fingerprint,
+    search_brief_fingerprint_payload,
+    search_brief_validation_response,
+    validate_and_normalize_search_brief,
+)
+from app.search_validation import (
+    add_validation_error,
+    canonical_value,
+    normalize_location_value,
+    normalize_multi_wave_search_request,
+    normalize_stack_items,
+    normalize_structured_search_request,
+)
+from app.text_utils import compact_spaces, normalize_text_list, normalize_text_value
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -25,26 +78,10 @@ TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 QUERY_PLANNER_VERSION = "rule_based_v1"
 QUERY_PLAN_MAX_RESULTS = 20
 CANDIDATE_QUALITY_SCORE_VERSION = "candidate_quality_v1"
-MULTI_WAVE_DEFAULT_MAX_WAVES = 5
-MULTI_WAVE_MAX_ALLOWED_WAVES = 7
-MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE = 3
-MULTI_WAVE_DEFAULT_PATIENCE = 2
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS = 1200
 OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS = 3000
 OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS = 800
-SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION = "needs_clarification"
-SEARCH_BRIEF_STATUS_READY_FOR_PLANNING = "ready_for_planning"
-SEARCH_BRIEF_STATUSES = {
-    SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
-    SEARCH_BRIEF_STATUS_READY_FOR_PLANNING,
-}
-SEARCH_DEPTH_STANDARD = "standard"
-SEARCH_DEPTH_DEEP = "deep"
-SEARCH_DEPTH_VALUES = {SEARCH_DEPTH_STANDARD, SEARCH_DEPTH_DEEP}
-PROFILE_SOURCE_LINKEDIN_PUBLIC = "linkedin_public"
-PROFILE_SOURCE_VALUES = {PROFILE_SOURCE_LINKEDIN_PUBLIC}
-PLANNER_MODE_RULE_BASED = "rule_based"
 PLANNER_MODE_AI = "ai"
 PLANNER_MODE_AI_WITH_FALLBACK = "ai_with_fallback"
 PLANNER_MODES = {
@@ -211,22 +248,6 @@ app = FastAPI(title="Engineers Search POC")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-CANONICAL_ROLE_FAMILIES = {
-    "backend developer": "Backend Developer",
-}
-KNOWN_BACKEND_TECHNOLOGIES = {
-    "java": "Java",
-    "python": "Python",
-    "node.js": "Node.js",
-    "nodejs": "Node.js",
-    "node js": "Node.js",
-    "c#": "C#",
-    "csharp": "C#",
-    "go": "Go",
-    "golang": "Go",
-    "php": "PHP",
-}
-IMPLEMENTED_BACKEND_TECHNOLOGIES = {"Java"}
 JAVA_STACK_TERMS = [
     "Spring",
     "Spring Boot",
@@ -239,20 +260,6 @@ JAVA_STACK_TERMS = [
     "Microservices",
     "REST",
 ]
-JAVA_STACK_VALUES = {
-    "spring": "Spring",
-    "spring boot": "Spring Boot",
-    "hibernate": "Hibernate",
-    "kafka": "Kafka",
-    "postgresql": "PostgreSQL",
-    "postgres": "PostgreSQL",
-    "aws": "AWS",
-    "docker": "Docker",
-    "kubernetes": "Kubernetes",
-    "k8s": "Kubernetes",
-    "microservices": "Microservices",
-    "rest": "REST",
-}
 SEARCH_DOMAIN_CONFIG = {
     "Backend Developer": {
         "Java": {
@@ -468,27 +475,6 @@ REVIEW_FLAG_TAXONOMY = {
         "score_penalty_group": "low_confidence_source",
     },
 }
-LOCATION_FILTER_CONFIG = {
-    "ukraine": {
-        "label": "Ukraine",
-        "linkedin_domains": ["ua.linkedin.com"],
-        "target_location_terms": [
-            "Ukraine",
-            "Kyiv",
-            "Kiev",
-            "Lviv",
-            "Kharkiv",
-            "Odesa",
-            "Odessa",
-            "Dnipro",
-            "Vinnytsia",
-            "Zaporizhzhia",
-            "Chernivtsi",
-            "Ternopil",
-            "Ivano-Frankivsk",
-        ],
-    }
-}
 HEADER_LOCATION_SECTION_MARKERS = [
     "About",
     "Experience",
@@ -525,103 +511,6 @@ LOCATION_SIGNAL_STATUSES = [
 ]
 
 
-class SearchRequest(BaseModel):
-    query: str = Field(..., min_length=1)
-    max_results: int = Field(default=20, ge=1, le=20)
-    linkedin_profiles_only: bool = False
-    ukraine_linkedin_domain_only: bool = False
-
-
-class ExecutionApproval(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    approval_status: str | None = None
-    approved_action: str | None = None
-    approved_planner_mode: str | None = None
-    approved_query_count: int | None = None
-    approved_plan_fingerprint: str | None = None
-
-
-class StructuredSearchRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    role_family: str | None = None
-    technology: str | None = None
-    stack: list[str] | None = None
-    location: str | None = None
-    search_depth: str | None = None
-    linkedin_profiles_only: bool | None = None
-    location_filter_enabled: bool | None = None
-    execution_approval: ExecutionApproval | None = None
-    agent_language: str | None = None
-
-
-class MultiWaveStructuredSearchRequest(StructuredSearchRequest):
-    max_waves: int | None = None
-    min_new_unique_per_wave: int | None = None
-    patience: int | None = None
-
-
-class SearchBrief(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    source_text: str | None = None
-    brief_status: str | None = None
-    role_family: str | None = None
-    technology: str | None = None
-    stack: list[str] | None = None
-    location: str | None = None
-    seniority: str | None = None
-    must_have: list[str] | None = None
-    nice_to_have: list[str] | None = None
-    exclusions: list[str] | None = None
-    search_depth: str | None = None
-    profile_sources: list[str] | None = None
-    notes: str | None = None
-    missing_fields: list[str] | None = None
-    clarifying_questions: list[str] | None = None
-    assumptions: list[str] | None = None
-
-
-class AgentQueryPlanRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    planner_mode: str = PLANNER_MODE_RULE_BASED
-    search_brief: SearchBrief
-    agent_plan_brief_fingerprint: str | None = None
-    agent_plan_action: dict | None = None
-
-
-class AgentPlanRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    search_brief: SearchBrief
-    language: str | None = None
-
-
-class AIQueryPlanValidationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    search_brief: SearchBrief
-    draft_query_plan: dict | None = None
-
-
-class RecruiterChatMessage(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    role: str
-    content: str = Field(..., min_length=1)
-
-
-class RecruiterChatTurnRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    messages: list[RecruiterChatMessage] = Field(default_factory=list)
-    draft_brief: SearchBrief | None = None
-    language: str | None = None
-    planner_mode: str | None = None
-
-
 def detect_source(url: str) -> str:
     domain = urlparse(url).netloc.lower()
     if "linkedin.com" in domain:
@@ -655,19 +544,11 @@ def linkedin_domain(url: str) -> str:
     return domain
 
 
-def location_filter_config_for(location: str) -> dict | None:
-    return LOCATION_FILTER_CONFIG.get(location.strip().lower())
-
-
 def is_country_linkedin_profile_url(url: str, location_config: dict) -> bool:
     return (
         is_linkedin_profile_url(url)
         and linkedin_domain(url) in location_config["linkedin_domains"]
     )
-
-
-def compact_spaces(value: str) -> str:
-    return re.sub(r"\s+", " ", value).strip()
 
 
 PROFILE_NAME_REJECT_TERMS = {
@@ -3337,430 +3218,6 @@ async def apply_llm_wording_to_agent_response(agent_response: dict) -> dict:
         updated_agent_response["limitations"] = updated_limitations
 
     return updated_agent_response
-
-
-def canonical_value(value: str | None, allowed_values: dict[str, str]) -> str | None:
-    if value is None:
-        return None
-
-    normalized_key = value.strip().lower()
-    if not normalized_key:
-        return None
-
-    return allowed_values.get(normalized_key)
-
-
-def normalize_location_value(value: str | None) -> str | None:
-    normalized_value = normalize_text_value(value)
-    if not normalized_value:
-        return None
-
-    normalized_key = normalized_value.lower()
-    if re.search(r"^укра(и|ї)н", normalized_key) or normalized_key == "ukraine":
-        return "Ukraine"
-
-    return normalized_value
-
-
-def add_validation_error(errors: list[dict[str, str]], field: str, message: str) -> None:
-    errors.append({"field": field, "message": message})
-
-
-def normalize_stack_items(stack: list[str] | None) -> tuple[list[str], list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-    normalized_stack: list[str] = []
-    seen_stack_values: set[str] = set()
-
-    if not stack:
-        add_validation_error(errors, "stack", "At least one Java stack item is required.")
-        return normalized_stack, errors
-
-    for item in stack:
-        canonical_stack_item = canonical_value(item, JAVA_STACK_VALUES)
-        if not canonical_stack_item:
-            add_validation_error(errors, "stack", "Unsupported Java stack item.")
-            continue
-
-        if canonical_stack_item not in seen_stack_values:
-            seen_stack_values.add(canonical_stack_item)
-            normalized_stack.append(canonical_stack_item)
-
-    if len(normalized_stack) > 3:
-        add_validation_error(errors, "stack", "Java stack supports up to 3 selected items.")
-
-    return normalized_stack, errors
-
-
-def normalize_structured_search_request(
-    request: StructuredSearchRequest,
-) -> tuple[dict | None, list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-
-    role_family = canonical_value(request.role_family, CANONICAL_ROLE_FAMILIES)
-    if request.role_family is None or not request.role_family.strip():
-        add_validation_error(errors, "role_family", "Role family is required.")
-    elif not role_family:
-        add_validation_error(errors, "role_family", "Unsupported role family.")
-
-    technology = canonical_value(request.technology, KNOWN_BACKEND_TECHNOLOGIES)
-    if request.technology is None or not request.technology.strip():
-        add_validation_error(errors, "technology", "Technology is required.")
-    elif not technology:
-        add_validation_error(errors, "technology", "Unsupported technology.")
-    elif technology not in IMPLEMENTED_BACKEND_TECHNOLOGIES:
-        add_validation_error(
-            errors,
-            "technology",
-            "Technology is known but planner is not implemented yet.",
-        )
-
-    location = normalize_location_value(request.location) or ""
-    if not location:
-        add_validation_error(errors, "location", "Location is required.")
-
-    search_depth = normalize_text_value(request.search_depth) or SEARCH_DEPTH_STANDARD
-    if search_depth not in SEARCH_DEPTH_VALUES:
-        add_validation_error(errors, "search_depth", "Unsupported search depth.")
-        search_depth = SEARCH_DEPTH_STANDARD
-
-    normalized_stack: list[str] = []
-    if technology == "Java":
-        normalized_stack, stack_errors = normalize_stack_items(request.stack)
-        errors.extend(stack_errors)
-
-    linkedin_profiles_only = (
-        True
-        if request.linkedin_profiles_only is None
-        else request.linkedin_profiles_only
-    )
-    location_filter_config = location_filter_config_for(location)
-    location_filter_enabled = (
-        location_filter_config is not None
-        if request.location_filter_enabled is None
-        else request.location_filter_enabled
-    )
-    if location and location_filter_enabled and not location_filter_config:
-        add_validation_error(
-            errors,
-            "location_filter_enabled",
-            "Location filter config is not implemented for this location yet.",
-        )
-
-    if errors:
-        return None, errors
-
-    return (
-        {
-            "role_family": role_family,
-            "technology": technology,
-            "stack": normalized_stack,
-            "location": location,
-            "search_depth": search_depth,
-            "linkedin_profiles_only": linkedin_profiles_only,
-            "location_filter_enabled": location_filter_enabled,
-        },
-        errors,
-    )
-
-
-def normalize_multi_wave_search_request(
-    request: MultiWaveStructuredSearchRequest,
-) -> tuple[dict | None, dict | None, list[dict[str, str]]]:
-    normalized_request, errors = normalize_structured_search_request(request)
-
-    max_waves = (
-        MULTI_WAVE_DEFAULT_MAX_WAVES
-        if request.max_waves is None
-        else request.max_waves
-    )
-    min_new_unique_per_wave = (
-        MULTI_WAVE_DEFAULT_MIN_NEW_UNIQUE_PER_WAVE
-        if request.min_new_unique_per_wave is None
-        else request.min_new_unique_per_wave
-    )
-    patience = (
-        MULTI_WAVE_DEFAULT_PATIENCE
-        if request.patience is None
-        else request.patience
-    )
-
-    if max_waves < 1 or max_waves > MULTI_WAVE_MAX_ALLOWED_WAVES:
-        add_validation_error(
-            errors,
-            "max_waves",
-            f"max_waves must be between 1 and {MULTI_WAVE_MAX_ALLOWED_WAVES}.",
-        )
-    if min_new_unique_per_wave < 0:
-        add_validation_error(
-            errors,
-            "min_new_unique_per_wave",
-            "min_new_unique_per_wave must be 0 or greater.",
-        )
-    if patience < 1:
-        add_validation_error(errors, "patience", "patience must be 1 or greater.")
-
-    if errors:
-        return None, None, errors
-
-    return (
-        normalized_request,
-        {
-            "max_waves": max_waves,
-            "max_allowed_waves": MULTI_WAVE_MAX_ALLOWED_WAVES,
-            "min_new_unique_per_wave": min_new_unique_per_wave,
-            "patience": patience,
-        },
-        errors,
-    )
-
-
-def normalize_text_value(value: str | None) -> str | None:
-    normalized_value = compact_spaces(value or "")
-    return normalized_value or None
-
-
-def normalize_text_list(values: list[str] | None) -> list[str]:
-    if not values:
-        return []
-
-    normalized_values: list[str] = []
-    seen_values: set[str] = set()
-    for value in values:
-        normalized_value = normalize_text_value(value)
-        if not normalized_value:
-            continue
-        value_key = normalized_value.lower()
-        if value_key in seen_values:
-            continue
-        seen_values.add(value_key)
-        normalized_values.append(normalized_value)
-
-    return normalized_values
-
-
-def clarifying_question_for_missing_field(field: str) -> str:
-    questions = {
-        "role_family": "What role family should the search target?",
-        "technology": "What main technology should the candidate have?",
-        "stack": (
-            "Which Java stack signals are important for this search: "
-            "Spring, Kafka, AWS, Hibernate, or something else?"
-        ),
-        "location": "What target location should the search use?",
-        "search_depth": "Should this be a standard or deep search?",
-        "profile_sources": "Which public profile source should be used?",
-    }
-    return questions.get(field, f"Please clarify {field}.")
-
-
-def normalize_brief_stack_items(
-    stack: list[str] | None,
-) -> tuple[list[str], list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-    normalized_stack: list[str] = []
-    seen_stack_values: set[str] = set()
-
-    for item in stack or []:
-        canonical_stack_item = canonical_value(item, JAVA_STACK_VALUES)
-        if not canonical_stack_item:
-            add_validation_error(errors, "stack", "Unsupported Java stack item.")
-            continue
-
-        if canonical_stack_item not in seen_stack_values:
-            seen_stack_values.add(canonical_stack_item)
-            normalized_stack.append(canonical_stack_item)
-
-    if len(normalized_stack) > 3:
-        add_validation_error(errors, "stack", "Java stack supports up to 3 selected items.")
-
-    return normalized_stack, errors
-
-
-def build_structured_request_from_brief(normalized_brief: dict) -> StructuredSearchRequest:
-    return StructuredSearchRequest(
-        role_family=normalized_brief.get("role_family"),
-        technology=normalized_brief.get("technology"),
-        stack=normalized_brief.get("stack") or [],
-        location=normalized_brief.get("location"),
-        search_depth=normalized_brief.get("search_depth") or SEARCH_DEPTH_STANDARD,
-        linkedin_profiles_only=True,
-        location_filter_enabled=(
-            location_filter_config_for(normalized_brief.get("location") or "") is not None
-        ),
-    )
-
-
-def validate_and_normalize_search_brief(
-    brief: SearchBrief,
-) -> tuple[dict, list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-
-    brief_status = normalize_text_value(brief.brief_status)
-    if not brief_status:
-        brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
-    if brief_status not in SEARCH_BRIEF_STATUSES:
-        add_validation_error(errors, "brief_status", "Unsupported brief status.")
-        brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
-
-    role_family = canonical_value(brief.role_family, CANONICAL_ROLE_FAMILIES)
-    if brief.role_family and not role_family:
-        add_validation_error(errors, "role_family", "Unsupported role family.")
-
-    technology = canonical_value(brief.technology, KNOWN_BACKEND_TECHNOLOGIES)
-    if brief.technology and not technology:
-        add_validation_error(errors, "technology", "Unsupported technology.")
-    elif technology and technology not in IMPLEMENTED_BACKEND_TECHNOLOGIES:
-        add_validation_error(
-            errors,
-            "technology",
-            "Technology is known but planner is not implemented yet.",
-        )
-
-    location = normalize_location_value(brief.location)
-    if location and not location_filter_config_for(location):
-        add_validation_error(errors, "location", "Location is not supported yet.")
-
-    search_depth = normalize_text_value(brief.search_depth) or SEARCH_DEPTH_STANDARD
-    if search_depth not in SEARCH_DEPTH_VALUES:
-        add_validation_error(errors, "search_depth", "Unsupported search depth.")
-        search_depth = SEARCH_DEPTH_STANDARD
-
-    profile_sources = normalize_text_list(brief.profile_sources) or [
-        PROFILE_SOURCE_LINKEDIN_PUBLIC
-    ]
-    unsupported_profile_sources = [
-        source for source in profile_sources if source not in PROFILE_SOURCE_VALUES
-    ]
-    if unsupported_profile_sources:
-        add_validation_error(errors, "profile_sources", "Unsupported profile source.")
-
-    normalized_stack, stack_errors = normalize_brief_stack_items(brief.stack)
-    errors.extend(stack_errors)
-
-    missing_fields: set[str] = set()
-    required_for_planning = [
-        "role_family",
-        "technology",
-        "stack",
-        "location",
-        "search_depth",
-        "profile_sources",
-    ]
-    field_values = {
-        "role_family": role_family,
-        "technology": technology,
-        "stack": normalized_stack,
-        "location": location,
-        "search_depth": search_depth,
-        "profile_sources": profile_sources,
-    }
-
-    for field in required_for_planning:
-        value = field_values[field]
-        if not value:
-            missing_fields.add(field)
-
-    clarifying_questions = []
-    if missing_fields:
-        clarifying_questions = normalize_text_list(brief.clarifying_questions)
-        for field in sorted(missing_fields):
-            question = clarifying_question_for_missing_field(field)
-            if question not in clarifying_questions:
-                clarifying_questions.append(question)
-
-    if missing_fields:
-        brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
-    elif brief_status == SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION:
-        brief_status = SEARCH_BRIEF_STATUS_READY_FOR_PLANNING
-
-    normalized_brief = {
-        "source_text": normalize_text_value(brief.source_text),
-        "brief_status": brief_status,
-        "role_family": role_family,
-        "technology": technology,
-        "stack": normalized_stack,
-        "location": location,
-        "seniority": normalize_text_value(brief.seniority),
-        "must_have": normalize_text_list(brief.must_have),
-        "nice_to_have": normalize_text_list(brief.nice_to_have),
-        "exclusions": normalize_text_list(brief.exclusions),
-        "search_depth": search_depth,
-        "profile_sources": profile_sources,
-        "notes": normalize_text_value(brief.notes),
-        "missing_fields": sorted(missing_fields),
-        "clarifying_questions": clarifying_questions,
-        "assumptions": normalize_text_list(brief.assumptions),
-    }
-
-    return normalized_brief, errors
-
-
-def adapt_search_brief_to_structured_request(
-    normalized_brief: dict,
-) -> tuple[dict | None, list[dict[str, str]]]:
-    if normalized_brief.get("brief_status") != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
-        return None, [
-            {
-                "field": "brief_status",
-                "message": "Search Brief needs clarification before planning.",
-            }
-        ]
-
-    structured_request = build_structured_request_from_brief(normalized_brief)
-    return normalize_structured_search_request(structured_request)
-
-
-def search_brief_validation_response(brief: SearchBrief) -> dict:
-    normalized_brief, errors = validate_and_normalize_search_brief(brief)
-    adapted_request = None
-    adapter_errors: list[dict[str, str]] = []
-
-    if not errors and normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
-        adapted_request, adapter_errors = adapt_search_brief_to_structured_request(
-            normalized_brief
-        )
-
-    all_errors = errors + adapter_errors
-
-    return {
-        "ok": not all_errors,
-        "normalized_brief": normalized_brief,
-        "errors": all_errors,
-        "missing_fields": normalized_brief.get("missing_fields", []),
-        "clarifying_questions": normalized_brief.get("clarifying_questions", []),
-        "adapted_structured_request": adapted_request,
-    }
-
-
-def search_brief_fingerprint_payload(normalized_brief: dict) -> dict:
-    return {
-        "source_text": normalized_brief.get("source_text"),
-        "brief_status": normalized_brief.get("brief_status"),
-        "role_family": normalized_brief.get("role_family"),
-        "technology": normalized_brief.get("technology"),
-        "stack": normalized_brief.get("stack") or [],
-        "location": normalized_brief.get("location"),
-        "seniority": normalized_brief.get("seniority"),
-        "must_have": normalized_brief.get("must_have") or [],
-        "nice_to_have": normalized_brief.get("nice_to_have") or [],
-        "exclusions": normalized_brief.get("exclusions") or [],
-        "search_depth": normalized_brief.get("search_depth"),
-        "profile_sources": normalized_brief.get("profile_sources") or [],
-        "notes": normalized_brief.get("notes"),
-        "missing_fields": normalized_brief.get("missing_fields") or [],
-        "clarifying_questions": normalized_brief.get("clarifying_questions") or [],
-        "assumptions": normalized_brief.get("assumptions") or [],
-    }
-
-
-def search_brief_fingerprint(normalized_brief: dict) -> str:
-    payload = json.dumps(
-        search_brief_fingerprint_payload(normalized_brief),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def agent_plan_language(language: str | None, normalized_brief: dict | None = None) -> str:
