@@ -2143,7 +2143,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-005 Extract Candidate Quality module
 - [ ] P5.5-006 Extract Agent Plan, Agent Response, tool contract, and OpenAI client modules
 - [ ] P5.5-007 Split FastAPI routes from domain logic
 - [ ] P5.5-008 Run no-behavior-change regression checks and close Phase 5.5
@@ -2156,6 +2155,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-002 Extract shared schemas, domain config, and Search Brief validation/adapter
 - [x] P5.5-003 Extract rule-based planner and deterministic AI QueryPlan validation modules
 - [x] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
+- [x] P5.5-005 Extract Candidate Quality module
 
 ### Current Phase 5.5 strategy note
 
@@ -2909,6 +2909,239 @@ Verification completed:
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
 - focused execution/snapshot regression check for `main.*` aliases, snapshot filename/shape, query-slot no-key error shape, and multi-wave monkeypatch behavior
+
+---
+
+## Task: P5.5-005 Extract Candidate Quality module
+
+### Status
+
+Implemented as a behavior-preserving extraction task.
+
+### Context
+
+`P5.5-004` extracted the execution/snapshot layer while keeping dedupe/report building, location filtering, Candidate Quality, Agent Response, and routes in `app/main.py`.
+
+The next safe extraction is Candidate Quality: role/technology/stack/seniority evidence, normalized review flags, and deterministic quality score.
+
+The current Candidate Quality code is not isolated yet. It depends on:
+
+- shared domain config via `search_domain_config_for`;
+- candidate text cleaning helpers;
+- shared ordering helper `ordered_unique`;
+- term matching helpers from `app.text_utils`;
+- query source metadata and QueryPlan shape;
+- location status fields already attached to normalized candidate results before quality scoring;
+- review flag taxonomy and score constants currently in `app/main.py`.
+
+The main caution is not to move Agent Response in this task. Agent Response consumes quality fields and a few evidence helpers for next-iteration options, but its response wording, summary facts, next-iteration suggestions, and LLM wording belong to `P5.5-006`.
+
+### Goal
+
+Extract Candidate Quality production logic without changing behavior:
+
+- role fit;
+- technology fit;
+- stack fit;
+- seniority fit;
+- review flag normalization/details;
+- quality score and score breakdown;
+- candidate quality assembly through `build_candidate_quality`.
+
+### Proposed modules
+
+1. `app/candidate_quality.py`
+   - `candidate_text_sources`.
+   - `collect_term_evidence`.
+   - `terms_from_evidence`.
+   - `query_plan_by_id`.
+   - `role_context_phrases`.
+   - `derived_role_phrases`.
+   - `role_prefix_terms`.
+   - `role_display_from_match`.
+   - `find_role_match`.
+   - `build_role_quality`.
+   - `build_technology_quality`.
+   - `query_source_stack_evidence`.
+   - `build_stack_quality`.
+   - `collect_seniority_evidence`.
+   - `seniority_display_from_evidence`.
+   - `build_seniority_quality`.
+   - `merge_review_flags`.
+   - `review_flag_detail`.
+   - `normalize_review_flags`.
+   - `score_component`.
+   - `build_location_score_component`.
+   - `build_role_score_component`.
+   - `build_technology_score_component`.
+   - `build_stack_score_component`.
+   - `build_identity_score_component`.
+   - `build_seniority_score_component`.
+   - `build_quality_score_penalties`.
+   - `build_quality_score`.
+   - `build_candidate_quality`.
+2. `app/domain_config.py`
+   - Move Candidate Quality config/constants:
+     - `CANDIDATE_QUALITY_SCORE_VERSION`;
+     - `CANDIDATE_SENIORITY_CONFIG`;
+     - `REVIEW_FLAG_TAXONOMY`.
+   - Keep existing `SEARCH_DOMAIN_CONFIG["..."]["quality"]` as the source for technology and stack quality rules.
+3. `app/text_utils.py`
+   - Move shared profile text cleaning helpers if needed by `app/candidate_quality.py`:
+     - `clean_profile_text`;
+     - `strip_linkedin_suffix`;
+     - `clean_headline_value`.
+     - `ordered_unique`.
+   - Preserve existing behavior for identity/name/headline extraction in `app/main.py`.
+
+### Keep in `app/main.py` for now
+
+- `build_deduped_results_and_report`.
+- LinkedIn URL normalization.
+- Tavily result normalization.
+- identity/name/headline extraction.
+- location filtering and current-location classification.
+- Agent Response summary/wording/next-iteration option logic.
+- LLM wording.
+- approval validation.
+- route handlers.
+
+### Critical scope decisions
+
+1. Do not move `build_deduped_results_and_report` in this task.
+   - It still combines dedupe, location filtering, Candidate Quality attachment, and report counting.
+   - It can call imported `build_candidate_quality`.
+2. Do not move Agent Response in this task.
+   - Agent Response consumes quality outputs but is its own module boundary in `P5.5-006`.
+   - Functions such as `agent_response_quality_distribution`, `agent_response_signal_counts`, `top_review_flag_counts`, `stack_term_visibility_counts`, and `agent_response_next_iteration_options` stay in `app/main.py`.
+   - They may use imported `candidate_text_sources`, `collect_term_evidence`, and `terms_from_evidence`.
+3. Do not change quality scoring semantics.
+   - No score weight changes.
+   - No review flag taxonomy changes.
+   - No new or removed review flags.
+   - No sorting/filtering changes.
+   - No frontend display changes.
+
+### Import direction
+
+- `app/main.py` can import `app.candidate_quality`.
+- `app/candidate_quality.py` can import `app.domain_config` and `app.text_utils`.
+- `app/candidate_quality.py` must not import `app.main`.
+- `app/candidate_quality.py` must not import `app.search_execution`, `app.search_snapshots`, FastAPI routes, frontend/UI code, Agent Response, OpenAI/LLM wording, or Tavily execution.
+- Future `app/agent_response.py` may import read-only helpers from `app.candidate_quality`, but Candidate Quality must not import Agent Response.
+
+### Proposed steps
+
+1. Inventory Candidate Quality functions/constants and external callers.
+   - Candidate Quality producer functions around role/technology/stack/seniority.
+   - All score component builders, including location and identity components.
+   - Review flag taxonomy and score constants.
+   - Shared helpers required by Candidate Quality: text cleaners, term matching helpers, and `ordered_unique`.
+   - `build_deduped_results_and_report` call to `build_candidate_quality`.
+   - Agent Response helper usage of `candidate_text_sources`, `collect_term_evidence`, and `terms_from_evidence`.
+   - Frontend consumption of quality fields.
+2. Capture pre-extraction Candidate Quality parity fixtures.
+   - Save expected `build_candidate_quality` output for fixed direct-stack, query-source-only stack, missing-stack, ambiguous technology, seniority-missing, and location-status examples.
+   - Compare exact dictionaries after extraction before considering the task complete.
+3. Move Candidate Quality config/constants to `app/domain_config.py`:
+   - `CANDIDATE_QUALITY_SCORE_VERSION`;
+   - `CANDIDATE_SENIORITY_CONFIG`;
+   - `REVIEW_FLAG_TAXONOMY`.
+4. Move shared helper functions to `app/text_utils.py` only as needed:
+   - `clean_profile_text`;
+   - `strip_linkedin_suffix`;
+   - `clean_headline_value`.
+   - `ordered_unique`.
+   - Preserve `main.*` compatibility because identity extraction in `app/main.py` currently uses those names.
+5. Create `app/candidate_quality.py`.
+6. Move Candidate Quality producer functions into `app/candidate_quality.py` without changing logic or returned dictionaries.
+7. Update `app/main.py` imports and remove only the moved Candidate Quality definitions.
+8. Preserve `main.*` compatibility for:
+   - `main.build_candidate_quality`;
+   - `main.candidate_text_sources`;
+   - `main.collect_term_evidence`;
+   - `main.terms_from_evidence`;
+   - `main.normalize_review_flags`;
+   - `main.review_flag_detail`;
+   - `main.CANDIDATE_QUALITY_SCORE_VERSION`;
+   - `main.CANDIDATE_SENIORITY_CONFIG`;
+   - `main.REVIEW_FLAG_TAXONOMY`;
+   - shared text cleaners if moved.
+   - `main.ordered_unique` if moved.
+9. Keep Agent Response functions in `app/main.py`, importing any moved helper functions they still use.
+10. Keep all endpoint paths, request payloads, response fields, quality fields, review flag codes/details, score weights, score version, scoring output, sorting, filtering, dedupe, location logic, snapshots, approval behavior, and frontend behavior unchanged.
+11. Run the verification baseline and focused Candidate Quality checks.
+
+### Verification baseline
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `node --check app/static/app.js`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`
+
+Focused checks:
+
+- For a fixed normalized candidate/result/query_sources/query_plan fixture, `build_candidate_quality` output is exactly unchanged before/after extraction.
+- `review_flags`, `review_flag_details`, `quality_score`, `quality_score_version`, `quality_score_breakdown`, and `quality_score_penalties` remain unchanged for direct-stack, query-source-only stack, missing-stack, ambiguous technology, and seniority-missing examples.
+- `build_deduped_results_and_report` still attaches Candidate Quality fields to candidate results.
+- Agent Response smoke still passes, proving quality fields and next-iteration stack visibility helper usage still work.
+- Existing `main.*` helper aliases remain available after extraction.
+- No extracted Candidate Quality module imports from `app.main`.
+
+### Non-goals
+
+- Do not change score weights.
+- Do not change review flag taxonomy, labels, descriptions, severities, or penalty groups.
+- Do not add or remove review flags.
+- Do not change role/technology/stack/seniority matching behavior.
+- Do not change `quality_score_version`.
+- Do not change frontend display labels or CSS.
+- Do not change sorting, filtering, dedupe, location logic, report counts, snapshots, approval logic, Tavily execution, QueryPlan output, Agent Response wording, LLM wording, route handlers, or API contracts.
+- Do not introduce Phase 6 tool runtime behavior.
+- Do not add database, persistence, shortlist, workspace, export, new sources, LinkedIn automation, or autonomous execution.
+
+### Acceptance criteria
+
+- Candidate Quality producer logic is extracted to `app/candidate_quality.py` or a clearly justified equivalent module.
+- Candidate Quality config/constants are moved to `app/domain_config.py`.
+- Shared text cleaning helpers needed by Candidate Quality are extracted without changing identity/name/headline behavior.
+- `ordered_unique` is moved or re-exported in a way that preserves behavior and `main.*` compatibility.
+- Extracted Candidate Quality module does not import from `app.main`.
+- Existing `main.*` compatibility used by internal callers and smoke scripts is preserved.
+- Candidate Quality output remains unchanged for fixed pre/post extraction fixtures.
+- Existing Phase 5 smoke checks pass.
+- Focused Candidate Quality parity checks pass.
+- The extraction is behavior-preserving.
+
+### Review checklist
+
+- Scope reviewed: Candidate Quality producer logic only, not Agent Response or route extraction.
+- Internal dependencies reviewed: Candidate Quality depends on text cleaners, `ordered_unique`, term matching, domain quality config, seniority/review flag config, query sources, QueryPlan shape, and location status fields already present on result.
+- External references reviewed: `build_deduped_results_and_report` calls `build_candidate_quality`; Agent Response uses quality fields and a few evidence helpers; frontend reads quality fields but should not change.
+- Constants/config/defaults reviewed: score version, seniority config, review flag taxonomy, score weights, penalty groups, and Java quality config must not change.
+- Import direction reviewed: `candidate_quality.py` must not import `app.main`; Agent Response may later import Candidate Quality helpers, not the reverse.
+- Future extraction direction reviewed: this task should make `P5.5-006` easier by leaving Agent Response as a consumer of quality outputs.
+- Backward compatibility reviewed: preserve `main.*` aliases for quality helpers/config and moved text cleaners.
+- Verification reviewed: capture pre-extraction Candidate Quality fixture outputs, run standard Phase 5.5 checks, and compare exact Candidate Quality fixture parity after extraction.
+
+### Codex verdict
+
+Implemented. Candidate Quality producer logic now lives in `app/candidate_quality.py`, Candidate Quality constants live in `app/domain_config.py`, shared text/ordering helpers live in `app/text_utils.py`, and `app/main.py` preserves existing `main.*` compatibility while keeping dedupe/report building, location filtering, Agent Response, LLM wording, approval validation, and route handlers in place.
+
+Verification completed:
+
+- pre/post exact Candidate Quality parity check for direct-stack, query-source-only stack, missing-stack, ambiguous technology, seniority-missing, and foreign-location-status fixtures;
+- `.\.venv\Scripts\python.exe -m compileall app scripts`;
+- `node --check app/static/app.js`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_plan.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`;
+- focused `main.*` compatibility check;
+- import-direction check confirming extracted Candidate Quality modules do not import `app.main`;
+- `git diff --check`.
 
 ## Phase 6 - Human-approved Tool-Calling Agent Runtime
 

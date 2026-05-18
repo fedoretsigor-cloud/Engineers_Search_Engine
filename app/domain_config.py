@@ -68,6 +68,131 @@ AI_PLANNER_COVERAGE_NOT_CONFIGURED_WARNING = (
     "coverage_policy_not_configured: Strict AI planner coverage policy is not "
     "configured for this brief."
 )
+CANDIDATE_QUALITY_SCORE_VERSION = "candidate_quality_v1"
+CANDIDATE_SENIORITY_CONFIG = {
+    "junior": {
+        "display": "Junior",
+        "terms": ["Junior", "Jr", "Trainee", "Intern"],
+    },
+    "middle": {
+        "display": "Middle",
+        "terms": ["Middle", "Mid", "Mid-level"],
+    },
+    "senior": {
+        "display": "Senior",
+        "terms": ["Senior", "Sr"],
+    },
+    "leadership": {
+        "display": "Lead",
+        "terms": ["Team Lead", "Tech Lead", "Lead"],
+    },
+}
+REVIEW_FLAG_TAXONOMY = {
+    "role_missing": {
+        "category": "role",
+        "severity": "medium",
+        "label": "Role not confirmed",
+        "description": "Target or similar role was not found in candidate public text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "role_fit",
+    },
+    "role_similar_only": {
+        "category": "role",
+        "severity": "low",
+        "label": "Similar role only",
+        "description": "Candidate role looks close, but it is not a direct target-role phrase.",
+        "affects_quality_score": True,
+        "score_penalty_group": "role_fit",
+    },
+    "role_from_snippet_only": {
+        "category": "role",
+        "severity": "low",
+        "label": "Role from snippet",
+        "description": "Role evidence was found only in lower-confidence snippet text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "low_confidence_source",
+    },
+    "technology_missing": {
+        "category": "technology",
+        "severity": "medium",
+        "label": "Technology not confirmed",
+        "description": "Selected technology was not directly found in candidate public text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_fit",
+    },
+    "technology_related_only": {
+        "category": "technology",
+        "severity": "low",
+        "label": "Related technology only",
+        "description": "Only a configured related technology signal was found.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_fit",
+    },
+    "technology_ambiguous": {
+        "category": "technology",
+        "severity": "high",
+        "label": "Technology ambiguous",
+        "description": "Technology evidence may indicate a false positive.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_false_positive",
+    },
+    "possible_technology_false_positive": {
+        "category": "technology",
+        "severity": "high",
+        "label": "Possible technology false positive",
+        "description": "Candidate text includes an exclude term that can look like the selected technology.",
+        "affects_quality_score": True,
+        "score_penalty_group": "technology_false_positive",
+    },
+    "selected_stack_missing": {
+        "category": "stack",
+        "severity": "medium",
+        "label": "Stack not confirmed",
+        "description": "Selected stack was not directly found in candidate public text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "stack_fit",
+    },
+    "stack_from_query_source_only": {
+        "category": "stack",
+        "severity": "low",
+        "label": "Stack only from query source",
+        "description": "Candidate came from a stack-focused OR query, but no specific stack term was directly observed.",
+        "affects_quality_score": True,
+        "score_penalty_group": "stack_fit",
+    },
+    "stack_related_only": {
+        "category": "stack",
+        "severity": "low",
+        "label": "Related stack only",
+        "description": "Only a configured related stack signal was found.",
+        "affects_quality_score": True,
+        "score_penalty_group": "stack_fit",
+    },
+    "seniority_missing": {
+        "category": "seniority",
+        "severity": "info",
+        "label": "Seniority not found",
+        "description": "Seniority was not found in candidate public text.",
+        "affects_quality_score": False,
+        "score_penalty_group": None,
+    },
+    "seniority_ambiguous": {
+        "category": "seniority",
+        "severity": "low",
+        "label": "Seniority ambiguous",
+        "description": "Multiple seniority signals were found and should be reviewed.",
+        "affects_quality_score": True,
+        "score_penalty_group": "low_confidence_seniority",
+    },
+    "seniority_from_snippet_only": {
+        "category": "seniority",
+        "severity": "low",
+        "label": "Seniority from snippet",
+        "description": "Seniority was found only in lower-confidence snippet text.",
+        "affects_quality_score": True,
+        "score_penalty_group": "low_confidence_source",
+    },
+}
 
 CANONICAL_ROLE_FAMILIES = {
     "backend developer": "Backend Developer",

@@ -1,3 +1,4 @@
+import html
 import re
 
 
@@ -39,3 +40,40 @@ def normalize_text_list(values: list[str] | None) -> list[str]:
         normalized_values.append(normalized_value)
 
     return normalized_values
+
+
+def clean_profile_text(value: object) -> str:
+    if value is None:
+        return ""
+
+    text = html.unescape(str(value))
+    text = text.replace("\xa0", " ")
+    text = text.replace("\u2013", "-").replace("\u2014", "-")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def strip_linkedin_suffix(value: str) -> str:
+    text = clean_profile_text(value)
+    text = re.sub(r"(?i)(?:\s*[-|]\s*)?linkedin\s*$", "", text)
+    text = re.sub(r"(?i)\s*\|\s*linkedin\b.*$", "", text)
+    text = re.sub(r"(?i)\s*-\s*linkedin\b.*$", "", text)
+    return text.strip(" -|.")
+
+
+def clean_headline_value(value: str) -> str:
+    headline = strip_linkedin_suffix(value)
+    headline = re.sub(r"(?i)\b(?:\d+(?:[.,]\d+)?\s*)?(?:followers|connections)\b.*$", "", headline)
+    return headline.strip(" -|.")
+
+
+def ordered_unique(values: list[str]) -> list[str]:
+    seen_values: set[str] = set()
+    unique_values: list[str] = []
+
+    for value in values:
+        if value and value not in seen_values:
+            seen_values.add(value)
+            unique_values.append(value)
+
+    return unique_values
