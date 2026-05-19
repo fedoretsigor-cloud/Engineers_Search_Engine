@@ -67,5 +67,9 @@ Invoke-Check "P6 Runtime Guardrails smoke" {
     & $python scripts/smoke_p6_runtime_guardrails.py
 }
 
+Invoke-Check "P6 Unmocked Runtime Execution smoke" {
+    & $python scripts/smoke_p6_runtime_unmocked_execution.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

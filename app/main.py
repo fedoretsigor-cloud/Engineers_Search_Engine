@@ -3245,11 +3245,40 @@ async def execute_single_wave_structured_search_response(
     query_plan: dict,
     execution_approval: dict,
 ) -> dict:
-    return await execute_single_wave_structured_search_response(
-        request,
+    query_results = await run_query_plan_wave(query_plan)
+    successful_queries = sum(1 for result in query_results if result["ok"])
+    deduped_results, report = build_deduped_results_and_report(
         query_plan,
-        execution_approval,
+        query_results,
     )
+    agent_response = build_agent_response(
+        query_plan,
+        report,
+        deduped_results,
+        request.agent_language,
+    )
+    agent_response = await apply_llm_wording_to_agent_response(agent_response)
+    try:
+        write_structured_search_snapshot(
+            query_plan,
+            query_results,
+            deduped_results,
+            report,
+            execution_approval=execution_approval,
+        )
+    except Exception:
+        logger.warning("Failed to write structured search snapshot.", exc_info=True)
+
+    return {
+        "ok": successful_queries > 0,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+        "execution_approval": execution_approval,
+        "query_results": query_results,
+        "deduped_results": deduped_results,
+        "report": report,
+        "agent_response": agent_response,
+    }
 
 
 async def execute_multi_wave_structured_search_response(
@@ -3258,12 +3287,43 @@ async def execute_multi_wave_structured_search_response(
     settings: dict,
     execution_approval: dict,
 ) -> dict:
-    return await execute_multi_wave_structured_search_response(
-        request,
+    deduped_results, report, query_results = await run_multi_wave_query_plan(
         query_plan,
         settings,
-        execution_approval,
     )
+    agent_response = build_agent_response(
+        query_plan,
+        report,
+        deduped_results,
+        request.agent_language,
+    )
+    agent_response = await apply_llm_wording_to_agent_response(agent_response)
+    try:
+        write_structured_search_snapshot(
+            query_plan,
+            query_results,
+            deduped_results,
+            report,
+            "structured-search-multi-wave",
+            execution_approval=execution_approval,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to write structured search multi-wave snapshot.",
+            exc_info=True,
+        )
+
+    return {
+        "ok": report["queries_succeeded"] > 0,
+        "experimental": True,
+        "query_plan": add_query_plan_fingerprint(query_plan),
+        "plan_fingerprint": query_plan_fingerprint(query_plan),
+        "execution_approval": execution_approval,
+        "query_results": query_results,
+        "deduped_results": deduped_results,
+        "report": report,
+        "agent_response": agent_response,
+    }
 
 
 async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:

@@ -46,8 +46,8 @@ Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - completed and closed
 - Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-009`
-- Phase 6: `Tool-Calling Agent Runtime` - current active phase
-- Phase 7: `Agent Conversation Wording Layer`
+- Phase 6: `Tool-Calling Agent Runtime` - completed and closed as `AI Agent Runtime v0 baseline`
+- Phase 7: `Agent Conversation Wording Layer` - current active phase
 - Phase 8: `Candidate Workspace/Table + Shortlist`
 - Phase 9: `Persistent Memory + Saved Searches`
 - Phase 4 is completed as `AI Agent Foundation` through `P4-011`.
@@ -77,13 +77,15 @@ Current product direction:
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI for the current compile/frontend/smoke regression baseline.
 - `P5.5-007` extracted shared brief patch helpers, deterministic Agent Response logic, and bounded Agent Plan/Response wording logic into focused modules without behavior changes.
 - `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` service compatibility, route path/method set, endpoint names, and smoke-test monkeypatch paths without behavior changes.
-- `P5.5-009` added permanent route/import/no-network HTTP smoke coverage to `scripts/check_all.ps1`, closed Phase 5.5, and confirmed Phase 6 as the next active phase.
+- `P5.5-009` added permanent route/import/no-network HTTP smoke coverage to `scripts/check_all.ps1`, closed Phase 5.5, and confirmed Phase 6 as the next active phase at that point.
 - `P6-001` is completed as the approved docs-only human-approved Agent Runtime v0 contract: runtime states/transitions, backend-owned tool-call envelopes, runtime turn response envelope, approval/fingerprint/stale-context rules, deny-by-default registry behavior, idempotency expectations for stateless v0, error taxonomy, and Phase 7 wording boundary.
 - `P6-002` is completed as a backend-only typed registry/envelope foundation: typed Agent Tool definitions, internal Agent Runtime states/envelopes, deterministic fingerprints/idempotency keys, deny-by-default proposal normalization, and no-network smoke coverage were added without adding a runtime endpoint, Tavily/OpenAI calls, tool execution, or structured-search approval behavior changes.
 - `P6-003` is completed as a frontend-only/status-only Agent Action Review Queue: the UI shows `Build Search Plan` and `Run Search` action state/context while preserving existing `Build Plan` and `Approve & Search` controls, backend approval boundaries, API contracts, and no-autonomy rules.
 - `P6-004` is completed as the first approved Agent Runtime execution slice for the Java/Ukraine baseline: `POST /api/agent/runtime/turn` supports stateless `prepare` and `execute_approved` for `run_single_wave_search` and `run_multi_wave_search`, validates backend-owned fingerprints/context, bridges valid runtime approval into existing `ExecutionApproval`, and frontend `Approve & Search` uses the runtime path without direct structured-search fallback.
 - `P6-005` is completed as runtime guardrail hardening: `scripts/smoke_p6_runtime_guardrails.py` is included in `scripts/check_all.ps1` and covers stale/mutated approval rejection, runtime context mismatch, unsafe frontend-owned runtime fields, frontend runtime-only execution path, mocked approved single/multi-wave execution, prepare-without-execution, and missing Tavily key during approved execution.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 6 with `P6-006 Close Phase 6 with AI Agent v0 decision`, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P6-005.1` is completed as a runtime wrapper repair: `main.execute_single_wave_structured_search_response` and `main.execute_multi_wave_structured_search_response` now call the existing approved single/multi-wave pipelines instead of recursing, and `scripts/smoke_p6_runtime_unmocked_execution.py` verifies real `prepare -> execute_approved -> observed` without monkeypatching those wrappers.
+- `P6-006` is completed as the docs-only Phase 6 closeout: Phase 6 is closed as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent, and `docs/phase-6-closeout.md` records the decision.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, start Phase 7 with `P7-001 Define agent conversation message taxonomy`, and keep ordinary LLM-assisted agent conversation wording inside Phase 7 guardrails.
 
 ## Product Rules
 

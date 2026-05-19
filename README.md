@@ -13,8 +13,8 @@ Status:
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
-- Current active phase: Phase 6 `Human-approved Tool-Calling Agent Runtime`.
-- Phase 6 is completed through `P6-003 Add frontend agent action review queue`.
+- Current active phase: Phase 7 `Agent Conversation Wording Layer`.
+- Phase 6 `Human-approved Tool-Calling Agent Runtime` is completed through `P6-006 Close Phase 6 with AI Agent v0 decision` and closed as `AI Agent Runtime v0 baseline`.
 - Phase 5.5 `Technical modularization before Agent Runtime` is completed through `P5.5-009`.
 - Phase 5 `Recruiter Chat UX + Search Brief conversation` is completed and closed as a narrow Java/Ukraine Agent UX foundation.
 - Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, `P5-011 Apply AI Agent visual direction / dark workspace refresh`, and `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
@@ -39,18 +39,22 @@ Status:
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI for the current compile/frontend/smoke regression baseline.
 - `P5.5-007` extracted shared brief patch helpers, deterministic Agent Response logic, and bounded Agent Plan/Response wording logic into focused modules without behavior changes.
 - `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` service compatibility, route path/method set, endpoint names, and smoke-test monkeypatch paths without behavior changes.
-- `P5.5-009` added permanent route/import/no-network HTTP smoke coverage to `scripts/check_all.ps1`, closed Phase 5.5, and confirmed Phase 6 as the next active phase.
+- `P5.5-009` added permanent route/import/no-network HTTP smoke coverage to `scripts/check_all.ps1`, closed Phase 5.5, and confirmed Phase 6 as the next active phase at that point.
 - `P6-001` defined the human-approved Agent Runtime v0 contract: runtime states/transitions, backend-owned tool-call envelopes, runtime turn response envelope, approval/fingerprint/stale-context rules, deny-by-default registry behavior, idempotency expectations for stateless v0, error taxonomy, and Phase 7 wording boundary.
 - `P6-002` added typed Agent Tool definitions and internal Agent Runtime envelope helpers in `app/agent_tools.py` and `app/agent_runtime.py`, with no-network smoke coverage in `scripts/check_all.ps1`. It did not add a runtime endpoint, frontend action queue, Tavily/OpenAI calls, tool execution, or structured-search approval behavior changes.
 - `P6-003` added a frontend-only Agent Action Review Queue showing `Build Search Plan` and `Run Search` status/context while preserving the existing `Build Plan` and `Approve & Search` controls. It did not add backend routes, runtime execution, Tavily/OpenAI calls, API contract changes, new execution handlers, or autonomous execution.
+- `P6-004` added the first approved Agent Runtime execution slice for the Java/Ukraine baseline: `POST /api/agent/runtime/turn` supports stateless `prepare` and `execute_approved`, validates backend-owned fingerprints/context, bridges approved runtime execution into the existing safe search pipeline, and routes frontend `Approve & Search` through the runtime path.
+- `P6-005` added runtime guardrail regression coverage for stale/mutated approval rejection, runtime context mismatch, unsafe frontend-owned runtime fields, frontend runtime-only execution, mocked approved single/multi-wave execution, prepare-without-execution, and missing Tavily key during approved execution.
+- `P6-005.1` repaired real single/multi runtime execution wrappers so they call the existing approved pipelines instead of recursing, with unmocked-wrapper no-network smoke coverage in `scripts/check_all.ps1`.
+- `P6-006` closed Phase 6 as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent. See `docs/phase-6-closeout.md`.
 
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
-- next task to review: `P6-004 Implement first approved tool loop for Java/Ukraine baseline`;
-- move to Phase 6 human-approved tool-calling runtime;
-- add ordinary agent conversation wording as Phase 7 after the runtime message taxonomy is stable;
+- Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
+- next task to review: `P7-001 Define agent conversation message taxonomy`;
+- add ordinary agent conversation wording in Phase 7 after the runtime message taxonomy is stable;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 
 Current pipeline:
@@ -59,6 +63,7 @@ Current pipeline:
 - the supported Java/Ukraine baseline gets a current Agent Plan in chat before planning;
 - `Build Plan` executes the Agent Plan's proposed backend action and converts the chat-produced brief into a visible approvable Search Plan;
 - an `Agent Actions` queue shows the current planning/search action status and approval context without executing actions itself;
+- `Approve & Search` uses `POST /api/agent/runtime/turn` and executes only after explicit approval tied to backend-owned runtime fingerprints;
 - approved search responses include a grounded deterministic Agent Response in chat;
 - Agent Response includes structured next-iteration options that can propose future `brief_patch` operations but do not execute anything;
 - the UI uses a dark AI Agent workspace visual direction with layered dark surfaces and teal/cyan action/status accents;
