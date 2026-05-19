@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping` and `P7-002 Define message facts and source-of-truth contract` are completed. Next task to review is `P7-003 Define agent wording style and language policy`.
+- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, and `P7-003 Define agent wording style and language policy` are completed. Next task to review is `P7-004 Build deterministic source messages for approved message types`.
 
 ### Completed
 
@@ -386,7 +386,7 @@ Phase 5.5 progress:
 - `P6-005 Add runtime guardrail and stale-approval regression tests` is completed as no-network runtime hardening: stale/mutated approval, runtime context mismatch, unsafe frontend-owned fields, frontend runtime-only path, valid mocked execution, and missing-key guardrails are covered in `scripts/check_all.ps1`.
 - `P6-005.1 Fix runtime execution wrapper recursion and add unmocked runtime execution smoke` is completed: real single/multi runtime execution wrappers now call the existing approved pipelines instead of recursing, and no-network unmocked-wrapper smoke coverage is part of `scripts/check_all.ps1`.
 - `P6-006 Close Phase 6 with AI Agent v0 decision` is completed: Phase 6 is closed as `AI Agent Runtime v0 baseline`, the closeout decision is recorded in `docs/phase-6-closeout.md`, and Phase 7 is now the active direction.
-- `P7-001 Define agent message taxonomy and lifecycle mapping` is completed. `P7-002 Define message facts and source-of-truth contract` is completed with `docs/phase-7-message-facts-contract.md`. Next planned task is `P7-003 Define agent wording style and language policy`.
+- `P7-001 Define agent message taxonomy and lifecycle mapping` is completed. `P7-002 Define message facts and source-of-truth contract` is completed with `docs/phase-7-message-facts-contract.md`. `P7-003 Define agent wording style and language policy` is completed with `docs/phase-7-agent-wording-style-policy.md`. Next planned task is `P7-004 Build deterministic source messages for approved message types`.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

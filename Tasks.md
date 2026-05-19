@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Next task to review: `P7-003 Define agent wording style and language policy`.
+Next task to review: `P7-004 Build deterministic source messages for approved message types`.
 
 ---
 
@@ -5740,7 +5740,6 @@ Next task to review: `P7-003 Define agent wording style and language policy`.
 
 ### Backlog
 
-- [ ] P7-003 Define agent wording style and language policy
 - [ ] P7-004 Build deterministic source messages for approved message types
 - [ ] P7-005 Define LLM routing and gating policy for conversation wording
 - [ ] P7-006 Add bounded LLM wording payloads and prompt contract
@@ -5755,6 +5754,7 @@ Next task to review: `P7-003 Define agent wording style and language policy`.
 
 - [x] P7-001 Define agent message taxonomy and lifecycle mapping
 - [x] P7-002 Define message facts and source-of-truth contract
+- [x] P7-003 Define agent wording style and language policy
 
 ### Current Phase 7 strategy note
 
@@ -6822,6 +6822,375 @@ Created `docs/phase-7-message-facts-contract.md` as the stable `Agent Message Fa
 The document defines the core default-deny rule for message facts, product boundaries, required contract shape, source owners, primary/diagnostic/legacy/disabled producer inventory, fact groups, message-type fact whitelist for every P7-001 `message_type`, derived claim rules, absence/unknown semantics, candidate-data boundaries, frontend-derived and frontend exception/catch boundaries, freshness/fingerprint rules, structured error classification, wording/provenance facts, existing bounded LLM overlay boundaries, concrete examples, and handoff to P7-003, P7-004, P7-006, P7-007, P7-008, and P7-009.
 
 No backend code, frontend code, prompts, API response fields, schemas, runtime behavior, Tavily execution, OpenAI behavior, approval behavior, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changed.
+
+---
+
+## Task: P7-003 Define agent wording style and language policy
+
+### Status
+
+Implemented.
+
+### Critical review result
+
+Initial review found that `P7-003` existed only as a Phase 7 backlog title. That was not enough to approve safely because the task had no scope, no steps, no acceptance criteria, no no-goals, and no verification plan.
+
+The direction is correct: after `P7-001` taxonomy and `P7-002` facts/source-of-truth contract, Phase 7 needs a wording style and language policy before changing deterministic messages, LLM routing, bounded payloads, validation, fallback, provenance, or frontend typed rendering.
+
+The task must stay docs-only. It must define how the agent is allowed to sound, not add wording implementation yet.
+
+Second review found that the draft was directionally correct but not strict enough as a contract. The task must explicitly require:
+
+- coverage for every `message_type` from `docs/phase-7-agent-message-taxonomy.md`, not only broad message areas;
+- a recorded inventory of current wording producers and surfaces;
+- natural RU/EN user-facing wording while preserving canonical backend facts;
+- example validation against `docs/phase-7-message-facts-contract.md`;
+- an explicit boundary between agent message wording and ordinary UI labels / candidate data labels;
+- `Style Policy V0` version handoff into later provenance work without adding telemetry, analytics, memory, or tracking.
+
+### Context
+
+Phase 7 is the `Agent Conversation Wording Layer`. The product already has a narrow, human-approved Agent v0 flow for the supported Java/Ukraine baseline, with:
+
+- recruiter chat and Search Brief formation;
+- Agent Plan;
+- Build Plan through the backend planner;
+- explicit approval before search execution;
+- Agent Runtime execution through backend-owned tool envelopes;
+- post-results Agent Response;
+- existing bounded LLM-assisted wording for `agent_plan` and `agent_response` with deterministic fallback.
+
+`P7-001` created `docs/phase-7-agent-message-taxonomy.md`, which defines the message types, surfaces, lifecycle mappings, deterministic-only boundaries, existing bounded LLM overlay boundaries, and hard product restrictions.
+
+`P7-002` created `docs/phase-7-message-facts-contract.md`, which defines which facts each message type may communicate, which producer owns those facts, and which derived claims are forbidden by default.
+
+`P7-003` must sit directly on top of those two documents: wording can become more natural, but it cannot change facts, authority, approval, runtime state, or product boundaries.
+
+### Goal
+
+Create a docs-only `Agent Wording Style and Language Policy V0` for Phase 7.
+
+The policy must define:
+
+- how the agent should sound in ordinary recruiter conversation;
+- how language selection works for RU/EN;
+- how wording should express uncertainty, missing data, approval boundaries, runtime state, search results, errors, and refusals;
+- how every P7-001 `message_type` maps to style, language, and forbidden wording constraints;
+- which wording patterns are forbidden;
+- which examples later tasks should use when implementing deterministic source messages and bounded LLM wording.
+
+The policy should become direct input for:
+
+- `P7-004` deterministic source messages;
+- `P7-005` LLM routing/gating;
+- `P7-006` bounded LLM payloads and prompt contract;
+- `P7-007` validation/fallback/provenance;
+- `P7-008` typed frontend rendering;
+- `P7-009` golden conversation scenario regression tests.
+
+### Scope
+
+This task should define style/language rules for recruiter-visible agent messages across the Phase 7 taxonomy:
+
+- `chat`;
+- `brief_panel`;
+- `action_queue`;
+- `plan_panel`;
+- `status_panel`;
+- `results_panel`.
+
+The policy must cover at least:
+
+- onboarding and greeting-only turns;
+- clarification questions;
+- Search Brief summaries and refinements;
+- Agent Plan supported/unsupported/needs-clarification messages;
+- Build Plan and approval-required wording;
+- runtime pending/blocked/rejected/failed wording;
+- execution started/completed wording;
+- search result summary and post-results Agent Response wording;
+- next-iteration option wording;
+- validation feedback, tool unavailable messages, system errors, and safety refusals.
+
+The final policy document must include a coverage table or equivalent structured section for every `message_type` from `docs/phase-7-agent-message-taxonomy.md`. Each row should define:
+
+- style intent;
+- language behavior;
+- required caution/uncertainty wording when relevant;
+- forbidden wording for that message type;
+- whether the message is deterministic-only, current bounded LLM text-only, or candidate for later bounded wording according to P7-001/P7-002.
+
+The task must also record the current wording producers and surfaces that later tasks need to respect, including:
+
+- `/api/recruiter-chat/turn`;
+- `/api/agent/plan`;
+- `/api/agent/query-plan`;
+- `/api/agent/runtime/turn`;
+- approved search response `agent_response`;
+- bounded `agent_wording` overlay for `agent_plan` and `agent_response`;
+- frontend chat/status/action/plan/results rendering in `app/static/app.js`.
+
+### Non-goals
+
+This task must not:
+
+- change backend code;
+- change frontend code;
+- change prompts;
+- add or change OpenAI calls;
+- change LLM routing/gating;
+- change bounded LLM payloads;
+- change validation/fallback/provenance behavior;
+- change API response fields or schemas;
+- change runtime behavior;
+- change Tavily execution;
+- change Search Brief extraction;
+- change QueryPlan generation;
+- change candidates, counts, scoring, filtering, dedupe, location logic, snapshots, or reports;
+- expand supported roles, countries, technologies, sources, or search modes;
+- add persistence, memory, telemetry, analytics, database, shortlist, export, account behavior, or autonomous behavior.
+
+### Core policy constraints
+
+1. Wording may improve clarity and tone, but facts remain owned by `docs/phase-7-message-facts-contract.md`.
+2. Wording must never create new facts, soften forbidden behavior into an allowed capability, or imply hidden execution.
+3. Wording must not change or imply changes to:
+   - Search Brief values;
+   - QueryPlan values;
+   - proposed actions;
+   - approval state;
+   - executable flags;
+   - fingerprints;
+   - planner mode;
+   - runtime state;
+   - candidates;
+   - counts;
+   - filters;
+   - scoring;
+   - dedupe;
+   - location logic.
+4. The agent must stay human-approved, not autonomous.
+5. Search execution must always be described as requiring explicit recruiter approval.
+6. Direct web search outside the approved backend pipeline, LinkedIn login, LinkedIn scraping or restriction bypass, automatic candidate messaging, autonomous execution, and user or third-party account actions must remain absolutely prohibited.
+
+### Language policy requirements
+
+1. Define supported recruiter-facing languages for this phase: `ru` and `en`.
+2. Default to the language detected/returned by the backend conversation flow.
+3. Preserve technical identifiers in English when they are product/API terms, for example `Search Brief`, `Agent Plan`, `Build Plan`, `QueryPlan`, `approval`, `runtime`, `Tavily`, `LinkedIn`, `Backend Developer`, `Java`, `Ukraine`.
+4. Avoid mixed RU/EN sentence structure when a natural translated phrase exists.
+5. Allow short technical labels in English when they match visible UI terms or backend contract fields.
+6. If language is unknown, use the current backend default instead of guessing from unrelated UI state.
+7. Do not translate facts differently across surfaces. A Search Brief value such as `Backend Developer`, `Java`, or `Ukraine` must remain stable.
+8. Distinguish canonical backend values from user-facing wording:
+   - canonical facts such as `Backend Developer`, `Java`, and `Ukraine` must not be changed in data or contracts;
+   - Russian user-facing text may naturally say `Backend Developer с Java в Украине` when it does not change the underlying fact;
+   - English user-facing text should keep the natural English phrasing;
+   - examples must make clear whether they show canonical data values or natural visible wording.
+
+### Tone and style requirements
+
+The agent should sound:
+
+- clear;
+- calm;
+- concrete;
+- recruiter-oriented;
+- concise;
+- helpful without overpromising;
+- explicit about next safe action;
+- explicit about uncertainty and approval boundaries.
+
+The agent should not sound:
+
+- magical;
+- salesy;
+- overly apologetic;
+- overly robotic;
+- overly verbose;
+- falsely confident;
+- autonomous;
+- like it inspected private LinkedIn data;
+- like it can contact candidates or use accounts.
+
+### Message category requirements
+
+1. Onboarding should invite the recruiter to describe the search and should not claim that a Search Brief, plan, or search already exists.
+2. Clarification should ask one focused question at a time, using the backend-selected missing field.
+3. Brief summary should restate only normalized backend Search Brief values and assumptions.
+4. Agent Plan should explain the next proposed action and make clear that it prepares planning, not search execution.
+5. Unsupported baseline should be direct and soft, but must not silently fall back to an old non-agent Build Plan path.
+6. Approval wording must distinguish:
+   - Build Plan / planning;
+   - preparing runtime approval;
+   - explicit recruiter approval;
+   - approved search execution.
+7. Runtime blocked/rejected wording must explain the blocked state without implying automatic repair or automatic rerun.
+8. Execution started wording must remain transient and must not include result facts.
+9. Execution completed wording must be grounded only in backend observed result/report facts.
+10. Search result summary and Agent Response wording must separate strong signals from limitations.
+11. Next-iteration options must be worded as non-executable suggestions, not buttons/actions that run anything.
+12. Error wording must preserve the error class from the taxonomy and facts contract.
+13. Safety refusal wording must be firm, short, and must not offer workarounds around prohibited behavior.
+
+### Agent message vs UI/data label boundary
+
+The policy must repeat the P7-001 boundary between agent message wording and ordinary UI/data labels.
+
+Out of scope unless a later approved task explicitly changes UI copy policy:
+
+- button labels such as `Build Plan`, `Approve & Search`, `Send`, and `Reset`;
+- metric labels such as `Raw`, `Unique`, `Duplicates`, and `Failed queries`;
+- candidate table field labels;
+- candidate values such as name, headline, location, role, technology, stack, seniority, score, flags, URLs, snippets, and query-source metadata;
+- raw query IDs and raw query text;
+- hidden scoring, filter, dedupe, and location internals.
+
+The policy may reference those UI/data elements only to explain that agent messages must not rewrite or invent them.
+
+### Uncertainty and evidence wording
+
+The policy must define how to describe uncertain or partial evidence:
+
+- public snippets are limited evidence, not full profile inspection;
+- missing stack does not prove the candidate lacks the stack;
+- missing seniority should be shown as unknown or not visible, not inferred;
+- unknown current location should remain unknown, not converted into Ukraine or foreign location;
+- `ua.linkedin.com` is a useful country-domain signal, not a guaranteed current physical-location fact;
+- location, role, technology, stack, and seniority should use the exact evidence categories produced by backend contracts.
+
+### Forbidden wording
+
+The policy must explicitly forbid wording that claims or implies:
+
+- "I searched LinkedIn directly";
+- "I logged into LinkedIn";
+- "I scraped LinkedIn";
+- "I bypassed LinkedIn restrictions";
+- "I contacted/messaged candidates";
+- "I used your account";
+- "I will run the search without approval";
+- "I already ran the search" before backend observed execution;
+- "these are guaranteed/perfect candidates";
+- unsupported countries/roles/technologies are supported by Agent v0;
+- non-executable next-iteration options are executable now;
+- AI preview plans are approval-ready or runtime-ready when they are not.
+
+### Example validation requirements
+
+Every example in the policy must be checked against `docs/phase-7-message-facts-contract.md`.
+
+Examples must not introduce:
+
+- new Search Brief facts;
+- new QueryPlan facts;
+- approval state not returned by backend;
+- runtime state not returned by backend;
+- counts not returned by backend;
+- candidate names;
+- candidate URLs;
+- raw snippets;
+- raw Tavily result payloads;
+- hidden scoring, filtering, dedupe, or location facts;
+- direct web-search, LinkedIn login/scraping, candidate messaging, account actions, or autonomous execution capabilities.
+
+Good/bad example pairs must explain which fact or boundary makes the bad example invalid.
+
+### Version and provenance handoff
+
+The policy document should identify itself as `Agent Wording Style and Language Policy V0`.
+
+It may define a lightweight `style_policy_version` concept for later implementation, but this task must not add metadata fields to code or API responses.
+
+Later `P7-007` provenance work may reference the style policy version only as internal debugging/regression metadata, within the existing P7-002 wording/provenance boundaries. It must not become product analytics, external telemetry, persistent memory, user tracking, or an autonomous decision input.
+
+### Required artifact
+
+When this task is implemented, create:
+
+```text
+docs/phase-7-agent-wording-style-policy.md
+```
+
+The document should be the stable `Agent Wording Style and Language Policy V0` contract for Phase 7.
+
+### Proposed steps
+
+1. Read `instructions`, `ProjectStatus.md`, `AGENTS.md`, `Roadmap.md`, the Phase 7 section in `Tasks.md`, `docs/phase-7-agent-message-taxonomy.md`, and `docs/phase-7-message-facts-contract.md`.
+2. Inventory current recruiter-visible wording producers in backend and frontend without changing them.
+3. Create `docs/phase-7-agent-wording-style-policy.md` as a docs-only contract.
+4. Define the policy scope and explicitly tie it to P7-001 taxonomy and P7-002 facts contract.
+5. Record the current wording producer inventory and surface mapping inside the policy document.
+6. Define RU/EN language policy, including the distinction between canonical backend facts and natural user-facing wording.
+7. Define overall tone/style requirements.
+8. Add a coverage table or equivalent structured section for every P7-001 `message_type`.
+9. Define approval, runtime, execution, and result wording rules.
+10. Define uncertainty/evidence wording rules for public snippets, stack, seniority, role, technology, and location.
+11. Define safety refusal and prohibited wording rules.
+12. Define the agent message vs UI/data label boundary.
+13. Define example validation rules against the facts contract.
+14. Define `Style Policy V0` / later provenance handoff without adding code metadata in this task.
+15. Add compact RU/EN examples for key message types:
+    - `onboarding`;
+    - `clarification_question`;
+    - `brief_summary`;
+    - `agent_plan`;
+    - `agent_plan_unsupported`;
+    - `approval_required`;
+    - `runtime_blocked`;
+    - `execution_completed`;
+    - `search_result_summary`;
+    - `agent_response`;
+    - `next_iteration_options`;
+    - `tool_unavailable`;
+    - `safety_refusal`.
+16. Add bad/good example pairs where the distinction is important, especially approval, uncertainty, and prohibited behavior.
+17. Verify examples against P7-002 facts and forbidden-derived-claim boundaries.
+18. Add implementation handoff rules for `P7-004`, `P7-005`, `P7-006`, `P7-007`, `P7-008`, and `P7-009`.
+19. Update `Tasks.md` implementation result only after the policy document is created.
+20. Update `ProjectStatus.md`, `README.md`, `Roadmap.md`, and `AGENTS.md` only if status or next-task references need to change.
+21. Verify that the diff is documentation-only.
+22. Verify with `git diff --name-only` that no code files changed.
+23. Verify that P7-003 does not mark itself implemented until the policy document exists.
+24. Run `git diff --check`.
+
+### Acceptance criteria
+
+- `docs/phase-7-agent-wording-style-policy.md` exists.
+- The document explicitly references `docs/phase-7-agent-message-taxonomy.md` and `docs/phase-7-message-facts-contract.md`.
+- The policy says wording can change form, not facts or authority.
+- The policy includes a current wording producer inventory and surface mapping.
+- Every P7-001 `message_type` has explicit style/language/forbidden-wording coverage.
+- RU/EN language policy is defined.
+- The language policy distinguishes canonical backend facts from natural user-facing wording.
+- Technical product terms have consistent treatment.
+- Style requirements are defined for all major Phase 7 message categories.
+- Approval wording is explicit and cannot imply automatic execution.
+- Runtime wording is explicit and cannot imply automatic repair/rerun.
+- Result wording is grounded only in backend observed results/reports.
+- Uncertainty/evidence wording is conservative and does not overstate public snippets.
+- Safety refusal wording preserves the absolute product boundaries.
+- Forbidden wording includes direct web-search bypass, LinkedIn login, LinkedIn scraping or restriction bypass, automatic candidate messaging, autonomous execution, and user or third-party account actions.
+- Examples include both RU and EN.
+- Examples are checked against P7-002 allowed facts, forbidden facts, derived-claim rules, and candidate-data boundaries.
+- The agent message vs ordinary UI/data label boundary is documented.
+- `Style Policy V0` and later provenance/version handoff are documented without adding code/API metadata in this task.
+- The document gives clear handoff guidance to `P7-004` through `P7-009`.
+- No backend code, frontend code, prompts, schemas, API contracts, runtime behavior, Tavily behavior, OpenAI behavior, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changes.
+- `git diff --name-only` shows documentation-only changes.
+- `git diff --check` passes.
+
+### Before implementation
+
+Codex must restate the task scope, perform a full deep review checklist, and wait for explicit approval before creating `docs/phase-7-agent-wording-style-policy.md` or changing any documents beyond this draft.
+
+### Implementation result
+
+Created `docs/phase-7-agent-wording-style-policy.md` as the stable `Agent Wording Style and Language Policy V0` contract for Phase 7.
+
+The document defines the core style rule that wording may change form but not facts or authority; product boundaries; current wording producers and surfaces; RU/EN language policy; canonical backend fact vs natural user-facing wording rules; tone rules; message-type style coverage for every P7-001 `message_type`; approval/runtime wording rules; evidence and uncertainty wording; agent message vs UI/data label boundaries; example validation rules; RU/EN good/bad examples; version/provenance handoff; and future handoff for P7-004 through P7-009.
+
+No backend code, frontend code, prompts, schemas, API contracts, runtime behavior, Tavily behavior, OpenAI behavior, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changed.
 
 ---
 
