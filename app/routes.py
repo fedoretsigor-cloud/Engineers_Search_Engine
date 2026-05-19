@@ -11,6 +11,7 @@ from app.schemas import (
     AIQueryPlanValidationRequest,
     AgentPlanRequest,
     AgentQueryPlanRequest,
+    AgentRuntimeTurnRequest,
     MultiWaveStructuredSearchRequest,
     RecruiterChatTurnRequest,
     SearchBrief,
@@ -30,6 +31,7 @@ class RouteDependencies:
     get_agent_tools: Callable[[], dict]
     create_query_plan: Callable[[StructuredSearchRequest], dict]
     create_agent_query_plan: Callable[[AgentQueryPlanRequest], Awaitable[dict]]
+    create_agent_runtime_turn: Callable[[AgentRuntimeTurnRequest], Awaitable[dict]]
     validate_ai_query_plan_endpoint: Callable[[AIQueryPlanValidationRequest], dict]
     structured_search: Callable[[StructuredSearchRequest], Awaitable[dict]]
     structured_search_multi_wave: Callable[
@@ -80,6 +82,10 @@ def create_router(deps: RouteDependencies, static_dir: Path) -> APIRouter:
     @router.post("/api/agent/query-plan")
     async def create_agent_query_plan(request: AgentQueryPlanRequest) -> dict:
         return await deps.create_agent_query_plan(request)
+
+    @router.post("/api/agent/runtime/turn")
+    async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
+        return await deps.create_agent_runtime_turn(request)
 
     @router.post("/api/ai-query-plan/validate")
     def validate_ai_query_plan_endpoint(

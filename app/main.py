@@ -69,6 +69,9 @@ from app.ai_planning import (
 from app.agent_tools import (
     AGENT_ACTION_BUILD_QUERY_PLAN,
     AGENT_QUERY_PLAN_ENDPOINT,
+    AGENT_RUNTIME_ERROR_APPROVAL_MISMATCH,
+    AGENT_RUNTIME_ERROR_EXECUTION_FAILED,
+    AGENT_RUNTIME_ERROR_TOOL_UNAVAILABLE,
     AGENT_TOOL_APPROVAL_APPROVED,
     AGENT_TOOL_APPROVAL_NOT_REQUIRED,
     AGENT_TOOL_APPROVAL_REJECTED,
@@ -79,6 +82,20 @@ from app.agent_tools import (
     agent_tool_contract,
     execution_approval_metadata,
     validate_execution_approval,
+)
+from app.agent_runtime import (
+    AGENT_RUNTIME_STATE_APPROVAL_PENDING,
+    AGENT_RUNTIME_STATE_BLOCKED,
+    AGENT_RUNTIME_STATE_ERROR,
+    AGENT_RUNTIME_STATE_OBSERVED,
+    AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED,
+    AGENT_RUNTIME_TURN_MODE_PREPARE,
+    AgentRuntimeTurnResponse,
+    AgentToolResult,
+    normalize_runtime_execution_binding,
+    runtime_error,
+    runtime_pending_approval,
+    validate_runtime_execution_approval,
 )
 from app.agent_plan import (
     AGENT_PLAN_STATUS_NEEDS_CLARIFICATION,
@@ -163,6 +180,7 @@ from app.schemas import (
     AIQueryPlanValidationRequest,
     AgentPlanRequest,
     AgentQueryPlanRequest,
+    AgentRuntimeTurnRequest,
     ExecutionApproval,
     MultiWaveStructuredSearchRequest,
     RecruiterChatMessage,
@@ -3196,6 +3214,207 @@ async def create_agent_query_plan(request: AgentQueryPlanRequest) -> dict:
     )
 
 
+def runtime_blocked_response(errors: list[dict[str, str]]) -> dict:
+    return AgentRuntimeTurnResponse(
+        ok=False,
+        runtime_state=AGENT_RUNTIME_STATE_BLOCKED,
+        errors=errors,
+    ).to_dict()
+
+
+def runtime_search_observations(search_response: dict) -> list[dict]:
+    report = search_response.get("report") or {}
+    if not isinstance(report, dict):
+        return []
+
+    return [
+        {
+            "type": "search_report_counts",
+            "queries_total": report.get("queries_total"),
+            "queries_succeeded": report.get("queries_succeeded"),
+            "raw_total": report.get("raw_total"),
+            "unique_profiles": report.get("unique_profiles"),
+            "hidden_by_profile_filter": report.get("hidden_by_profile_filter"),
+            "hidden_by_location_filter": report.get("hidden_by_location_filter"),
+        }
+    ]
+
+
+async def execute_single_wave_structured_search_response(
+    request: StructuredSearchRequest,
+    query_plan: dict,
+    execution_approval: dict,
+) -> dict:
+    return await execute_single_wave_structured_search_response(
+        request,
+        query_plan,
+        execution_approval,
+    )
+
+
+async def execute_multi_wave_structured_search_response(
+    request: MultiWaveStructuredSearchRequest,
+    query_plan: dict,
+    settings: dict,
+    execution_approval: dict,
+) -> dict:
+    return await execute_multi_wave_structured_search_response(
+        request,
+        query_plan,
+        settings,
+        execution_approval,
+    )
+
+
+async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
+    binding, binding_errors = normalize_runtime_execution_binding(request)
+    if binding_errors:
+        return runtime_blocked_response(binding_errors)
+
+    assert binding is not None
+
+    if request.turn_mode == AGENT_RUNTIME_TURN_MODE_PREPARE:
+        if not os.getenv("TAVILY_API_KEY"):
+            return runtime_blocked_response(
+                [
+                    runtime_error(
+                        "tavily_api_key",
+                        AGENT_RUNTIME_ERROR_TOOL_UNAVAILABLE,
+                        "TAVILY_API_KEY is not configured.",
+                    )
+                ]
+            )
+
+        pending_approval = runtime_pending_approval(binding.tool_call)
+        return AgentRuntimeTurnResponse(
+            ok=True,
+            runtime_state=AGENT_RUNTIME_STATE_APPROVAL_PENDING,
+            tool_calls=[binding.tool_call.to_dict()],
+            pending_approvals=[pending_approval],
+        ).to_dict()
+
+    if request.turn_mode != AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED:
+        return runtime_blocked_response(
+            [
+                runtime_error(
+                    "turn_mode",
+                    AGENT_RUNTIME_ERROR_APPROVAL_MISMATCH,
+                    "Unsupported runtime turn mode.",
+                )
+            ]
+        )
+
+    approval_errors = validate_runtime_execution_approval(
+        request.runtime_approval,
+        binding,
+    )
+    if approval_errors:
+        return runtime_blocked_response(approval_errors)
+
+    if not os.getenv("TAVILY_API_KEY"):
+        return runtime_blocked_response(
+            [
+                runtime_error(
+                    "tavily_api_key",
+                    AGENT_RUNTIME_ERROR_TOOL_UNAVAILABLE,
+                    "TAVILY_API_KEY is not configured.",
+                )
+            ]
+        )
+
+    legacy_approval_request = ExecutionApproval(
+        approval_status=AGENT_TOOL_APPROVAL_APPROVED,
+        approved_action=binding.tool_name,
+        approved_planner_mode=PLANNER_MODE_RULE_BASED,
+        approved_query_count=len(binding.query_plan.get("queries", [])),
+        approved_plan_fingerprint=query_plan_fingerprint(binding.query_plan),
+    )
+    execution_approval, legacy_approval_errors = validate_execution_approval(
+        legacy_approval_request,
+        binding.tool_name,
+        binding.query_plan,
+    )
+    if legacy_approval_errors:
+        return runtime_blocked_response(
+            [
+                runtime_error(
+                    error.get("field", "execution_approval"),
+                    AGENT_RUNTIME_ERROR_APPROVAL_MISMATCH,
+                    error.get("message", "Runtime approval bridge failed."),
+                )
+                for error in legacy_approval_errors
+            ]
+        )
+
+    try:
+        if binding.tool_name == EXECUTION_ACTION_MULTI_WAVE:
+            assert binding.settings is not None
+            search_request = MultiWaveStructuredSearchRequest(
+                **binding.runtime_tool_input,
+                execution_approval=legacy_approval_request,
+                agent_language=request.agent_language,
+            )
+            search_response = await execute_multi_wave_structured_search_response(
+                search_request,
+                binding.query_plan,
+                binding.settings,
+                execution_approval,
+            )
+        else:
+            search_request = StructuredSearchRequest(
+                **binding.normalized_request,
+                execution_approval=legacy_approval_request,
+                agent_language=request.agent_language,
+            )
+            search_response = await execute_single_wave_structured_search_response(
+                search_request,
+                binding.query_plan,
+                execution_approval,
+            )
+    except Exception:
+        logger.warning("Agent runtime execution failed.", exc_info=True)
+        return AgentRuntimeTurnResponse(
+            ok=False,
+            runtime_state=AGENT_RUNTIME_STATE_ERROR,
+            tool_calls=[binding.tool_call.to_dict()],
+            tool_results=[
+                AgentToolResult(
+                    tool_call_id=binding.tool_call.tool_call_id,
+                    tool_name=binding.tool_name,
+                    ok=False,
+                    errors=[
+                        runtime_error(
+                            "runtime_execution",
+                            AGENT_RUNTIME_ERROR_EXECUTION_FAILED,
+                            "Runtime tool execution failed.",
+                        )
+                    ],
+                ).to_dict()
+            ],
+        ).to_dict()
+
+    observations = runtime_search_observations(search_response)
+    tool_result = AgentToolResult(
+        tool_call_id=binding.tool_call.tool_call_id,
+        tool_name=binding.tool_name,
+        ok=bool(search_response.get("ok")),
+        result=search_response,
+        errors=search_response.get("errors", []),
+        observations=observations,
+    )
+    return AgentRuntimeTurnResponse(
+        ok=bool(search_response.get("ok")),
+        runtime_state=(
+            AGENT_RUNTIME_STATE_OBSERVED
+            if not search_response.get("errors")
+            else AGENT_RUNTIME_STATE_ERROR
+        ),
+        tool_calls=[binding.tool_call.to_dict()],
+        tool_results=[tool_result.to_dict()],
+        messages=[],
+    ).to_dict()
+
+
 def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> dict:
     brief_response = search_brief_validation_response(request.search_brief)
     normalized_brief = brief_response["normalized_brief"]
@@ -3459,6 +3678,7 @@ app.include_router(
             get_agent_tools=get_agent_tools,
             create_query_plan=create_query_plan,
             create_agent_query_plan=create_agent_query_plan,
+            create_agent_runtime_turn=create_agent_runtime_turn,
             validate_ai_query_plan_endpoint=validate_ai_query_plan_endpoint,
             structured_search=structured_search,
             structured_search_multi_wave=structured_search_multi_wave,

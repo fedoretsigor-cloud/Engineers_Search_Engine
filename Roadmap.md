@@ -318,7 +318,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 6: `Tool-Calling Agent Runtime`; `P6-001 Define human-approved Agent Runtime contract`, `P6-002 Implement typed tool registry and tool-call envelopes`, and `P6-003 Add frontend agent action review queue` are completed, and the next task to review is `P6-004 Implement first approved tool loop for Java/Ukraine baseline`.
+- Phase 6: `Tool-Calling Agent Runtime`; `P6-001 Define human-approved Agent Runtime contract`, `P6-002 Implement typed tool registry and tool-call envelopes`, `P6-003 Add frontend agent action review queue`, and `P6-004 Implement first approved tool loop for Java/Ukraine baseline` are completed, and the next task to review is `P6-005 Add runtime guardrail and stale-approval regression tests`.
 
 ### Completed
 
@@ -382,7 +382,8 @@ Phase 5.5 progress:
 - `P6-001 Define human-approved Agent Runtime contract` is completed as the docs-only runtime contract.
 - `P6-002 Implement typed tool registry and tool-call envelopes` is completed as backend-only typed registry/envelope foundation code: typed Agent Tool definitions, internal Agent Runtime envelopes, deterministic fingerprints/idempotency keys, deny-by-default proposal validation, and no-network smoke coverage. It did not add runtime endpoints, frontend action queue, Tavily/OpenAI calls, tool execution, or structured-search approval behavior changes.
 - `P6-003 Add frontend agent action review queue` is completed as frontend-only/status-only UI work: the queue shows `Build Search Plan` and `Run Search` action state, approval requirement, source, fingerprint context, query count, and single-wave vs multi-wave mode while preserving existing `Build Plan` and `Approve & Search` controls. It did not add backend routes, runtime endpoints, Tavily/OpenAI calls, API contract changes, new execution handlers, or autonomous execution.
-- Next planned task is `P6-004 Implement first approved tool loop for Java/Ukraine baseline`.
+- `P6-004 Implement first approved tool loop for Java/Ukraine baseline` is completed as the first real approved runtime execution slice: `POST /api/agent/runtime/turn` supports stateless `prepare` and `execute_approved` for execution tools only, validates backend-owned fingerprints/context, bridges valid runtime approval into existing `ExecutionApproval`, and routes frontend `Approve & Search` through the Agent Runtime path without direct structured-search fallback.
+- Next planned task is `P6-005 Add runtime guardrail and stale-approval regression tests`.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

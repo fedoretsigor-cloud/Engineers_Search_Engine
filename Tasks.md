@@ -3922,7 +3922,7 @@ Use the most conservative implementation variant:
 
 ### Backlog
 
-- [ ] P6-004 Implement first approved tool loop for Java/Ukraine baseline
+- [x] P6-004 Implement first approved tool loop for Java/Ukraine baseline
 - [ ] P6-005 Add runtime guardrail and stale-approval regression tests
 - [ ] P6-006 Close Phase 6 with AI Agent v0 decision
 
@@ -4765,6 +4765,419 @@ Verification passed:
 ### Before implementation
 
 Codex must restate the exact frontend-only/no-execution boundary, critically review the task, and wait for explicit approval before changing code.
+
+## Task: P6-004 Implement first approved tool loop for Java/Ukraine baseline
+
+### Status
+
+Implemented.
+
+### Context
+
+`P6-001` defined the human-approved Agent Runtime v0 contract. `P6-002` added backend-owned typed tool registry and runtime envelopes. `P6-003` added a frontend-only Agent Action Review Queue that makes `Build Search Plan` and `Run Search` visible, but execution still goes through the old structured-search frontend path.
+
+`P6-004` should create the first real approved runtime execution slice while keeping the product narrow, deterministic, and human-approved.
+
+Important: even though the full Agent Tools registry includes planning, validation, analysis, and suggestion tools, this task's runtime endpoint supports execution tools only.
+
+### Goal
+
+Implement the first bounded Agent Runtime tool loop for the supported Java/Ukraine baseline:
+
+`visible rule-based QueryPlan -> runtime prepare -> pending approval -> explicit user approval -> runtime execute_approved -> existing safe search pipeline -> observed runtime result`.
+
+This task should make `Approve & Search` use the Agent Runtime path, while preserving the familiar frontend UX and existing safe backend search behavior.
+
+### Scope
+
+In scope:
+
+1. Add one runtime endpoint:
+   - `POST /api/agent/runtime/turn`.
+2. Support two runtime turn modes:
+   - `prepare`;
+   - `execute_approved`.
+3. Support only execution tools:
+   - `run_single_wave_search`;
+   - `run_multi_wave_search`.
+4. Keep runtime v0 stateless:
+   - `prepare` does not create server-side pending state;
+   - `execute_approved` recomputes the current tool call/context and validates approval against backend-owned fingerprints.
+5. Add strict public request schemas for runtime turn input and approval with `extra="forbid"`.
+6. Add tool-specific validation for execution tool input.
+7. Rebuild the current rule-based QueryPlan from the structured request on the backend.
+8. Compare the rebuilt QueryPlan fingerprint/query count against the runtime context.
+9. Validate runtime approval before Tavily execution.
+10. Bridge a valid runtime approval into the existing `ExecutionApproval` model internally.
+11. Execute through the existing safe single-wave or multi-wave search pipeline after approval.
+12. Return search results inside an `AgentRuntimeTurnResponse` / `AgentToolResult` envelope.
+13. Update frontend `Approve & Search` to call the runtime endpoint.
+14. Keep existing report/results/Agent Response rendering behavior by reading the search response from `tool_results[0].result`.
+15. Keep old `/api/structured-search` and `/api/structured-search/multi-wave` endpoints for compatibility, tests, direct backend checks, and rollback.
+16. Add no-network smoke coverage for runtime prepare/approval validation and mocked approved execution.
+17. Enforce the current supported flow boundary: `Backend Developer + Java + Ukraine + non-empty stack + standard depth`.
+
+Out of scope:
+
+- generic tool loop for all tools;
+- runtime build-plan flow;
+- LLM tool choice;
+- AI-generated executable QueryPlans;
+- new Tavily/search logic;
+- changing query planning, scoring, dedupe, location filtering, Candidate Quality, snapshots, or Agent Response semantics;
+- direct web-search bypass;
+- LinkedIn login, scraping, automation, or restriction bypass;
+- candidate messaging/outreach;
+- database, persistence, shortlist, export, authentication, or real idempotency store;
+- ordinary LLM-assisted conversation wording;
+- expanding countries, technologies, or supported flows.
+
+### Runtime endpoint contract
+
+Endpoint:
+
+```text
+POST /api/agent/runtime/turn
+```
+
+Request must include only:
+
+- `turn_mode`: `prepare` or `execute_approved`;
+- `tool_name`: `run_single_wave_search` or `run_multi_wave_search`;
+- `tool_input`: object;
+- `runtime_context`: object;
+- `runtime_approval`: object or null;
+- `agent_language`: optional string.
+
+Any extra request field must be rejected. In particular, frontend-supplied `query_plan`, `endpoint`, `path`, `url`, `method`, or arbitrary action fields must be rejected rather than silently ignored.
+
+Mode-specific request rules:
+
+- `prepare` requires `runtime_approval = null`;
+- `execute_approved` requires a non-null `runtime_approval`;
+- `prepare` must not accept or process an already-approved approval object.
+
+Response should use the existing runtime envelope shape:
+
+- `ok`;
+- `runtime_state`;
+- `messages`;
+- `tool_calls`;
+- `pending_approvals`;
+- `tool_results`;
+- `errors`;
+- `next_actions`.
+
+### Supported flow rule
+
+`P6-004` must enforce the current Agent v0 supported flow at the runtime boundary.
+
+Runtime must return `unsupported_flow` unless the normalized tool input resolves to:
+
+- `role_family = Backend Developer`;
+- `technology = Java`;
+- `location = Ukraine`;
+- non-empty `stack`;
+- `search_depth = standard`.
+
+Do not expand countries, technologies, roles, or search depths in this task.
+
+Before checking the supported flow, runtime must normalize and validate `tool_input` through the existing structured-search validation path:
+
+- single-wave: `normalize_structured_search_request`;
+- multi-wave: `normalize_multi_wave_search_request`.
+
+Supported-flow checks must use normalized values, not raw frontend values.
+
+### Tool input rules
+
+Execution tool input must be allowlist-only.
+
+Allowed input should include the current structured search request fields needed to rebuild the plan:
+
+- `role_family`;
+- `technology`;
+- `stack`;
+- `location`;
+- `search_depth`;
+- `linkedin_profiles_only`;
+- `location_filter_enabled`;
+- for multi-wave only: `max_waves`, `min_new_unique_per_wave`, `patience`.
+
+The backend must reject:
+
+- extra fields;
+- allowlisted but non-execution tools such as `build_query_plan`, `validate_search_brief`, `summarize_search_results`, or `suggest_next_iteration`;
+- `endpoint`;
+- `path`;
+- `url`;
+- `method`;
+- arbitrary raw query text;
+- frontend-supplied execution authority;
+- frontend-supplied QueryPlan as source of truth.
+
+### Runtime context rules
+
+Runtime context must include enough information to prove that the user is approving the same visible plan:
+
+- `planner_mode = rule_based`;
+- `tool_name`;
+- `execution_mode = single_wave` or `multi_wave`;
+- `plan_fingerprint`;
+- `query_count`;
+- `search_brief_fingerprint`;
+- `multi_wave_enabled`;
+- multi-wave settings when relevant.
+
+The backend must rebuild the QueryPlan from `tool_input`, compute its fingerprint/query count, and compare them to `runtime_context`.
+
+Frontend-provided QueryPlan must never be trusted as the execution source of truth.
+
+`tool_name`, `execution_mode`, and `multi_wave_enabled` must agree. A mismatch is stale/invalid context.
+
+For the current frontend baseline, `search_brief_fingerprint` is required because the executable plan comes from the current Agent Plan / Search Brief flow. Missing or mismatched `search_brief_fingerprint` must block execution with stale/invalid runtime context.
+
+In `P6-004`, `search_brief_fingerprint` is a required context-binding field from the current Agent Plan, not a full recomputation proof from a submitted `SearchBrief`. The backend must include it in `context_fingerprint` validation. Full Search Brief recomputation inside runtime requires passing a full `SearchBrief` and belongs to a later reviewed task unless explicitly added.
+
+### Pending approval shape
+
+`prepare` should return one backend-owned pending approval item with at least:
+
+- `tool_call_id`;
+- `tool_name`;
+- `approval_status = required`;
+- `tool_input_fingerprint`;
+- `context_fingerprint`;
+- `idempotency_key`;
+- `approval_label` or concise explanation for UI display.
+
+The frontend may display these fields, but it must not derive or mutate them.
+
+### Runtime approval rules
+
+Runtime approval must be separate from the old `ExecutionApproval`.
+
+It should validate:
+
+- `approval_status = approved`;
+- `tool_call_id`;
+- `tool_name`;
+- `tool_input_fingerprint`;
+- `context_fingerprint`;
+- `idempotency_key`;
+- current recomputed tool call still matches.
+
+Only after runtime approval is valid may the backend build the internal `ExecutionApproval` bridge:
+
+- `approval_status = approved`;
+- `approved_action = run_single_wave_search` or `run_multi_wave_search`;
+- `approved_planner_mode = rule_based`;
+- `approved_query_count`;
+- `approved_plan_fingerprint`.
+
+### Idempotency boundary
+
+`idempotency_key` is a deterministic approval/runtime contract field in `P6-004`, not a real server-side duplicate-execution guarantee.
+
+This task should rely on:
+
+- frontend in-flight disable to reduce double-submit risk;
+- backend fingerprint/context validation to reject stale/mismatched approvals.
+
+A real idempotency store requires persistence/database and belongs to a later separately approved task if needed.
+
+### Execution boundary
+
+Runtime must not call FastAPI route handlers directly.
+
+Preferred implementation:
+
+- create a small shared execution core/service if extraction is minimal and behavior-preserving;
+- let existing structured-search endpoints and the new runtime endpoint call the shared core;
+- preserve existing endpoint behavior.
+
+If shared execution extraction becomes large or risky, stop and split it into a separate reviewed task. Do not force a bad dependency from runtime to route handlers.
+
+### Runtime result mapping
+
+For approved execution, runtime should return:
+
+- `runtime_state = observed`;
+- the normalized `tool_call`;
+- one `tool_result`;
+- current search response under `tool_results[0].result`;
+- concise observations such as unique candidates, raw results, queries succeeded, hidden-by-filter counts when available.
+
+Frontend should continue using existing rendering functions:
+
+- `renderReport`;
+- `renderResults`;
+- `appendAgentResponseMessage`.
+
+The only change is that the frontend reads the search response from `tool_results[0].result`.
+
+### Error handling rules
+
+Runtime errors must map cleanly to current UI status areas and queue state.
+
+At minimum handle:
+
+- `stale_context`;
+- `approval_required`;
+- `approval_mismatch`;
+- `unsupported_tool`;
+- `invalid_tool_input`;
+- `tool_unavailable`;
+- `execution_failed`;
+- `internal_error`.
+
+If `TAVILY_API_KEY` is missing, runtime must return a structured runtime error envelope instead of a non-runtime raw search error.
+
+`prepare` may check whether `TAVILY_API_KEY` is configured, but it must not call Tavily. If the key is missing, return a blocked/runtime `tool_unavailable` response instead of a ready pending approval.
+
+If runtime prepare or execute fails, frontend must not silently fallback to the old direct `/api/structured-search` path.
+
+### Frontend rules
+
+1. `Approve & Search` should call `POST /api/agent/runtime/turn`.
+2. The frontend should request/hold the backend-owned pending approval from runtime `prepare`.
+3. Runtime `prepare` should be called only after a rendered executable QueryPlan exists.
+4. Runtime `prepare` should run again when multi-wave mode changes.
+5. Runtime `prepare` should not be called on every render without a relevant context change.
+6. Runtime `prepare` must not run at the same time as Tavily execution.
+7. If prepare does not return a valid pending approval, `Approve & Search` stays disabled/blocked.
+8. If Search Brief, Agent Plan, QueryPlan, planner data, multi-wave mode, or execution context changes, the pending approval must be cleared or recomputed.
+9. On any stale/invalid runtime context, the old runtime approval must be removed from frontend state and `Approve & Search` must stay blocked until a new `prepare` succeeds.
+10. After `P6-004`, the frontend baseline must not have two active execution paths. Old structured-search endpoints remain available, but the frontend must not silently choose the old direct path when runtime fails.
+11. No new execution buttons should be added in this task.
+12. Existing user flow should still feel like:
+   - Build Plan;
+   - review Search Plan;
+   - Approve & Search;
+   - Results.
+
+### No-LLM wording rule
+
+Runtime may return the already existing `agent_response` produced by approved search execution.
+
+Runtime must not add a new ordinary LLM-assisted conversation wording layer in this task. Broader agent conversation wording remains Phase 7.
+
+### Proposed implementation steps
+
+1. Restate the exact approved-execution-only scope before coding.
+2. Add strict runtime request/approval schemas in `app/schemas.py`.
+3. Add route dependency and route wrapper for `POST /api/agent/runtime/turn`.
+4. Add runtime service/helper outside route handlers.
+5. Implement `prepare` for `run_single_wave_search` and `run_multi_wave_search`.
+6. Validate execution tool input with allowlist-only rules.
+7. Reject allowlisted but non-execution tools in this endpoint.
+8. Normalize `tool_input` through existing single-wave or multi-wave structured-search validation.
+9. Enforce the Java/Ukraine standard-depth supported flow boundary using normalized values.
+10. Rebuild QueryPlan from normalized tool input on the backend.
+11. Build runtime context and compare tool name, execution mode, Search Brief fingerprint, plan fingerprint, and query count to supplied context.
+12. Normalize tool call through existing runtime envelope helpers.
+13. Return `approval_pending` without Tavily execution.
+14. Return `tool_unavailable` from `prepare` if `TAVILY_API_KEY` is not configured.
+15. Enforce mode-specific approval rules: `prepare` requires no approval object, `execute_approved` requires one.
+16. Implement runtime approval validation for `execute_approved`.
+17. Bridge valid runtime approval into internal `ExecutionApproval`.
+18. Execute through existing single-wave/multi-wave safe search pipeline only after approval.
+19. If needed, extract a minimal shared search execution core; stop and split into a separate task if extraction becomes large/risky.
+20. Return `observed` runtime envelope with search response in `tool_results[0].result`.
+21. Update frontend prepare/execution wiring so `Approve & Search` uses runtime.
+22. Update queue rendering to use backend-owned runtime approval/tool-call state when available.
+23. Ensure stale/invalid runtime approval clears frontend pending approval and blocks execution until prepare succeeds again.
+24. Preserve old structured-search endpoints and compatibility behavior.
+25. Add no-network smoke tests for prepare, approval validation, stale rejection, unsupported tool rejection, and mocked approved execution.
+26. Update docs/status after implementation.
+
+### Required smoke coverage
+
+Smoke tests should verify:
+
+1. `prepare` single-wave returns `approval_pending` and does not call Tavily.
+2. `prepare` multi-wave returns `approval_pending` and does not call Tavily.
+3. Unsupported tool is rejected.
+4. Allowlisted but non-execution tool is rejected by this endpoint.
+5. Request with extra fields is rejected.
+6. Tool input with extra/unsafe fields is rejected.
+7. Frontend-provided QueryPlan is rejected as an extra/unsafe field.
+8. Tool input is normalized through existing structured-search validation before supported-flow checks.
+9. Unsupported non-Java/Ukraine flow returns `unsupported_flow`.
+10. Missing `search_brief_fingerprint` in current frontend baseline is rejected.
+11. `prepare` with non-null `runtime_approval` is rejected.
+12. `execute_approved` without approval is rejected.
+13. `execute_approved` with stale/mismatched fingerprint is rejected.
+14. `execute_approved` with wrong idempotency key is rejected.
+15. Mismatch between `tool_name`, `execution_mode`, and `multi_wave_enabled` is rejected.
+16. Missing `TAVILY_API_KEY` maps to a structured runtime error envelope from prepare/execute.
+17. Positive prepare/execution smoke tests use a fake `TAVILY_API_KEY` and mocked execution.
+18. Approved single-wave with mocked execution returns `runtime_state = observed`.
+19. Approved multi-wave with mocked execution returns `runtime_state = observed`.
+20. No runtime smoke test performs a real Tavily/network call.
+21. Existing `/api/structured-search` and `/api/structured-search/multi-wave` compatibility tests still pass.
+
+### Acceptance criteria
+
+- `POST /api/agent/runtime/turn` exists.
+- Runtime supports `prepare` and `execute_approved`.
+- Runtime supports only `run_single_wave_search` and `run_multi_wave_search` in this task.
+- Runtime rejects allowlisted non-execution tools in this endpoint.
+- Runtime enforces the current `Backend Developer + Java + Ukraine + stack + standard depth` supported flow.
+- Runtime normalizes tool input through existing structured-search validation before supported-flow checks.
+- `prepare` returns backend-owned pending approval and does not execute Tavily.
+- `prepare` returns a structured `tool_unavailable` response instead of ready approval when Tavily is not configured.
+- Runtime is stateless and recomputes/validates tool call/context on execution.
+- Backend rebuilds QueryPlan from structured input and does not trust frontend QueryPlan.
+- Request schemas reject extra fields, including frontend-supplied QueryPlan.
+- Runtime context requires Search Brief fingerprint for the current frontend baseline.
+- Runtime treats Search Brief fingerprint as context binding in this task and includes it in context fingerprint validation.
+- `prepare` rejects non-null `runtime_approval`; `execute_approved` requires approval.
+- Pending approval includes backend-owned tool call id, fingerprints, idempotency key, and UI explanation.
+- Runtime approval is separate from old `ExecutionApproval`.
+- Old `ExecutionApproval` is used only as an internal bridge into the existing safe search pipeline.
+- Frontend `Approve & Search` uses the runtime endpoint.
+- Frontend does not fallback to old direct structured-search execution after runtime failure.
+- Frontend clears stale runtime approval and blocks execution until new prepare succeeds.
+- Old structured-search endpoints remain available and compatible.
+- Runtime response returns search result under `tool_results[0].result`.
+- Current report/results/Agent Response rendering remains familiar.
+- Missing Tavily key and runtime validation errors return structured runtime errors.
+- No autonomous execution is introduced.
+- No LLM tool choice or new ordinary LLM wording is introduced.
+- Local regression checks pass.
+
+### Review result
+
+Initial review found the task direction correct but too broad/implicit. The task was tightened to a narrow approved execution slice with a single runtime endpoint, stateless prepare/execute modes, strict tool input validation, backend QueryPlan rebuild, runtime approval separate from `ExecutionApproval`, explicit idempotency limitations, no fallback to old direct frontend execution, structured runtime error handling, and no new LLM wording.
+
+Second critical review added explicit Java/Ukraine supported-flow enforcement, pending approval shape, prepare timing, Tavily-key behavior during prepare, `execution_mode`, frontend stale approval clearing, and the rule that the frontend baseline must not keep two active execution paths after migration.
+
+Third critical review added execution-tools-only enforcement for this endpoint, exact request fields, rejection of frontend-supplied QueryPlan, required `search_brief_fingerprint` for the current frontend baseline, normalization through existing structured-search validation before supported-flow checks, and no-network smoke expectations with fake Tavily env plus mocked execution.
+
+Fourth critical review added mode-specific `runtime_approval` rules and clarified that `search_brief_fingerprint` is a required context-binding field in `P6-004`, not a full Search Brief recomputation proof.
+
+### Approval result
+
+Approved for coding. The approved scope is the first narrow human-approved Agent Runtime execution slice for the Java/Ukraine baseline. `P6-004` must keep runtime execution stateless, execution-tools-only, frontend-approved, and backed by existing safe search behavior. It must not add autonomous execution, LLM tool choice, generic runtime tools, AI executable QueryPlans, direct web-search bypass, LinkedIn access/automation, database/persistence, or new search/scoring/filtering behavior.
+
+### Implementation result
+
+Implemented the first approved Agent Runtime execution slice for the Java/Ukraine baseline.
+
+- Added strict runtime turn and approval schemas with `extra="forbid"`.
+- Added `POST /api/agent/runtime/turn` with `prepare` and `execute_approved`.
+- Runtime supports only `run_single_wave_search` and `run_multi_wave_search`.
+- Runtime validates allowlisted tool input, normalizes it through existing structured-search validation, enforces `Backend Developer + Java + Ukraine + stack + standard depth`, rebuilds the rule-based QueryPlan, and validates runtime context/fingerprints before approval.
+- `prepare` returns backend-owned pending approval and blocks with structured `tool_unavailable` when `TAVILY_API_KEY` is missing.
+- `execute_approved` validates runtime approval, bridges internally into existing `ExecutionApproval`, then executes through the existing safe single-wave or multi-wave search pipeline.
+- Frontend `Approve & Search` now uses the runtime endpoint and reads the search response from `tool_results[0].result`; it does not fallback to direct structured-search execution on runtime failure.
+- Added no-network runtime smoke coverage for prepare, unsafe input rejection, non-execution tool rejection, missing/stale context, missing Tavily key, approval mismatch, and mocked approved single/multi-wave execution.
+- Existing direct structured-search endpoints remain available for compatibility and backend checks.
+
+### Pre-implementation rule
+
+The task was critically reviewed and explicitly approved before coding.
 
 ---
 

@@ -23,11 +23,16 @@ const resultsList = document.querySelector("#results-list");
 const PRIMARY_BUILD_PLAN_MODE = "rule_based";
 const AGENT_PLAN_ENDPOINT = "/api/agent/plan";
 const AGENT_QUERY_PLAN_ENDPOINT = "/api/agent/query-plan";
+const AGENT_RUNTIME_TURN_ENDPOINT = "/api/agent/runtime/turn";
 const AGENT_ACTION_BUILD_QUERY_PLAN = "build_query_plan";
 const AGENT_ACTION_RUN_SINGLE_WAVE = "run_single_wave_search";
 const AGENT_ACTION_RUN_MULTI_WAVE = "run_multi_wave_search";
 const AGENT_QUEUE_ACTION_BUILD_PLAN = "build_plan";
 const AGENT_QUEUE_ACTION_RUN_SEARCH = "run_search";
+const AGENT_RUNTIME_TURN_MODE_PREPARE = "prepare";
+const AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED = "execute_approved";
+const AGENT_RUNTIME_EXECUTION_MODE_SINGLE_WAVE = "single_wave";
+const AGENT_RUNTIME_EXECUTION_MODE_MULTI_WAVE = "multi_wave";
 
 const AGENT_ACTION_STATUS_LABELS = {
   blocked: "Blocked",
@@ -53,9 +58,13 @@ let latestPlannerData = null;
 let latestQueryPlan = null;
 let latestPlanFingerprint = null;
 let latestExecutablePlan = false;
+let currentRuntimePendingApproval = null;
+let currentRuntimeToolCall = null;
+let runtimeApprovalVersion = 0;
 let chatRequestInFlight = false;
 let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
+let runtimePrepareRequestInFlight = false;
 let searchRequestInFlight = false;
 let interactionVersion = 0;
 let agentActionDisplayState = {
@@ -111,6 +120,19 @@ function currentRunSearchAction() {
 
 function currentRunSearchModeLabel() {
   return multiWaveInput.checked ? "Multi-wave" : "Single-wave";
+}
+
+function currentRunSearchExecutionMode() {
+  return multiWaveInput.checked
+    ? AGENT_RUNTIME_EXECUTION_MODE_MULTI_WAVE
+    : AGENT_RUNTIME_EXECUTION_MODE_SINGLE_WAVE;
+}
+
+function clearRuntimeApproval() {
+  runtimeApprovalVersion += 1;
+  currentRuntimePendingApproval = null;
+  currentRuntimeToolCall = null;
+  runtimePrepareRequestInFlight = false;
 }
 
 function clearAgentActionDisplayState(actionIds = null) {
@@ -223,6 +245,7 @@ function rememberPlannerData(data = {}) {
   latestPlanFingerprint = planFingerprintFromPlannerData(data, latestQueryPlan);
   adaptedStructuredRequest = data.adapted_structured_request || null;
   latestExecutablePlan = isExecutablePlannerData(data);
+  clearRuntimeApproval();
   if (latestQueryPlan?.queries?.length) {
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_BUILD_PLAN,
@@ -243,6 +266,7 @@ function clearPlannerData() {
   latestPlanFingerprint = null;
   adaptedStructuredRequest = null;
   latestExecutablePlan = false;
+  clearRuntimeApproval();
   updateActionState();
 }
 
@@ -295,44 +319,71 @@ function syncExecutionControlsFromPlan() {
   locationFilterInput.disabled = true;
 }
 
-function buildExecutionApproval() {
-  const queryCount = latestQueryPlan?.queries?.length || 0;
-
-  return {
-    approval_status: "approved",
-    approved_action: multiWaveInput.checked
-      ? "run_multi_wave_search"
-      : "run_single_wave_search",
-    approved_planner_mode: "rule_based",
-    approved_query_count: queryCount,
-    approved_plan_fingerprint: latestPlanFingerprint,
-  };
-}
-
-function searchEndpoint() {
-  return multiWaveInput.checked
-    ? "/api/structured-search/multi-wave"
-    : "/api/structured-search";
-}
-
-function buildSearchRequest(executionApproval = null) {
+function buildRuntimeToolInput() {
   if (!adaptedStructuredRequest) {
     throw new Error("Build Plan before approving search.");
   }
 
-  const request = {
-    ...adaptedStructuredRequest,
-    execution_approval: executionApproval,
-    agent_language: currentChatLanguage,
+  const toolInput = {
+    role_family: adaptedStructuredRequest.role_family,
+    technology: adaptedStructuredRequest.technology,
+    stack: adaptedStructuredRequest.stack || [],
+    location: adaptedStructuredRequest.location,
+    search_depth: adaptedStructuredRequest.search_depth,
+    linkedin_profiles_only: adaptedStructuredRequest.linkedin_profiles_only,
+    location_filter_enabled: adaptedStructuredRequest.location_filter_enabled,
   };
 
   if (!multiWaveInput.checked) {
-    return request;
+    return toolInput;
   }
 
   return {
-    ...request,
+    ...toolInput,
     ...MULTI_WAVE_DEFAULTS,
+  };
+}
+
+function buildRuntimeContext() {
+  if (!latestPlanFingerprint || !latestQueryPlan?.queries?.length) {
+    throw new Error("Current QueryPlan is missing approval fingerprint.");
+  }
+  if (!currentAgentPlan?.brief_fingerprint) {
+    throw new Error("Current Agent Plan is missing Search Brief fingerprint.");
+  }
+
+  const context = {
+    planner_mode: PRIMARY_BUILD_PLAN_MODE,
+    tool_name: currentRunSearchAction(),
+    execution_mode: currentRunSearchExecutionMode(),
+    plan_fingerprint: latestPlanFingerprint,
+    query_count: latestQueryPlan.queries.length,
+    search_brief_fingerprint: currentAgentPlan.brief_fingerprint,
+    multi_wave_enabled: multiWaveInput.checked,
+  };
+
+  if (!multiWaveInput.checked) {
+    return context;
+  }
+
+  return {
+    ...context,
+    ...MULTI_WAVE_DEFAULTS,
+  };
+}
+
+function buildApprovedRuntimeApproval() {
+  if (!currentRuntimePendingApproval) {
+    throw new Error("Runtime approval is not prepared for the current Search Plan.");
+  }
+
+  return {
+    approval_status: "approved",
+    tool_call_id: currentRuntimePendingApproval.tool_call_id,
+    tool_name: currentRuntimePendingApproval.tool_name,
+    tool_input_fingerprint: currentRuntimePendingApproval.tool_input_fingerprint,
+    context_fingerprint: currentRuntimePendingApproval.context_fingerprint,
+    idempotency_key: currentRuntimePendingApproval.idempotency_key,
   };
 }
 
@@ -500,15 +551,20 @@ function runSearchQueueItem() {
   if (searchRequestInFlight) {
     status = "running";
     detail = `Running ${currentRunSearchModeLabel()} search.`;
+  } else if (runtimePrepareRequestInFlight) {
+    status = "running";
+    detail = "Preparing runtime approval for the visible Search Plan.";
   } else if (displayState?.status === "failed") {
     status = "failed";
     detail = displayState.detail || "Search failed.";
   } else if (displayState?.status === "completed" && latestExecutablePlan) {
     status = "completed";
     detail = "Search completed and results are visible.";
-  } else if (latestExecutablePlan && latestPlanFingerprint) {
+  } else if (latestExecutablePlan && latestPlanFingerprint && currentRuntimePendingApproval) {
     status = "ready_for_approval";
-    detail = "Visible Search Plan is ready for explicit approval.";
+    detail = "Runtime approval is prepared for the visible Search Plan.";
+  } else if (latestExecutablePlan && latestPlanFingerprint) {
+    detail = "Waiting for runtime approval preparation.";
   } else if (hasVisiblePlan) {
     detail = "Visible plan is not executable.";
   }
@@ -530,6 +586,12 @@ function runSearchQueueItem() {
           : "not bound",
       ],
       ["Queries", queryCountForCurrentPlan() || "not ready"],
+      [
+        "Runtime",
+        currentRuntimePendingApproval
+          ? `approval ${shortFingerprint(currentRuntimePendingApproval.tool_call_id)}`
+          : "not prepared",
+      ],
     ],
   };
 }
@@ -681,6 +743,7 @@ function renderPlanErrors(errors = []) {
 
 function renderSearchErrors(errors = []) {
   const message = validationMessage(errors);
+  clearRuntimeApproval();
   setAgentActionDisplayState(
     AGENT_QUEUE_ACTION_RUN_SEARCH,
     "failed",
@@ -692,6 +755,120 @@ function renderSearchErrors(errors = []) {
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
   updateActionState();
+}
+
+async function prepareRuntimeSearchAction() {
+  if (!latestExecutablePlan || !adaptedStructuredRequest) {
+    clearRuntimeApproval();
+    updateActionState();
+    return null;
+  }
+  if (
+    chatRequestInFlight ||
+    agentPlanRequestInFlight ||
+    planRequestInFlight ||
+    searchRequestInFlight
+  ) {
+    return null;
+  }
+
+  const requestVersion = interactionVersion;
+  let payload;
+  try {
+    payload = {
+      turn_mode: AGENT_RUNTIME_TURN_MODE_PREPARE,
+      tool_name: currentRunSearchAction(),
+      tool_input: buildRuntimeToolInput(),
+      runtime_context: buildRuntimeContext(),
+      runtime_approval: null,
+      agent_language: currentChatLanguage,
+    };
+  } catch (error) {
+    clearRuntimeApproval();
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_RUN_SEARCH,
+      "failed",
+      error.message || "Runtime approval preparation failed."
+    );
+    updateActionState();
+    return null;
+  }
+
+  clearRuntimeApproval();
+  const runtimeRequestVersion = runtimeApprovalVersion;
+  runtimePrepareRequestInFlight = true;
+  setAgentActionDisplayState(
+    AGENT_QUEUE_ACTION_RUN_SEARCH,
+    "running",
+    "Preparing runtime approval for the visible Search Plan."
+  );
+  updateActionState();
+
+  try {
+    const response = await fetch(AGENT_RUNTIME_TURN_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (
+      requestVersion !== interactionVersion ||
+      runtimeRequestVersion !== runtimeApprovalVersion
+    ) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Runtime approval preparation failed.");
+    }
+
+    if (data.errors?.length) {
+      renderSearchErrors(data.errors);
+      return null;
+    }
+
+    const pendingApproval = data.pending_approvals?.[0] || null;
+    const toolCall = data.tool_calls?.[0] || null;
+    if (!pendingApproval || !toolCall) {
+      throw new Error("Runtime approval response did not include a pending tool call.");
+    }
+
+    currentRuntimePendingApproval = pendingApproval;
+    currentRuntimeToolCall = toolCall;
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_RUN_SEARCH,
+      "ready_for_approval",
+      "Runtime approval is prepared for the visible Search Plan."
+    );
+    resultsStatus.textContent = "Search plan is ready for explicit approval.";
+    return data;
+  } catch (error) {
+    if (
+      requestVersion !== interactionVersion ||
+      runtimeRequestVersion !== runtimeApprovalVersion
+    ) {
+      return null;
+    }
+
+    clearRuntimeApproval();
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_RUN_SEARCH,
+      "failed",
+      error.message || "Runtime approval preparation failed."
+    );
+    resultsStatus.textContent = error.message;
+    return null;
+  } finally {
+    if (
+      requestVersion === interactionVersion &&
+      runtimeRequestVersion === runtimeApprovalVersion
+    ) {
+      runtimePrepareRequestInFlight = false;
+      updateActionState();
+    }
+  }
 }
 
 function renderQueryPlan(queryPlan, plannerData = null) {
@@ -750,6 +927,7 @@ function renderAgentQueryPlan(data) {
   if (latestExecutablePlan) {
     resultsStatus.textContent =
       "Search plan is ready. Review the queries before running search.";
+    void prepareRuntimeSearchAction();
     return;
   }
 
@@ -971,6 +1149,7 @@ function updateActionState() {
     chatRequestInFlight ||
     agentPlanRequestInFlight ||
     planRequestInFlight ||
+    runtimePrepareRequestInFlight ||
     searchRequestInFlight;
   const canBuildPlan =
     chatState === "ready_for_planning" &&
@@ -978,9 +1157,10 @@ function updateActionState() {
     hasSupportedAgentAction() &&
     !isBusy;
   buildPlanButton.disabled = !canBuildPlan;
-  searchButton.disabled = !latestExecutablePlan || isBusy;
+  searchButton.disabled = !latestExecutablePlan || !currentRuntimePendingApproval || isBusy;
   sendChatButton.disabled = isBusy;
   chatInput.disabled = isBusy;
+  multiWaveInput.disabled = isBusy;
   renderAgentActionQueue();
 }
 
@@ -1354,8 +1534,14 @@ async function runStructuredSearch() {
       "Build an executable rule-based or fallback plan before approving search.";
     return;
   }
+  if (!currentRuntimePendingApproval) {
+    resultsStatus.textContent =
+      "Wait for runtime approval preparation before approving search.";
+    return;
+  }
 
   const requestVersion = interactionVersion;
+  const runtimeRequestVersion = runtimeApprovalVersion;
   searchRequestInFlight = true;
   setAgentActionDisplayState(
     AGENT_QUEUE_ACTION_RUN_SEARCH,
@@ -1374,7 +1560,14 @@ async function runStructuredSearch() {
       throw new Error("Current QueryPlan is missing approval fingerprint.");
     }
 
-    const executionApproval = buildExecutionApproval();
+    const payload = {
+      turn_mode: AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED,
+      tool_name: currentRunSearchAction(),
+      tool_input: buildRuntimeToolInput(),
+      runtime_context: buildRuntimeContext(),
+      runtime_approval: buildApprovedRuntimeApproval(),
+      agent_language: currentChatLanguage,
+    };
 
     resultsStatus.textContent = multiWaveInput.checked
       ? "Searching Tavily with multi-wave..."
@@ -1383,20 +1576,23 @@ async function runStructuredSearch() {
       ? "Running multi-wave query plan..."
       : "Running query plan...";
 
-    const response = await fetch(searchEndpoint(), {
+    const response = await fetch(AGENT_RUNTIME_TURN_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildSearchRequest(executionApproval)),
+      body: JSON.stringify(payload),
     });
     const data = await response.json();
-    if (requestVersion !== interactionVersion) {
+    if (
+      requestVersion !== interactionVersion ||
+      runtimeRequestVersion !== runtimeApprovalVersion
+    ) {
       return;
     }
 
     if (!response.ok) {
-      throw new Error(data.detail || "Structured search request failed.");
+      throw new Error(data.detail || "Agent runtime request failed.");
     }
 
     if (data.errors?.length) {
@@ -1404,23 +1600,42 @@ async function runStructuredSearch() {
       return;
     }
 
-    renderQueryPlan(data.query_plan, {
+    const toolResult = data.tool_results?.[0] || null;
+    if (!toolResult) {
+      throw new Error("Agent runtime did not return a tool result.");
+    }
+    if (toolResult.errors?.length) {
+      renderSearchErrors(toolResult.errors);
+      return;
+    }
+
+    const searchData = toolResult.result || {};
+    if (!searchData.query_plan || !searchData.report) {
+      throw new Error("Agent runtime returned an incomplete search result.");
+    }
+
+    renderQueryPlan(searchData.query_plan, {
       planner_mode: "rule_based",
       normalized_brief: normalizedBrief,
     });
-    renderReport(data.report);
-    renderResults(data.deduped_results || [], data.report);
+    renderReport(searchData.report);
+    renderResults(searchData.deduped_results || [], searchData.report);
+    clearRuntimeApproval();
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_RUN_SEARCH,
       "completed",
       "Search completed and results are visible."
     );
-    appendAgentResponseMessage(data.agent_response);
+    appendAgentResponseMessage(searchData.agent_response);
   } catch (error) {
-    if (requestVersion !== interactionVersion) {
+    if (
+      requestVersion !== interactionVersion ||
+      runtimeRequestVersion !== runtimeApprovalVersion
+    ) {
       return;
     }
 
+    clearRuntimeApproval();
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_RUN_SEARCH,
       "failed",
@@ -1457,8 +1672,12 @@ resetChatButton.addEventListener("click", resetChat);
 buildPlanButton.addEventListener("click", buildPlanFromChat);
 searchButton.addEventListener("click", runStructuredSearch);
 multiWaveInput.addEventListener("change", () => {
+  clearRuntimeApproval();
   clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   updateActionState();
+  if (latestExecutablePlan) {
+    void prepareRuntimeSearchAction();
+  }
 });
 
 resetChat();

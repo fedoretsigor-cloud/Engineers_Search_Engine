@@ -53,8 +53,8 @@ Current product direction:
 - Phase 4 is completed as `AI Agent Foundation` through `P4-011`.
 - `P4-003` through `P4-010` are implemented in code.
 - `P4-009` is completed as a no-Tavily planner evaluation; `P4-010` added AI planner coverage diagnosis, policy validation, and one bounded repair attempt.
-- The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
-- The frontend has recruiter chat as the primary input, a `Search Brief` summary, `Build Plan`, planner explanation UI, and approval-gated search controls.
+- The backend has Search Brief validation/adapter endpoints, recruiter chat-to-brief endpoint, Agent Tools v0 metadata, `POST /api/agent/runtime/turn`, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, non-executable planner responses, and approval-gated rule-based Tavily execution.
+- The frontend has recruiter chat as the primary input, a `Search Brief` summary, `Build Plan`, planner explanation UI, Agent Action Review Queue, and Agent Runtime-backed `Approve & Search`.
 - Completed Phase 5 tasks: `P5-001 Define recruiter chat and Search Brief conversation contract`, `P5-002 Add backend chat-to-brief adapter`, `P5-003 Replace structured form with recruiter chat UI`, `P5-004 Make Build Plan produce an approvable Search Plan`, `P5-005 Instantiate human-approved Agent v0 for Java/Ukraine baseline`, `P5-006 Add post-results Agent Response in chat`, `P5-007 Add LLM-assisted Agent Plan/Response with deterministic fallback`, `P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail`, `P5-008 Chat onboarding and clarification quality`, `P5-009 Search Brief refinement through chat`, `P5-010 Result-to-next-iteration loop`, `P5-011 Apply AI Agent visual direction / dark workspace refresh`, and `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision`.
 - `P5-002` guardrail: `chat messages -> draft Search Brief -> validation -> one assistant response`; do not let it grow into an agent loop.
 - `P5-003` made recruiter chat the primary frontend input.
@@ -81,7 +81,8 @@ Current product direction:
 - `P6-001` is completed as the approved docs-only human-approved Agent Runtime v0 contract: runtime states/transitions, backend-owned tool-call envelopes, runtime turn response envelope, approval/fingerprint/stale-context rules, deny-by-default registry behavior, idempotency expectations for stateless v0, error taxonomy, and Phase 7 wording boundary.
 - `P6-002` is completed as a backend-only typed registry/envelope foundation: typed Agent Tool definitions, internal Agent Runtime states/envelopes, deterministic fingerprints/idempotency keys, deny-by-default proposal normalization, and no-network smoke coverage were added without adding a runtime endpoint, Tavily/OpenAI calls, tool execution, or structured-search approval behavior changes.
 - `P6-003` is completed as a frontend-only/status-only Agent Action Review Queue: the UI shows `Build Search Plan` and `Run Search` action state/context while preserving existing `Build Plan` and `Approve & Search` controls, backend approval boundaries, API contracts, and no-autonomy rules.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 6 with `P6-004 Implement first approved tool loop for Java/Ukraine baseline`, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P6-004` is completed as the first approved Agent Runtime execution slice for the Java/Ukraine baseline: `POST /api/agent/runtime/turn` supports stateless `prepare` and `execute_approved` for `run_single_wave_search` and `run_multi_wave_search`, validates backend-owned fingerprints/context, bridges valid runtime approval into existing `ExecutionApproval`, and frontend `Approve & Search` uses the runtime path without direct structured-search fallback.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 6 with `P6-005 Add runtime guardrail and stale-approval regression tests`, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 
@@ -105,6 +106,7 @@ Current product direction:
 - Unknown current location falls back to country-domain/header/weak/unknown signals.
 - `QueryPlan` is the contract between planner and executor. `RuleBasedQueryPlanner v1` is the current approved executable tool for the agent; explicit AI planner mode can draft plans for backend validation/fallback and should be evolved toward safe executable planning through reviewed tasks.
 - Rule-based Tavily execution requires explicit approval bound to action, query count, and the current `QueryPlan` fingerprint.
+- Frontend `Approve & Search` must use `POST /api/agent/runtime/turn`; runtime execution is stateless, execution-tools-only, and validates backend-owned pending approval before bridging into `ExecutionApproval`.
 - `POST /api/recruiter-chat/turn` can prepare a `Search Brief`, but it must not build `QueryPlan`, call Tavily, execute search, or change frontend UI.
 - `agent_response.next_iteration_options` can propose future `brief_patch` operations but must not execute search, Build Plan, `/api/agent/query-plan`, Tavily, LinkedIn, web search, or multi-wave.
 - AI QueryPlan validation checks safety, alignment, and strict coverage for the Java/Ukraine standard baseline through `AIPlannerCoveragePolicy v0`; unsupported briefs return a visible coverage-policy warning.

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain_config import PLANNER_MODE_RULE_BASED
@@ -98,3 +100,25 @@ class RecruiterChatTurnRequest(BaseModel):
     draft_brief: SearchBrief | None = None
     language: str | None = None
     planner_mode: str | None = None
+
+
+class AgentRuntimeApproval(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approval_status: str
+    tool_call_id: str
+    tool_name: str
+    tool_input_fingerprint: str
+    context_fingerprint: str
+    idempotency_key: str | None
+
+
+class AgentRuntimeTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    turn_mode: str
+    tool_name: str
+    tool_input: dict[str, Any]
+    runtime_context: dict[str, Any]
+    runtime_approval: AgentRuntimeApproval | None
+    agent_language: str | None
