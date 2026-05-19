@@ -133,7 +133,7 @@ POC прототип с легким фронтом и одним поисков
 - Phase 5 - `Recruiter Chat UX + Search Brief conversation`: довести один узкий Java/Ukraine flow до качества: чат собирает и уточняет `Search Brief`, умеет менять brief через follow-up, показывает Agent Plan, запускает поиск только после approval и после результатов ведет к следующей итерации.
 - Phase 5.5 - `Technical modularization before Agent Runtime`: без изменения поведения разделить большой backend в `app/main.py` на модули перед настоящим tool-calling runtime.
 - Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в bounded human-approved tool loop: AI получает цель, планирует шаги, готовит вызовы доступных инструментов (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг; execution не автономный и требует approval.
-- Phase 7 - `Agent Conversation Wording Layer`: после Phase 6 runtime добавить LLM-assisted wording для обычных agent conversation messages с deterministic fallback и строгими guardrails.
+- Phase 7 - `Agent Conversation Wording Layer`: после Phase 6 runtime добавить controlled wording layer для agent conversation messages: taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded prompts, validation/fallback/provenance, typed frontend rendering и golden scenario regression. Lightweight wording provenance/version metadata входит в P7-007/P7-009, но не как отдельная product analytics/telemetry задача.
 - Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 7: `Agent Conversation Wording Layer`; next task to review is `P7-001 Define agent conversation message taxonomy`.
+- Phase 7: `Agent Conversation Wording Layer`; next task to review is `P7-001 Define agent message taxonomy and lifecycle mapping`.
 
 ### Completed
 
@@ -386,7 +386,7 @@ Phase 5.5 progress:
 - `P6-005 Add runtime guardrail and stale-approval regression tests` is completed as no-network runtime hardening: stale/mutated approval, runtime context mismatch, unsafe frontend-owned fields, frontend runtime-only path, valid mocked execution, and missing-key guardrails are covered in `scripts/check_all.ps1`.
 - `P6-005.1 Fix runtime execution wrapper recursion and add unmocked runtime execution smoke` is completed: real single/multi runtime execution wrappers now call the existing approved pipelines instead of recursing, and no-network unmocked-wrapper smoke coverage is part of `scripts/check_all.ps1`.
 - `P6-006 Close Phase 6 with AI Agent v0 decision` is completed: Phase 6 is closed as `AI Agent Runtime v0 baseline`, the closeout decision is recorded in `docs/phase-6-closeout.md`, and Phase 7 is now the active direction.
-- Next planned task is `P7-001 Define agent conversation message taxonomy`.
+- Next planned task is `P7-001 Define agent message taxonomy and lifecycle mapping`.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

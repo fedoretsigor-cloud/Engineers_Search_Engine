@@ -5683,7 +5683,7 @@ This is not yet:
    - set next agreed direction to Phase 7;
    - preserve the narrow Java/Ukraine and human-approved execution rules.
 10. Identify the next Phase 7 task to review.
-   - Recommendation: `P7-001 Define agent conversation message taxonomy`.
+   - Recommendation: `P7-001 Define agent message taxonomy and lifecycle mapping`.
 11. Do not change backend/frontend code in this task.
 12. Run:
     - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Next task to review: `P7-001 Define agent conversation message taxonomy`.
+Next task to review: `P7-001 Define agent message taxonomy and lifecycle mapping`.
 
 ---
 
@@ -5740,12 +5740,16 @@ Next task to review: `P7-001 Define agent conversation message taxonomy`.
 
 ### Backlog
 
-- [ ] P7-001 Define agent conversation message taxonomy
-- [ ] P7-002 Define LLM-assisted conversation wording contract
-- [ ] P7-003 Add bounded wording payloads for agent conversation messages
-- [ ] P7-004 Add deterministic fallback and validation for conversation wording
-- [ ] P7-005 Add frontend display states for worded agent messages
-- [ ] P7-006 Close Phase 7 with wording quality and guardrail evaluation
+- [ ] P7-001 Define agent message taxonomy and lifecycle mapping
+- [ ] P7-002 Define message facts and source-of-truth contract
+- [ ] P7-003 Define agent wording style and language policy
+- [ ] P7-004 Build deterministic source messages for approved message types
+- [ ] P7-005 Define LLM routing and gating policy for conversation wording
+- [ ] P7-006 Add bounded LLM wording payloads and prompt contract
+- [ ] P7-007 Add wording validation, fallback, and provenance metadata
+- [ ] P7-008 Add frontend rendering for typed agent messages
+- [ ] P7-009 Add golden conversation scenario regression tests
+- [ ] P7-010 Close Phase 7 with wording quality and guardrail evaluation
 
 ### In Progress
 
@@ -5755,9 +5759,30 @@ Next task to review: `P7-001 Define agent conversation message taxonomy`.
 
 Phase 7 should start only after the Phase 6 approved tool runtime baseline exists.
 
-Goal: improve ordinary agent conversation wording after the runtime message taxonomy is stable. The LLM may rewrite or polish approved backend messages, but it must not change state, tools, approval, Search Brief, QueryPlan, candidates, counts, scoring, filters, or suggested action executability.
+Goal: improve ordinary agent conversation wording after the runtime/message taxonomy is stable. Phase 7 should build a controlled conversation layer on top of Agent Runtime, not a free-form chat loop. Each message type must be tied to an allowed lifecycle/runtime state and a backend source-of-truth facts contract.
+
+The LLM may rewrite or polish approved backend messages only when the routing/gating policy allows it. It must not change state, tools, approval, Search Brief, QueryPlan, candidates, counts, scoring, filters, suggested action executability, or execution claims.
 
 This phase is intentionally later than `P5-008`: Phase 5 keeps ordinary chat wording deterministic so the state machine is reliable first.
+
+Observability/versioning should not become a separate Phase 7 task yet. Do not lose it:
+
+- include lightweight wording provenance/version metadata in `P7-007`, such as message type, deterministic vs LLM vs fallback source, policy version, prompt version, validator version, model when used, and fallback reason when applicable;
+- include provenance/version expectations in `P7-009` golden conversation scenario regression tests;
+- keep this as internal debugging/regression metadata, not product analytics, external telemetry, persistent memory, or user tracking.
+
+Critical implementation order:
+
+1. taxonomy and lifecycle mapping;
+2. facts/source-of-truth contract;
+3. style/language policy;
+4. deterministic source messages;
+5. LLM routing/gating policy;
+6. bounded LLM payloads and prompt contract;
+7. validation/fallback/provenance;
+8. frontend rendering;
+9. golden scenario regression tests;
+10. closeout.
 
 ---
 

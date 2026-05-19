@@ -72,4 +72,4 @@ The project is ready for Phase 7: `Agent Conversation Wording Layer`.
 
 Phase 7 should improve ordinary agent conversation wording after the runtime/message taxonomy is stable. It must not change state, tools, approval, Search Brief, QueryPlan, candidates, counts, execution actions, filters, scoring, Tavily behavior, or product boundaries without separate explicit approval.
 
-Next task to review: `P7-001 Define agent conversation message taxonomy`.
+Next task to review: `P7-001 Define agent message taxonomy and lifecycle mapping`.

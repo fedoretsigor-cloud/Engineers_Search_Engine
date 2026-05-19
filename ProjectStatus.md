@@ -24,7 +24,7 @@ Completed Phase 5.5 tasks: `P5.5-001 Define backend module boundaries and migrat
 
 Completed Phase 6 tasks: `P6-001 Define human-approved Agent Runtime contract`, `P6-002 Implement typed tool registry and tool-call envelopes`, `P6-003 Add frontend agent action review queue`, `P6-004 Implement first approved tool loop for Java/Ukraine baseline`, `P6-005 Add runtime guardrail and stale-approval regression tests`, `P6-005.1 Fix runtime execution wrapper recursion and add unmocked runtime execution smoke`, `P6-006 Close Phase 6 with AI Agent v0 decision`.
 
-Next task to review: `P7-001 Define agent conversation message taxonomy`.
+Next task to review: `P7-001 Define agent message taxonomy and lifecycle mapping`.
 
 Current agreed strategy:
 
@@ -39,8 +39,10 @@ Current agreed strategy:
 - `P6-005` is implemented as no-network runtime hardening: stale/mutated approvals, runtime context mismatches, unsafe frontend-owned fields, frontend direct-fallback regressions, missing Tavily key during approved execution, and valid mocked single/multi-wave execution are covered in `scripts/check_all.ps1`;
 - `P6-005.1` is implemented as the repair before closeout: the real runtime execution wrappers no longer recurse, and an unmocked-wrapper no-network smoke verifies single/multi runtime `prepare -> execute_approved -> observed`;
 - `P6-006` closed Phase 6 as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent;
-- Phase 7 is now the active direction and should start with `P7-001 Define agent conversation message taxonomy`;
+- Phase 7 is now the active direction and should start with `P7-001 Define agent message taxonomy and lifecycle mapping`;
 - keep ordinary LLM-assisted agent conversation wording inside Phase 7 guardrails, after the runtime message taxonomy is stable;
+- Phase 7 task order is contract-first: message taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded prompt payloads, validation/fallback/provenance, frontend rendering, golden scenario tests, then closeout;
+- lightweight wording provenance/version metadata is carried inside `P7-007` and golden scenario assertions inside `P7-009`, not as a separate observability/product analytics task;
 - keep candidate workspace/shortlist for Phase 8 and database/persistent memory for Phase 9.
 
 Planned current and later phases:
