@@ -2158,6 +2158,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-004 Extract search executor, Tavily, snapshots, and multi-wave modules
 - [x] P5.5-005 Extract Candidate Quality module
 - [x] P5.5-006 Extract Agent Tools and Agent Plan modules
+- [x] P5.5-006.1 Add local regression check script and GitHub Actions CI
 
 ### Current Phase 5.5 strategy note
 
@@ -3389,6 +3390,47 @@ Verification completed:
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_agent_response.py`;
 - `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`;
 - focused `main.*` compatibility, import-direction, endpoint/action constant, and `normalize_agent_language` checks.
+
+---
+
+## Task: P5.5-006.1 Add local regression check script and GitHub Actions CI
+
+### Status
+
+Implemented.
+
+### Context
+
+`P5.5-006` completed the Agent Tools and Agent Plan extraction. Before coding the more fragile `P5.5-007` Agent Response / bounded wording extraction, the project needs a small technical guardrail that can run the same regression checks locally and in GitHub.
+
+### Goal
+
+Add a local one-command regression check and GitHub Actions CI without changing product behavior, endpoints, request/response contracts, planner behavior, Tavily execution, frontend behavior, or Agent logic.
+
+### Implementation result
+
+- Added `scripts/check_all.ps1`.
+- Added `.github/workflows/ci.yml`.
+- The local check runs:
+  - `python -m compileall app scripts`;
+  - `node --check app/static/app.js`;
+  - `scripts/smoke_p5_chat_adapter.py`;
+  - `scripts/smoke_p5_agent_plan.py`;
+  - `scripts/smoke_p5_agent_response.py`;
+  - `scripts/smoke_p5_llm_wording.py`.
+- GitHub Actions runs the same script on `push` and `pull_request` to `main`.
+- The workflow installs Python dependencies from `requirements.txt` and sets up Node.js before running checks.
+
+### Non-goals
+
+- Do not change product behavior.
+- Do not add new runtime dependencies to the app.
+- Do not add deployment, release automation, pre-commit hooks, or branch protection in this task.
+- Do not require Tavily or OpenAI secrets for this CI baseline.
+
+### Verification completed
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
 
 ---
 
