@@ -318,7 +318,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 6: `Tool-Calling Agent Runtime`; `P6-001 Define human-approved Agent Runtime contract` is completed, and the next task to review is `P6-002 Implement typed tool registry and tool-call envelopes`.
+- Phase 6: `Tool-Calling Agent Runtime`; `P6-001 Define human-approved Agent Runtime contract` and `P6-002 Implement typed tool registry and tool-call envelopes` are completed, and the next task to review is `P6-003 Add frontend agent action review queue`.
 
 ### Completed
 
@@ -379,7 +379,9 @@ Phase 5.5 progress:
 - `P5.5-007` extracted shared brief patch helpers into `app/brief_patch.py`, deterministic Agent Response logic into `app/agent_response.py`, and bounded Agent Plan/Response wording logic into `app/agent_wording.py`, while preserving `main.*` compatibility and wording monkeypatch behavior.
 - `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` route-facing service functions, route path/method set, endpoint names, `main.*` compatibility, and smoke-test monkeypatch behavior.
 - `P5.5-009` added route/import/no-network HTTP smoke coverage to the regression baseline and closed Phase 5.5.
-- `P6-001 Define human-approved Agent Runtime contract` is completed as the docs-only runtime contract. Next planned task is `P6-002 Implement typed tool registry and tool-call envelopes`.
+- `P6-001 Define human-approved Agent Runtime contract` is completed as the docs-only runtime contract.
+- `P6-002 Implement typed tool registry and tool-call envelopes` is completed as backend-only typed registry/envelope foundation code: typed Agent Tool definitions, internal Agent Runtime envelopes, deterministic fingerprints/idempotency keys, deny-by-default proposal validation, and no-network smoke coverage. It did not add runtime endpoints, frontend action queue, Tavily/OpenAI calls, tool execution, or structured-search approval behavior changes.
+- Next planned task is `P6-003 Add frontend agent action review queue`.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

@@ -3922,7 +3922,6 @@ Use the most conservative implementation variant:
 
 ### Backlog
 
-- [ ] P6-002 Implement typed tool registry and tool-call envelopes
 - [ ] P6-003 Add frontend agent action review queue
 - [ ] P6-004 Implement first approved tool loop for Java/Ukraine baseline
 - [ ] P6-005 Add runtime guardrail and stale-approval regression tests
@@ -3933,6 +3932,7 @@ Use the most conservative implementation variant:
 ### Done
 
 - [x] P6-001 Define human-approved Agent Runtime contract
+- [x] P6-002 Implement typed tool registry and tool-call envelopes
 
 ### Current Phase 6 strategy note
 
@@ -4185,6 +4185,343 @@ No code behavior, endpoint, frontend, Tavily, OpenAI, route, planner, scoring, f
 ### Before implementation
 
 Codex must restate the task scope, critically review the steps, and wait for explicit approval before changing documents or code.
+
+## Task: P6-002 Implement typed tool registry and tool-call envelopes
+
+### Context
+
+`P6-001` approved the Phase 6 runtime contract. The next step is to give the backend a typed, deny-by-default foundation for runtime tool metadata and envelopes without implementing the actual runtime loop.
+
+Current code already has `app/agent_tools.py` with `AGENT_TOOLS_V0`, approval constants, `agent_tool_contract()`, and existing `ExecutionApproval` validation for `/api/structured-search` and `/api/structured-search/multi-wave`.
+
+`P6-002` must preserve that current behavior while adding typed internal structures that future `P6-003`/`P6-004` work can use.
+
+### Goal
+
+Implement typed Agent Runtime v0 registry and envelope helpers:
+
+- typed tool definitions;
+- untrusted agent proposal model;
+- backend-owned normalized tool call envelope;
+- tool result envelope;
+- runtime turn response envelope;
+- deterministic tool input/context fingerprints;
+- deny-by-default proposal validation.
+
+This task is a foundation task only. It must not execute tools, call Tavily, call OpenAI, build a runtime loop, add frontend review queue behavior, or change current search approval behavior.
+
+### Scope
+
+In scope:
+
+1. Add typed definitions for the existing Agent Tools v0 registry.
+2. Preserve the existing `AGENT_TOOLS_V0` dict-compatible shape and `agent_tool_contract()` response.
+3. Add backend-owned runtime envelope models/helpers.
+4. Add deterministic fingerprint helpers for tool input and runtime context.
+5. Add deny-by-default validation for unknown tools and unsafe proposal fields.
+6. Add no-network smoke coverage for registry/envelope behavior.
+7. Add the smoke to `scripts/check_all.ps1`.
+
+Out of scope:
+
+- new runtime endpoint;
+- frontend action review queue;
+- actual tool execution;
+- Tavily calls;
+- OpenAI calls;
+- planner/search execution through the runtime;
+- changes to `/api/structured-search` or `/api/structured-search/multi-wave` approval behavior;
+- replacing current `ExecutionApproval`;
+- AI-generated executable QueryPlans;
+- database, persistent memory, idempotency store, shortlist, export, or authentication;
+- new ordinary LLM-assisted conversation wording.
+
+### Implementation boundary
+
+Recommended module split:
+
+1. `app/agent_tools.py`
+   - keep existing constants;
+   - keep `AGENT_TOOLS_V0`;
+   - keep `agent_tool_contract()` backward-compatible;
+   - add typed tool definitions and registry helpers;
+   - add allowed values for `approval_status`, `risk_level`, tool categories, and runtime error codes.
+
+2. New `app/agent_runtime.py`
+   - define internal runtime envelope models/helpers;
+   - define runtime state constants;
+   - define `AgentToolProposal`;
+   - define backend-owned `AgentToolCall`;
+   - define `AgentToolResult`;
+   - define `AgentRuntimeTurnResponse`;
+   - define deterministic fingerprint helpers;
+   - define proposal normalization/validation.
+
+Models, dataclasses, or helper-normalized dicts are acceptable for the runtime envelope structures. They are internal runtime/domain structures and must not be exposed as FastAPI request schemas in `P6-002`.
+
+Import direction rules:
+
+- `app.agent_runtime` may import `app.agent_tools`;
+- `app.agent_tools` must not import `app.agent_runtime`;
+- neither module may import `app.main` or FastAPI route handlers.
+
+Do not put all runtime envelopes directly into `app/schemas.py` unless a later endpoint needs them as public API request/response schemas. For this task, they are internal runtime/domain models.
+
+### Backward compatibility rules
+
+1. `AGENT_TOOLS_V0` must remain available from `app.agent_tools` and from `app.main`.
+2. `agent_tool_contract()` must continue returning:
+   - `tools`;
+   - `approval_statuses`;
+   - `absolute_boundaries`.
+3. Existing tool entries must still expose the old fields:
+   - `requires_approval`;
+   - `description`.
+4. `GET /api/agent/tools` must remain backward-compatible.
+5. Existing `ExecutionApproval` model and `/api/structured-search` approval path must not change.
+6. Existing smoke scripts and `main.*` compatibility names must not break.
+
+Additive metadata is allowed only if it does not remove or rename existing fields.
+
+### Runtime proposal validation rules
+
+Agent/LLM proposals are untrusted. A proposal may contain only:
+
+```json
+{
+  "tool_name": "build_query_plan",
+  "input": {},
+  "reason": "Why this tool is useful now."
+}
+```
+
+Any extra field must be rejected. This includes endpoint/path/action-style fields such as:
+
+- `endpoint`;
+- `path`;
+- `action`;
+- `url`;
+- `method`.
+
+Reject proposals that include backend-owned fields:
+
+- `requires_approval`;
+- `approval_status`;
+- `risk_level`;
+- `tool_input_fingerprint`;
+- `context_fingerprint`;
+- `idempotency_key`;
+- `is_executable`;
+- `tool_call_id`;
+- `result`;
+- `errors`;
+- `observations`;
+- `next_actions`.
+
+Backend-owned extra fields should return `backend_owned_field_in_proposal`.
+
+Other unsupported extra fields should return `unsupported_proposal_field`.
+
+Unknown `tool_name` must return `unsupported_tool`.
+
+Missing, non-string, or blank `tool_name` must return `invalid_tool_input`.
+
+Missing `input` should normalize to `{}`.
+
+Non-object `input` must return `invalid_tool_input`.
+
+Missing `reason` should normalize to an empty string.
+
+Non-string `reason` must return `invalid_tool_input`.
+
+Blank string `reason` is allowed and should stay an empty string after normalization.
+
+### Runtime tool-call semantics
+
+Backend-normalized `ToolCall` fields are backend-owned:
+
+- `tool_call_id`;
+- `tool_name`;
+- `input`;
+- `reason`;
+- `requires_approval`;
+- `approval_status`;
+- `risk_level`;
+- `tool_input_fingerprint`;
+- `context_fingerprint`;
+- `idempotency_key`;
+- `is_executable`.
+
+In `P6-002`, `is_executable` means metadata eligibility only. It does not execute the tool and does not grant permission to call Tavily or mutate state.
+
+For no-approval tools:
+
+- `approval_status = not_required`;
+- `risk_level` is based on the registry definition;
+- `is_executable = true` only as metadata eligibility.
+
+For approval-required execution tools:
+
+- `approval_status = required`;
+- `risk_level = execution`;
+- `is_executable = false` until a later approved runtime approval flow validates matching approval.
+
+`idempotency_key` is required as part of the normalized execution tool-call envelope, but `P6-002` must not implement a server-side idempotency store.
+
+For `P6-002`, execution tool idempotency keys must be deterministic for the same `tool_name`, `tool_input_fingerprint`, and `context_fingerprint`.
+
+### Fingerprint rules
+
+Fingerprints must be deterministic:
+
+- canonical JSON serialization;
+- sorted keys;
+- stable separators;
+- no timestamps;
+- no random UUIDs;
+- same tool input/context produces the same fingerprint.
+
+`normalize_agent_tool_proposal(...)` should accept an optional `runtime_context`.
+
+Missing `runtime_context` should normalize to `{}`.
+
+Non-object `runtime_context` must return `invalid_runtime_context`.
+
+`tool_call_id` may be derived deterministically from tool name, input fingerprint, and context fingerprint. If a generated unique id is used later, it must not affect stale-context or approval matching.
+
+Execution `idempotency_key` should be derived deterministically from tool name, tool input fingerprint, and context fingerprint.
+
+### Runtime envelopes
+
+`ToolResult` should include:
+
+- `tool_call_id`;
+- `tool_name`;
+- `ok`;
+- `result`;
+- `errors`;
+- `observations`;
+- `next_actions`.
+
+`RuntimeTurnResponse` should include:
+
+- `ok`;
+- `runtime_state`;
+- `messages`;
+- `tool_calls`;
+- `pending_approvals`;
+- `tool_results`;
+- `errors`;
+- `next_actions`.
+
+In `P6-002`, these envelopes are data structures/helpers only. They do not imply a new endpoint or frontend flow.
+
+### Error taxonomy
+
+The typed runtime layer should expose at least these error codes:
+
+- `unsupported_tool`;
+- `invalid_tool_input`;
+- `unsupported_flow`;
+- `stale_context`;
+- `approval_required`;
+- `approval_mismatch`;
+- `policy_blocked`;
+- `execution_failed`;
+- `tool_unavailable`;
+- `internal_error`;
+- `backend_owned_field_in_proposal`;
+- `unsupported_proposal_field`;
+- `invalid_runtime_context`.
+
+### Proposed implementation steps
+
+1. Restate exact no-execution boundary before coding.
+2. Add typed tool definitions without removing the existing `AGENT_TOOLS_V0` dict shape.
+3. Add registry lookup helpers that reject unknown tools by default.
+4. Add tool constants for approval statuses, risk levels, and error codes.
+5. Add `app/agent_runtime.py` with proposal/call/result/turn-response models or dataclasses.
+6. Add runtime state constants in `app/agent_runtime.py`.
+7. Add canonical fingerprint helpers.
+8. Add `normalize_agent_tool_proposal(...)` or equivalent helper.
+9. Reject backend-owned field injection in proposals.
+10. Reject unsupported extra proposal fields such as `endpoint`, `path`, `action`, `url`, and `method`.
+11. Normalize missing `input` to `{}` and reject non-object `input`.
+12. Normalize missing `reason` to an empty string and reject non-string `reason`.
+13. Reject missing, blank, or non-string `tool_name`.
+14. Normalize missing `runtime_context` to `{}` and reject non-object `runtime_context`.
+15. Normalize no-approval tools as metadata-eligible but not executed.
+16. Normalize approval-required execution tools as approval-required and not executable.
+17. Generate deterministic execution `idempotency_key` from tool name and fingerprints.
+18. Preserve existing `ExecutionApproval` and structured-search approval behavior.
+19. Add no-network smoke tests for registry/envelopes.
+20. Add the smoke test to `scripts/check_all.ps1`.
+21. Update docs/status after implementation.
+
+### Required smoke coverage
+
+The smoke test should verify:
+
+1. All expected Agent Tools v0 names exist in the typed registry.
+2. `agent_tool_contract()` keeps the old response shape.
+3. `GET /api/agent/tools` still returns old-compatible tool metadata.
+4. Unknown tool proposal returns `unsupported_tool`.
+5. Proposal with backend-owned fields returns `backend_owned_field_in_proposal`.
+6. Proposal with `endpoint`, `path`, `action`, `url`, `method`, or another unsupported extra field returns `unsupported_proposal_field`.
+7. Missing `input` normalizes to `{}`.
+8. Non-object input returns `invalid_tool_input`.
+9. Missing `reason` normalizes to an empty string.
+10. Non-string `reason` returns `invalid_tool_input`.
+11. Missing, blank, or non-string `tool_name` returns `invalid_tool_input`.
+12. Missing `runtime_context` normalizes to `{}`.
+13. Non-object `runtime_context` returns `invalid_runtime_context`.
+14. Same tool input/context produces the same fingerprints.
+15. Different input/context changes the relevant fingerprint.
+16. No-approval tool normalizes to `approval_status = not_required`.
+17. Execution tool normalizes to `approval_status = required`, `risk_level = execution`, and `is_executable = false`.
+18. Same execution proposal/context produces the same `idempotency_key`.
+19. Importing `app.agent_runtime` does not import `app.main`.
+20. Importing `app.agent_tools` does not import `app.agent_runtime`.
+
+### Acceptance criteria
+
+- Typed registry exists while preserving `AGENT_TOOLS_V0` compatibility.
+- Tool proposal/call/result/runtime response envelopes exist as internal runtime/domain structures.
+- Backend-owned fields cannot be supplied by an agent proposal.
+- Unsupported extra proposal fields are rejected.
+- Unknown tools are rejected deny-by-default.
+- Fingerprints are deterministic.
+- Runtime context fingerprinting is deterministic and rejects invalid context.
+- Execution idempotency keys are deterministic for the same tool/input/context.
+- No tool execution is implemented.
+- No Tavily/OpenAI calls are added.
+- Current `ExecutionApproval` and structured-search approval path are unchanged.
+- `GET /api/agent/tools` remains backward-compatible.
+- Local regression checks pass.
+
+### Approval result
+
+Approved for implementation. The approved scope is typed registry and internal runtime envelope helpers only. `P6-002` must not execute tools, add runtime endpoints, change frontend flow, call Tavily/OpenAI, replace `ExecutionApproval`, or alter existing structured-search approval behavior.
+
+### Implementation result
+
+Implemented as a backend foundation task without changing current product behavior.
+
+- Added typed Agent Tool definitions in `app/agent_tools.py` while preserving the old `AGENT_TOOLS_V0` dict-compatible shape and `agent_tool_contract()` response.
+- Added tool categories, risk levels, approval statuses, runtime error constants, and registry lookup/metadata helpers.
+- Added internal Agent Runtime envelope helpers in `app/agent_runtime.py`: runtime states, untrusted proposal model, backend-owned `AgentToolCall`, `AgentToolResult`, `AgentRuntimeTurnResponse`, deterministic fingerprints, deterministic execution idempotency keys, and deny-by-default proposal normalization.
+- Added no-network `scripts/smoke_p6_agent_runtime.py` and wired it into `scripts/check_all.ps1`.
+- Preserved existing `ExecutionApproval`, `/api/structured-search`, `/api/structured-search/multi-wave`, frontend flow, Tavily execution path, OpenAI behavior, route paths, and `GET /api/agent/tools` backward compatibility.
+
+Verification passed:
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`
+- `.\.venv\Scripts\python.exe .\scripts\smoke_p6_agent_runtime.py`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
+
+### Before implementation
+
+Codex must restate the exact no-execution boundary, critically review the task, and wait for explicit approval before changing code.
 
 ---
 

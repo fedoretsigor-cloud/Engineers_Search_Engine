@@ -59,5 +59,9 @@ Invoke-Check "P5.5 routes smoke" {
     & $python scripts/smoke_p55_routes.py
 }
 
+Invoke-Check "P6 Agent Runtime smoke" {
+    & $python scripts/smoke_p6_agent_runtime.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

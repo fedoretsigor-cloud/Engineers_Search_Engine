@@ -6,7 +6,7 @@ Engineers Search Engine is an AI-assisted recruiter sourcing search engine. It u
 
 ## Stack
 
-- Python FastAPI backend in `app/main.py`, with route wrappers in `app/routes.py` and extracted shared modules in `app/schemas.py`, `app/domain_config.py`, `app/text_utils.py`, `app/search_validation.py`, `app/search_brief.py`, `app/planning.py`, `app/ai_planning.py`, `app/search_execution.py`, `app/search_snapshots.py`, `app/candidate_quality.py`, `app/agent_tools.py`, `app/agent_plan.py`, `app/brief_patch.py`, `app/agent_response.py`, and `app/agent_wording.py`
+- Python FastAPI backend in `app/main.py`, with route wrappers in `app/routes.py` and extracted shared modules in `app/schemas.py`, `app/domain_config.py`, `app/text_utils.py`, `app/search_validation.py`, `app/search_brief.py`, `app/planning.py`, `app/ai_planning.py`, `app/search_execution.py`, `app/search_snapshots.py`, `app/candidate_quality.py`, `app/agent_tools.py`, `app/agent_runtime.py`, `app/agent_plan.py`, `app/brief_patch.py`, `app/agent_response.py`, and `app/agent_wording.py`
 - Static frontend in `app/static/index.html`, `app/static/styles.css`, and `app/static/app.js`
 - Dependencies are listed in `requirements.txt`
 - Local secrets are loaded from `.env`
@@ -79,7 +79,8 @@ Current product direction:
 - `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` service compatibility, route path/method set, endpoint names, and smoke-test monkeypatch paths without behavior changes.
 - `P5.5-009` added permanent route/import/no-network HTTP smoke coverage to `scripts/check_all.ps1`, closed Phase 5.5, and confirmed Phase 6 as the next active phase.
 - `P6-001` is completed as the approved docs-only human-approved Agent Runtime v0 contract: runtime states/transitions, backend-owned tool-call envelopes, runtime turn response envelope, approval/fingerprint/stale-context rules, deny-by-default registry behavior, idempotency expectations for stateless v0, error taxonomy, and Phase 7 wording boundary.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 6 with `P6-002 Implement typed tool registry and tool-call envelopes`, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P6-002` is completed as a backend-only typed registry/envelope foundation: typed Agent Tool definitions, internal Agent Runtime states/envelopes, deterministic fingerprints/idempotency keys, deny-by-default proposal normalization, and no-network smoke coverage were added without adding a runtime endpoint, frontend queue, Tavily/OpenAI calls, tool execution, or structured-search approval behavior changes.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 6 with `P6-003 Add frontend agent action review queue`, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 
