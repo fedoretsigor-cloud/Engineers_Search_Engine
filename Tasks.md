@@ -3922,7 +3922,6 @@ Use the most conservative implementation variant:
 
 ### Backlog
 
-- [ ] P6-003 Add frontend agent action review queue
 - [ ] P6-004 Implement first approved tool loop for Java/Ukraine baseline
 - [ ] P6-005 Add runtime guardrail and stale-approval regression tests
 - [ ] P6-006 Close Phase 6 with AI Agent v0 decision
@@ -3933,6 +3932,7 @@ Use the most conservative implementation variant:
 
 - [x] P6-001 Define human-approved Agent Runtime contract
 - [x] P6-002 Implement typed tool registry and tool-call envelopes
+- [x] P6-003 Add frontend agent action review queue
 
 ### Current Phase 6 strategy note
 
@@ -4522,6 +4522,249 @@ Verification passed:
 ### Before implementation
 
 Codex must restate the exact no-execution boundary, critically review the task, and wait for explicit approval before changing code.
+
+## Task: P6-003 Add frontend agent action review queue
+
+### Status
+
+Implemented.
+
+### Context
+
+`P6-001` defined the human-approved Agent Runtime v0 contract. `P6-002` added backend-only typed Agent Tool registry/envelope helpers, deterministic fingerprints, deterministic execution idempotency keys, and deny-by-default proposal normalization.
+
+The current frontend already has a safe Java/Ukraine flow:
+
+`Recruiter Chat -> Search Brief -> Agent Plan -> Build Plan -> Review QueryPlan -> Approve & Search -> Results -> Agent Response`
+
+However, the agent actions are still implicit:
+
+- `Agent Plan` appears as a chat message;
+- `Build Plan` is a standalone button;
+- `Approve & Search` is a standalone button;
+- the user does not yet see a unified agent action queue showing which action is proposed, blocked, ready, running, completed, stale, or failed.
+
+`P6-003` should make the pending agent actions visible in the UI without adding runtime execution behavior.
+
+### Goal
+
+Add a frontend-only Agent Action Review Queue that displays the current proposed/available agent actions and their state, while preserving the existing execution flow and backend approval boundaries.
+
+The queue should prepare the product for `P6-004` but must not implement the actual tool loop.
+
+### Scope
+
+In scope:
+
+1. Add UI/state rendering for an Agent Action Review Queue.
+2. Show the current `Build Search Plan` action from the existing Agent Plan / Build Plan state.
+3. Show the current `Run Search` action after an executable `QueryPlan` exists.
+4. Display action status clearly:
+   - `blocked`;
+   - `ready`;
+   - `ready_for_approval`;
+   - `running`;
+   - `completed`;
+   - `stale`;
+   - `failed`.
+5. Display whether the action requires approval.
+6. Display the action source and key binding context:
+   - Search Brief fingerprint for Build Plan;
+   - QueryPlan fingerprint and query count for Run Search;
+   - single-wave vs multi-wave action.
+7. Keep the existing `Build Plan` and `Approve & Search` buttons as the actual user controls in this task.
+8. Clear or mark queue items stale when frontend state changes.
+9. Keep behavior deterministic and frontend-local.
+
+Out of scope:
+
+- new backend runtime endpoint;
+- new FastAPI route;
+- calling `normalize_agent_tool_proposal(...)` from frontend;
+- actual tool runtime loop;
+- backend execution through `app.agent_runtime`;
+- Tavily behavior changes;
+- OpenAI behavior changes;
+- new ordinary LLM-assisted conversation wording;
+- AI-generated executable QueryPlans;
+- replacing current `ExecutionApproval`;
+- changing `/api/agent/plan`, `/api/agent/query-plan`, `/api/structured-search`, or `/api/structured-search/multi-wave` request/response contracts;
+- changing search, planner, scoring, dedupe, location filtering, snapshots, Candidate Quality, or Agent Response logic;
+- database, persistence, shortlist, export, authentication, or idempotency store.
+
+### Product boundary
+
+The Agent Action Review Queue is a review/status surface only in `P6-003`.
+
+It must not become a second execution system. Existing buttons remain the only controls:
+
+- `Build Plan` continues to call the existing Build Plan handler.
+- `Approve & Search` continues to call the existing approved search handler.
+
+The queue may explain what the next action is and why it is blocked/ready, but it must not execute anything automatically.
+
+### Recommended UI model
+
+The queue should show at most the currently relevant actions:
+
+1. `Build Search Plan`
+   - source: current `agent_plan.proposed_action`;
+   - tool/action: `build_query_plan`;
+   - approval: not required;
+   - blocked until a supported Agent Plan action exists;
+   - ready when the Search Brief is ready and current Agent Plan action is supported;
+   - running while Build Plan request is in flight;
+   - completed when an executable or visible QueryPlan is rendered;
+   - stale when the Search Brief changes or Agent Plan is cleared.
+
+2. `Run Search`
+   - source: current visible QueryPlan;
+   - tool/action: `run_single_wave_search` or `run_multi_wave_search`;
+   - approval: required;
+   - blocked until an executable rule-based QueryPlan and plan fingerprint exist;
+   - ready_for_approval when `Approve & Search` is enabled;
+   - running while search request is in flight;
+   - completed when results/report are rendered;
+   - stale when the Search Brief, Agent Plan, QueryPlan, planner data, multi-wave mode, or results state changes in a way that invalidates the previous approval context.
+
+### State and stale handling rules
+
+Queue rendering must derive from existing frontend state:
+
+- `chatState`;
+- `normalizedBrief`;
+- `currentAgentPlan`;
+- `currentAgentAction`;
+- `latestPlannerData`;
+- `latestQueryPlan`;
+- `latestPlanFingerprint`;
+- `latestExecutablePlan`;
+- `multiWaveInput.checked`;
+- request-in-flight flags;
+- current search/report/results state.
+
+`P6-003` may add minimal frontend-local queue status state for display-only transitions such as `running`, `completed`, and `failed`.
+
+This local queue status state must:
+
+- not become backend approval authority;
+- not change request payloads;
+- not persist across reset, Search Brief changes, Agent Plan changes, or QueryPlan changes;
+- not execute actions;
+- not replace backend validation, fingerprints, or `ExecutionApproval`;
+- be cleared or recomputed conservatively when the current frontend context changes.
+
+Queue state must update when these existing events happen:
+
+1. Chat reset.
+2. Search Brief changes.
+3. Agent Plan request starts/completes/fails.
+4. Build Plan request starts/completes/fails.
+5. Search request starts/completes/fails.
+6. Multi-wave toggle changes.
+7. Planner data is cleared.
+8. Search results are cleared.
+
+If the current implementation cannot reliably distinguish `stale` vs absent/blocked for a state, prefer conservative `blocked` or clear the queue item. Do not invent persisted state just to show `stale`.
+
+### Backward compatibility rules
+
+1. Existing `Build Plan` and `Approve & Search` button behavior must remain unchanged.
+2. Existing frontend request payloads must remain unchanged.
+3. Existing backend response handling must remain unchanged except for rendering derived queue state.
+4. Existing smoke scripts must pass.
+5. No backend route, schema, or public API contract changes.
+6. No changes to `ExecutionApproval` behavior.
+
+### Proposed implementation steps
+
+1. Restate the frontend-only, no-runtime-execution boundary before coding.
+2. Inspect current frontend state variables and action handlers.
+3. Add a small Agent Action Review Queue container to `app/static/index.html`.
+4. Add CSS for compact dark-workspace queue cards/status badges in `app/static/styles.css`.
+5. Add deterministic frontend helpers in `app/static/app.js` to derive queue items from current state.
+6. Add minimal display-only local queue status state if needed for reliable `running`, `completed`, and `failed` rendering.
+7. Add queue rendering function.
+8. Render `Build Search Plan` state from current Agent Plan / Build Plan state.
+9. Render `Run Search` state from current QueryPlan / approval/search state.
+10. Update queue rendering after existing state transitions.
+11. Ensure queue does not introduce new click handlers for execution in this task.
+12. Ensure queue updates when multi-wave toggle changes.
+13. Ensure queue clears or blocks actions after Search Brief changes/reset.
+14. Preserve existing `Build Plan` and `Approve & Search` controls.
+15. Add focused no-network frontend smoke coverage if practical through pure helper checks; otherwise rely on syntax/regression checks and manual UI inspection.
+16. Update docs/status after implementation.
+
+### Required verification
+
+Run:
+
+- `node --check app/static/app.js`;
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- `git diff --check`.
+
+Manual UI sanity check should cover:
+
+1. Empty/reset state shows no executable action.
+2. Ready Search Brief with supported Agent Plan shows Build Search Plan ready.
+3. Build Plan in flight shows Build Search Plan running.
+4. Rendered QueryPlan shows Build Search Plan completed and Run Search ready for approval.
+5. Multi-wave toggle changes Run Search action label/source between single-wave and multi-wave.
+6. Approve & Search in flight shows Run Search running.
+7. Search result renders Run Search completed.
+8. Search Brief refinement/reset clears or blocks stale actions.
+
+### Acceptance criteria
+
+- Agent Action Review Queue exists in the UI.
+- Queue is derived from current frontend state only.
+- Any added local queue status state is display-only and is cleared/recomputed on context changes.
+- Queue shows `Build Search Plan` and `Run Search` states when relevant.
+- Queue clearly distinguishes no-approval planning action from approval-required search action.
+- Queue displays key context/fingerprint availability without exposing confusing raw internals as the primary label.
+- Existing `Build Plan` button still builds the plan exactly as before.
+- Existing `Approve & Search` button still executes the approved search exactly as before.
+- No new backend endpoint is added.
+- No API request/response contract changes are made.
+- No Tavily/OpenAI behavior changes are made.
+- No tool execution through `app.agent_runtime` is implemented.
+- No autonomous execution is introduced.
+- Local regression checks pass.
+
+### Review result
+
+Initial full review found that the task title was correct but insufficient. The task needed explicit frontend-only scope, no-runtime-execution boundaries, stale-state rules, backward compatibility rules, and acceptance criteria before approval.
+
+Final critical review result: ready for approval. The task is now scoped as a conservative frontend-only/status-only Agent Action Review Queue. It preserves existing `Build Plan` and `Approve & Search` controls, does not add backend routes or runtime execution, keeps request/response contracts unchanged, allows only minimal display-only local queue status state, and has clear stale-state and verification rules. No open questions remain before approval.
+
+### Approval result
+
+Approved for coding. The approved scope is frontend-only/status-only Agent Action Review Queue. `P6-003` must not add backend routes, runtime execution, Tavily/OpenAI calls, API contract changes, new execution click handlers, autonomous execution, or changes to current `Build Plan` / `Approve & Search` behavior.
+
+### Implementation result
+
+Implemented as a frontend-only/status-only Agent Action Review Queue without changing backend behavior.
+
+- Added an `Agent Actions` queue surface to the existing chat/planning panel.
+- Rendered `Build Search Plan` from current Agent Plan / Build Plan state.
+- Rendered `Run Search` from the visible QueryPlan / approval/search state.
+- Added compact status badges for `blocked`, `ready`, `ready_for_approval`, `running`, `completed`, and `failed`.
+- Displayed action source, approval requirement, current tool/action name, brief/query-plan fingerprint context, query count, and single-wave vs multi-wave mode.
+- Added minimal frontend-local display-only status state for running/completed/failed transitions.
+- Cleared or recomputed the display state on reset, Search Brief changes, planner changes, search errors, and multi-wave toggle changes.
+- Preserved existing `Build Plan` and `Approve & Search` buttons as the only execution controls.
+- Added no backend routes, no runtime endpoint, no Tavily/OpenAI calls, no request/response contract changes, no new execution handlers, and no autonomous execution.
+
+Verification passed:
+
+- `node --check app/static/app.js` through the bundled Node runtime;
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- `git diff --check`;
+- headless Edge DOM check for the reset/empty state confirmed the queue container renders `Agent Actions` and `No agent action is ready yet`.
+
+### Before implementation
+
+Codex must restate the exact frontend-only/no-execution boundary, critically review the task, and wait for explicit approval before changing code.
 
 ---
 

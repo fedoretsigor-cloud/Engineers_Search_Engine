@@ -8,6 +8,7 @@ const sendChatButton = document.querySelector("#send-chat");
 const buildPlanButton = document.querySelector("#build-plan");
 const searchButton = document.querySelector("#approve-search");
 const briefSummaryPanel = document.querySelector("#brief-summary-panel");
+const agentActionQueueElement = document.querySelector("#agent-action-queue");
 const profilesOnlyInput = document.querySelector("#profiles-only");
 const locationFilterInput = document.querySelector("#location-filter-enabled");
 const multiWaveInput = document.querySelector("#multi-wave-enabled");
@@ -23,6 +24,20 @@ const PRIMARY_BUILD_PLAN_MODE = "rule_based";
 const AGENT_PLAN_ENDPOINT = "/api/agent/plan";
 const AGENT_QUERY_PLAN_ENDPOINT = "/api/agent/query-plan";
 const AGENT_ACTION_BUILD_QUERY_PLAN = "build_query_plan";
+const AGENT_ACTION_RUN_SINGLE_WAVE = "run_single_wave_search";
+const AGENT_ACTION_RUN_MULTI_WAVE = "run_multi_wave_search";
+const AGENT_QUEUE_ACTION_BUILD_PLAN = "build_plan";
+const AGENT_QUEUE_ACTION_RUN_SEARCH = "run_search";
+
+const AGENT_ACTION_STATUS_LABELS = {
+  blocked: "Blocked",
+  ready: "Ready",
+  ready_for_approval: "Ready for approval",
+  running: "Running",
+  completed: "Completed",
+  stale: "Stale",
+  failed: "Failed",
+};
 
 let messages = [];
 let draftBrief = null;
@@ -43,6 +58,10 @@ let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
 let searchRequestInFlight = false;
 let interactionVersion = 0;
+let agentActionDisplayState = {
+  [AGENT_QUEUE_ACTION_BUILD_PLAN]: null,
+  [AGENT_QUEUE_ACTION_RUN_SEARCH]: null,
+};
 
 const MULTI_WAVE_DEFAULTS = {
   max_waves: 5,
@@ -73,6 +92,43 @@ function displayValue(value, fallback = "n/a") {
 
 function displayList(values = [], fallback = "none") {
   return values.length ? values.join(", ") : fallback;
+}
+
+function shortFingerprint(value) {
+  if (!value) {
+    return "not bound";
+  }
+
+  const text = String(value);
+  return text.length > 12 ? `${text.slice(0, 10)}...` : text;
+}
+
+function currentRunSearchAction() {
+  return multiWaveInput.checked
+    ? AGENT_ACTION_RUN_MULTI_WAVE
+    : AGENT_ACTION_RUN_SINGLE_WAVE;
+}
+
+function currentRunSearchModeLabel() {
+  return multiWaveInput.checked ? "Multi-wave" : "Single-wave";
+}
+
+function clearAgentActionDisplayState(actionIds = null) {
+  const ids = actionIds || [
+    AGENT_QUEUE_ACTION_BUILD_PLAN,
+    AGENT_QUEUE_ACTION_RUN_SEARCH,
+  ];
+  ids.forEach((actionId) => {
+    agentActionDisplayState[actionId] = null;
+  });
+}
+
+function setAgentActionDisplayState(actionId, status, detail = "") {
+  agentActionDisplayState[actionId] = status ? { status, detail } : null;
+}
+
+function actionStatusLabel(status) {
+  return AGENT_ACTION_STATUS_LABELS[status] || displayValue(status);
 }
 
 function plannerLabel(value) {
@@ -167,6 +223,16 @@ function rememberPlannerData(data = {}) {
   latestPlanFingerprint = planFingerprintFromPlannerData(data, latestQueryPlan);
   adaptedStructuredRequest = data.adapted_structured_request || null;
   latestExecutablePlan = isExecutablePlannerData(data);
+  if (latestQueryPlan?.queries?.length) {
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_BUILD_PLAN,
+      "completed",
+      latestExecutablePlan
+        ? "Search Plan is visible and ready for approval."
+        : "A non-executable plan preview is visible."
+    );
+  }
+  clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   syncExecutionControlsFromPlan();
   updateActionState();
 }
@@ -197,6 +263,7 @@ function clearSearchResultsData() {
 }
 
 function clearDownstreamStateAfterBriefChange() {
+  clearAgentActionDisplayState();
   clearPlannerData();
   clearAgentPlanData();
   clearSearchResultsData();
@@ -358,6 +425,187 @@ function renderBriefSummary(brief = {}) {
   return renderBriefSummaryCard(brief, brief.brief_status || chatState);
 }
 
+function queryCountForCurrentPlan() {
+  return latestQueryPlan?.queries?.length || 0;
+}
+
+function buildSearchPlanQueueItem() {
+  const hasRelevantState = Boolean(
+    normalizedBrief ||
+      currentAgentPlanData ||
+      currentAgentPlan ||
+      agentPlanRequestInFlight ||
+      planRequestInFlight ||
+      latestQueryPlan
+  );
+  if (!hasRelevantState) {
+    return null;
+  }
+
+  const displayState = agentActionDisplayState[AGENT_QUEUE_ACTION_BUILD_PLAN];
+  let status = "blocked";
+  let detail = "Complete a supported Search Brief before building a plan.";
+
+  if (planRequestInFlight) {
+    status = "running";
+    detail = "Building the visible QueryPlan.";
+  } else if (displayState?.status === "failed" && !latestQueryPlan) {
+    status = "failed";
+    detail = displayState.detail || "Build Plan failed.";
+  } else if (latestQueryPlan?.queries?.length) {
+    status = "completed";
+    detail = latestExecutablePlan
+      ? "Search Plan is visible and ready for approval."
+      : "A non-executable plan preview is visible.";
+  } else if (hasSupportedAgentAction()) {
+    status = "ready";
+    detail = "Supported Agent Plan action is ready.";
+  } else if (agentPlanRequestInFlight) {
+    detail = "Waiting for Agent Plan.";
+  } else if (currentAgentPlanData?.agent_plan_status === "unsupported") {
+    detail = "Agent v0 does not support this brief.";
+  } else if (chatState === "ready_for_planning" && normalizedBrief) {
+    detail = "Waiting for a supported Agent Plan action.";
+  }
+
+  return {
+    id: AGENT_QUEUE_ACTION_BUILD_PLAN,
+    title: "Build Search Plan",
+    action: AGENT_ACTION_BUILD_QUERY_PLAN,
+    requiresApproval: false,
+    status,
+    detail,
+    context: [
+      ["Source", "Agent Plan"],
+      [
+        "Brief",
+        currentAgentPlan?.brief_fingerprint
+          ? `fingerprint ${shortFingerprint(currentAgentPlan.brief_fingerprint)}`
+          : "not bound",
+      ],
+    ],
+  };
+}
+
+function runSearchQueueItem() {
+  const hasVisiblePlan = Boolean(latestQueryPlan?.queries?.length);
+  const displayState = agentActionDisplayState[AGENT_QUEUE_ACTION_RUN_SEARCH];
+  if (!hasVisiblePlan && !searchRequestInFlight && !displayState) {
+    return null;
+  }
+
+  let status = "blocked";
+  let detail = "Build an executable Search Plan before approval.";
+
+  if (searchRequestInFlight) {
+    status = "running";
+    detail = `Running ${currentRunSearchModeLabel()} search.`;
+  } else if (displayState?.status === "failed") {
+    status = "failed";
+    detail = displayState.detail || "Search failed.";
+  } else if (displayState?.status === "completed" && latestExecutablePlan) {
+    status = "completed";
+    detail = "Search completed and results are visible.";
+  } else if (latestExecutablePlan && latestPlanFingerprint) {
+    status = "ready_for_approval";
+    detail = "Visible Search Plan is ready for explicit approval.";
+  } else if (hasVisiblePlan) {
+    detail = "Visible plan is not executable.";
+  }
+
+  return {
+    id: AGENT_QUEUE_ACTION_RUN_SEARCH,
+    title: "Run Search",
+    action: currentRunSearchAction(),
+    requiresApproval: true,
+    status,
+    detail,
+    context: [
+      ["Source", "Visible QueryPlan"],
+      ["Mode", currentRunSearchModeLabel()],
+      [
+        "QueryPlan",
+        latestPlanFingerprint
+          ? `fingerprint ${shortFingerprint(latestPlanFingerprint)}`
+          : "not bound",
+      ],
+      ["Queries", queryCountForCurrentPlan() || "not ready"],
+    ],
+  };
+}
+
+function agentActionQueueItems() {
+  return [buildSearchPlanQueueItem(), runSearchQueueItem()].filter(Boolean);
+}
+
+function renderAgentActionContext(context = []) {
+  return context
+    .map(
+      ([label, value]) => `
+        <div>
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(displayValue(value))}</strong>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function renderAgentActionQueue() {
+  if (!agentActionQueueElement) {
+    return;
+  }
+
+  const items = agentActionQueueItems();
+  const header = `
+    <div class="agent-action-header">
+      <h3>Agent Actions</h3>
+      <span>${escapeHtml(items.length ? `${items.length} active` : "idle")}</span>
+    </div>
+  `;
+
+  if (!items.length) {
+    agentActionQueueElement.innerHTML = `
+      ${header}
+      <p class="agent-action-empty">No agent action is ready yet.</p>
+    `;
+    return;
+  }
+
+  agentActionQueueElement.innerHTML = `
+    ${header}
+    <div class="agent-action-list">
+      ${items
+        .map((item) => {
+          const statusClass = `status-${item.status.replaceAll("_", "-")}`;
+          return `
+            <article class="agent-action-item">
+              <div class="agent-action-title">
+                <strong>${escapeHtml(item.title)}</strong>
+                <span class="agent-action-status ${escapeHtml(statusClass)}">${escapeHtml(
+                  actionStatusLabel(item.status)
+                )}</span>
+              </div>
+              <p class="agent-action-detail">${escapeHtml(item.detail)}</p>
+              <div class="agent-action-context">
+                <div>
+                  <span>Tool</span>
+                  <strong>${escapeHtml(item.action)}</strong>
+                </div>
+                <div>
+                  <span>Approval</span>
+                  <strong>${item.requiresApproval ? "Required" : "Not required"}</strong>
+                </div>
+                ${renderAgentActionContext(item.context)}
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 function renderValidationErrors(errors = []) {
   if (!errors.length) {
     return "";
@@ -420,17 +668,30 @@ function renderPlannerDetails(data = {}) {
 
 function renderPlanErrors(errors = []) {
   clearPlannerData();
+  setAgentActionDisplayState(
+    AGENT_QUEUE_ACTION_BUILD_PLAN,
+    "failed",
+    validationMessage(errors) || "Build Plan failed."
+  );
+  clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   planStatus.textContent = validationMessage(errors);
   queryList.innerHTML = renderValidationErrors(errors);
+  updateActionState();
 }
 
 function renderSearchErrors(errors = []) {
   const message = validationMessage(errors);
+  setAgentActionDisplayState(
+    AGENT_QUEUE_ACTION_RUN_SEARCH,
+    "failed",
+    message || "Search failed."
+  );
   resultsStatus.textContent = message;
   reportStatus.textContent = message;
   resultsList.innerHTML = "";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
+  updateActionState();
 }
 
 function renderQueryPlan(queryPlan, plannerData = null) {
@@ -658,6 +919,12 @@ async function buildPlanFromChat() {
 
   const requestVersion = interactionVersion;
   planRequestInFlight = true;
+  setAgentActionDisplayState(
+    AGENT_QUEUE_ACTION_BUILD_PLAN,
+    "running",
+    "Building the visible QueryPlan."
+  );
+  clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   updateActionState();
   planStatus.textContent = "Building plan...";
   queryList.innerHTML = "";
@@ -682,6 +949,12 @@ async function buildPlanFromChat() {
     }
 
     clearPlannerData();
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_BUILD_PLAN,
+      "failed",
+      error.message || "Build Plan failed."
+    );
+    clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
     planStatus.textContent = error.message;
     queryList.innerHTML = "";
     return null;
@@ -708,6 +981,7 @@ function updateActionState() {
   searchButton.disabled = !latestExecutablePlan || isBusy;
   sendChatButton.disabled = isBusy;
   chatInput.disabled = isBusy;
+  renderAgentActionQueue();
 }
 
 function updateChatStateFromResponse(data = {}) {
@@ -805,6 +1079,7 @@ function resetChat() {
   agentPlanRequestInFlight = false;
   planRequestInFlight = false;
   searchRequestInFlight = false;
+  clearAgentActionDisplayState();
   clearPlannerData();
   clearAgentPlanData();
   chatInput.value = "";
@@ -1082,6 +1357,11 @@ async function runStructuredSearch() {
 
   const requestVersion = interactionVersion;
   searchRequestInFlight = true;
+  setAgentActionDisplayState(
+    AGENT_QUEUE_ACTION_RUN_SEARCH,
+    "running",
+    `Running ${currentRunSearchModeLabel()} search.`
+  );
   updateActionState();
   resultsStatus.textContent = "Preparing approval for the visible QueryPlan...";
   reportStatus.textContent = "Validating current plan before Tavily execution...";
@@ -1130,12 +1410,22 @@ async function runStructuredSearch() {
     });
     renderReport(data.report);
     renderResults(data.deduped_results || [], data.report);
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_RUN_SEARCH,
+      "completed",
+      "Search completed and results are visible."
+    );
     appendAgentResponseMessage(data.agent_response);
   } catch (error) {
     if (requestVersion !== interactionVersion) {
       return;
     }
 
+    setAgentActionDisplayState(
+      AGENT_QUEUE_ACTION_RUN_SEARCH,
+      "failed",
+      error.message || "Search failed."
+    );
     resultsStatus.textContent = error.message;
     reportStatus.textContent = error.message;
     resultsList.innerHTML = "";
@@ -1166,6 +1456,9 @@ chatForm.addEventListener("submit", (event) => {
 resetChatButton.addEventListener("click", resetChat);
 buildPlanButton.addEventListener("click", buildPlanFromChat);
 searchButton.addEventListener("click", runStructuredSearch);
-multiWaveInput.addEventListener("change", updateActionState);
+multiWaveInput.addEventListener("change", () => {
+  clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
+  updateActionState();
+});
 
 resetChat();
