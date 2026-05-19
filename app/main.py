@@ -171,6 +171,7 @@ from app.schemas import (
     SearchRequest,
     StructuredSearchRequest,
 )
+from app.routes import RouteDependencies, create_router
 from app.search_brief import (
     adapt_search_brief_to_structured_request,
     build_structured_request_from_brief,
@@ -3059,12 +3060,10 @@ async def run_multi_wave_query_plan(
     )
 
 
-@app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
-@app.get("/api/health")
 def health() -> dict[str, str]:
     return {
         "status": "ok",
@@ -3073,7 +3072,6 @@ def health() -> dict[str, str]:
     }
 
 
-@app.post("/api/structured-search/validate")
 def validate_structured_search(request: StructuredSearchRequest) -> dict:
     normalized_request, errors = normalize_structured_search_request(request)
 
@@ -3083,27 +3081,22 @@ def validate_structured_search(request: StructuredSearchRequest) -> dict:
     return {"ok": True, "normalized_request": normalized_request}
 
 
-@app.post("/api/search-brief/validate")
 def validate_search_brief_endpoint(request: SearchBrief) -> dict:
     return search_brief_validation_response(request)
 
 
-@app.post("/api/recruiter-chat/turn")
 async def create_recruiter_chat_turn(request: RecruiterChatTurnRequest) -> dict:
     return await recruiter_chat_turn_response(request)
 
 
-@app.post("/api/agent/plan")
 async def create_agent_plan(request: AgentPlanRequest) -> dict:
     return await build_agent_plan_response_with_wording(request)
 
 
-@app.get("/api/agent/tools")
 def get_agent_tools() -> dict:
     return {"ok": True, "agent_tools": agent_tool_contract()}
 
 
-@app.post("/api/query-plan")
 def create_query_plan(request: StructuredSearchRequest) -> dict:
     normalized_request, errors = normalize_structured_search_request(request)
 
@@ -3119,7 +3112,6 @@ def create_query_plan(request: StructuredSearchRequest) -> dict:
     }
 
 
-@app.post("/api/agent/query-plan")
 async def create_agent_query_plan(request: AgentQueryPlanRequest) -> dict:
     planner_mode = request.planner_mode
     if planner_mode not in PLANNER_MODES:
@@ -3204,7 +3196,6 @@ async def create_agent_query_plan(request: AgentQueryPlanRequest) -> dict:
     )
 
 
-@app.post("/api/ai-query-plan/validate")
 def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> dict:
     brief_response = search_brief_validation_response(request.search_brief)
     normalized_brief = brief_response["normalized_brief"]
@@ -3293,7 +3284,6 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
     }
 
 
-@app.post("/api/structured-search")
 async def structured_search(request: StructuredSearchRequest) -> dict:
     normalized_request, errors = normalize_structured_search_request(request)
 
@@ -3363,7 +3353,6 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
     }
 
 
-@app.post("/api/structured-search/multi-wave")
 async def structured_search_multi_wave(
     request: MultiWaveStructuredSearchRequest,
 ) -> dict:
@@ -3437,7 +3426,6 @@ async def structured_search_multi_wave(
     }
 
 
-@app.post("/api/search")
 async def search(request: SearchRequest) -> dict:
     query = request.query.strip()
 
@@ -3457,3 +3445,25 @@ async def search(request: SearchRequest) -> dict:
             }
         ],
     }
+
+
+app.include_router(
+    create_router(
+        RouteDependencies(
+            index=index,
+            health=health,
+            validate_structured_search=validate_structured_search,
+            validate_search_brief_endpoint=validate_search_brief_endpoint,
+            create_recruiter_chat_turn=create_recruiter_chat_turn,
+            create_agent_plan=create_agent_plan,
+            get_agent_tools=get_agent_tools,
+            create_query_plan=create_query_plan,
+            create_agent_query_plan=create_agent_query_plan,
+            validate_ai_query_plan_endpoint=validate_ai_query_plan_endpoint,
+            structured_search=structured_search,
+            structured_search_multi_wave=structured_search_multi_wave,
+            search=search,
+        ),
+        STATIC_DIR,
+    )
+)

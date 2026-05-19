@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-007`; next task to review is `P5.5-008 Split FastAPI routes from domain logic`.
+- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-008`; next task to review is `P5.5-009 Run no-behavior-change regression checks and close Phase 5.5`.
 
 ### Completed
 
@@ -375,7 +375,8 @@ Phase 5.5 progress:
 - `P5.5-006` extracted Agent Tools v0 contract/approval helpers into `app/agent_tools.py` and deterministic Agent Plan helpers into `app/agent_plan.py`, while preserving `main.*` compatibility and current validation/wording wrapper behavior.
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI so local and remote regression checks run the same compile/frontend/smoke baseline before the riskier Agent Response extraction.
 - `P5.5-007` extracted shared brief patch helpers into `app/brief_patch.py`, deterministic Agent Response logic into `app/agent_response.py`, and bounded Agent Plan/Response wording logic into `app/agent_wording.py`, while preserving `main.*` compatibility and wording monkeypatch behavior.
-- Next planned extraction is `P5.5-008` for splitting FastAPI routes from domain logic.
+- `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` route-facing service functions, route path/method set, endpoint names, `main.*` compatibility, and smoke-test monkeypatch behavior.
+- Next planned task is `P5.5-009` to run no-behavior-change regression checks and close Phase 5.5.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

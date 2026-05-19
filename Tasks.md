@@ -2143,7 +2143,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-008 Split FastAPI routes from domain logic
 - [ ] P5.5-009 Run no-behavior-change regression checks and close Phase 5.5
 
 ### In Progress
@@ -2158,6 +2157,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-006 Extract Agent Tools and Agent Plan modules
 - [x] P5.5-006.1 Add local regression check script and GitHub Actions CI
 - [x] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
+- [x] P5.5-008 Split FastAPI routes from domain logic
 
 ### Current Phase 5.5 strategy note
 
@@ -3600,6 +3600,219 @@ Extract Agent Response, shared brief patch helpers needed by Agent Response, and
 ### Verification completed
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+
+---
+
+## Task: P5.5-008 Split FastAPI routes from domain logic
+
+### Status
+
+Implemented.
+
+### Context
+
+`P5.5-001` through `P5.5-007` extracted shared schemas/config, Search Brief validation, planners, search execution helpers, snapshots, Candidate Quality, Agent Tools, Agent Plan, Agent Response, brief patch helpers, and bounded Agent Plan/Response wording.
+
+FastAPI route decorators and route handlers still live in `app/main.py`.
+
+Current `app/main.py` also still contains service/orchestration logic that should not be moved in this task:
+
+- LinkedIn URL normalization, profile/location filtering, dedupe, and report building;
+- recruiter chat adapter and brief refinement orchestration;
+- recruiter chat OpenAI request orchestration;
+- AI planner OpenAI request orchestration and response shaping;
+- route-facing structured search orchestration.
+
+This task should split the FastAPI route adapter layer without pretending that `app/main.py` becomes a perfect thin entrypoint in one step.
+
+### Goal
+
+Move FastAPI route registration and route adapter functions into a focused routes module without changing product behavior.
+
+The safe target is:
+
+- `app/routes.py` owns `APIRouter` and FastAPI path decorators;
+- `app/main.py` creates the `FastAPI` app, mounts static files, and includes the router;
+- existing `main.*` service functions used by smoke scripts remain available;
+- `app/routes.py` must not import `app.main`;
+- endpoint paths, request payloads, response fields, approval behavior, planner behavior, Tavily execution, filters, scoring, dedupe, location logic, snapshots, frontend behavior, and LLM fallback behavior remain unchanged.
+
+### Coding stance
+
+Use the most conservative implementation variant:
+
+- move only FastAPI path decorators and thin route adapter wrappers;
+- keep existing service/orchestration logic in `app/main.py` for this task;
+- preserve all existing `main.*` callable names and smoke-test monkeypatch paths;
+- preserve current route wrapper function names / OpenAPI operation names where practical;
+- treat any broader domain/service extraction as a separate reviewed task.
+
+### Proposed module
+
+1. `app/routes.py`
+   - Create `RouteDependencies` as a small typed dependency container for route-facing service callbacks that still live in `app/main.py`.
+   - Create `create_router(deps: RouteDependencies, static_dir: Path) -> APIRouter`.
+   - Do not create a global router that binds directly to `app.main` functions at import time.
+   - Move route decorators for:
+     - `GET /`;
+     - `GET /api/health`;
+     - `POST /api/structured-search/validate`;
+     - `POST /api/search-brief/validate`;
+     - `POST /api/recruiter-chat/turn`;
+     - `POST /api/agent/plan`;
+     - `GET /api/agent/tools`;
+     - `POST /api/query-plan`;
+     - `POST /api/agent/query-plan`;
+     - `POST /api/ai-query-plan/validate`;
+     - `POST /api/structured-search`;
+     - `POST /api/structured-search/multi-wave`;
+     - `POST /api/search`.
+   - Route wrappers should call injected `deps.*` service callbacks for the existing endpoints.
+   - Do not bypass the current `main.*` service compatibility functions by importing extracted domain/service modules directly inside `app/routes.py`.
+   - Direct imports in `app/routes.py` are allowed for FastAPI primitives, `Path` / `FileResponse`, Python stdlib helpers needed by `RouteDependencies` / typing, and schema type annotations needed by route signatures.
+   - Direct imports in `app/routes.py` are not allowed for extracted domain/service modules when that would bypass injected `deps.*` callbacks for existing endpoint behavior.
+   - Keep route wrappers thin and free of business logic beyond request/response adapter behavior already present today.
+
+### Dependency direction
+
+- `app/main.py` can import `app.routes`.
+- `app/routes.py` must not import `app.main`.
+- Route handlers can import schemas for type annotations.
+- Route handlers must not import extracted domain/service modules to bypass injected `deps.*` callbacks for existing endpoint behavior.
+- For service/orchestration functions that still live in `app/main.py`, pass them through `RouteDependencies` from `app/main.py`.
+- Domain/service modules must not import FastAPI route handlers.
+- Future Phase 6 runtime should call service/tool contracts, not route handlers.
+
+### Proposed steps
+
+1. Inventory current FastAPI endpoints and their exact response paths.
+2. Create `app/routes.py` with `RouteDependencies` and `create_router(deps, static_dir)`.
+3. Move only route decorators and thin route adapter functions into `app/routes.py`.
+4. Keep route-facing service/orchestration functions in `app/main.py` for this task.
+5. In `app/main.py`, keep `FastAPI(...)`, static mounting, build `RouteDependencies`, and call `app.include_router(create_router(...))`.
+6. Preserve `main.*` compatibility for smoke scripts:
+   - `main.index`;
+   - `main.health`;
+   - `main.validate_structured_search`;
+   - `main.validate_search_brief_endpoint`;
+   - `main.create_recruiter_chat_turn`;
+   - `main.create_agent_plan`;
+   - `main.get_agent_tools`;
+   - `main.create_query_plan`;
+   - `main.create_agent_query_plan`;
+   - `main.validate_ai_query_plan_endpoint`;
+   - `main.structured_search`;
+   - `main.structured_search_multi_wave`;
+   - `main.search`.
+7. Ensure monkeypatch paths still work:
+   - `main.run_query_plan_wave`;
+   - `main.run_openai_json_recruiter_chat`;
+   - `main.run_openai_json_planner`;
+   - `main.run_openai_json_agent_wording`.
+8. Keep all endpoint paths, HTTP methods, payloads, response fields, status behavior, and frontend expectations unchanged.
+9. Keep route wrapper function names in `app/routes.py` aligned with the current endpoint function names where practical:
+   - `index`;
+   - `health`;
+   - `validate_structured_search`;
+   - `validate_search_brief_endpoint`;
+   - `create_recruiter_chat_turn`;
+   - `create_agent_plan`;
+   - `get_agent_tools`;
+   - `create_query_plan`;
+   - `create_agent_query_plan`;
+   - `validate_ai_query_plan_endpoint`;
+   - `structured_search`;
+   - `structured_search_multi_wave`;
+   - `search`.
+10. Confirm `app/routes.py` does not import `app.main`.
+11. Run the standard regression baseline and focused route checks.
+
+### Critical risks
+
+- Creating a circular import by making `app/routes.py` import `app.main`.
+- Breaking smoke scripts that call route functions directly from `main`.
+- Breaking monkeypatch behavior by binding route handlers to imported functions too early.
+- Accidentally creating two execution paths: one through `main.*` compatibility functions and another through direct imported services in `app/routes.py`.
+- Losing `main.*` compatibility for route/service functions that are not currently used by smoke scripts but are useful for local debugging and future regression checks.
+- Accidentally changing route names, endpoint paths, response shapes, or approval checks.
+- Accidentally changing OpenAPI operation names / endpoint function names without product value.
+- Turning this into a broad service extraction and changing behavior under the cover of route cleanup.
+
+### Focused checks
+
+- `app.routes` imports successfully without importing `app.main`.
+- `app.main.app` still exposes the same route path/method set as before extraction.
+- Exact expected route path/method set stays:
+  - `GET /`;
+  - `GET /api/health`;
+  - `POST /api/structured-search/validate`;
+  - `POST /api/search-brief/validate`;
+  - `POST /api/recruiter-chat/turn`;
+  - `POST /api/agent/plan`;
+  - `GET /api/agent/tools`;
+  - `POST /api/query-plan`;
+  - `POST /api/agent/query-plan`;
+  - `POST /api/ai-query-plan/validate`;
+  - `POST /api/structured-search`;
+  - `POST /api/structured-search/multi-wave`;
+  - `POST /api/search`.
+- All current `main.*` route/service compatibility names listed in the proposed steps remain callable.
+- Existing route wrappers call injected `deps.*` callbacks instead of direct imported domain/service implementations.
+- Route endpoint function names / OpenAPI operation names remain aligned with the current names where practical.
+- Smoke monkeypatches still affect the route/service paths.
+- Legacy raw `/api/search` remains disabled.
+- `GET /` still returns the static `index.html`.
+- `GET /api/health` response stays unchanged.
+
+### Verification baseline
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+- Focused Python check for route path/method parity.
+- Focused Python check that `app.routes` does not import `app.main`.
+- `git diff --check`.
+
+### Non-goals
+
+- Do not make `app/main.py` fully thin in this task.
+- Do not move location filtering, dedupe/report building, recruiter chat orchestration, recruiter chat OpenAI orchestration, AI planner OpenAI orchestration, structured-search orchestration, or snapshot behavior unless strictly required for the route adapter split.
+- Do not change endpoint paths, HTTP methods, request payloads, response fields, validation errors, approval checks, QueryPlan output, fingerprints, execution behavior, frontend behavior, Agent Plan behavior, recruiter chat behavior, LLM fallback behavior, planner behavior, filters, scoring, dedupe, location logic, or snapshots.
+- Do not introduce Phase 6 runtime behavior.
+- Do not make AI-generated plans executable.
+- Do not add database, persistence, shortlist, workspace, export, new sources, LinkedIn automation, autonomous execution, or automatic candidate messaging.
+
+### Acceptance criteria
+
+- FastAPI path decorators live in `app/routes.py`.
+- `app/main.py` creates the FastAPI app, mounts static assets, and includes the router.
+- `app/routes.py` does not import `app.main`.
+- `app/routes.py` uses `create_router(RouteDependencies, static_dir)` or equivalent dependency injection, not direct imports from `app.main`.
+- `app/routes.py` does not bypass injected `deps.*` callbacks by directly importing extracted domain/service implementations for existing endpoint behavior.
+- Existing `main.*` route/service compatibility names are preserved.
+- Route wrapper function names / OpenAPI operation names are preserved where practical.
+- Existing monkeypatch paths used by smoke scripts are preserved.
+- The API route path/method set is unchanged.
+- Standard regression checks pass.
+- No product behavior changes.
+
+### Implementation result
+
+- Added `app/routes.py` with `RouteDependencies` and `create_router(deps, static_dir)`.
+- Moved FastAPI path decorators and thin route wrappers into `app/routes.py`.
+- Kept existing route-facing service/orchestration functions in `app/main.py`.
+- `app/main.py` now creates the FastAPI app, mounts static assets, builds `RouteDependencies`, and includes the router.
+- Preserved existing `main.*` callable names for route/service compatibility.
+- Preserved smoke-test monkeypatch paths for `main.run_query_plan_wave`, `main.run_openai_json_recruiter_chat`, `main.run_openai_json_planner`, and `main.run_openai_json_agent_wording`.
+- Preserved route path/method set and endpoint function names / OpenAPI operation names.
+- Confirmed `app.routes` imports without importing `app.main`.
+- No endpoint paths, HTTP methods, request payloads, response fields, approval checks, QueryPlan output, fingerprints, execution behavior, frontend behavior, Agent Plan behavior, recruiter chat behavior, LLM fallback behavior, planner behavior, filters, scoring, dedupe, location logic, snapshots, or Phase 6 runtime behavior changed.
+
+### Verification completed
+
+- Focused check: `app.routes` imports successfully without importing `app.main`.
+- Focused check: `app.main.app` exposes the same route path/method set and endpoint names.
+- Focused check: all current `main.*` route/service compatibility names remain callable.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+- `git diff --check`.
 
 ## Phase 6 - Human-approved Tool-Calling Agent Runtime
 

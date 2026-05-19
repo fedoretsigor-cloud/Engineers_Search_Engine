@@ -6,7 +6,7 @@ Engineers Search Engine is an AI-assisted recruiter sourcing search engine. It u
 
 ## Stack
 
-- Python FastAPI backend in `app/main.py`, with extracted shared modules in `app/schemas.py`, `app/domain_config.py`, `app/text_utils.py`, `app/search_validation.py`, `app/search_brief.py`, `app/planning.py`, `app/ai_planning.py`, `app/search_execution.py`, `app/search_snapshots.py`, `app/candidate_quality.py`, `app/agent_tools.py`, and `app/agent_plan.py`
+- Python FastAPI backend in `app/main.py`, with route wrappers in `app/routes.py` and extracted shared modules in `app/schemas.py`, `app/domain_config.py`, `app/text_utils.py`, `app/search_validation.py`, `app/search_brief.py`, `app/planning.py`, `app/ai_planning.py`, `app/search_execution.py`, `app/search_snapshots.py`, `app/candidate_quality.py`, `app/agent_tools.py`, `app/agent_plan.py`, `app/brief_patch.py`, `app/agent_response.py`, and `app/agent_wording.py`
 - Static frontend in `app/static/index.html`, `app/static/styles.css`, and `app/static/app.js`
 - Dependencies are listed in `requirements.txt`
 - Local secrets are loaded from `.env`
@@ -45,7 +45,7 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - completed and closed
-- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-007`
+- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-008`
 - Phase 6: `Tool-Calling Agent Runtime`
 - Phase 7: `Agent Conversation Wording Layer`
 - Phase 8: `Candidate Workspace/Table + Shortlist`
@@ -76,7 +76,8 @@ Current product direction:
 - `P5.5-006` extracted Agent Tools v0 contract/approval helpers and deterministic Agent Plan helpers into focused modules without behavior changes.
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI for the current compile/frontend/smoke regression baseline.
 - `P5.5-007` extracted shared brief patch helpers, deterministic Agent Response logic, and bounded Agent Plan/Response wording logic into focused modules without behavior changes.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-008 Split FastAPI routes from domain logic`, then `P5.5-009 Run no-behavior-change regression checks and close Phase 5.5`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` service compatibility, route path/method set, endpoint names, and smoke-test monkeypatch paths without behavior changes.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-009 Run no-behavior-change regression checks and close Phase 5.5`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 
