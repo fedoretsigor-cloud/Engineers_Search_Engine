@@ -1,4 +1,15 @@
-from app.agent_plan import agent_plan_language
+from app.agent_messages import (
+    agent_message_language,
+    agent_response_limitations_source_messages,
+    agent_response_quality_notes_source_messages,
+    agent_response_summary_source_message,
+    agent_response_suggested_next_actions_source_messages,
+    next_iteration_broaden_observed_stack_source_copy,
+    next_iteration_clarify_stack_source_copy,
+    next_iteration_deep_search_source_copy,
+    next_iteration_narrow_visible_stack_source_copy,
+    next_iteration_review_high_quality_candidates_source_copy,
+)
 from app.brief_patch import (
     BRIEF_PATCH_ADD_STACK,
     BRIEF_PATCH_NOOP,
@@ -20,7 +31,7 @@ from app.domain_config import (
 
 
 def normalize_agent_language(value: str | None) -> str:
-    return agent_plan_language(value, None)
+    return agent_message_language(value, None)
 
 
 def agent_response_quality_bucket(score: object) -> str:
@@ -131,216 +142,29 @@ def agent_response_summary_facts(
 
 
 def agent_response_message_en(summary_facts: dict) -> str:
-    quality = summary_facts["quality_distribution"]
-    signals = summary_facts["strong_signal_counts"]
-    candidate_count = summary_facts["candidate_count"]
-    raw_total = summary_facts["raw_total"]
-    queries_succeeded = summary_facts["queries_succeeded"]
-    queries_total = summary_facts["queries_total"]
-
-    return (
-        f"Search completed: {candidate_count} unique candidates from {raw_total} "
-        f"raw results, with {queries_succeeded}/{queries_total} queries succeeded. "
-        f"Quality buckets: {quality['strong']} strong, {quality['review']} review, "
-        f"{quality['weak']} weak. Strongest signals: exact Java evidence on "
-        f"{signals['exact_technology']} candidates and target-role evidence on "
-        f"{signals['target_or_close_role']} candidates. Main limitations: selected "
-        f"stack was not visible in public snippets for "
-        f"{signals['selected_stack_not_visible']} candidates, and seniority was not "
-        f"visible for {signals['seniority_not_visible']} candidates. Suggested next "
-        "step: review the strongest candidates first, then choose a non-executable "
-        "next iteration option if the brief should change."
-    )
+    return agent_response_summary_source_message("en", summary_facts)
 
 
 def agent_response_message_ru(summary_facts: dict) -> str:
-    quality = summary_facts["quality_distribution"]
-    signals = summary_facts["strong_signal_counts"]
-    candidate_count = summary_facts["candidate_count"]
-    raw_total = summary_facts["raw_total"]
-    queries_succeeded = summary_facts["queries_succeeded"]
-    queries_total = summary_facts["queries_total"]
-
-    return (
-        f"\u041f\u043e\u0438\u0441\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d: {candidate_count} "
-        f"\u0443\u043d\u0438\u043a\u0430\u043b\u044c\u043d\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 "
-        f"\u0438\u0437 {raw_total} raw results, \u0443\u0441\u043f\u0435\u0448\u043d\u043e "
-        f"{queries_succeeded}/{queries_total} \u0437\u0430\u043f\u0440\u043e\u0441\u043e\u0432. "
-        f"Quality buckets: {quality['strong']} strong, {quality['review']} review, "
-        f"{quality['weak']} weak. \u0421\u0438\u043b\u044c\u043d\u044b\u0435 "
-        f"\u0441\u0438\u0433\u043d\u0430\u043b\u044b: Java \u0432\u0438\u0434\u0435\u043d "
-        f"\u0443 {signals['exact_technology']} \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432, "
-        f"\u0446\u0435\u043b\u0435\u0432\u0430\u044f \u0440\u043e\u043b\u044c "
-        f"\u0432\u0438\u0434\u043d\u0430 \u0443 {signals['target_or_close_role']}. "
-        f"\u041e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f: selected stack "
-        f"\u043d\u0435 \u0432\u0438\u0434\u0435\u043d \u0432 public snippets "
-        f"\u0443 {signals['selected_stack_not_visible']} \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432, "
-        f"seniority \u043d\u0435 \u0432\u0438\u0434\u0435\u043d \u0443 "
-        f"{signals['seniority_not_visible']}. \u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 "
-        "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 \u0448\u0430\u0433: "
-        "\u043f\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c "
-        "\u0441\u0438\u043b\u044c\u043d\u044b\u0445 "
-        "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u0438 "
-        "\u0432\u044b\u0431\u0440\u0430\u0442\u044c \u043e\u0434\u043d\u0443 "
-        "\u0438\u0437 non-executable next iteration options "
-        "\u043d\u0438\u0436\u0435, \u0435\u0441\u043b\u0438 Search Brief "
-        "\u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c."
-    )
+    return agent_response_summary_source_message("ru", summary_facts)
 
 
 def agent_response_quality_notes(
     language: str,
     summary_facts: dict,
 ) -> list[dict[str, object]]:
-    quality = summary_facts["quality_distribution"]
-    signals = summary_facts["strong_signal_counts"]
-
-    if language == "ru":
-        return [
-            {
-                "kind": "quality_distribution",
-                "message": (
-                    f"Quality buckets: {quality['strong']} strong, "
-                    f"{quality['review']} review, {quality['weak']} weak."
-                ),
-                "facts": quality,
-            },
-            {
-                "kind": "signals",
-                "message": (
-                    "Java \u0438 \u0440\u043e\u043b\u044c \u0441\u0447\u0438\u0442\u0430\u044e\u0442\u0441\u044f "
-                    "\u0441\u0438\u043b\u044c\u043d\u044b\u043c\u0438 \u0442\u043e\u043b\u044c\u043a\u043e "
-                    "\u043a\u043e\u0433\u0434\u0430 \u043e\u043d\u0438 \u0432\u0438\u0434\u043d\u044b "
-                    "\u0432 public profile text."
-                ),
-                "facts": signals,
-            },
-        ]
-
-    return [
-        {
-            "kind": "quality_distribution",
-            "message": (
-                f"Quality buckets: {quality['strong']} strong, "
-                f"{quality['review']} review, {quality['weak']} weak."
-            ),
-            "facts": quality,
-        },
-        {
-            "kind": "signals",
-            "message": (
-                "Java and role signals count as strong only when visible in "
-                "public profile text."
-            ),
-            "facts": signals,
-        },
-    ]
+    return agent_response_quality_notes_source_messages(language, summary_facts)
 
 
 def agent_response_limitations(language: str, summary_facts: dict) -> list[dict[str, object]]:
-    signals = summary_facts["strong_signal_counts"]
-    if language == "ru":
-        return [
-            {
-                "kind": "public_snippets",
-                "message": (
-                    "\u041e\u0442\u0432\u0435\u0442 \u043e\u0441\u043d\u043e\u0432\u0430\u043d "
-                    "\u0442\u043e\u043b\u044c\u043a\u043e \u043d\u0430 public snippets "
-                    "\u0438 \u0434\u0430\u043d\u043d\u044b\u0445, \u0443\u0436\u0435 "
-                    "\u0432\u0435\u0440\u043d\u0443\u0442\u044b\u0445 backend."
-                ),
-            },
-            {
-                "kind": "stack_visibility",
-                "message": (
-                    "Selected stack \u043d\u0435 \u0432\u0438\u0434\u0435\u043d "
-                    f"\u0432 public snippets \u0443 {signals['selected_stack_not_visible']} "
-                    "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432; "
-                    "\u044d\u0442\u043e \u043d\u0435 \u0434\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442, "
-                    "\u0447\u0442\u043e \u0443 \u043d\u0438\u0445 \u043d\u0435\u0442 "
-                    "\u044d\u0442\u043e\u0433\u043e stack."
-                ),
-            },
-            {
-                "kind": "seniority_visibility",
-                "message": (
-                    "Seniority \u043d\u0435 \u0432\u0438\u0434\u0435\u043d "
-                    f"\u0443 {signals['seniority_not_visible']} "
-                    "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432."
-                ),
-            },
-        ]
-
-    return [
-        {
-            "kind": "public_snippets",
-            "message": (
-                "This response is based only on public snippets and data already "
-                "returned by the backend."
-            ),
-        },
-        {
-            "kind": "stack_visibility",
-            "message": (
-                "Selected stack is not visible in public snippets for "
-                f"{signals['selected_stack_not_visible']} candidates; this does "
-                "not prove they lack that stack."
-            ),
-        },
-        {
-            "kind": "seniority_visibility",
-            "message": (
-                f"Seniority is not visible for {signals['seniority_not_visible']} "
-                "candidates."
-            ),
-        },
-    ]
+    return agent_response_limitations_source_messages(language, summary_facts)
 
 
 def agent_response_suggested_next_actions(
     language: str,
     summary_facts: dict,
 ) -> list[dict[str, object]]:
-    if language == "ru":
-        actions = [
-            {
-                "label": "\u041f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c top candidates",
-                "description": (
-                    "\u041d\u0430\u0447\u0430\u0442\u044c \u0441 strong bucket "
-                    "\u0438 \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c "
-                    "\u043f\u0440\u043e\u0444\u0438\u043b\u0438 \u0432\u0440\u0443\u0447\u043d\u0443\u044e."
-                ),
-                "executable": False,
-            },
-            {
-                "label": "\u0423\u0442\u043e\u0447\u043d\u0438\u0442\u044c stack",
-                "description": (
-                    "\u0415\u0441\u043b\u0438 stack \u0432 snippets "
-                    "\u0432\u0438\u0434\u0435\u043d \u0441\u043b\u0430\u0431\u043e, "
-                    "\u043c\u043e\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c "
-                    "\u0438\u043b\u0438 \u0441\u0443\u0437\u0438\u0442\u044c stack."
-                ),
-                "executable": False,
-            },
-        ]
-        return actions
-
-    actions = [
-        {
-            "label": "Review top candidates",
-            "description": "Start with the strong bucket and manually inspect profiles.",
-            "executable": False,
-        },
-        {
-            "label": "Adjust stack",
-            "description": (
-                "If stack visibility is weak in snippets, consider narrowing or "
-                "changing selected stack terms."
-            ),
-            "executable": False,
-        },
-    ]
-    return actions
+    return agent_response_suggested_next_actions_source_messages(language, summary_facts)
 
 
 def next_iteration_option(
@@ -422,14 +246,14 @@ def agent_response_next_iteration_options(
 
     strong_count = int(quality.get("strong") or 0)
     if strong_count:
+        label, reason = next_iteration_review_high_quality_candidates_source_copy(
+            strong_count
+        )
         options.append(
             next_iteration_option(
                 "review_high_quality_candidates",
-                "Review high-quality candidates first",
-                (
-                    f"{strong_count} candidates are in the strong quality bucket. "
-                    "This is a review-focus suggestion only and does not change the Search Brief."
-                ),
+                label,
+                reason,
                 [
                     {
                         "operation": BRIEF_PATCH_NOOP,
@@ -452,15 +276,15 @@ def agent_response_next_iteration_options(
         and missing_selected_stack
         and visible_selected_stack != selected_stack
     ):
+        label, reason = next_iteration_narrow_visible_stack_source_copy(
+            visible_selected_stack,
+            missing_selected_stack,
+        )
         options.append(
             next_iteration_option(
                 "narrow_to_visible_selected_stack",
-                "Narrow stack to visible selected terms",
-                (
-                    "Current results directly show "
-                    f"{', '.join(visible_selected_stack)}, while "
-                    f"{', '.join(missing_selected_stack)} is not visible in returned snippets."
-                ),
+                label,
+                reason,
                 [
                     {
                         "operation": BRIEF_PATCH_REPLACE_STACK,
@@ -480,14 +304,15 @@ def agent_response_next_iteration_options(
     observed_unselected_stack.sort(key=lambda item: (-item[1], item[0]))
     if selected_stack and len(selected_stack) < 3 and observed_unselected_stack:
         term, count = observed_unselected_stack[0]
+        label, reason = next_iteration_broaden_observed_stack_source_copy(
+            term,
+            count,
+        )
         options.append(
             next_iteration_option(
                 "broaden_with_observed_stack",
-                f"Broaden stack with {term}",
-                (
-                    f"{term} is visible in {count} returned candidates but is not "
-                    "part of the selected stack."
-                ),
+                label,
+                reason,
                 [
                     {
                         "operation": BRIEF_PATCH_ADD_STACK,
@@ -503,14 +328,12 @@ def agent_response_next_iteration_options(
         and not visible_selected_stack
         and int(signals.get("selected_stack_not_visible") or 0) > 0
     ):
+        label, reason = next_iteration_clarify_stack_source_copy()
         options.append(
             next_iteration_option(
                 "clarify_stack_preference",
-                "Clarify stack preference",
-                (
-                    "Selected stack is not directly visible in the returned public snippets. "
-                    "The safest next step is to ask whether to keep or replace it."
-                ),
+                label,
+                reason,
                 [
                     {
                         "operation": BRIEF_PATCH_RECONFIRM_FIELD,
@@ -523,14 +346,12 @@ def agent_response_next_iteration_options(
         )
 
     if search_depth != SEARCH_DEPTH_DEEP and mode != "multi_wave":
+        label, reason = next_iteration_deep_search_source_copy()
         options.append(
             next_iteration_option(
                 "try_deep_search_depth",
-                "Try deep search depth",
-                (
-                    "The current Search Brief uses standard depth. Deep depth is "
-                    "a brief-level change that still requires Build Plan and approval."
-                ),
+                label,
+                reason,
                 [
                     {
                         "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,

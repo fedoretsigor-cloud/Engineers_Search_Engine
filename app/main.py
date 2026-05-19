@@ -110,6 +110,27 @@ from app.agent_plan import (
     is_supported_agent_v0_baseline,
     validate_agent_query_plan_action,
 )
+from app.agent_messages import (
+    brief_refinement_source_message,
+    last_stack_item_source_message,
+    localized_clarifying_question_source_message,
+    query_plan_ai_validated_approval_notice,
+    query_plan_fallback_approval_notice,
+    query_plan_preview_approval_notice,
+    query_plan_ready_approval_notice,
+    query_plan_rejected_approval_notice,
+    ready_for_planning_source_message,
+    recruiter_chat_draft_preserved_source_message,
+    recruiter_chat_near_empty_source_message,
+    recruiter_chat_onboarding_source_message,
+    recruiter_chat_refusal_source_message,
+    refinement_requires_initial_brief_source_message,
+    runtime_execution_failed_source_message,
+    runtime_tool_unavailable_source_message,
+    search_brief_not_ready_for_query_plan_source_message,
+    unsupported_patch_source_message,
+    validation_error_source_message,
+)
 from app.agent_response import (
     agent_response_limitations,
     agent_response_message_en,
@@ -193,7 +214,6 @@ from app.routes import RouteDependencies, create_router
 from app.search_brief import (
     adapt_search_brief_to_structured_request,
     build_structured_request_from_brief,
-    clarifying_question_for_missing_field,
     normalize_brief_stack_items,
     search_brief_fingerprint,
     search_brief_fingerprint_payload,
@@ -1677,37 +1697,11 @@ def detect_recruiter_chat_prohibited_requests(
 
 
 def recruiter_chat_refusal_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Я не могу выполнять LinkedIn login, scraping, обход ограничений, "
-            "автоматические сообщения кандидатам, действия с аккаунтами или "
-            "прямой web-search в обход backend. Могу помочь сформировать Search Brief "
-            "для approved backend pipeline."
-        )
-
-    return (
-        "I cannot perform LinkedIn login, scraping, restriction bypass, automatic "
-        "candidate messaging, account actions, or direct web-search outside the "
-        "approved backend pipeline. I can help turn the request into a Search Brief."
-    )
+    return recruiter_chat_refusal_source_message(language)
 
 
 def localized_clarifying_question_for_missing_field(field: str, language: str) -> str:
-    if language != "ru":
-        return clarifying_question_for_missing_field(field)
-
-    questions = {
-        "role_family": "Какую роль ищем?",
-        "technology": "Какая основная технология должна быть у кандидата?",
-        "stack": (
-            "Какие Java stack сигналы важны: Spring, Kafka, AWS, Hibernate "
-            "или что-то другое?"
-        ),
-        "location": "В какой локации ищем кандидатов?",
-        "search_depth": "Делаем standard или deep search?",
-        "profile_sources": "Какие публичные источники профилей использовать?",
-    }
-    return questions.get(field, f"Уточни, пожалуйста, поле {field}.")
+    return localized_clarifying_question_source_message(field, language)
 
 
 def one_clarifying_question(normalized_brief: dict, language: str) -> str | None:
@@ -1733,21 +1727,11 @@ def build_search_brief_summary(normalized_brief: dict) -> dict:
 
 
 def ready_for_planning_message(language: str) -> str:
-    if language == "ru":
-        return "Search Brief собран. Проверь summary и нажми Build Plan."
-
-    return "Search Brief is ready. Review the summary and click Build Plan."
+    return ready_for_planning_source_message(language)
 
 
 def validation_error_message(errors: list[dict[str, str]], language: str) -> str:
-    if not errors:
-        return ""
-
-    message = errors[0].get("message", "Validation error.")
-    if language == "ru":
-        return f"Нужно уточнить brief: {message}"
-
-    return f"The brief needs clarification: {message}"
+    return validation_error_source_message(errors, language)
 
 
 def clean_search_brief_dict(brief: SearchBrief | None) -> dict:
@@ -2081,29 +2065,11 @@ def build_recruiter_chat_response(
 
 
 def recruiter_chat_onboarding_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Привет. Расскажи, кого ищем: роль, основная технология, локация "
-            "и 1-3 сигнала стека."
-        )
-
-    return (
-        "Hi. Tell me who we should find: role, main technology, location, "
-        "and 1-3 stack signals."
-    )
+    return recruiter_chat_onboarding_source_message(language)
 
 
 def recruiter_chat_near_empty_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Напиши, пожалуйста, кого ищем: роль, основная технология, локация "
-            "и 1-3 сигнала стека."
-        )
-
-    return (
-        "Please tell me who we should find: role, main technology, location, "
-        "and 1-3 stack signals."
-    )
+    return recruiter_chat_near_empty_source_message(language)
 
 
 def recruiter_chat_draft_preserved_message(
@@ -2111,18 +2077,13 @@ def recruiter_chat_draft_preserved_message(
     language: str,
     fallback_message: str,
 ) -> str:
-    if normalized_brief.get("brief_status") == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
-        if language == "ru":
-            return "Привет. Текущий Search Brief сохранен и готов к Build Plan."
-        return "Hi. The current Search Brief is still saved and ready for Build Plan."
-
     next_question = one_clarifying_question(normalized_brief, language)
-    if next_question:
-        if language == "ru":
-            return f"Текущий Search Brief сохранен. {next_question}"
-        return f"The current Search Brief is still saved. {next_question}"
-
-    return fallback_message
+    return recruiter_chat_draft_preserved_source_message(
+        normalized_brief,
+        language,
+        fallback_message,
+        next_question,
+    )
 
 
 def build_recruiter_chat_onboarding_response(
@@ -2229,47 +2190,18 @@ def current_brief_context_for_language(
 
 
 def refinement_requires_initial_brief_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Сначала соберем initial Search Brief: роль, основная технология, "
-            "локация и 1-3 stack сигнала."
-        )
-    return (
-        "Let's collect the initial Search Brief first: role, main technology, "
-        "location, and 1-3 stack signals."
-    )
+    return refinement_requires_initial_brief_source_message(language)
 
 
 def unsupported_patch_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Это изменение вне текущего Java/Ukraine flow. Уточни изменение "
-            "в рамках Backend Developer, Java, Ukraine и поддержанного Java stack."
-        )
-    return (
-        "That change is outside the current Java/Ukraine flow. Please refine it "
-        "within Backend Developer, Java, Ukraine, and the supported Java stack."
-    )
+    return unsupported_patch_source_message(language)
 
 
 def last_stack_item_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Нельзя убрать последний stack item без замены. Выбери replacement "
-            "из поддержанного Java stack."
-        )
-    return (
-        "I cannot remove the last stack item without a replacement. Choose a "
-        "replacement from the supported Java stack."
-    )
+    return last_stack_item_source_message(language)
 
 
 def patch_success_message(patch: dict, language: str, changed: bool) -> str:
-    if not changed:
-        if language == "ru":
-            return "Search Brief не изменился. Текущий план можно оставить."
-        return "Search Brief did not change. The current plan can stay as is."
-
     operations = patch.get("operations") or []
     operation_labels = [
         operation.get("operation", "update").replace("_", " ")
@@ -2278,9 +2210,7 @@ def patch_success_message(patch: dict, language: str, changed: bool) -> str:
     ]
     action_summary = ", ".join(operation_labels) if operation_labels else "updated"
 
-    if language == "ru":
-        return f"Обновил Search Brief ({action_summary}). Нужно заново построить план."
-    return f"Updated the Search Brief ({action_summary}). Build a new plan before search."
+    return brief_refinement_source_message(language, changed, action_summary)
 
 
 def build_recruiter_chat_patch_response(
@@ -2677,9 +2607,7 @@ def build_agent_rule_based_plan_response(
         "assumptions": normalized_brief.get("assumptions", []),
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": (
-            "Search plan is ready. Review the queries before running search."
-        ),
+        "approval_notice": query_plan_ready_approval_notice(),
     }
 
 
@@ -2714,9 +2642,7 @@ def build_rule_based_fallback_response(
         "repair_attempts": repair_attempts,
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": (
-            "Fallback search plan is ready. Review the queries before running search."
-        ),
+        "approval_notice": query_plan_fallback_approval_notice(),
     }
 
 
@@ -2841,7 +2767,7 @@ def build_ai_plan_rejected_response(
         "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
+        "approval_notice": query_plan_rejected_approval_notice(),
     }
 
 
@@ -2878,7 +2804,7 @@ def build_valid_ai_plan_response(
         "repair_attempts": repair_attempts,
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": "This AI plan is validated but not executed yet. Search execution requires approval.",
+        "approval_notice": query_plan_ai_validated_approval_notice(),
     }
 
 
@@ -2915,7 +2841,7 @@ async def build_ai_query_plan_response(
             "fallback_plan_fingerprint": query_plan_fingerprint(fallback_query_plan),
             "approval_required": False,
             "execution_approval_required": True,
-            "approval_notice": "A fallback plan is available but not executed. Search execution requires approval.",
+            "approval_notice": query_plan_rejected_approval_notice(),
         }
 
     draft_plan = ai_output.get("draft_query_plan") if isinstance(ai_output, dict) else None
@@ -3340,7 +3266,7 @@ async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
                     runtime_error(
                         "tavily_api_key",
                         AGENT_RUNTIME_ERROR_TOOL_UNAVAILABLE,
-                        "TAVILY_API_KEY is not configured.",
+                        runtime_tool_unavailable_source_message(),
                     )
                 ]
             )
@@ -3377,7 +3303,7 @@ async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
                 runtime_error(
                     "tavily_api_key",
                     AGENT_RUNTIME_ERROR_TOOL_UNAVAILABLE,
-                    "TAVILY_API_KEY is not configured.",
+                    runtime_tool_unavailable_source_message(),
                 )
             ]
         )
@@ -3446,7 +3372,7 @@ async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
                         runtime_error(
                             "runtime_execution",
                             AGENT_RUNTIME_ERROR_EXECUTION_FAILED,
-                            "Runtime tool execution failed.",
+                            runtime_execution_failed_source_message(),
                         )
                     ],
                 ).to_dict()
@@ -3499,7 +3425,7 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
                 {
                     "field": "brief_status",
                     "code": "brief_not_ready",
-                    "message": "Search Brief must be ready before validating a QueryPlan.",
+                    "message": search_brief_not_ready_for_query_plan_source_message(),
                 }
             ],
             "validation_errors": [],
@@ -3559,7 +3485,7 @@ def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> di
         "coverage_policy": coverage_policy,
         "approval_required": False,
         "execution_approval_required": True,
-        "approval_notice": "This plan is not executed yet. Search execution requires approval.",
+        "approval_notice": query_plan_preview_approval_notice(),
     }
 
 
@@ -3590,7 +3516,7 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
             "errors": [
                 {
                     "field": "tavily_api_key",
-                    "message": "TAVILY_API_KEY is not configured.",
+                    "message": runtime_tool_unavailable_source_message(),
                 }
             ],
         }
@@ -3661,7 +3587,7 @@ async def structured_search_multi_wave(
             "errors": [
                 {
                     "field": "tavily_api_key",
-                    "message": "TAVILY_API_KEY is not configured.",
+                    "message": runtime_tool_unavailable_source_message(),
                 }
             ],
         }

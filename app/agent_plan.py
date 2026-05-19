@@ -1,6 +1,18 @@
 from collections.abc import Awaitable, Callable
-import re
 
+from app.agent_messages import (
+    AGENT_PLAN_ERROR_MISMATCHED_PLANNER_MODE,
+    AGENT_PLAN_ERROR_MISSING_ACTION,
+    AGENT_PLAN_ERROR_MISSING_FINGERPRINT,
+    AGENT_PLAN_ERROR_STALE_FINGERPRINT,
+    AGENT_PLAN_ERROR_UNSUPPORTED_ACTION,
+    AGENT_PLAN_ERROR_UNSUPPORTED_BASELINE,
+    agent_message_language,
+    agent_plan_action_error_source_message,
+    agent_plan_needs_clarification_source_message,
+    agent_plan_supported_source_message,
+    agent_plan_unsupported_source_message,
+)
 from app.agent_tools import AGENT_ACTION_BUILD_QUERY_PLAN, AGENT_QUERY_PLAN_ENDPOINT
 from app.domain_config import (
     PLANNER_MODE_RULE_BASED,
@@ -10,7 +22,6 @@ from app.domain_config import (
 from app.planning import add_plan_validation_error
 from app.schemas import AgentPlanRequest, AgentQueryPlanRequest
 from app.search_brief import search_brief_fingerprint, search_brief_validation_response
-from app.text_utils import normalize_text_value
 
 
 AGENT_PLAN_STATUS_SUPPORTED = "supported"
@@ -22,17 +33,7 @@ AgentPlanWordingApplier = Callable[[dict, dict, str], Awaitable[dict]]
 
 
 def agent_plan_language(language: str | None, normalized_brief: dict | None = None) -> str:
-    normalized_language = (normalize_text_value(language) or "").lower()
-    if normalized_language.startswith(("ru", "\u0440\u0443\u0441")):
-        return "ru"
-    if normalized_language.startswith(("en", "\u0430\u043d\u0433\u043b")):
-        return "en"
-
-    source_text = (normalized_brief or {}).get("source_text") or ""
-    if re.search(r"[\u0400-\u04ff]", source_text):
-        return "ru"
-
-    return "en"
+    return agent_message_language(language, normalized_brief)
 
 
 def agent_plan_proposed_action() -> dict:
@@ -62,46 +63,15 @@ def is_supported_agent_v0_baseline(
 
 
 def agent_plan_supported_message(language: str, normalized_request: dict) -> str:
-    stack_text = ", ".join(normalized_request.get("stack") or []) or "n/a"
-    if language == "ru":
-        return (
-            "\u042f \u043f\u043e\u043d\u044f\u043b \u0437\u0430\u0434\u0430\u0447\u0443: "
-            "\u0438\u0449\u0435\u043c Backend Developer \u0441 Java \u0432 "
-            f"\u0423\u043a\u0440\u0430\u0438\u043d\u0435, stack: {stack_text}. "
-            "\u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 "
-            "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 "
-            "\u0448\u0430\u0433 - Build Plan \u0447\u0435\u0440\u0435\u0437 "
-            "approved backend planner. \u041f\u043e\u0438\u0441\u043a "
-            "\u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0441\u044f "
-            "\u0431\u0435\u0437 approval."
-        )
-
-    return (
-        "I understood the task: find Backend Developer profiles with Java in "
-        f"Ukraine, stack: {stack_text}. The next safe step is Build Plan through "
-        "the approved backend planner. Search will not run without approval."
-    )
+    return agent_plan_supported_source_message(language, normalized_request)
 
 
 def agent_plan_needs_clarification_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "\u041c\u043d\u0435 \u043d\u0443\u0436\u0435\u043d stack, "
-            "\u0447\u0442\u043e\u0431\u044b \u0441\u043e\u0437\u0434\u0430\u0442\u044c "
-            "Agent Plan \u0434\u043b\u044f Java/Ukraine baseline."
-        )
-
-    return "I need the missing stack before I can create an Agent Plan."
+    return agent_plan_needs_clarification_source_message(language)
 
 
 def agent_plan_unsupported_message(language: str) -> str:
-    if language == "ru":
-        return (
-            "Agent v0 \u043f\u043e\u043a\u0430 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 "
-            "\u0442\u043e\u043b\u044c\u043a\u043e Backend Developer with Java in Ukraine."
-        )
-
-    return "Agent v0 currently supports only Backend Developer with Java in Ukraine."
+    return agent_plan_unsupported_source_message(language)
 
 
 def build_agent_plan_response(
@@ -219,23 +189,23 @@ def validate_agent_query_plan_action(
         add_plan_validation_error(
             errors,
             "agent_plan_brief_fingerprint",
-            "missing_agent_plan_fingerprint",
-            "Build Plan requires the current Agent Plan fingerprint.",
+            AGENT_PLAN_ERROR_MISSING_FINGERPRINT,
+            agent_plan_action_error_source_message(AGENT_PLAN_ERROR_MISSING_FINGERPRINT),
         )
     elif fingerprint != expected_fingerprint:
         add_plan_validation_error(
             errors,
             "agent_plan_brief_fingerprint",
-            "stale_or_mismatched_agent_plan_fingerprint",
-            "Agent Plan fingerprint does not match the current Search Brief.",
+            AGENT_PLAN_ERROR_STALE_FINGERPRINT,
+            agent_plan_action_error_source_message(AGENT_PLAN_ERROR_STALE_FINGERPRINT),
         )
 
     if not isinstance(action, dict):
         add_plan_validation_error(
             errors,
             "agent_plan_action",
-            "missing_agent_plan_action",
-            "Build Plan requires a supported Agent Plan proposed_action.",
+            AGENT_PLAN_ERROR_MISSING_ACTION,
+            agent_plan_action_error_source_message(AGENT_PLAN_ERROR_MISSING_ACTION),
         )
         return errors
 
@@ -245,24 +215,26 @@ def validate_agent_query_plan_action(
             add_plan_validation_error(
                 errors,
                 f"agent_plan_action.{field}",
-                "unsupported_agent_plan_action",
-                "Build Plan proposed_action is not supported.",
+                AGENT_PLAN_ERROR_UNSUPPORTED_ACTION,
+                agent_plan_action_error_source_message(AGENT_PLAN_ERROR_UNSUPPORTED_ACTION),
             )
 
     if action.get("planner_mode") != request.planner_mode:
         add_plan_validation_error(
             errors,
             "agent_plan_action.planner_mode",
-            "mismatched_agent_plan_planner_mode",
-            "Agent Plan planner_mode must match the Build Plan request.",
+            AGENT_PLAN_ERROR_MISMATCHED_PLANNER_MODE,
+            agent_plan_action_error_source_message(
+                AGENT_PLAN_ERROR_MISMATCHED_PLANNER_MODE
+            ),
         )
 
     if not is_supported_agent_v0_baseline(normalized_brief, normalized_request):
         add_plan_validation_error(
             errors,
             "agent_plan_action",
-            "unsupported_agent_v0_baseline",
-            "Agent v0 currently supports only Backend Developer with Java in Ukraine.",
+            AGENT_PLAN_ERROR_UNSUPPORTED_BASELINE,
+            agent_plan_action_error_source_message(AGENT_PLAN_ERROR_UNSUPPORTED_BASELINE),
         )
 
     return errors

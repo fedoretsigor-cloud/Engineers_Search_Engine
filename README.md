@@ -47,14 +47,15 @@ Status:
 - `P6-005` added runtime guardrail regression coverage for stale/mutated approval rejection, runtime context mismatch, unsafe frontend-owned runtime fields, frontend runtime-only execution, mocked approved single/multi-wave execution, prepare-without-execution, and missing Tavily key during approved execution.
 - `P6-005.1` repaired real single/multi runtime execution wrappers so they call the existing approved pipelines instead of recursing, with unmocked-wrapper no-network smoke coverage in `scripts/check_all.ps1`.
 - `P6-006` closed Phase 6 as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent. See `docs/phase-6-closeout.md`.
+- `P7-004` added the backend-first deterministic source-message helper layer in `app/agent_messages.py`, including an explicit coverage matrix and no-network smoke coverage for chat, Agent Plan, QueryPlan/runtime, and Agent Response source messages.
 
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
-- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`;
-- next task to review: `P7-004 Build deterministic source messages for approved message types`;
+- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`;
+- next Phase 7 task to review: `P7-005 Define LLM routing and gating policy for conversation wording`;
 - add ordinary agent conversation wording in Phase 7 after taxonomy/lifecycle, facts/source-of-truth, style policy, deterministic source messages, LLM routing/gating, bounded payloads, validation/fallback/provenance, typed frontend rendering, and golden scenario tests are reviewed;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 

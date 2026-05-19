@@ -3,6 +3,8 @@ import os
 import httpx
 from fastapi import HTTPException
 
+from app.agent_messages import runtime_tool_unavailable_source_message
+
 
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 
@@ -11,7 +13,10 @@ async def run_tavily_query(query: str, max_results: int) -> dict:
     api_key = os.getenv("TAVILY_API_KEY")
 
     if not api_key:
-        raise HTTPException(status_code=503, detail="TAVILY_API_KEY is not configured.")
+        raise HTTPException(
+            status_code=503,
+            detail=runtime_tool_unavailable_source_message(),
+        )
 
     payload = {
         "query": query,

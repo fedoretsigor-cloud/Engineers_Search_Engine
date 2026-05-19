@@ -71,5 +71,9 @@ Invoke-Check "P6 Unmocked Runtime Execution smoke" {
     & $python scripts/smoke_p6_runtime_unmocked_execution.py
 }
 
+Invoke-Check "P7 Agent Messages smoke" {
+    & $python scripts/smoke_p7_agent_messages.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

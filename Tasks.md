@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Next task to review: `P7-004 Build deterministic source messages for approved message types`.
+Next Phase 7 task to review: `P7-005 Define LLM routing and gating policy for conversation wording`.
 
 ---
 
@@ -5740,7 +5740,6 @@ Next task to review: `P7-004 Build deterministic source messages for approved me
 
 ### Backlog
 
-- [ ] P7-004 Build deterministic source messages for approved message types
 - [ ] P7-005 Define LLM routing and gating policy for conversation wording
 - [ ] P7-006 Add bounded LLM wording payloads and prompt contract
 - [ ] P7-007 Add wording validation, fallback, and provenance metadata
@@ -5755,6 +5754,7 @@ Next task to review: `P7-004 Build deterministic source messages for approved me
 - [x] P7-001 Define agent message taxonomy and lifecycle mapping
 - [x] P7-002 Define message facts and source-of-truth contract
 - [x] P7-003 Define agent wording style and language policy
+- [x] P7-004 Build deterministic source messages for approved message types
 
 ### Current Phase 7 strategy note
 
@@ -7191,6 +7191,291 @@ Created `docs/phase-7-agent-wording-style-policy.md` as the stable `Agent Wordin
 The document defines the core style rule that wording may change form but not facts or authority; product boundaries; current wording producers and surfaces; RU/EN language policy; canonical backend fact vs natural user-facing wording rules; tone rules; message-type style coverage for every P7-001 `message_type`; approval/runtime wording rules; evidence and uncertainty wording; agent message vs UI/data label boundaries; example validation rules; RU/EN good/bad examples; version/provenance handoff; and future handoff for P7-004 through P7-009.
 
 No backend code, frontend code, prompts, schemas, API contracts, runtime behavior, Tavily behavior, OpenAI behavior, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changed.
+
+---
+
+## Task: P7-004 Build deterministic source messages for approved message types
+
+### Status
+
+Approved and implemented.
+
+### Critical review result
+
+Initial review found that `P7-004` existed only as a Phase 7 backlog title. That was not enough to approve safely because the task had no scope, no steps, no no-goals, no architecture boundary, no verification plan, and no clear separation from later Phase 7 tasks.
+
+The direction is correct: after `P7-001` taxonomy, `P7-002` facts/source-of-truth contract, and `P7-003` style/language policy, Phase 7 needs deterministic source messages before adding broader LLM routing, bounded payloads, validation/fallback/provenance, or typed frontend rendering.
+
+The task must build a deterministic source-message foundation. It must not become an LLM task, prompt task, provenance task, frontend typed rendering task, or broad UI-copy rewrite.
+
+### Context
+
+Current recruiter-visible wording is spread across:
+
+- backend recruiter chat helpers in `app/main.py`;
+- deterministic Agent Plan helpers in `app/agent_plan.py`;
+- deterministic Agent Response helpers in `app/agent_response.py`;
+- bounded wording helpers in `app/agent_wording.py`;
+- frontend chat/status/action/plan/results rendering in `app/static/app.js`.
+
+This scattering makes later Phase 7 work risky: LLM routing and validation need stable deterministic source messages to compare against, but today many strings are local hardcoded messages with implicit message types and implicit fact boundaries.
+
+`P7-004` should introduce a small deterministic source-message layer for the current primary Agent v0 path while preserving existing product behavior and API shapes.
+
+The current primary Agent v0 path remains:
+
+```text
+/api/recruiter-chat/turn
+-> /api/agent/plan
+-> /api/agent/query-plan
+-> /api/agent/runtime/turn prepare
+-> /api/agent/runtime/turn execute_approved
+-> runtime tool result / approved search response / agent_response
+```
+
+### Goal
+
+Build deterministic source messages for approved Phase 7 message types that are already produced in the current Agent v0 product path.
+
+The implementation should make deterministic text production explicit by tying each source message to:
+
+- a P7-001 `message_type`;
+- a surface;
+- a language;
+- a source owner / source object from P7-002;
+- approved facts only;
+- P7-003 style/language policy.
+
+The goal is to prepare later tasks:
+
+- `P7-005` LLM routing/gating;
+- `P7-006` bounded LLM wording payloads and prompt contract;
+- `P7-007` wording validation/fallback/provenance;
+- `P7-008` frontend rendering for typed agent messages;
+- `P7-009` golden conversation scenario regression tests.
+
+### Scope
+
+This task may change deterministic wording text only where the message type and facts are approved by P7-001/P7-002/P7-003.
+
+It should cover the current product path first:
+
+- onboarding / empty chat guidance;
+- clarification question;
+- brief summary / ready-for-planning message;
+- brief refinement applied/rejected message;
+- validation feedback;
+- safety refusal;
+- planning needs clarification;
+- Agent Plan supported / needs clarification / unsupported;
+- QueryPlan ready / preview / rejected wording;
+- planner explanation/fallback/warning/assumption wording where currently deterministic;
+- approval-required wording;
+- runtime approval pending/rejected/blocked wording;
+- tool unavailable wording;
+- execution started/completed/failed wording;
+- search result summary wording;
+- Agent Response deterministic message, quality notes, limitations, suggested next actions, and next-iteration options;
+- transient status and empty-state wording that currently communicates agent state.
+
+The task should not attempt to turn every UI string into an agent message.
+
+### Conservative implementation posture
+
+`P7-004` must be implemented as a conservative source-message extraction, not as a broad copy rewrite.
+
+Rules:
+
+- Prefer preserving existing user-visible text exactly unless the change is required by P7-003 style/safety policy.
+- Preserve all existing public API response field names and object shapes.
+- Do not move every hardcoded string at once.
+- Do not centralize ordinary UI/data labels.
+- Start with backend-owned deterministic messages in the primary Agent v0 path.
+- The first coding slice must stay backend-first; frontend status-string cleanup is optional, secondary, and must not become a broad extraction in the same pass.
+- Treat frontend text as either:
+  - backend-rendered message text;
+  - frontend transient agent-state status;
+  - ordinary UI/data label.
+- Only the first two categories may be considered in this task.
+- Keep `search_result_summary` and `agent_response` separate:
+  - `search_result_summary` is report/count wording grounded in backend report facts;
+  - `agent_response` is the post-results agent summary object and may still use the current bounded text-only overlay.
+- Do not create a second source of truth for summaries, counts, options, or result facts.
+
+The implementation should include a small coverage matrix for the implemented slice. The matrix can live in tests, helper constants, or documentation inside the new helper module, but it must make the implemented mapping explicit:
+
+```text
+message helper -> message_type -> surface -> source_owner/source_object -> public response field
+```
+
+### Architecture guidance
+
+Recommended implementation shape:
+
+1. Add a small pure helper module, for example `app/agent_messages.py`.
+2. Keep the module dependency direction simple:
+   - allowed imports: standard library, `app.text_utils`, safe constants from `app.domain_config` if needed;
+   - avoid importing `app.main`, `app.routes`, `app.agent_wording`, Tavily/search execution modules, or frontend code;
+   - avoid circular imports with `app.agent_plan` and `app.agent_response`.
+3. Define a lightweight internal deterministic message shape or metadata descriptor, for example:
+
+```text
+message_type
+surface
+language
+text
+source_owner
+source_object
+```
+
+4. Do not expose new API fields by default in this task. Existing API response shapes should keep using the current fields such as `assistant_message`, `message`, `approval_notice`, status text, limitations, and option labels/reasons.
+5. If internal metadata is useful for tests, keep it internal to the helper/tests. Do not add provenance/version response fields; that belongs to `P7-007`.
+6. Move or wrap deterministic message construction through the helper gradually, preserving current flow and current public fields.
+7. Use wrapper functions before aggressive relocation when that keeps behavior safer.
+8. Keep `app.agent_wording` as the existing bounded overlay authority for `agent_plan` and `agent_response`; `P7-004` should only improve the deterministic source/fallback text path that it receives.
+9. Frontend status strings may be centralized in small JS helper functions only when they communicate agent state; do not implement typed frontend rendering or message component restructuring in this task.
+
+### Non-goals
+
+This task must not:
+
+- add LLM routing or gating;
+- add LLM prompt payloads;
+- add or change OpenAI calls;
+- change `app/agent_wording.py` authority;
+- add wording validation/fallback/provenance metadata;
+- expose new public API schema fields for typed messages;
+- implement frontend typed rendering;
+- rewrite all UI copy;
+- rewrite buttons, labels, metric labels, candidate fields, query rows, raw query text, candidate URLs, snippets, or candidate table data;
+- change Search Brief extraction;
+- change QueryPlan generation;
+- change planner mode behavior;
+- change runtime state transitions;
+- change approval/fingerprint rules;
+- change Tavily execution;
+- change candidate results, counts, scoring, filtering, dedupe, location logic, snapshots, or reports;
+- expand roles, countries, technologies, sources, or search modes;
+- add persistence, memory, telemetry, analytics, database, shortlist, export, account behavior, or autonomous behavior.
+
+### Product boundaries
+
+All deterministic messages must preserve the absolute boundaries:
+
+- no direct web-search by the agent outside the approved backend pipeline;
+- no LinkedIn login;
+- no LinkedIn scraping or restriction bypass;
+- no automatic candidate messaging;
+- no user or third-party account actions;
+- no autonomous execution.
+
+Messages must not imply the agent can perform prohibited behavior or that execution can happen without explicit recruiter approval.
+
+### Proposed steps
+
+1. Read `instructions`, `AGENTS.md`, `ProjectStatus.md`, the Phase 7 section in `Tasks.md`, `docs/phase-7-agent-message-taxonomy.md`, `docs/phase-7-message-facts-contract.md`, and `docs/phase-7-agent-wording-style-policy.md`.
+2. Inventory current deterministic message producers in:
+   - `app/main.py`;
+   - `app/agent_plan.py`;
+   - `app/agent_response.py`;
+   - `app/agent_wording.py` only for current deterministic fallback boundaries;
+   - `app/static/app.js`.
+3. Categorize each current visible message by P7-001 `message_type` and surface.
+4. Identify which current messages are agent messages and which are ordinary UI/data labels that must stay out of scope.
+5. Build a small coverage matrix for the implementation slice:
+   - helper/function name;
+   - `message_type`;
+   - surface;
+   - source owner/object;
+   - existing public field that carries the text.
+6. Choose the minimal first implementation slice for the current primary Agent v0 path.
+7. Prefer backend-owned deterministic messages first:
+   - recruiter chat onboarding/clarification/refusal/ready/refinement messages;
+   - Agent Plan supported/needs-clarification/unsupported messages;
+   - QueryPlan approval notices and rejected/preview wording where currently backend-owned;
+   - runtime/tool unavailable/blocked/error messages where currently backend-owned;
+   - Agent Response deterministic source message and deterministic limitations/options wording.
+8. Explicitly leave out ordinary UI/data labels, candidate/query rendering, and frontend component restructuring.
+9. Add a small deterministic source-message helper module, with pure functions and no Tavily/OpenAI/runtime side effects.
+10. Define helper functions for RU/EN language selection and canonical fact vs visible wording rules.
+11. Move or wrap only the selected backend deterministic messages into the helper or thin wrappers around the helper.
+12. Preserve existing API response field names and shapes stable.
+13. Preserve existing user-visible text where practical; only change wording when needed for P7-003 policy compliance.
+14. Keep `search_result_summary` and `agent_response` as separate message concepts and separate helper entry points if both are implemented.
+15. For frontend state/status text, centralize only agent-state messages that are clearly in P7 scope; leave data labels and candidate/query rendering alone.
+16. Preserve existing bounded LLM overlay behavior for `agent_plan` and `agent_response`; the deterministic source text remains the fallback/source text.
+17. Add/update no-network regression coverage to protect existing smoke scripts and public response fields.
+18. Add no-network smoke coverage for:
+    - RU and EN onboarding/clarification;
+    - ready Search Brief / Agent Plan supported path;
+    - missing stack / needs clarification;
+    - unsupported Agent Plan;
+    - approval-required wording;
+    - non-executable preview wording if covered by this slice;
+    - runtime blocked or stale approval wording if covered by this slice;
+    - tool unavailable wording if covered by this slice;
+    - Agent Response result summary and limitations;
+    - next-iteration options remain non-executable.
+19. Add guardrail assertions that deterministic messages do not include prohibited wording:
+    - direct web-search bypass;
+    - LinkedIn login/scraping;
+    - candidate messaging;
+    - account actions;
+    - autonomous execution;
+    - guaranteed/perfect candidates.
+20. Add or update tests to ensure LLM wording fallback still uses deterministic source text and cannot change actions/facts.
+21. Run local regression checks:
+    - `python -m compileall app scripts`;
+    - `node --check app/static/app.js`;
+    - relevant smoke scripts;
+    - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` when practical.
+22. Update `Tasks.md`, `ProjectStatus.md`, `README.md`, `Roadmap.md`, and `AGENTS.md` after implementation.
+
+### Acceptance criteria
+
+- Deterministic source-message generation exists as an explicit helper layer or equivalent clearly scoped implementation.
+- The implemented slice has an explicit coverage matrix mapping helpers to `message_type`, surface, source owner/object, and existing public response field.
+- Each implemented source message maps to a P7-001 `message_type`.
+- Each implemented source message uses only P7-002 allowed facts for that message type.
+- Each implemented source message follows P7-003 style/language policy.
+- RU/EN behavior is covered for implemented chat/Agent Plan/Agent Response messages.
+- Existing public API response shapes remain compatible.
+- Existing user-visible text is preserved where practical, and any text changes are justified by P7-003 style/safety policy.
+- Existing Agent Plan and Agent Response bounded LLM overlay behavior is preserved.
+- `search_result_summary` and `agent_response` remain separate concepts and do not create conflicting summary sources.
+- No LLM routing, prompt payload, validation/fallback/provenance, or typed frontend rendering is added.
+- No Tavily/OpenAI calls are added.
+- No execution, approval, fingerprint, planner, candidate, scoring, filtering, dedupe, location, or snapshot behavior changes are made.
+- Ordinary UI/data labels and candidate/query data are not pulled into the agent message layer.
+- No prohibited wording appears in deterministic source messages.
+- Next-iteration options remain inert and non-executable.
+- Local compile/frontend syntax/smoke checks pass for the changed surface.
+- `git diff --check` passes.
+
+### Before implementation
+
+Codex must restate the task scope, perform a full deep review checklist, and wait for explicit coding approval before changing code or marking this task implemented.
+
+### Implementation result
+
+Implemented a conservative backend-first deterministic source-message layer in `app/agent_messages.py`.
+
+The helper module now owns the implemented slice's coverage matrix and deterministic source messages for:
+
+- recruiter chat onboarding / near-empty guidance, clarification questions, ready-for-planning, validation feedback, safety refusal, draft-preserved guidance, and brief-refinement messages;
+- Agent Plan supported / needs-clarification / unsupported messages and Agent Plan action validation error text;
+- QueryPlan approval notices for ready, fallback, rejected/fallback-available, AI validated preview, and generic preview states;
+- runtime/tool unavailable and execution-failed messages;
+- Agent Response summary message, quality notes, limitations, suggested next actions, and next-iteration option label/reason copy.
+
+Existing public API fields and object shapes were preserved. The existing `app.agent_wording` bounded overlay remains the only LLM-assisted wording authority for `agent_plan.message` and `agent_response.message` / allowed limitation wording. No LLM routing, prompt payload, provenance fields, typed frontend rendering, Tavily/OpenAI calls, Search Brief extraction, QueryPlan generation, runtime state transitions, approval/fingerprint rules, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, account behavior, or autonomous behavior changed.
+
+Added `scripts/smoke_p7_agent_messages.py` and wired it into `scripts/check_all.ps1`. The smoke verifies the coverage matrix, helper dependency boundary, RU/EN chat and Agent Plan source messages, QueryPlan/runtime source messages, Agent Response source messages, next-iteration options staying inert/non-executable, public response fields, and unsafe positive wording guardrails.
+
+Verification performed:
+
+- `python -m compileall app scripts`;
+- `python scripts/smoke_p7_agent_messages.py`.
 
 ---
 
