@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Next task to review: `P7-001 Define agent message taxonomy and lifecycle mapping`.
+Next task to review: `P7-002 Define message facts and source-of-truth contract`.
 
 ---
 
@@ -5740,7 +5740,6 @@ Next task to review: `P7-001 Define agent message taxonomy and lifecycle mapping
 
 ### Backlog
 
-- [ ] P7-001 Define agent message taxonomy and lifecycle mapping
 - [ ] P7-002 Define message facts and source-of-truth contract
 - [ ] P7-003 Define agent wording style and language policy
 - [ ] P7-004 Build deterministic source messages for approved message types
@@ -5754,6 +5753,8 @@ Next task to review: `P7-001 Define agent message taxonomy and lifecycle mapping
 ### In Progress
 
 ### Done
+
+- [x] P7-001 Define agent message taxonomy and lifecycle mapping
 
 ### Current Phase 7 strategy note
 
@@ -5783,6 +5784,448 @@ Critical implementation order:
 8. frontend rendering;
 9. golden scenario regression tests;
 10. closeout.
+
+## Task: P7-001 Define agent message taxonomy and lifecycle mapping
+
+### Status
+
+Implemented.
+
+### Context
+
+Phase 6 closed the product as a narrow, human-approved `AI Agent Runtime v0 baseline`.
+The current agent experience already has several recruiter-visible communication surfaces:
+
+- chat messages from `/api/recruiter-chat/turn`;
+- `Agent Plan` chat messages from `/api/agent/plan`;
+- post-results `Agent Response` chat messages;
+- visible `Search Brief` summary panel;
+- the frontend `Agent Actions` review queue;
+- visible QueryPlan/Search Plan and planner explanation panels;
+- `chatStatus`, `planStatus`, `resultsStatus`, and `reportStatus` status panels;
+- results/report panels that communicate execution outcome.
+
+`P7-001` must define a controlled taxonomy for all recruiter-visible agent messages, not only chat bubbles. The taxonomy must separate what the agent says from which UI surface renders it.
+
+This task is docs-only. It must not change backend code, frontend code, prompts, runtime behavior, Tavily execution, OpenAI behavior, approvals, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, or snapshots.
+
+### Goal
+
+Define `Agent Message Taxonomy V0` and lifecycle mapping for the existing Java/Ukraine Agent v0 flow.
+
+The taxonomy must make later Phase 7 wording work safe by ensuring every recruiter-visible agent message has:
+
+- a stable `message_type`;
+- a `surface`;
+- an allowed lifecycle/runtime/chat state;
+- a source-of-truth owner;
+- deterministic-only vs future LLM wording eligibility;
+- explicit forbidden claims and forbidden mutations.
+
+The goal is to prepare `P7-002` facts/source-of-truth contract, `P7-003` style/language policy, `P7-004` deterministic source messages, and later bounded LLM wording. It is not to implement wording yet.
+
+Important existing behavior: `P5-007` already added bounded LLM-assisted wording for `agent_plan` and `agent_response` after deterministic objects are built. `P7-001` must preserve and represent that existing path instead of pretending all LLM wording is future-only.
+
+The implementation artifact for the approved taxonomy should be a dedicated document, `docs/phase-7-agent-message-taxonomy.md`, so later Phase 7 tasks can reference a stable contract instead of depending on the planning text inside `Tasks.md`.
+
+### Surfaces
+
+The taxonomy must cover these recruiter-visible surfaces:
+
+- `chat` - assistant/recruiter conversation messages;
+- `brief_panel` - visible Search Brief summary, assumptions, missing fields, and readiness state;
+- `action_queue` - `Agent Actions` items such as Build Search Plan and Run Search;
+- `plan_panel` - visible QueryPlan/Search Plan, planner explanation, validation/fallback state, and approval notice;
+- `status_panel` - compact status text such as chat, plan, results, and report statuses;
+- `results_panel` - result/report outcome messaging.
+
+The same lifecycle event may produce different rendering on different surfaces, but each rendered message must still map back to a stable message type and source-of-truth facts.
+
+### Candidate Message Taxonomy V0
+
+The task should define the final approved list, starting from these candidate types:
+
+- `onboarding` - first helpful prompt when the recruiter greets the agent or enters an empty/near-empty message.
+- `clarification_question` - one question that asks for the next missing Search Brief field.
+- `brief_summary` - Search Brief is complete enough to summarize for the recruiter.
+- `brief_refinement_applied` - the current Search Brief changed through an approved/refined chat update.
+- `brief_refinement_rejected` - the requested Search Brief change was not safely applicable.
+- `validation_feedback` - user-correctable structured validation feedback from backend `validation_errors` / `errors`, such as missing fields, unsupported values, invalid Agent Plan action, stale fingerprint, or invalid runtime input.
+- `safety_refusal` - the request violates absolute product boundaries.
+- `planning_needs_clarification` - Agent Plan or QueryPlan cannot be produced yet because the Search Brief is not ready enough, but the flow is not unsupported and no structured validation error is required.
+- `agent_plan` - the agent proposes the next supported planning action for the ready brief.
+- `agent_plan_unsupported` - Agent v0 does not support the ready brief yet.
+- `query_plan_ready` - an executable backend Search Plan has been built and is ready for recruiter review before explicit approval.
+- `query_plan_preview` - a visible non-executable QueryPlan preview, usually an AI `validated_not_executable` plan, shown for review/diagnostics only.
+- `planner_explanation` - planner-provided explanation, fallback reason, warnings, or assumptions shown with the visible plan.
+- `query_plan_rejected` - planner validation failed or produced a non-usable plan.
+- `approval_required` - execution requires explicit recruiter approval.
+- `runtime_action_pending` - a backend-owned pending runtime approval exists for the current visible plan.
+- `runtime_action_rejected` - approval/action cannot proceed because approval is rejected, missing, mismatched, stale, or invalid.
+- `runtime_blocked` - runtime cannot proceed because of policy, unsupported flow, invalid input, stale context, or missing prerequisite.
+- `execution_started` - approved execution has started.
+- `execution_completed` - backend runtime returned an observed successful tool result.
+- `execution_failed` - approved execution failed in a structured runtime way.
+- `tool_unavailable` - required backend service, tool, or configuration is unavailable, for example missing OpenAI/LLM configuration for chat/planner/wording or missing Tavily configuration for execution.
+- `search_result_summary` - visible result/report summary grounded in backend report counts, candidate count, query success/failure, filters, and dedupe metrics.
+- `agent_response` - post-results agent summary grounded in returned Search Plan/report/results.
+- `next_iteration_options` - non-executable suggestions for follow-up refinement.
+- `transient_status` - temporary processing/status message such as preparing Agent Plan, building plan, preparing approval, or running search.
+- `empty_state` - idle/empty guidance such as no action ready yet, no report yet, or no results yet.
+- `system_error` - user-visible technical failure that does not fit a more specific message type.
+
+The final taxonomy may adjust names, but it must not invent a separate runtime state machine that conflicts with Phase 6.
+
+### Lifecycle Mapping
+
+The task must map message types to existing states instead of creating parallel state semantics:
+
+- recruiter chat states: `needs_clarification`, `ready_for_planning`, `refused`;
+- Agent Plan statuses: `needs_clarification`, `unsupported`, `supported`;
+- planner statuses: `validated_not_executable`, `rejected`, `rule_based_fallback`, and related current planner states;
+- Agent Runtime states: `brief_draft`, `brief_ready`, `tool_proposed`, `approval_pending`, `approved`, `executing`, `observed`, `blocked`, `error`;
+- frontend action display states: `blocked`, `ready`, `ready_for_approval`, `running`, `completed`, `stale`, `failed`.
+
+Expected happy-path lifecycle:
+
+```text
+onboarding
+-> clarification_question
+-> brief_summary
+-> agent_plan
+-> query_plan_ready
+-> planner_explanation
+-> approval_required
+-> runtime_action_pending
+-> execution_started
+-> execution_completed
+-> search_result_summary
+-> agent_response
+-> next_iteration_options
+```
+
+Interrupt/side paths:
+
+```text
+brief_refinement_applied
+brief_refinement_rejected
+validation_feedback
+safety_refusal
+planning_needs_clarification
+agent_plan_unsupported
+query_plan_preview
+query_plan_rejected
+planner_explanation
+runtime_action_rejected
+runtime_blocked
+tool_unavailable
+execution_failed
+search_result_summary
+transient_status
+empty_state
+system_error
+```
+
+### Required Taxonomy Table
+
+The docs output for this task must include a table with at least these columns:
+
+```text
+message_type
+surface
+allowed_state_or_lifecycle_group
+source_of_truth
+deterministic_only
+llm_overlay_allowed_later
+forbidden_claims_or_mutations
+```
+
+`surface` must be one of `chat`, `brief_panel`, `action_queue`, `plan_panel`, `status_panel`, or `results_panel`.
+
+`source_of_truth` must identify whether the message is grounded in:
+
+- Search Brief validation;
+- deterministic brief patch/refinement result;
+- Agent Plan backend response;
+- QueryPlan/planner response;
+- backend runtime response envelope;
+- backend tool result/report;
+- backend service/tool/configuration availability check;
+- frontend transient UI state derived from current backend data;
+- structured error envelope.
+
+### Deterministic-Only Rules
+
+Some message types must remain deterministic-only in Phase 7 unless a later approved task explicitly changes this with validation:
+
+- `safety_refusal`;
+- `brief_refinement_applied`;
+- `brief_refinement_rejected`;
+- `validation_feedback`;
+- `planning_needs_clarification`;
+- `agent_plan_unsupported`;
+- `query_plan_ready`;
+- `query_plan_preview`;
+- `query_plan_rejected`;
+- `approval_required`;
+- `runtime_action_pending`;
+- `runtime_action_rejected`;
+- `runtime_blocked`;
+- `execution_started`;
+- `execution_completed`;
+- `execution_failed`;
+- `tool_unavailable`;
+- `search_result_summary`;
+- `next_iteration_options`;
+- `transient_status`;
+- `empty_state`;
+- `system_error`;
+- any message that communicates approval, fingerprints, stale context, execution state, tool availability, policy boundaries, backend-owned executable state, counts, candidate counts, filter metrics, dedupe metrics, report metrics, brief mutation state, downstream stale-state clearing, or next-option executability.
+
+LLM wording must not create message types, change lifecycle state, change surfaces, change approval state, alter fingerprints, alter executable flags, alter tool calls, alter QueryPlan, alter Search Brief, alter brief refinement results, alter stale-state clearing, alter counts, alter candidates, alter scoring, alter filters, alter dedupe, alter location logic, alter next-iteration options, or claim execution/result success not returned by backend.
+
+### Existing Bounded LLM Overlay Rule
+
+`agent_plan` and `agent_response` already support bounded LLM-assisted wording from `P5-007`.
+
+The taxonomy must account for current wording/provenance metadata on these message types:
+
+- `wording_mode`;
+- `fallback_reason`;
+- `llm_warnings`.
+
+For `agent_plan`, current accepted LLM output may replace only `agent_plan.message` and add/update wording provenance metadata.
+
+For `agent_response`, current accepted LLM output may replace only `agent_response.message`, optional wording inside existing `limitations`, and optional `llm_warnings`.
+
+This existing overlay does not permit the LLM to change facts, summary facts, quality notes, suggested next actions, next iteration options, proposed actions, fingerprints, counts, approval state, executable flags, planner mode, filters, scoring, dedupe, location logic, candidates, or result ordering.
+
+All message types other than `agent_plan` and `agent_response` must remain non-LLM unless a later Phase 7 task explicitly adds routing, bounded payloads, validation, fallback, and provenance for that type.
+
+### Executable Plan vs Preview Rule
+
+`P7-001` must explicitly distinguish executable backend Search Plans from non-executable QueryPlan previews.
+
+`query_plan_ready` applies only when the visible plan is a backend executable Search Plan according to current planner/runtime rules, such as `rule_based` or `rule_based_fallback` planner data with a valid plan fingerprint and adapted structured request. It may lead to `approval_required` / `runtime_action_pending`, but execution still requires explicit recruiter approval.
+
+`query_plan_preview` applies when a visible QueryPlan is shown for review, diagnostics, or comparison but is not executable, such as an AI `validated_not_executable` preview. It must not be treated as approval-ready, runtime-ready, Run Search-ready, or executable.
+
+`approval_required` must not be rendered as an actionable approval for `query_plan_preview`. The recruiter may review the preview, but the wording must not imply that `Approve & Search` can run it.
+
+LLM wording must not change or reinterpret `execution_allowed`, `execution_approval_required`, `planner_mode`, `plan_status`, `latestExecutablePlan`, plan fingerprints, approval availability, runtime readiness, or whether a plan can be executed.
+
+### Next Iteration Options Rule
+
+`next_iteration_options` must remain deterministic-only and inert.
+
+These options are grounded only in returned Search Plan / QueryPlan, report, results, quality data, and current Search Brief metadata. They may propose future `brief_patch` operations, but they are not accepted, applied, or executed by this message type.
+
+Every option must preserve:
+
+- `requires_approval_before_execution = true`;
+- `is_executable_now = false`;
+- no frontend Apply/action button in this task;
+- no automatic Build Plan, `/api/agent/query-plan`, Tavily, LinkedIn, web search, multi-wave, or runtime execution.
+
+LLM wording may mention deterministic next-iteration options only as text. It must not add, remove, reorder, select, mutate, or make executable any option, `proposed_brief_patch`, operation, approval flag, executable flag, or follow-up action.
+
+### Brief Refinement Rule
+
+`brief_refinement_applied` and `brief_refinement_rejected` must remain deterministic-only.
+
+These message types are grounded only in backend `brief_patch`, patch validation result, normalized Search Brief diff, `brief_changed`, and `stale_state_should_clear`.
+
+`brief_refinement_applied` may say that the Search Brief changed only when the backend returned `brief_changed = true`. It may say a new plan is required only when `stale_state_should_clear = true`.
+
+`brief_refinement_rejected` may explain why the requested patch was not safely applicable, but it must not imply that the Search Brief changed, that downstream state was cleared, or that a new plan is required unless the backend explicitly returned those facts.
+
+LLM wording must not change `brief_patch.operations`, `normalized_brief`, `brief_changed`, `stale_state_should_clear`, missing fields, next question, planner state, Agent Plan, QueryPlan, approval state, runtime state, results, Agent Response, or whether downstream state is cleared.
+
+### Execution Started Rule
+
+`execution_started` may be included, but only as a transient `frontend/runtime-state derived` message or status.
+
+It must not be treated as a durable backend result and must not include:
+
+- counts;
+- candidates;
+- success claims;
+- quality claims;
+- result claims;
+- statements that Tavily has completed.
+
+Counts, candidates, success/failure, quality, and result conclusions are allowed only after `execution_completed` / `agent_response`, when the backend returned a tool result/report.
+
+### Message Text vs Data Labels Boundary
+
+`P7-001` must distinguish recruiter-visible agent message text from ordinary UI data labels and field values.
+
+The taxonomy covers text that communicates agent state, plan state, execution state, report/result summary, limitations, guidance, or next-step options. It must not turn every frontend label or data field into a future LLM wording target.
+
+Examples that should remain data labels/field values unless a later task explicitly changes the UI copy system:
+
+- metric labels such as `Raw`, `Unique`, `Duplicates`, `Failed queries`;
+- candidate fields such as name, headline, location, role, technology, stack, seniority, score, flags, snippets, and query-source metadata;
+- Search Brief field labels such as `Role`, `Technology`, `Stack`, `Location`, `Depth`, `Seniority`;
+- button labels such as `Build Plan`, `Approve & Search`, `Send`, and `Reset`.
+
+LLM wording must not rewrite labels, candidate field values, counts, report metrics, query IDs, candidate names, candidate headlines, snippets, URLs, quality scores, filters, or dedupe/location/scoring facts.
+
+### Validation Feedback Rule
+
+`validation_feedback` must cover user-correctable structured validation feedback from backend `validation_errors` / `errors`.
+
+This type is distinct from:
+
+- `clarification_question`, which asks for one missing Search Brief field in the chat flow;
+- `planning_needs_clarification`, which means Agent Plan or QueryPlan was requested but the current Search Brief is not ready enough to plan;
+- `query_plan_rejected`, which means the planner produced no usable plan;
+- `runtime_blocked`, which means runtime rejected or blocked an action before execution;
+- `tool_unavailable`, which means a required backend service, tool, or configuration such as OpenAI/LLM or Tavily is unavailable;
+- `system_error`, which is a generic technical failure when no more specific type applies.
+
+`validation_feedback` must be deterministic-only and grounded in the structured error envelope. It may explain what the recruiter needs to fix, but it must not change or soften error fields, error codes, fingerprints, stale-context facts, approval facts, executable state, planner state, runtime state, Search Brief values, QueryPlan content, tool calls, candidates, counts, or result facts.
+
+### Planning Needs Clarification Rule
+
+`planning_needs_clarification` must cover cases where Agent Plan or QueryPlan planning is requested, but the current Search Brief is not ready enough to produce an Agent Plan, proposed action, or QueryPlan.
+
+This type is distinct from:
+
+- `clarification_question`, which belongs to the primary recruiter chat flow and asks one missing field question;
+- `validation_feedback`, which is grounded in structured `validation_errors` / `errors`;
+- `agent_plan_unsupported`, which means the ready brief is outside Agent v0 scope;
+- `query_plan_rejected`, which means planner validation failed or produced a non-usable plan.
+
+`planning_needs_clarification` must be deterministic-only and grounded in Search Brief readiness, Agent Plan backend response, or planner response. It may explain that planning cannot continue until the brief is complete, but it must not invent missing fields, mutate the Search Brief, create an Agent Plan, create a QueryPlan, create proposed actions, change approval state, or imply execution is possible.
+
+### Error/Failure Rule
+
+The taxonomy must distinguish:
+
+- `validation_feedback` - user-correctable structured validation feedback from backend `validation_errors` / `errors`;
+- `runtime_blocked` - the action did not start because the runtime rejected or blocked it before execution;
+- `tool_unavailable` - required backend service, tool, or configuration is unavailable, such as OpenAI/LLM for chat/planner/wording or Tavily for execution;
+- `execution_failed` - approved execution started but backend runtime/tool execution failed;
+- `system_error` - generic user-visible technical error when no more precise type applies.
+
+Do not collapse all of these into `system_error`; the recruiter needs different wording and next-step expectations for each case.
+
+Classification priority must be explicit:
+
+1. Use `safety_refusal` for prohibited product behavior.
+2. Use `tool_unavailable` for missing/unavailable required backend service, tool, or configuration.
+3. Use `validation_feedback` for recruiter-correctable structured validation errors.
+4. Use `runtime_blocked` for runtime rejection before execution.
+5. Use `execution_failed` only after approved execution started and failed.
+6. Use `system_error` only as the fallback when no more specific message type applies.
+
+### Hard Boundaries
+
+All message types and future wording must preserve the existing absolute product boundaries:
+
+- no direct web-search by the agent outside the approved backend pipeline;
+- no LinkedIn login;
+- no LinkedIn scraping or restriction bypass;
+- no automatic candidate messaging;
+- no user or third-party account actions;
+- no autonomous execution.
+
+The taxonomy may describe suggestions, preparation, approval prompts, execution status, result analysis, and follow-up options, but it must not create autonomous actions or imply that the agent can act without explicit approval.
+
+### Proposed Task Steps
+
+1. Inventory current recruiter-visible messages in backend/frontend:
+   - `/api/recruiter-chat/turn` assistant messages;
+   - visible Search Brief summary card, Search Brief fields, assumptions, missing fields, and ready/needs-clarification state;
+   - `/api/agent/plan` Agent Plan messages;
+   - post-results Agent Response messages;
+   - `Agent Actions` queue labels/details;
+   - visible QueryPlan/Search Plan rows and metadata;
+   - planner explanation, fallback reason, warnings, assumptions, validation state, and approval notice displayed with QueryPlan;
+   - structured validation feedback from Search Brief, Agent Plan, QueryPlan, approval/action, and runtime input validation;
+   - chat/plan/results/report status text;
+   - visible results/report summary text and metrics, including query success/failure, candidate count, filters, and dedupe counts;
+   - idle/empty messages such as no action/report/results yet;
+   - runtime error/result display paths.
+2. Define the approved `surface` list: `chat`, `brief_panel`, `action_queue`, `plan_panel`, `status_panel`, `results_panel`.
+3. Define canonical `message_type` ids for the current Java/Ukraine Agent v0 flow.
+4. Map each `message_type` to existing chat, Agent Plan, planner, runtime, and frontend display states.
+5. Define `source_of_truth` for each message type.
+6. Mark deterministic-only message types.
+7. Mark current bounded LLM wording eligibility for `agent_plan` and `agent_response`, including current provenance metadata fields.
+8. Mark which additional message types may later allow bounded LLM wording overlay.
+9. Add the `planner_explanation` boundary: it may explain the visible plan, fallback, warnings, or assumptions, but must not change QueryPlan content, approval state, execution state, or result claims.
+10. Add the `query_plan_ready` / `query_plan_preview` boundary so executable backend Search Plans cannot be confused with non-executable AI previews.
+11. Add the `next_iteration_options` boundary so deterministic follow-up suggestions remain inert, non-executable, and not auto-applied.
+12. Add the `brief_refinement_applied` / `brief_refinement_rejected` boundary so Search Brief mutation and stale downstream clearing remain backend-owned.
+13. Add the transient `execution_started`, `transient_status`, and `empty_state` rules.
+14. Add the `search_result_summary` boundary: it may summarize backend report/result facts, but must not alter counts, candidates, filter metrics, dedupe metrics, location facts, scoring, or result ordering.
+15. Add the `validation_feedback` boundary for user-correctable structured validation errors.
+16. Add the `planning_needs_clarification` boundary for Agent Plan / QueryPlan attempts when the Search Brief is not ready enough to plan.
+17. Add the `runtime_blocked` / `tool_unavailable` / `execution_failed` / `system_error` distinction, including service/config availability classification for OpenAI/LLM and Tavily.
+18. Define the boundary between agent message text and ordinary UI labels/data field values.
+19. Define forbidden claims and forbidden mutations for every type or group.
+20. Create `docs/phase-7-agent-message-taxonomy.md` as the stable output artifact for the approved taxonomy and lifecycle mapping.
+21. Keep facts/schema details for `P7-002`, wording style for `P7-003`, implementation for `P7-004+`, and frontend typed rendering for `P7-008`.
+22. Update documentation only.
+
+### Non-Goals
+
+- No code changes.
+- No frontend behavior changes.
+- No backend behavior changes.
+- No prompt changes.
+- No new LLM calls.
+- No Tavily calls.
+- No execution behavior changes.
+- No new runtime endpoint or runtime state.
+- No Search Brief, QueryPlan, scoring, filtering, dedupe, location, candidate, or snapshot behavior changes.
+- No persistence, database, memory, shortlist, export, authentication, account actions, or new data source.
+- No expansion beyond the current supported Java/Ukraine Agent v0 flow.
+
+### Acceptance Criteria
+
+- `P7-001` is implemented as a docs-only taxonomy/lifecycle contract.
+- The task covers all recruiter-visible agent messages, not only chat bubbles.
+- The approved surfaces are documented.
+- `brief_panel` is documented as the surface for visible Search Brief summary, assumptions, missing fields, and readiness state.
+- `plan_panel` is documented as the surface for visible QueryPlan/Search Plan, planner explanation, validation/fallback state, and approval notice.
+- The taxonomy accounts for planner explanation/fallback/warnings/assumptions shown with a visible QueryPlan.
+- The taxonomy distinguishes executable `query_plan_ready` backend Search Plans from non-executable `query_plan_preview` AI previews.
+- `approval_required` is not treated as actionable for `query_plan_preview`.
+- The taxonomy accounts for Agent Plan / QueryPlan `needs_clarification` states and keeps them separate from primary chat clarification, structured validation feedback, unsupported Agent Plan, and rejected QueryPlan.
+- The taxonomy accounts for user-correctable structured validation feedback and keeps it separate from clarification questions, runtime blocking, execution failure, and generic system errors.
+- The taxonomy treats missing or unavailable OpenAI/LLM and Tavily service/configuration as `tool_unavailable`, not as `validation_feedback` or generic `system_error`.
+- The taxonomy accounts for result/report summary text grounded in backend report counts and returned candidates.
+- The taxonomy keeps Search Brief refinement mutation state and downstream stale-state clearing grounded in backend `brief_patch`, `brief_changed`, and `stale_state_should_clear`.
+- The taxonomy keeps `next_iteration_options` deterministic, inert, non-executable, not auto-applied, and not mutable by LLM wording.
+- The taxonomy accounts for transient processing statuses and empty/idle UI guidance.
+- The task explicitly separates agent message text from ordinary UI labels and data field values.
+- The candidate taxonomy or final taxonomy includes `execution_failed` and does not collapse all runtime failures into `system_error`.
+- `agent_plan_unsupported`, `query_plan_rejected`, and `execution_completed` are explicitly deterministic-only because they communicate backend-owned support, planner, or observed-result facts.
+- `execution_started` is documented as transient and non-result-bearing.
+- A required taxonomy table shape is documented.
+- The implementation artifact for the approved taxonomy is documented as `docs/phase-7-agent-message-taxonomy.md`.
+- Each message type must map to existing lifecycle/runtime/frontend states.
+- Each message type must identify a source-of-truth owner.
+- Deterministic-only message types are identified.
+- Existing bounded LLM overlay and provenance for `agent_plan` and `agent_response` are represented without expanding LLM authority.
+- Future LLM wording eligibility is explicitly separated from deterministic-only messages.
+- The task preserves Phase 6 runtime boundaries, approval gates, hard product prohibitions, and the current Java/Ukraine scope.
+- No code behavior changes are made.
+
+### Pre-implementation rule
+
+Codex restated the task scope, critically reviewed the steps, and waited for explicit implementation approval before creating `docs/phase-7-agent-message-taxonomy.md`.
+
+### Implementation result
+
+Created `docs/phase-7-agent-message-taxonomy.md` as the stable `Agent Message Taxonomy V0` contract for Phase 7.
+
+The document defines surfaces, existing state mappings, source-of-truth owners, happy-path and interrupt lifecycle mapping, the required taxonomy table, deterministic-only rules, existing bounded LLM overlay boundaries, executable plan vs preview boundaries, Search Brief refinement boundaries, next-iteration option boundaries, execution/result claim boundaries, message text vs data-label boundaries, error classification priority, and future Phase 7 handoff.
+
+No backend code, frontend code, prompts, runtime behavior, Tavily execution, OpenAI behavior, approvals, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changed.
 
 ---
 
