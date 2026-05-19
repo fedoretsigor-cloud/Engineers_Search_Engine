@@ -3922,8 +3922,6 @@ Use the most conservative implementation variant:
 
 ### Backlog
 
-- [x] P6-004 Implement first approved tool loop for Java/Ukraine baseline
-- [ ] P6-005 Add runtime guardrail and stale-approval regression tests
 - [ ] P6-006 Close Phase 6 with AI Agent v0 decision
 
 ### In Progress
@@ -3933,6 +3931,8 @@ Use the most conservative implementation variant:
 - [x] P6-001 Define human-approved Agent Runtime contract
 - [x] P6-002 Implement typed tool registry and tool-call envelopes
 - [x] P6-003 Add frontend agent action review queue
+- [x] P6-004 Implement first approved tool loop for Java/Ukraine baseline
+- [x] P6-005 Add runtime guardrail and stale-approval regression tests
 
 ### Current Phase 6 strategy note
 
@@ -5174,6 +5174,198 @@ Implemented the first approved Agent Runtime execution slice for the Java/Ukrain
 - Frontend `Approve & Search` now uses the runtime endpoint and reads the search response from `tool_results[0].result`; it does not fallback to direct structured-search execution on runtime failure.
 - Added no-network runtime smoke coverage for prepare, unsafe input rejection, non-execution tool rejection, missing/stale context, missing Tavily key, approval mismatch, and mocked approved single/multi-wave execution.
 - Existing direct structured-search endpoints remain available for compatibility and backend checks.
+
+### Pre-implementation rule
+
+The task was critically reviewed and explicitly approved before coding.
+
+---
+
+## Task: P6-005 Add runtime guardrail and stale-approval regression tests
+
+### Status
+
+Implemented.
+
+### Context
+
+`P6-004` implemented the first real approved Agent Runtime execution slice:
+
+`visible rule-based QueryPlan -> runtime prepare -> pending approval -> explicit user approval -> runtime execute_approved -> existing safe search pipeline -> observed runtime result`.
+
+This created the first working runtime path, but the next step should be hardening, not feature expansion. `P6-005` should make the runtime harder to misuse or regress by adding focused guardrail checks around stale approval, context mismatch, frontend runtime-only execution, and no-network regression coverage.
+
+### Goal
+
+Strengthen the approved runtime execution path so stale, mutated, mismatched, or frontend-owned approval state cannot accidentally execute search.
+
+This is a regression/guardrail task. It should not add new agent capabilities.
+
+### Scope
+
+In scope:
+
+1. Add focused runtime guardrail regression tests.
+2. Verify stale approval rejection when normalized semantic `tool_input` changes after `prepare`.
+3. Verify stale approval rejection when approval-time `runtime_context` differs from prepare-time context.
+4. Verify stale approval rejection when `search_brief_fingerprint` changes after `prepare`.
+5. Verify single-wave and multi-wave mode mismatches are rejected.
+6. Verify `query_count`, `plan_fingerprint`, `tool_name`, `execution_mode`, and `multi_wave_enabled` remain tightly bound.
+7. Verify multi-wave settings remain tightly bound:
+   - `max_waves`;
+   - `min_new_unique_per_wave`;
+   - `patience`.
+8. Verify runtime approval mutation is rejected:
+   - wrong `tool_call_id`;
+   - wrong `tool_input_fingerprint`;
+   - wrong `context_fingerprint`;
+   - wrong `idempotency_key`;
+   - wrong `approval_status`;
+   - extra approval fields.
+9. Verify request/tool input/runtime context reject frontend-owned execution fields:
+   - `query_plan`;
+   - `endpoint`;
+   - `path`;
+   - `url`;
+   - `method`;
+   - `action`;
+   - raw query text fields such as `query`, `queries`, `raw_query`, `boolean_query`, and `search_query`.
+10. Verify frontend `Approve & Search` uses `/api/agent/runtime/turn`.
+11. Verify frontend has no silent fallback to `/api/structured-search` or `/api/structured-search/multi-wave` on runtime failure.
+12. Verify frontend stale pending approval clearing on:
+   - Search Brief / downstream state clear;
+   - Agent Plan / QueryPlan change;
+   - planner data clear;
+   - multi-wave toggle;
+   - runtime prepare/search error.
+13. Verify `Approve & Search` stays disabled without a current pending runtime approval.
+14. Verify rejected guardrail cases do not call the mocked execution helper.
+15. Verify valid approved runtime execution still works with mocked helpers.
+16. Verify `prepare` does not call the execution helper even when a fake `TAVILY_API_KEY` is configured.
+17. Verify missing `TAVILY_API_KEY` during `execute_approved` returns `tool_unavailable` and does not call execution.
+18. Keep all new tests no-network and Tavily-free.
+19. Keep old structured-search endpoints available for backend compatibility checks.
+
+Out of scope:
+
+- new tools;
+- generic runtime for planning/analysis/suggestion tools;
+- LLM tool choice;
+- AI-generated executable QueryPlans;
+- real idempotency store or persistence;
+- database, shortlist, export, authentication, saved searches, or memory;
+- new countries, technologies, roles, or search depths;
+- changing Tavily query generation;
+- changing scoring, dedupe, location filtering, Candidate Quality, snapshots, or Agent Response semantics;
+- direct web-search bypass;
+- LinkedIn login, scraping, automation, or restriction bypass;
+- candidate messaging/outreach;
+- new ordinary LLM-assisted conversation wording.
+
+### Guardrail strategy
+
+`P6-005` should treat `P6-004` runtime behavior as the baseline and add tests around the edges.
+
+The task should prefer tests and small validation tightening over new abstractions. If a missing guardrail requires a meaningful code change, keep it narrowly scoped to runtime validation or frontend stale-approval clearing. If the fix requires broader runtime architecture refactoring, stop and split that into a separate reviewed task.
+
+No real Tavily call should happen in this task. Positive execution tests should use a fake `TAVILY_API_KEY` plus mocked execution helpers.
+
+Important nuance: stale approval for changed `tool_input` should mean the normalized semantic input changed. Cosmetic raw-input differences that normalize to the same values do not need to invalidate approval, because runtime fingerprints are intentionally built from normalized tool input.
+
+### Proposed implementation steps
+
+1. Confirm the exact guardrail-only scope before coding.
+2. Create a focused no-network smoke script, for example `scripts/smoke_p6_runtime_guardrails.py`.
+3. Add reusable test helpers for:
+   - valid runtime tool input;
+   - valid runtime context;
+   - `prepare`;
+   - converting pending approval to approved runtime approval;
+   - mocked approved execution.
+4. Test that approval from one `prepare` is rejected if normalized semantic stack/tool input changes before `execute_approved`.
+5. Test that approval from one `prepare` is rejected if `search_brief_fingerprint` changes before `execute_approved`.
+6. Test that approval from one `prepare` is rejected if `plan_fingerprint` changes before `execute_approved`.
+7. Test that approval from one `prepare` is rejected if `query_count` changes before `execute_approved`.
+8. Test single-wave approval against multi-wave execution and multi-wave approval against single-wave execution.
+9. Test mismatch between `tool_name`, `execution_mode`, and `multi_wave_enabled`.
+10. Test multi-wave setting changes after `prepare`: `max_waves`, `min_new_unique_per_wave`, and `patience`.
+11. Test wrong `tool_call_id`.
+12. Test wrong `tool_input_fingerprint`.
+13. Test wrong `context_fingerprint`.
+14. Test wrong `idempotency_key`.
+15. Test wrong `approval_status`.
+16. Test extra fields in `runtime_approval` are rejected by the public schema with HTTP `422`.
+17. Test request-level extra fields are rejected by the public schema with HTTP `422`.
+18. Test unsafe `tool_input` fields are rejected, including `query_plan`, `endpoint`, `path`, `url`, `method`, `action`, `query`, `queries`, `raw_query`, `boolean_query`, and `search_query`.
+19. Test unsafe `runtime_context` extra fields are rejected, including `query_plan`, `endpoint`, `path`, `url`, `method`, `action`, `query`, `queries`, `raw_query`, `boolean_query`, and `search_query`.
+20. Test that rejected stale/mismatch/runtime-approval cases do not call mocked execution helpers.
+21. Test that valid approved single-wave execution still calls the mocked execution helper exactly once.
+22. Test that valid approved multi-wave execution still calls the mocked execution helper exactly once.
+23. Test that `prepare` does not call mocked execution helpers even when a fake `TAVILY_API_KEY` is configured.
+24. Test that missing `TAVILY_API_KEY` during `execute_approved` returns `tool_unavailable` and does not call mocked execution helpers.
+25. Add frontend static regression checks that `runStructuredSearch` posts to `AGENT_RUNTIME_TURN_ENDPOINT`.
+26. Add frontend static regression checks scoped to the `runStructuredSearch` body: it must not call `fetch(searchEndpoint(...))`, `/api/structured-search`, or `/api/structured-search/multi-wave` as direct fallback.
+27. Add frontend static regression checks that obsolete direct-execution helpers such as `searchEndpoint`, `buildSearchRequest`, and `buildExecutionApproval` are not active execution dependencies if they remain in the file.
+28. Add frontend static regression checks for stale approval clearing and disabled approval behavior:
+   - `clearRuntimeApproval()` is called on planner/query-plan clear paths;
+   - `clearRuntimeApproval()` is called on multi-wave toggle;
+   - `clearRuntimeApproval()` is called on runtime/search errors;
+   - `searchButton.disabled` depends on `currentRuntimePendingApproval`.
+29. Add the new smoke script to `scripts/check_all.ps1`.
+30. Keep existing `scripts/smoke_p6_agent_runtime.py` as the broader runtime contract smoke; avoid duplicating every existing test there.
+31. Update `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, and `AGENTS.md` after implementation.
+32. Run `scripts/check_all.ps1`.
+33. Run `git diff --check`.
+
+### Acceptance criteria
+
+- A dedicated runtime guardrail smoke exists.
+- The new guardrail smoke is included in `scripts/check_all.ps1`.
+- All new guardrail checks are no-network and do not call Tavily.
+- Stale approval after normalized semantic `tool_input` changes is rejected.
+- Stale approval after approval-time `runtime_context` differs from prepare-time context is rejected.
+- Old approval is rejected when `search_brief_fingerprint` changes after `prepare`; a fresh prepare with the new fingerprint may still be valid.
+- Changed `plan_fingerprint` is rejected.
+- Changed `query_count` is rejected.
+- Single-wave/multi-wave cross-approval is rejected.
+- `tool_name`, `execution_mode`, and `multi_wave_enabled` mismatch is rejected.
+- Changed multi-wave settings are rejected: `max_waves`, `min_new_unique_per_wave`, and `patience`.
+- Mutated runtime approval fields are rejected.
+- Extra runtime approval fields are rejected by public schema with HTTP `422`.
+- Request-level extra fields are rejected by public schema with HTTP `422`.
+- Unsafe frontend-owned `tool_input` fields are rejected.
+- Unsafe frontend-owned `runtime_context` fields are rejected.
+- Rejected stale/mismatch/runtime-approval cases do not call execution helpers.
+- Valid approved single-wave and multi-wave paths still execute with mocked helpers.
+- `prepare` never calls execution helpers.
+- Missing Tavily key during `execute_approved` returns structured `tool_unavailable` and does not call execution helpers.
+- Frontend `Approve & Search` runtime path is covered by static regression checks.
+- Frontend has no silent direct structured-search fallback inside `runStructuredSearch` after runtime failure.
+- Frontend clears stale pending runtime approval on planner/query-plan clear paths, multi-wave toggle, and runtime/search errors.
+- Frontend keeps `Approve & Search` disabled without current pending runtime approval.
+- Obsolete direct structured-search frontend helpers are not active execution dependencies.
+- Existing structured-search endpoints remain available for backend compatibility.
+- No product behavior, search logic, scoring, filtering, dedupe, location, Candidate Quality, snapshots, Agent Response, or LLM wording behavior changes unless a missing guardrail requires a small approved runtime validation fix.
+- Broader runtime architecture refactoring is not allowed in this task; split it into a separate reviewed task if needed.
+- Local regression checks pass.
+
+### Review notes
+
+Initial review conclusion: this task is necessary after `P6-004`. It should be a hardening/regression task, not a feature task. The primary risk after the first runtime loop is not missing functionality; it is stale or mutated approval state accidentally reaching execution.
+
+### Approval result
+
+Approved for coding. The approved scope is runtime guardrail and stale-approval regression hardening after `P6-004`. `P6-005` must remain no-network, Tavily-free in tests, and focused on stale approval, runtime context, schema boundary, frontend runtime-only path, and mocked execution guardrails. It must not add new agent tools, LLM tool choice, AI executable QueryPlans, persistence, new search behavior, new countries/technologies, direct web-search bypass, LinkedIn automation, or broader runtime architecture refactoring.
+
+### Implementation result
+
+Implemented as a no-network regression hardening task.
+
+- Added `scripts/smoke_p6_runtime_guardrails.py`.
+- Added runtime guardrail smoke coverage for stale normalized `tool_input`, changed `search_brief_fingerprint`, changed `plan_fingerprint`, changed `query_count`, mismatched `tool_name` / `execution_mode` / `multi_wave_enabled`, single-wave vs multi-wave approval mismatch, changed multi-wave settings, mutated runtime approval fields, schema extra fields, unsafe frontend-owned `tool_input` / `runtime_context` fields, prepare-without-execution, missing `TAVILY_API_KEY` during `execute_approved`, and valid mocked single/multi-wave execution.
+- Added frontend static regression checks that `runStructuredSearch` uses `AGENT_RUNTIME_TURN_ENDPOINT`, has no direct structured-search fallback, clears stale runtime approval on relevant state changes/errors, and keeps `Approve & Search` disabled without current pending runtime approval.
+- Added the guardrail smoke to `scripts/check_all.ps1`.
+- No product behavior, search logic, scoring, filtering, dedupe, location logic, Candidate Quality, snapshots, Agent Response, LLM wording, new tools, AI executable QueryPlans, persistence, or broader runtime architecture changed.
 
 ### Pre-implementation rule
 
