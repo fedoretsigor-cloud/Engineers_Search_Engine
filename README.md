@@ -53,8 +53,8 @@ Agreed next direction:
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
-- completed Phase 7 task: `P7-001 Define agent message taxonomy and lifecycle mapping`;
-- next task to review: `P7-002 Define message facts and source-of-truth contract`;
+- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`;
+- next task to review: `P7-003 Define agent wording style and language policy`;
 - add ordinary agent conversation wording in Phase 7 after taxonomy/lifecycle, facts/source-of-truth, style policy, deterministic source messages, LLM routing/gating, bounded payloads, validation/fallback/provenance, typed frontend rendering, and golden scenario tests are reviewed;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 

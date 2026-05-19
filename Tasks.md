@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Next task to review: `P7-002 Define message facts and source-of-truth contract`.
+Next task to review: `P7-003 Define agent wording style and language policy`.
 
 ---
 
@@ -5740,7 +5740,6 @@ Next task to review: `P7-002 Define message facts and source-of-truth contract`.
 
 ### Backlog
 
-- [ ] P7-002 Define message facts and source-of-truth contract
 - [ ] P7-003 Define agent wording style and language policy
 - [ ] P7-004 Build deterministic source messages for approved message types
 - [ ] P7-005 Define LLM routing and gating policy for conversation wording
@@ -5755,6 +5754,7 @@ Next task to review: `P7-002 Define message facts and source-of-truth contract`.
 ### Done
 
 - [x] P7-001 Define agent message taxonomy and lifecycle mapping
+- [x] P7-002 Define message facts and source-of-truth contract
 
 ### Current Phase 7 strategy note
 
@@ -6226,6 +6226,602 @@ Created `docs/phase-7-agent-message-taxonomy.md` as the stable `Agent Message Ta
 The document defines surfaces, existing state mappings, source-of-truth owners, happy-path and interrupt lifecycle mapping, the required taxonomy table, deterministic-only rules, existing bounded LLM overlay boundaries, executable plan vs preview boundaries, Search Brief refinement boundaries, next-iteration option boundaries, execution/result claim boundaries, message text vs data-label boundaries, error classification priority, and future Phase 7 handoff.
 
 No backend code, frontend code, prompts, runtime behavior, Tavily execution, OpenAI behavior, approvals, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changed.
+
+---
+
+## Task: P7-002 Define message facts and source-of-truth contract
+
+### Status
+
+Implemented.
+
+### Critical review result
+
+Initial high-level steps were directionally correct, but too broad for a source-of-truth contract. `P7-002` must not be only a list of fact categories. It must define a strict facts whitelist and derived-claim contract for every `message_type` from `P7-001`.
+
+The task is ready to review after this update because it now requires:
+
+- endpoint/producer inventory before writing the contract;
+- explicit classification for current UI, diagnostic, legacy, and disabled producers;
+- exact allowed facts by `message_type`;
+- exact source object / owner for every allowed fact;
+- required vs optional vs nullable/default semantics;
+- deterministic derived-claim rules;
+- absence/unknown semantics;
+- candidate-data and frontend-derived-fact boundaries;
+- frontend exception/catch path boundaries;
+- error envelope mapping;
+- reserved wording provenance/version facts for later Phase 7 tasks;
+- explicit no-behavior-change verification.
+
+### Context
+
+`P7-001` created `docs/phase-7-agent-message-taxonomy.md`, which defines Agent Message Taxonomy V0: message types, surfaces, lifecycle mapping, deterministic-only boundaries, existing bounded LLM overlay boundaries, and hard product restrictions.
+
+`P7-002` is the next contract layer. It must define exactly what facts each message type is allowed to communicate and which producer owns those facts.
+
+This is needed before:
+
+- `P7-003` wording style/language policy;
+- `P7-004` deterministic source messages;
+- `P7-005` LLM routing/gating;
+- `P7-006` bounded LLM payloads;
+- `P7-007` validation/fallback/provenance;
+- `P7-008` typed frontend rendering.
+
+The core rule: message wording may be improved later, but facts must remain backend-/contract-owned. LLM output must not become a source of truth.
+
+### Goal
+
+Create `docs/phase-7-message-facts-contract.md` as the stable `Agent Message Facts Contract V0`.
+
+The document must define, for every `message_type` from `docs/phase-7-agent-message-taxonomy.md`:
+
+- allowed facts;
+- forbidden facts;
+- required facts;
+- optional facts;
+- nullable/default behavior;
+- source object;
+- source-of-truth owner;
+- allowed deterministic derived claims;
+- forbidden derived claims;
+- freshness/fingerprint requirements;
+- whether the facts may ever be included in a future LLM wording payload;
+- whether the facts are backend-owned, frontend-derived, or wording/provenance-only.
+
+### Current Producers To Inventory
+
+Before writing the contract, inspect the current backend/frontend producers and visible render paths.
+
+Required producers:
+
+- `/api/recruiter-chat/turn`;
+- `/api/agent/plan`;
+- `/api/agent/query-plan`;
+- `/api/agent/runtime/turn`;
+- approved single-wave and multi-wave search responses;
+- deterministic Agent Response builder;
+- bounded Agent Plan/Agent Response wording overlay;
+- frontend Search Brief summary rendering;
+- frontend Agent Actions queue;
+- frontend QueryPlan/Search Plan rendering;
+- frontend status panels;
+- frontend results/report rendering.
+
+The current primary frontend Agent v0 path is:
+
+```text
+/api/recruiter-chat/turn
+-> /api/agent/plan
+-> /api/agent/query-plan
+-> /api/agent/runtime/turn prepare
+-> /api/agent/runtime/turn execute_approved
+-> runtime tool result / approved search response / agent_response
+```
+
+The contract must also inspect and classify these non-primary or diagnostic producers:
+
+- `/api/search-brief/validate`;
+- `/api/structured-search/validate`;
+- `/api/query-plan`;
+- `/api/ai-query-plan/validate`;
+- `GET /api/agent/tools`;
+- direct `/api/structured-search` and `/api/structured-search/multi-wave` route responses;
+- disabled legacy `/api/search`.
+
+For each one, the document must explicitly state whether it is:
+
+- part of the current recruiter-visible Agent v0 UI path;
+- diagnostic/internal only;
+- legacy/backward-compatibility only;
+- disabled/out of product path;
+- allowed as a facts source for any P7 message type;
+- explicitly excluded from recruiter-visible message facts.
+
+Important current fact fields include, but are not limited to:
+
+- `chat_state`;
+- `ok`;
+- `state`;
+- `language`;
+- `assistant_message`;
+- `next_question`;
+- `normalized_brief`;
+- `summary`;
+- `missing_fields`;
+- `clarifying_questions`;
+- `validation_errors`;
+- `errors`;
+- `can_build_plan`;
+- `build_plan_action`;
+- `brief_patch`;
+- `brief_changed`;
+- `stale_state_should_clear`;
+- `agent_plan_status`;
+- `agent_plan`;
+- `brief_fingerprint`;
+- `proposed_action`;
+- `adapted_structured_request`;
+- `planner_mode`;
+- `plan_status`;
+- `query_plan`;
+- `plan_fingerprint`;
+- `fallback_plan_fingerprint`;
+- `execution_allowed`;
+- `approval_required`;
+- `execution_approval_required`;
+- `approval_notice`;
+- `fallback_available`;
+- `fallback_reason`;
+- `coverage_policy`;
+- `warnings`;
+- `assumptions`;
+- `runtime_state`;
+- `messages`;
+- `tool_calls`;
+- `pending_approvals`;
+- `runtime_approval`;
+- `tool_results`;
+- `observations`;
+- `query_results`;
+- `report`;
+- `deduped_results`;
+- `agent_response`;
+- `summary_facts`;
+- `quality_notes`;
+- `limitations`;
+- `suggested_next_actions`;
+- `next_iteration_options`;
+- `source`;
+- `requires_approval_for_execution`;
+- `wording_mode`;
+- `fallback_reason`;
+- `llm_warnings`.
+
+If a field appears in current code but should not become part of the facts contract, the document must say so explicitly.
+
+### Fact Groups
+
+The contract must organize facts into at least these groups:
+
+- Search Brief facts;
+- brief patch/refinement facts;
+- Agent Plan facts;
+- QueryPlan/planner facts;
+- approval/runtime facts;
+- execution/tool-result facts;
+- report/count facts;
+- candidate/result summary facts;
+- service/tool availability facts;
+- frontend transient facts;
+- frontend exception/catch-display facts;
+- diagnostic/legacy route facts;
+- structured error facts;
+- wording/provenance facts.
+
+### Required Contract Shape
+
+The document must include a table or equivalent structured section with at least these columns:
+
+```text
+message_type
+allowed_fact_key
+source_object
+source_owner
+required_or_optional
+nullable_or_default
+allowed_derived_claims
+forbidden_derived_claims
+freshness_or_fingerprint_rule
+llm_payload_eligibility_later
+notes
+```
+
+`source_owner` must be one of:
+
+- Search Brief backend validation;
+- deterministic brief patch/refinement backend;
+- Agent Plan backend;
+- QueryPlan/planner backend;
+- Agent Runtime backend;
+- approved backend search executor/report builder;
+- deterministic Agent Response backend;
+- backend service/config availability check;
+- frontend transient UI derived from current backend data;
+- frontend exception/catch display derived from current request failure;
+- diagnostic/legacy backend route output;
+- disabled legacy route output;
+- structured error envelope;
+- wording/provenance metadata.
+
+### Message-Type Coverage
+
+Every P7-001 message type must be covered:
+
+- `onboarding`;
+- `clarification_question`;
+- `brief_summary`;
+- `brief_refinement_applied`;
+- `brief_refinement_rejected`;
+- `validation_feedback`;
+- `safety_refusal`;
+- `planning_needs_clarification`;
+- `agent_plan`;
+- `agent_plan_unsupported`;
+- `query_plan_ready`;
+- `query_plan_preview`;
+- `planner_explanation`;
+- `query_plan_rejected`;
+- `approval_required`;
+- `runtime_action_pending`;
+- `runtime_action_rejected`;
+- `runtime_blocked`;
+- `execution_started`;
+- `execution_completed`;
+- `execution_failed`;
+- `tool_unavailable`;
+- `search_result_summary`;
+- `agent_response`;
+- `next_iteration_options`;
+- `transient_status`;
+- `empty_state`;
+- `system_error`.
+
+### Ownership Rules
+
+The contract must state these ownership rules:
+
+- LLM wording never owns facts.
+- Frontend transient UI state never overrides backend-owned facts.
+- Backend runtime owns approval, fingerprints, pending approvals, runtime state, and runtime errors.
+- QueryPlan/planner backend owns QueryPlan rows, planner status, planner mode, validation/fallback state, warnings, assumptions, and plan fingerprints.
+- Search Brief backend validation owns normalized brief values, readiness, missing fields, clarifying questions, and supported-flow validation.
+- Deterministic brief patch/refinement backend owns `brief_patch`, `brief_changed`, and `stale_state_should_clear`.
+- Approved backend search executor/report builder owns returned reports, counts, query success/failure, dedupe metrics, filters, and candidate result facts.
+- Deterministic Agent Response backend owns `summary_facts`, `quality_notes`, `limitations`, `suggested_next_actions`, and `next_iteration_options`.
+- Diagnostic/legacy route outputs are not recruiter-visible facts unless the contract explicitly whitelists them for a message type.
+- Disabled legacy route output owns only its disabled-route error facts and must not become a planning, execution, or search facts source.
+- Wording/provenance metadata owns only wording source/debug facts such as `wording_mode`, `fallback_reason`, and `llm_warnings`.
+
+### Derived Claims Rules
+
+The contract must define deterministic rules for claims that are not raw fields.
+
+Required derived claims:
+
+- "Search Brief changed" is allowed only when `brief_changed = true`.
+- "New plan required" is allowed only when `stale_state_should_clear = true`.
+- "Search Brief ready" is allowed only from backend Search Brief readiness state.
+- "Agent Plan supported" is allowed only from `agent_plan_status = supported` with a supported `agent_plan.proposed_action`.
+- "Agent Plan unsupported" is allowed only from `agent_plan_status = unsupported`.
+- "Executable Search Plan ready" is allowed only for backend executable Search Plans, not AI `validated_not_executable` previews.
+- "Approval required" is allowed only from backend planner/runtime approval facts.
+- "Runtime approval prepared" is allowed only when backend returned a current `pending_approvals` item.
+- "Execution started" may be frontend transient only and must not include result facts.
+- "Execution completed" is allowed only when runtime/tool result is observed without execution errors.
+- "Search failed" / "execution failed" is allowed only from runtime/tool errors after approved execution started.
+- "Tool unavailable" is allowed only from backend service/config/tool availability checks.
+- "Candidate count" is allowed only from backend report/Agent Response summary facts.
+- "LLM wording accepted" is allowed only from `wording_mode = llm_assisted`.
+- "Deterministic wording fallback" is allowed only from `wording_mode = deterministic_fallback` and a backend-owned `fallback_reason`.
+- "Next iteration option is executable now" is never allowed in current scope.
+
+If a derived claim is not defined in the contract, later wording tasks must treat it as forbidden by default.
+
+### Absence And Unknown Semantics
+
+The contract must explicitly document that absence is not a negative fact.
+
+Required examples:
+
+- Missing seniority does not mean junior.
+- Selected stack not visible does not mean the candidate lacks the stack.
+- Unknown current location does not mean outside Ukraine.
+- Missing Agent Response does not mean search failed.
+- Missing `pending_approvals` does not mean approval was denied; it means no current backend pending approval exists.
+- Missing `agent_plan` when status is `needs_clarification` or `unsupported` does not mean planner failure.
+- Missing `query_plan` in a rejected/needs-clarification response does not mean Tavily failed.
+- Missing `query_results` does not mean no candidates were found; result claims must use backend report/result facts.
+- Missing `wording_mode` does not mean LLM wording failed; fallback claims require explicit wording metadata.
+- Missing OpenAI/LLM configuration is `tool_unavailable` for LLM-backed wording/planning paths, not a recruiter input error.
+- Missing Tavily configuration is `tool_unavailable` for execution paths, not a validation error.
+
+### Candidate Data Boundary
+
+`P7-002` must define candidate facts conservatively.
+
+The facts contract may allow aggregate/result-summary facts such as:
+
+- candidate count;
+- raw result count;
+- displayed count;
+- queries succeeded/total;
+- quality bucket distribution;
+- strong signal counts;
+- top review flag counts;
+- high-level limitations.
+
+The contract must not treat full candidate records as general wording facts.
+
+Unless a later approved task explicitly changes this, future LLM wording payloads must not include:
+
+- raw candidate URLs;
+- raw Tavily result payloads;
+- raw `query_results`;
+- full candidate records;
+- full snippets;
+- candidate names as a free-form fact source;
+- LinkedIn profile URLs;
+- arbitrary candidate rows;
+- hidden scoring internals beyond approved aggregate facts.
+
+Candidate table field labels and candidate values remain data, not agent-message wording facts.
+
+### Frontend-Derived Fact Boundary
+
+Frontend may derive transient display facts from current backend data, such as:
+
+- "Preparing Agent Plan";
+- "Building plan";
+- "Preparing runtime approval";
+- "Running approved search";
+- "No report yet";
+- "No results yet";
+- UI disabled/enabled state.
+
+Frontend-derived facts must not:
+
+- override backend `plan_status`;
+- override backend `runtime_state`;
+- create or change approval facts;
+- create or change fingerprints;
+- convert non-executable previews into executable plans;
+- create result/count/candidate facts;
+- mark a stale plan as current;
+- retry, build, approve, or execute anything automatically.
+
+Frontend exception/catch paths must be handled conservatively:
+
+- a caught frontend request failure may produce only transient `system_error` wording until a more specific backend error exists;
+- frontend `error.message` text must not become a backend-owned fact;
+- frontend catch text must not claim validation failure, tool unavailability, runtime rejection, execution failure, or result facts unless those were returned by the backend;
+- future typed rendering must map current catch paths into the nearest allowed message type instead of leaving them as unclassified free text.
+
+### Freshness And Fingerprint Rules
+
+The contract must document freshness requirements for facts that depend on current state:
+
+- Search Brief facts are current only for the current normalized brief.
+- Agent Plan facts are current only when `agent_plan.brief_fingerprint` matches the current Search Brief fingerprint.
+- QueryPlan facts are current only for the visible/current `plan_fingerprint`.
+- Runtime approval facts are current only when pending approval fingerprints and idempotency metadata match the current runtime context.
+- Result facts are current only for the completed approved search response that produced them.
+- Agent Response facts are current only for the result/report/search plan they were built from.
+- If Search Brief changes and `stale_state_should_clear = true`, downstream Agent Plan, Build Plan, QueryPlan, approval state, results, and Agent Response facts become stale and must not be described as current.
+
+### Error Facts
+
+The contract must map structured error facts with at least:
+
+```text
+field
+code
+message
+source_owner
+classification
+user_correctable
+```
+
+Classification priority must stay aligned with `P7-001`:
+
+1. `safety_refusal`;
+2. `tool_unavailable`;
+3. `validation_feedback`;
+4. `runtime_blocked`;
+5. `execution_failed`;
+6. `system_error`.
+
+The document must explicitly map:
+
+- Search Brief validation errors;
+- Agent Plan validation/unsupported states;
+- QueryPlan/planner validation errors;
+- stale or mismatched Agent Plan action errors;
+- stale or mismatched runtime approval errors;
+- missing OpenAI/LLM configuration or service failure;
+- missing Tavily configuration;
+- frontend request/response exceptions that currently render as `error.message`;
+- runtime execution exceptions;
+- generic technical failures.
+
+### Wording/Provenance Facts
+
+`P7-002` must reserve wording/provenance facts for later tasks without implementing telemetry or analytics.
+
+Allowed reserved fields for later Phase 7 tasks:
+
+- `message_type`;
+- `surface`;
+- `language`;
+- `taxonomy_version`;
+- `facts_contract_version`;
+- `wording_mode`;
+- `fallback_reason`;
+- `llm_warnings`;
+- `source_owner`;
+- `source_object`;
+- `deterministic_builder_version`;
+- `prompt_version`;
+- `validator_version`;
+- `model` when LLM wording is used.
+
+These are internal debugging/regression facts only. They must not become product analytics, external telemetry, persistent memory, user tracking, or autonomous decision inputs.
+
+### Proposed Task Steps
+
+1. Read `instructions`, `ProjectStatus.md`, `AGENTS.md`, `docs/phase-7-agent-message-taxonomy.md`, and the current Phase 7 section in `Tasks.md`.
+2. Inventory exact current facts by producer:
+   - `/api/recruiter-chat/turn`;
+   - `/api/agent/plan`;
+   - `/api/agent/query-plan`;
+   - `/api/agent/runtime/turn`;
+   - approved single-wave and multi-wave search responses;
+   - deterministic Agent Response builder;
+   - bounded wording overlay;
+   - frontend Search Brief/action/plan/status/results render paths.
+3. Inventory and classify diagnostic/legacy/disabled producers:
+   - `/api/search-brief/validate`;
+   - `/api/structured-search/validate`;
+   - `/api/query-plan`;
+   - `/api/ai-query-plan/validate`;
+   - `GET /api/agent/tools`;
+   - direct `/api/structured-search`;
+   - direct `/api/structured-search/multi-wave`;
+   - disabled legacy `/api/search`.
+4. Inventory frontend exception/catch paths that currently render plain `error.message`.
+5. Create `docs/phase-7-message-facts-contract.md`.
+6. Define fact groups and source owners.
+7. Define the required contract table shape.
+8. For every `message_type`, create a fact whitelist:
+   - `allowed_fact_key`;
+   - `source_object`;
+   - `source_owner`;
+   - required/optional status;
+   - nullable/default behavior;
+   - allowed derived claims;
+   - forbidden derived claims;
+   - freshness/fingerprint rule;
+   - future LLM payload eligibility;
+   - notes.
+9. Add a strict default-deny rule: any fact or derived claim not whitelisted is forbidden.
+10. Define ownership rules.
+11. Define deterministic derived-claim rules.
+12. Define absence/unknown semantics.
+13. Define candidate-data boundaries and allowed aggregate result facts.
+14. Define frontend-derived and frontend exception/catch fact boundaries.
+15. Define freshness/fingerprint/stale-state rules.
+16. Define structured error facts and classification priority.
+17. Define wording/provenance facts reserved for later tasks.
+18. Add concrete examples:
+   - onboarding/greeting;
+   - one-field clarification question;
+   - safety refusal for prohibited behavior;
+   - ready Search Brief summary;
+   - applied brief refinement;
+   - rejected brief refinement;
+   - supported Agent Plan;
+   - unsupported Agent Plan;
+   - LLM-assisted Agent Plan wording accepted;
+   - LLM-assisted Agent Plan wording rejected with deterministic fallback;
+   - non-executable AI QueryPlan preview;
+   - executable backend Search Plan ready;
+   - stale Agent Plan action;
+   - runtime approval prepared;
+   - stale/mismatched runtime approval;
+   - missing OpenAI/LLM configuration;
+   - missing Tavily configuration;
+   - completed search result summary;
+   - LLM-assisted Agent Response wording accepted;
+   - LLM-assisted Agent Response wording rejected with deterministic fallback;
+   - failed approved execution;
+   - frontend request failure currently caught as `error.message`;
+   - inert next-iteration option.
+19. Verify that P7-003, P7-004, P7-006, P7-007, P7-008, and P7-009 can use this document directly.
+20. Verify doc/status consistency across `Tasks.md`, `ProjectStatus.md`, `AGENTS.md`, `README.md`, and `Roadmap.md`; update only the files that need status or reference changes.
+21. Verify that every `message_type` from `docs/phase-7-agent-message-taxonomy.md` appears in the new facts contract.
+22. Run docs-only verification:
+   - `git diff --check`;
+   - confirm only approved documentation files changed;
+   - confirm no code, prompt, API, schema, runtime, frontend behavior, OpenAI behavior, Tavily behavior, Search Brief extraction, QueryPlan generation, results, scoring, filtering, dedupe, location logic, snapshots, or product scope changed.
+
+### Non-Goals
+
+- No backend code changes.
+- No frontend code changes.
+- No prompt changes.
+- No new LLM calls.
+- No Tavily calls.
+- No execution behavior changes.
+- No new runtime endpoint.
+- No API/schema implementation.
+- No typed frontend rendering.
+- No deterministic message builder implementation.
+- No LLM routing/gating implementation.
+- No bounded LLM payload implementation.
+- No validation/fallback/provenance implementation.
+- No changes to Search Brief extraction.
+- No changes to QueryPlan generation.
+- No changes to Agent Plan behavior.
+- No changes to Agent Response behavior.
+- No changes to results, candidates, scoring, filtering, dedupe, or location logic.
+- No snapshots changes.
+- No persistence, database, memory, shortlist, export, authentication, telemetry, product analytics, account actions, or new data source.
+- No expansion beyond the current supported Java/Ukraine Agent v0 flow.
+- No reclassification of diagnostic/legacy endpoints into product paths unless explicitly documented as facts-contract-only context.
+
+### Acceptance Criteria
+
+- `docs/phase-7-message-facts-contract.md` exists.
+- The contract references `docs/phase-7-agent-message-taxonomy.md` as its input.
+- Every P7-001 `message_type` has an explicit facts whitelist.
+- Every P7-001 `message_type` is mechanically checked against the facts contract for coverage.
+- Current primary UI producers are inventoried.
+- Diagnostic, legacy, and disabled producers are explicitly classified as allowed facts sources, diagnostic-only, legacy-only, disabled, or excluded.
+- Every allowed fact has an exact source object and source owner.
+- Every allowed fact is marked required, optional, nullable, or defaulted.
+- Every message type has forbidden facts and forbidden derived claims.
+- Every derived claim used by future wording is defined by a deterministic rule.
+- Any unlisted fact or derived claim is forbidden by default.
+- Absence/unknown semantics are documented.
+- Candidate-data boundaries are documented, including no raw candidate URLs/full candidate records/full snippets as general future LLM wording facts.
+- Raw Tavily `query_results` are not treated as general future LLM wording facts.
+- Frontend-derived facts are documented as transient and non-authoritative for backend-owned state.
+- Frontend exception/catch paths are documented and cannot become authoritative backend facts.
+- Freshness/fingerprint/stale-state rules are documented.
+- Structured error facts and classification priority are documented.
+- OpenAI/LLM and Tavily unavailable states map to `tool_unavailable`.
+- Wording/provenance reserved facts are documented as internal debugging/regression metadata only.
+- The contract preserves existing bounded LLM overlay limits for `agent_plan` and `agent_response`.
+- The contract does not change current API response fields or behavior.
+- The contract does not change current frontend rendering or error behavior.
+- The contract preserves Phase 6 runtime boundaries, approval gates, hard product prohibitions, and the current Java/Ukraine scope.
+- The document is usable as direct input for `P7-003`, `P7-004`, `P7-006`, `P7-007`, `P7-008`, and `P7-009`.
+- `Tasks.md`, `ProjectStatus.md`, `AGENTS.md`, `README.md`, and `Roadmap.md` are checked for status/reference consistency.
+- `git diff --check` passes.
+- The final diff is documentation-only.
+
+### Before implementation
+
+Codex must restate the task scope, perform a full deep review checklist, and wait for explicit approval before creating `docs/phase-7-message-facts-contract.md` or changing any documents beyond this draft.
+
+### Implementation result
+
+Created `docs/phase-7-message-facts-contract.md` as the stable `Agent Message Facts Contract V0`.
+
+The document defines the core default-deny rule for message facts, product boundaries, required contract shape, source owners, primary/diagnostic/legacy/disabled producer inventory, fact groups, message-type fact whitelist for every P7-001 `message_type`, derived claim rules, absence/unknown semantics, candidate-data boundaries, frontend-derived and frontend exception/catch boundaries, freshness/fingerprint rules, structured error classification, wording/provenance facts, existing bounded LLM overlay boundaries, concrete examples, and handoff to P7-003, P7-004, P7-006, P7-007, P7-008, and P7-009.
+
+No backend code, frontend code, prompts, API response fields, schemas, runtime behavior, Tavily execution, OpenAI behavior, approval behavior, Search Brief extraction, QueryPlan generation, candidate results, scoring, filtering, dedupe, location logic, snapshots, persistence, database, shortlist, account behavior, or product scope changed.
 
 ---
 
