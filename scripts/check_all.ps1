@@ -55,5 +55,9 @@ Invoke-Check "P5 LLM Wording smoke" {
     & $python scripts/smoke_p5_llm_wording.py
 }
 
+Invoke-Check "P5.5 routes smoke" {
+    & $python scripts/smoke_p55_routes.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

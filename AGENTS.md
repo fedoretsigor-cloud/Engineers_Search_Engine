@@ -45,8 +45,8 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - completed and closed
-- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-008`
-- Phase 6: `Tool-Calling Agent Runtime`
+- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-009`
+- Phase 6: `Tool-Calling Agent Runtime` - current active phase
 - Phase 7: `Agent Conversation Wording Layer`
 - Phase 8: `Candidate Workspace/Table + Shortlist`
 - Phase 9: `Persistent Memory + Saved Searches`
@@ -77,7 +77,8 @@ Current product direction:
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI for the current compile/frontend/smoke regression baseline.
 - `P5.5-007` extracted shared brief patch helpers, deterministic Agent Response logic, and bounded Agent Plan/Response wording logic into focused modules without behavior changes.
 - `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` service compatibility, route path/method set, endpoint names, and smoke-test monkeypatch paths without behavior changes.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-009 Run no-behavior-change regression checks and close Phase 5.5`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P5.5-009` added permanent route/import/no-network HTTP smoke coverage to `scripts/check_all.ps1`, closed Phase 5.5, and confirmed Phase 6 as the next active phase.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, move to Phase 6 tool-calling runtime with `P6-001 Define human-approved Agent Runtime contract`, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 

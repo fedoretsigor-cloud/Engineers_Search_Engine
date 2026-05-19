@@ -137,9 +137,9 @@ POC прототип с легким фронтом и одним поисков
 - Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
-Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Текущий активный этап - Phase 5.5 `Technical modularization before Agent Runtime`.
+Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Phase 5.5 завершена как `Technical modularization before Agent Runtime`. Текущий активный этап - Phase 6 `Tool-Calling Agent Runtime`.
 
-Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Дальше нужна техническая Phase 5.5, чтобы модульно подготовить backend к Phase 6 tool runtime.
+Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Phase 5.5 модульно подготовила backend; дальше начинается Phase 6 tool runtime.
 
 Фаза 4 - AI Agent Foundation
 
@@ -274,7 +274,8 @@ AI в Phase 4 должен планировать и объяснять, а back
 - Transition criterion to Phase 5: build recruiter chat/Search Brief conversation on top of the Phase 4 foundation.
 - Keep explicit non-goals in the closeout: no full autonomous loop, no database/persistence, no shortlist/workspace, and no multi-source search beyond Tavily.
 - Preserve absolute product boundaries as prohibited behavior: no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no candidate messaging/automatic outreach, no autonomous execution, and no user or third-party account actions.
-- Phase 5 is completed and closed; `P5-001 Define recruiter chat and Search Brief conversation contract` through `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` are completed. Phase 5.5 is the next active phase before Phase 6 tool runtime.
+- Phase 5 is completed and closed; `P5-001 Define recruiter chat and Search Brief conversation contract` through `P5-012 Close Phase 5 with narrow Java/Ukraine agent UX decision` are completed.
+- Phase 5.5 is completed and closed; `P5.5-001` through `P5.5-009` are completed, and Phase 6 tool runtime is the next active direction.
 
 Absolute product boundaries: запрещены direct web-search агентом в обход approved backend pipeline, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping, restriction bypass, автоматическая отправка сообщений кандидатам, автономное execution и любые действия с user или third-party accounts.
 
@@ -317,11 +318,12 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-008`; next task to review is `P5.5-009 Run no-behavior-change regression checks and close Phase 5.5`.
+- Phase 6: `Tool-Calling Agent Runtime`; next task to review is `P6-001 Define human-approved Agent Runtime contract`.
 
 ### Completed
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-012` are completed. Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation.
+- Phase 5.5: `Technical modularization before Agent Runtime` - `P5.5-001` through `P5.5-009` are completed. Phase 5.5 is closed as no-behavior-change backend modularization before Phase 6.
 
 ### Phase 5 Approved Contract
 
@@ -376,7 +378,8 @@ Phase 5.5 progress:
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI so local and remote regression checks run the same compile/frontend/smoke baseline before the riskier Agent Response extraction.
 - `P5.5-007` extracted shared brief patch helpers into `app/brief_patch.py`, deterministic Agent Response logic into `app/agent_response.py`, and bounded Agent Plan/Response wording logic into `app/agent_wording.py`, while preserving `main.*` compatibility and wording monkeypatch behavior.
 - `P5.5-008` split FastAPI path decorators and thin route wrappers into `app/routes.py` behind `RouteDependencies`, while preserving `app/main.py` route-facing service functions, route path/method set, endpoint names, `main.*` compatibility, and smoke-test monkeypatch behavior.
-- Next planned task is `P5.5-009` to run no-behavior-change regression checks and close Phase 5.5.
+- `P5.5-009` added route/import/no-network HTTP smoke coverage to the regression baseline and closed Phase 5.5.
+- Next planned task is `P6-001 Define human-approved Agent Runtime contract`.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
 

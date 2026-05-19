@@ -2143,8 +2143,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Backlog
 
-- [ ] P5.5-009 Run no-behavior-change regression checks and close Phase 5.5
-
 ### In Progress
 
 ### Done
@@ -2158,10 +2156,11 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-006.1 Add local regression check script and GitHub Actions CI
 - [x] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
 - [x] P5.5-008 Split FastAPI routes from domain logic
+- [x] P5.5-009 Run no-behavior-change regression checks and close Phase 5.5
 
 ### Current Phase 5.5 strategy note
 
-Phase 5.5 is a technical preparation phase between Phase 5 and Phase 6.
+Phase 5.5 is completed as a technical preparation phase between Phase 5 and Phase 6.
 
 Goal: split the large backend in `app/main.py` into focused modules before implementing the Phase 6 tool-calling runtime.
 
@@ -2181,6 +2180,109 @@ Suggested target modules:
 - Candidate Quality;
 - Agent Plan, Agent Response, tool contracts, and OpenAI client;
 - FastAPI routes.
+
+---
+
+## Task: P5.5-009 Run no-behavior-change regression checks and close Phase 5.5
+
+### Status
+
+Implemented.
+
+### Context
+
+`P5.5-001` through `P5.5-008` split the large backend into focused modules without changing product behavior. The last extraction moved FastAPI path decorators and thin route wrappers into `app/routes.py` while preserving `app/main.py` service compatibility.
+
+Before starting Phase 6 tool-calling runtime, Phase 5.5 should be closed with explicit regression guardrails and documentation.
+
+### Goal
+
+Close Phase 5.5 as a no-behavior-change technical modularization phase.
+
+The result should prove that the current Java/Ukraine Agent UX foundation still works, FastAPI routes are wired correctly after the route split, and the project is ready to review Phase 6.
+
+### Proposed steps
+
+1. Add a focused route smoke script:
+   - create `scripts/smoke_p55_routes.py`;
+   - verify `app.routes` imports without importing `app.main`;
+   - verify `app.main.app` exposes the expected route path/method set;
+   - verify endpoint function names / OpenAPI operation names remain aligned;
+   - verify all expected `main.*` compatibility names are callable;
+   - verify smoke-test monkeypatch target names still exist.
+2. Add no-network HTTP-level checks through FastAPI `TestClient`:
+   - `GET /` returns `200` and serves the static UI entrypoint;
+   - `GET /api/health` returns the current health response;
+   - `GET /api/agent/tools` returns `ok = true` and tool metadata;
+   - `POST /api/structured-search/validate` works for a valid Java/Ukraine structured request and does not call Tavily;
+   - `POST /api/query-plan` returns `ok = true`, 10 queries, and `plan_fingerprint` for a valid Java/Ukraine structured request without calling Tavily/OpenAI;
+   - `POST /api/search` still returns `legacy_raw_search_disabled` for a non-empty query.
+3. Add the route smoke script to `scripts/check_all.ps1`.
+4. Run the full regression baseline:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+   - `git diff --check`.
+5. Update `Tasks.md`:
+   - mark `P5.5-009` implemented;
+   - move Phase 5.5 to completed/done;
+   - record the closeout result and verification.
+6. Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`:
+   - Phase 5.5 is completed;
+   - next active phase is Phase 6 `Human-approved Tool-Calling Agent Runtime`;
+   - Phase 5.5 result is backend modularization without behavior changes;
+   - `app/main.py` still intentionally keeps some service/orchestration logic for later reviewed extraction tasks.
+
+### Critical risks
+
+- Treating closeout as permission to add Phase 6 runtime behavior.
+- Running live Tavily/OpenAI checks and making the closeout flaky or expensive.
+- Checking only route registration but not whether route wrappers actually call the injected dependency path.
+- Forgetting to add the route smoke-check to `scripts/check_all.ps1`, leaving route split regressions outside CI.
+- Marking Phase 5.5 closed while docs still point to `P5.5-009` as the next task.
+
+### Non-goals
+
+- Do not implement Phase 6 runtime.
+- Do not add or change product features.
+- Do not change frontend behavior, UI, API contracts, request payloads, response fields, QueryPlan output, fingerprints, approval behavior, Tavily execution, filters, scoring, dedupe, location logic, snapshots, Agent Plan behavior, Agent Response behavior, recruiter chat behavior, or LLM fallback behavior.
+- Do not run live Tavily searches.
+- Do not require OpenAI calls.
+- Do not make AI-generated plans executable.
+- Do not add database, persistence, shortlist, export, new sources, LinkedIn automation, autonomous execution, or automatic candidate messaging.
+
+### Acceptance criteria
+
+- `scripts/smoke_p55_routes.py` exists and covers route import direction, route path/method parity, endpoint names, `main.*` compatibility names, and no-network HTTP route behavior.
+- `scripts/check_all.ps1` runs the new route smoke-check.
+- Full regression baseline passes.
+- Docs mark Phase 5.5 as completed.
+- Docs identify Phase 6 `Human-approved Tool-Calling Agent Runtime` as the next active phase.
+- No product behavior changes.
+
+### Implementation result
+
+- Added `scripts/smoke_p55_routes.py`.
+- The route smoke verifies:
+  - `app.routes` imports without importing `app.main`;
+  - `app.main.app` exposes the expected route path/method set;
+  - endpoint function names / OpenAPI operation names remain aligned;
+  - expected `main.*` compatibility names remain callable;
+  - smoke-test monkeypatch target names still exist.
+- Added no-network FastAPI `TestClient` coverage for:
+  - `GET /`;
+  - `GET /api/health`;
+  - `GET /api/agent/tools`;
+  - `POST /api/structured-search/validate`;
+  - `POST /api/query-plan`;
+  - `POST /api/search` legacy disabled behavior.
+- Added the route smoke-check to `scripts/check_all.ps1`, so local checks and GitHub Actions CI now cover the route split guardrail.
+- Closed Phase 5.5 as completed technical modularization before Phase 6.
+- Marked Phase 6 `Human-approved Tool-Calling Agent Runtime` as the next active phase.
+- No product behavior changed.
+
+### Verification completed
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+- `git diff --check`.
 
 ---
 
