@@ -45,7 +45,7 @@ The Phase 2 baseline for `Backend Developer + Java + Spring/Kafka/AWS + Ukraine`
 Current product direction:
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - completed and closed
-- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-006.1`
+- Phase 5.5: `Technical modularization before Agent Runtime` - current active phase, completed through `P5.5-007`
 - Phase 6: `Tool-Calling Agent Runtime`
 - Phase 7: `Agent Conversation Wording Layer`
 - Phase 8: `Candidate Workspace/Table + Shortlist`
@@ -75,7 +75,8 @@ Current product direction:
 - `P5.5-005` extracted Candidate Quality producer logic, constants, and shared text/ordering helpers into focused modules without behavior changes.
 - `P5.5-006` extracted Agent Tools v0 contract/approval helpers and deterministic Agent Plan helpers into focused modules without behavior changes.
 - `P5.5-006.1` added `scripts/check_all.ps1` and GitHub Actions CI for the current compile/frontend/smoke regression baseline.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-007 Extract Agent Response and bounded wording/OpenAI modules`, then `P5.5-008 Split FastAPI routes from domain logic`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
+- `P5.5-007` extracted shared brief patch helpers, deterministic Agent Response logic, and bounded Agent Plan/Response wording logic into focused modules without behavior changes.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow, continue Phase 5.5 technical modularization with `P5.5-008 Split FastAPI routes from domain logic`, then `P5.5-009 Run no-behavior-change regression checks and close Phase 5.5`, then move to Phase 6 tool-calling runtime, and keep ordinary LLM-assisted agent conversation wording after the Phase 6 runtime baseline, in Phase 7.
 
 ## Product Rules
 
@@ -126,4 +127,7 @@ Useful checks:
 .\.venv\Scripts\python.exe -m compileall app
 node --check app/static/app.js
 powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\push_and_watch_ci.ps1
 ```
+
+After any successful push made by Codex, wait for GitHub Actions CI and report `CI passed` or `CI failed` with the failed workflow/job/step when available. Use `scripts/push_and_watch_ci.ps1` for push operations, or `scripts/watch_ci.ps1` after a manual push.

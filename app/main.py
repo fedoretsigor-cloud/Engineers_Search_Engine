@@ -1,5 +1,4 @@
 from pathlib import Path
-import copy
 import json
 import logging
 import os
@@ -48,7 +47,6 @@ from app.domain_config import (
     SEARCH_DEPTH_STANDARD,
     SEARCH_DEPTH_VALUES,
     location_filter_config_for,
-    search_domain_config_for,
 )
 from app.ai_planning import (
     ai_plan_output_assumptions,
@@ -86,7 +84,6 @@ from app.agent_plan import (
     AGENT_PLAN_STATUS_NEEDS_CLARIFICATION,
     AGENT_PLAN_STATUS_SUPPORTED,
     AGENT_PLAN_STATUS_UNSUPPORTED,
-    agent_plan_language,
     agent_plan_needs_clarification_message,
     agent_plan_proposed_action,
     agent_plan_supported_message,
@@ -95,6 +92,61 @@ from app.agent_plan import (
     build_agent_plan_response_with_wording as _build_agent_plan_response_with_wording,
     is_supported_agent_v0_baseline,
     validate_agent_query_plan_action,
+)
+from app.agent_response import (
+    agent_response_limitations,
+    agent_response_message_en,
+    agent_response_message_ru,
+    agent_response_next_iteration_options,
+    agent_response_quality_bucket,
+    agent_response_quality_distribution,
+    agent_response_quality_notes,
+    agent_response_signal_counts,
+    agent_response_suggested_next_actions,
+    agent_response_summary_facts,
+    build_agent_response,
+    next_iteration_option,
+    next_iteration_stack_observation_threshold,
+    normalize_agent_language,
+    stack_term_visibility_counts,
+    top_review_flag_counts,
+)
+from app.agent_wording import (
+    AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+    AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+    AGENT_WORDING_MODE_LLM_ASSISTED,
+    AGENT_WORDING_TIMEOUT_SECONDS,
+    OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS,
+    agent_plan_wording_payload,
+    agent_response_wording_payload,
+    agent_wording_allowed_numbers,
+    agent_wording_hard_boundaries,
+    agent_wording_has_disallowed_key,
+    agent_wording_has_openai_config,
+    agent_wording_has_prohibited_content,
+    agent_wording_language_matches,
+    agent_wording_number_tokens,
+    agent_wording_system_prompt,
+    agent_wording_text_values,
+    agent_wording_user_prompt,
+    apply_llm_wording_to_agent_plan as _apply_llm_wording_to_agent_plan,
+    apply_llm_wording_to_agent_response as _apply_llm_wording_to_agent_response,
+    normalize_agent_wording_limitations,
+    normalize_agent_wording_warnings,
+    run_openai_json_agent_wording as _run_openai_json_agent_wording,
+    validate_agent_wording_output,
+    with_agent_wording_metadata,
+)
+from app.brief_patch import (
+    BRIEF_PATCH_ADD_STACK,
+    BRIEF_PATCH_NOOP,
+    BRIEF_PATCH_RECONFIRM_FIELD,
+    BRIEF_PATCH_REMOVE_STACK,
+    BRIEF_PATCH_REPLACE_STACK,
+    BRIEF_PATCH_SET_SEARCH_DEPTH,
+    BRIEF_PATCH_SET_SENIORITY,
+    BRIEF_PATCH_UNSUPPORTED,
+    build_brief_patch,
 )
 from app.planning import (
     RuleBasedQueryPlannerV1,
@@ -166,9 +218,7 @@ from app.candidate_quality import (
     build_stack_score_component,
     build_technology_quality,
     build_technology_score_component,
-    candidate_text_sources,
     collect_seniority_evidence,
-    collect_term_evidence,
     derived_role_phrases,
     find_role_match,
     merge_review_flags,
@@ -181,7 +231,6 @@ from app.candidate_quality import (
     role_prefix_terms,
     score_component,
     seniority_display_from_evidence,
-    terms_from_evidence,
 )
 from app.text_utils import (
     clean_headline_value,
@@ -202,20 +251,11 @@ STATIC_DIR = BASE_DIR / "static"
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS = 1200
 OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS = 3000
-OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS = 800
 RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_RULE_BASED
 RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
 RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
 RECRUITER_CHAT_STATE_REFUSED = "refused"
 RECRUITER_CHAT_ALLOWED_MESSAGE_ROLES = {"assistant", "recruiter", "user"}
-BRIEF_PATCH_ADD_STACK = "add_stack"
-BRIEF_PATCH_REMOVE_STACK = "remove_stack"
-BRIEF_PATCH_REPLACE_STACK = "replace_stack"
-BRIEF_PATCH_SET_SENIORITY = "set_seniority"
-BRIEF_PATCH_SET_SEARCH_DEPTH = "set_search_depth"
-BRIEF_PATCH_RECONFIRM_FIELD = "reconfirm_field"
-BRIEF_PATCH_UNSUPPORTED = "unsupported"
-BRIEF_PATCH_NOOP = "noop"
 RECRUITER_CHAT_PROHIBITED_RULES = [
     {
         "code": "direct_web_search_bypass",
@@ -282,10 +322,6 @@ PLAN_STATUS_DRAFT = "draft_query_plan"
 PLAN_STATUS_VALIDATED_NOT_EXECUTABLE = "validated_not_executable"
 PLAN_STATUS_REJECTED = "rejected"
 PLAN_STATUS_RULE_BASED_FALLBACK = "rule_based_fallback"
-AGENT_WORDING_MODE_LLM_ASSISTED = "llm_assisted"
-AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
-AGENT_WORDING_FALLBACK_NOT_CONFIGURED = "openai_not_configured"
-AGENT_WORDING_TIMEOUT_SECONDS = 8.0
 AI_PLANNER_UNDER_COVERED_FALLBACK_REASON = (
     "AI plan is structurally valid, but coverage is too narrow for the baseline. "
     "Falling back to rule-based planner."
@@ -1199,953 +1235,13 @@ def build_deduped_results_and_report(
     )
 
 
-def normalize_agent_language(value: str | None) -> str:
-    return agent_plan_language(value, None)
-
-
-def agent_response_quality_bucket(score: object) -> str:
-    try:
-        score_value = int(score)
-    except (TypeError, ValueError):
-        score_value = 0
-
-    if score_value >= 80:
-        return "strong"
-    if score_value >= 60:
-        return "review"
-    return "weak"
-
-
-def agent_response_quality_distribution(deduped_results: list[dict]) -> dict:
-    distribution = {"strong": 0, "review": 0, "weak": 0}
-    for item in deduped_results:
-        result = item.get("result") or {}
-        distribution[agent_response_quality_bucket(result.get("quality_score"))] += 1
-    return distribution
-
-
-def agent_response_signal_counts(deduped_results: list[dict]) -> dict:
-    counts = {
-        "target_or_close_role": 0,
-        "exact_technology": 0,
-        "selected_stack_visible": 0,
-        "selected_stack_not_visible": 0,
-        "seniority_not_visible": 0,
-        "role_missing": 0,
-        "technology_missing": 0,
-        "target_location": 0,
-        "weak_location": 0,
-        "unknown_location": 0,
-    }
-
-    for item in deduped_results:
-        result = item.get("result") or {}
-        flags = set(result.get("review_flags") or [])
-        location_status = (
-            result.get("location_signal_status")
-            or item.get("location_signal_status")
-            or ""
-        )
-
-        if result.get("role_fit") == "target_or_close_role":
-            counts["target_or_close_role"] += 1
-        if result.get("technology_fit") == "exact":
-            counts["exact_technology"] += 1
-        if result.get("stack_fit") == "selected_stack_found":
-            counts["selected_stack_visible"] += 1
-        if "selected_stack_missing" in flags:
-            counts["selected_stack_not_visible"] += 1
-        if "seniority_missing" in flags:
-            counts["seniority_not_visible"] += 1
-        if "role_missing" in flags:
-            counts["role_missing"] += 1
-        if "technology_missing" in flags:
-            counts["technology_missing"] += 1
-        if location_status in {"target_location", "country_domain"}:
-            counts["target_location"] += 1
-        if location_status == "weak_history_only":
-            counts["weak_location"] += 1
-        if location_status == "unknown_non_country_domain":
-            counts["unknown_location"] += 1
-
-    return counts
-
-
-def top_review_flag_counts(
-    deduped_results: list[dict],
-    limit: int = 5,
-) -> list[dict[str, int | str]]:
-    flag_counts: dict[str, int] = {}
-    for item in deduped_results:
-        result = item.get("result") or {}
-        for flag in result.get("review_flags") or []:
-            flag_counts[flag] = flag_counts.get(flag, 0) + 1
-
-    return [
-        {"flag": flag, "count": count}
-        for flag, count in sorted(
-            flag_counts.items(),
-            key=lambda item: (-item[1], item[0]),
-        )[:limit]
-    ]
-
-
-def agent_response_summary_facts(
-    query_plan: dict,
-    report: dict,
-    deduped_results: list[dict],
-) -> dict:
-    input_snapshot = query_plan.get("input_snapshot") or {}
-    return {
-        "mode": report.get("mode", "single_wave"),
-        "candidate_count": report.get("unique_profiles", len(deduped_results)),
-        "raw_total": report.get("raw_total", 0),
-        "displayed": report.get("displayed", 0),
-        "queries_succeeded": report.get("queries_succeeded", 0),
-        "queries_total": report.get("queries_total", len(query_plan.get("queries", []))),
-        "quality_distribution": agent_response_quality_distribution(deduped_results),
-        "strong_signal_counts": agent_response_signal_counts(deduped_results),
-        "top_review_flags": top_review_flag_counts(deduped_results),
-        "input_snapshot": input_snapshot,
-    }
-
-
-def agent_response_message_en(summary_facts: dict) -> str:
-    quality = summary_facts["quality_distribution"]
-    signals = summary_facts["strong_signal_counts"]
-    candidate_count = summary_facts["candidate_count"]
-    raw_total = summary_facts["raw_total"]
-    queries_succeeded = summary_facts["queries_succeeded"]
-    queries_total = summary_facts["queries_total"]
-
-    return (
-        f"Search completed: {candidate_count} unique candidates from {raw_total} "
-        f"raw results, with {queries_succeeded}/{queries_total} queries succeeded. "
-        f"Quality buckets: {quality['strong']} strong, {quality['review']} review, "
-        f"{quality['weak']} weak. Strongest signals: exact Java evidence on "
-        f"{signals['exact_technology']} candidates and target-role evidence on "
-        f"{signals['target_or_close_role']} candidates. Main limitations: selected "
-        f"stack was not visible in public snippets for "
-        f"{signals['selected_stack_not_visible']} candidates, and seniority was not "
-        f"visible for {signals['seniority_not_visible']} candidates. Suggested next "
-        "step: review the strongest candidates first, then choose a non-executable "
-        "next iteration option if the brief should change."
-    )
-
-
-def agent_response_message_ru(summary_facts: dict) -> str:
-    quality = summary_facts["quality_distribution"]
-    signals = summary_facts["strong_signal_counts"]
-    candidate_count = summary_facts["candidate_count"]
-    raw_total = summary_facts["raw_total"]
-    queries_succeeded = summary_facts["queries_succeeded"]
-    queries_total = summary_facts["queries_total"]
-
-    return (
-        f"\u041f\u043e\u0438\u0441\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d: {candidate_count} "
-        f"\u0443\u043d\u0438\u043a\u0430\u043b\u044c\u043d\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 "
-        f"\u0438\u0437 {raw_total} raw results, \u0443\u0441\u043f\u0435\u0448\u043d\u043e "
-        f"{queries_succeeded}/{queries_total} \u0437\u0430\u043f\u0440\u043e\u0441\u043e\u0432. "
-        f"Quality buckets: {quality['strong']} strong, {quality['review']} review, "
-        f"{quality['weak']} weak. \u0421\u0438\u043b\u044c\u043d\u044b\u0435 "
-        f"\u0441\u0438\u0433\u043d\u0430\u043b\u044b: Java \u0432\u0438\u0434\u0435\u043d "
-        f"\u0443 {signals['exact_technology']} \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432, "
-        f"\u0446\u0435\u043b\u0435\u0432\u0430\u044f \u0440\u043e\u043b\u044c "
-        f"\u0432\u0438\u0434\u043d\u0430 \u0443 {signals['target_or_close_role']}. "
-        f"\u041e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f: selected stack "
-        f"\u043d\u0435 \u0432\u0438\u0434\u0435\u043d \u0432 public snippets "
-        f"\u0443 {signals['selected_stack_not_visible']} \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432, "
-        f"seniority \u043d\u0435 \u0432\u0438\u0434\u0435\u043d \u0443 "
-        f"{signals['seniority_not_visible']}. \u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 "
-        "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 \u0448\u0430\u0433: "
-        "\u043f\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c "
-        "\u0441\u0438\u043b\u044c\u043d\u044b\u0445 "
-        "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u0438 "
-        "\u0432\u044b\u0431\u0440\u0430\u0442\u044c \u043e\u0434\u043d\u0443 "
-        "\u0438\u0437 non-executable next iteration options "
-        "\u043d\u0438\u0436\u0435, \u0435\u0441\u043b\u0438 Search Brief "
-        "\u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c."
-    )
-
-
-def agent_response_quality_notes(
-    language: str,
-    summary_facts: dict,
-) -> list[dict[str, object]]:
-    quality = summary_facts["quality_distribution"]
-    signals = summary_facts["strong_signal_counts"]
-
-    if language == "ru":
-        return [
-            {
-                "kind": "quality_distribution",
-                "message": (
-                    f"Quality buckets: {quality['strong']} strong, "
-                    f"{quality['review']} review, {quality['weak']} weak."
-                ),
-                "facts": quality,
-            },
-            {
-                "kind": "signals",
-                "message": (
-                    "Java \u0438 \u0440\u043e\u043b\u044c \u0441\u0447\u0438\u0442\u0430\u044e\u0442\u0441\u044f "
-                    "\u0441\u0438\u043b\u044c\u043d\u044b\u043c\u0438 \u0442\u043e\u043b\u044c\u043a\u043e "
-                    "\u043a\u043e\u0433\u0434\u0430 \u043e\u043d\u0438 \u0432\u0438\u0434\u043d\u044b "
-                    "\u0432 public profile text."
-                ),
-                "facts": signals,
-            },
-        ]
-
-    return [
-        {
-            "kind": "quality_distribution",
-            "message": (
-                f"Quality buckets: {quality['strong']} strong, "
-                f"{quality['review']} review, {quality['weak']} weak."
-            ),
-            "facts": quality,
-        },
-        {
-            "kind": "signals",
-            "message": (
-                "Java and role signals count as strong only when visible in "
-                "public profile text."
-            ),
-            "facts": signals,
-        },
-    ]
-
-
-def agent_response_limitations(language: str, summary_facts: dict) -> list[dict[str, object]]:
-    signals = summary_facts["strong_signal_counts"]
-    if language == "ru":
-        return [
-            {
-                "kind": "public_snippets",
-                "message": (
-                    "\u041e\u0442\u0432\u0435\u0442 \u043e\u0441\u043d\u043e\u0432\u0430\u043d "
-                    "\u0442\u043e\u043b\u044c\u043a\u043e \u043d\u0430 public snippets "
-                    "\u0438 \u0434\u0430\u043d\u043d\u044b\u0445, \u0443\u0436\u0435 "
-                    "\u0432\u0435\u0440\u043d\u0443\u0442\u044b\u0445 backend."
-                ),
-            },
-            {
-                "kind": "stack_visibility",
-                "message": (
-                    "Selected stack \u043d\u0435 \u0432\u0438\u0434\u0435\u043d "
-                    f"\u0432 public snippets \u0443 {signals['selected_stack_not_visible']} "
-                    "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432; "
-                    "\u044d\u0442\u043e \u043d\u0435 \u0434\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442, "
-                    "\u0447\u0442\u043e \u0443 \u043d\u0438\u0445 \u043d\u0435\u0442 "
-                    "\u044d\u0442\u043e\u0433\u043e stack."
-                ),
-            },
-            {
-                "kind": "seniority_visibility",
-                "message": (
-                    "Seniority \u043d\u0435 \u0432\u0438\u0434\u0435\u043d "
-                    f"\u0443 {signals['seniority_not_visible']} "
-                    "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432."
-                ),
-            },
-        ]
-
-    return [
-        {
-            "kind": "public_snippets",
-            "message": (
-                "This response is based only on public snippets and data already "
-                "returned by the backend."
-            ),
-        },
-        {
-            "kind": "stack_visibility",
-            "message": (
-                "Selected stack is not visible in public snippets for "
-                f"{signals['selected_stack_not_visible']} candidates; this does "
-                "not prove they lack that stack."
-            ),
-        },
-        {
-            "kind": "seniority_visibility",
-            "message": (
-                f"Seniority is not visible for {signals['seniority_not_visible']} "
-                "candidates."
-            ),
-        },
-    ]
-
-
-def agent_response_suggested_next_actions(
-    language: str,
-    summary_facts: dict,
-) -> list[dict[str, object]]:
-    if language == "ru":
-        actions = [
-            {
-                "label": "\u041f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c top candidates",
-                "description": (
-                    "\u041d\u0430\u0447\u0430\u0442\u044c \u0441 strong bucket "
-                    "\u0438 \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c "
-                    "\u043f\u0440\u043e\u0444\u0438\u043b\u0438 \u0432\u0440\u0443\u0447\u043d\u0443\u044e."
-                ),
-                "executable": False,
-            },
-            {
-                "label": "\u0423\u0442\u043e\u0447\u043d\u0438\u0442\u044c stack",
-                "description": (
-                    "\u0415\u0441\u043b\u0438 stack \u0432 snippets "
-                    "\u0432\u0438\u0434\u0435\u043d \u0441\u043b\u0430\u0431\u043e, "
-                    "\u043c\u043e\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c "
-                    "\u0438\u043b\u0438 \u0441\u0443\u0437\u0438\u0442\u044c stack."
-                ),
-                "executable": False,
-            },
-        ]
-        return actions
-
-    actions = [
-        {
-            "label": "Review top candidates",
-            "description": "Start with the strong bucket and manually inspect profiles.",
-            "executable": False,
-        },
-        {
-            "label": "Adjust stack",
-            "description": (
-                "If stack visibility is weak in snippets, consider narrowing or "
-                "changing selected stack terms."
-            ),
-            "executable": False,
-        },
-    ]
-    return actions
-
-
-def next_iteration_option(
-    option_id: str,
-    label: str,
-    reason: str,
-    operations: list[dict],
-    *,
-    requires_clarification: bool = False,
-) -> dict[str, object]:
-    return {
-        "id": option_id,
-        "label": label,
-        "reason": reason,
-        "proposed_brief_patch": build_brief_patch(
-            source_message=f"next_iteration_option:{option_id}",
-            operations=operations,
-            requires_clarification=requires_clarification,
-        ),
-        "requires_approval_before_execution": True,
-        "is_executable_now": False,
-    }
-
-
-def stack_term_visibility_counts(
-    deduped_results: list[dict],
-    stack_terms: list[str],
-) -> dict[str, int]:
-    counts = {term: 0 for term in stack_terms}
-    if not stack_terms:
-        return counts
-
-    for item in deduped_results:
-        result = item.get("result") or {}
-        sources = candidate_text_sources(result)
-        evidence = collect_term_evidence(sources, stack_terms)
-        for term in terms_from_evidence(evidence, stack_terms):
-            counts[term] += 1
-
-    return counts
-
-
-def next_iteration_stack_observation_threshold(candidate_count: int) -> int:
-    if candidate_count <= 0:
-        return 2
-    return max(2, min(5, (candidate_count + 11) // 12))
-
-
-def agent_response_next_iteration_options(
-    query_plan: dict,
-    summary_facts: dict,
-    deduped_results: list[dict],
-) -> list[dict[str, object]]:
-    input_snapshot = (
-        query_plan.get("input_snapshot")
-        or summary_facts.get("input_snapshot")
-        or {}
-    )
-    candidate_count = int(summary_facts.get("candidate_count") or 0)
-    quality = summary_facts.get("quality_distribution") or {}
-    signals = summary_facts.get("strong_signal_counts") or {}
-    selected_stack = input_snapshot.get("stack") or []
-    search_depth = input_snapshot.get("search_depth") or SEARCH_DEPTH_STANDARD
-    mode = summary_facts.get("mode")
-    domain_config = search_domain_config_for(
-        input_snapshot.get("role_family") or "",
-        input_snapshot.get("technology") or "",
-    )
-    allowed_stack = (
-        domain_config.get("quality", {})
-        .get("stack", {})
-        .get("allowed_terms", [])
-    )
-    selected_stack = [term for term in selected_stack if term in allowed_stack]
-    selected_counts = stack_term_visibility_counts(deduped_results, selected_stack)
-    unselected_stack = [term for term in allowed_stack if term not in selected_stack]
-    unselected_counts = stack_term_visibility_counts(deduped_results, unselected_stack)
-    options: list[dict[str, object]] = []
-
-    strong_count = int(quality.get("strong") or 0)
-    if strong_count:
-        options.append(
-            next_iteration_option(
-                "review_high_quality_candidates",
-                "Review high-quality candidates first",
-                (
-                    f"{strong_count} candidates are in the strong quality bucket. "
-                    "This is a review-focus suggestion only and does not change the Search Brief."
-                ),
-                [
-                    {
-                        "operation": BRIEF_PATCH_NOOP,
-                        "field": "review_focus",
-                        "value": "high_quality_candidates",
-                    }
-                ],
-            )
-        )
-
-    visible_selected_stack = [
-        term for term in selected_stack if selected_counts.get(term, 0) > 0
-    ]
-    missing_selected_stack = [
-        term for term in selected_stack if selected_counts.get(term, 0) == 0
-    ]
-    if (
-        len(selected_stack) > 1
-        and visible_selected_stack
-        and missing_selected_stack
-        and visible_selected_stack != selected_stack
-    ):
-        options.append(
-            next_iteration_option(
-                "narrow_to_visible_selected_stack",
-                "Narrow stack to visible selected terms",
-                (
-                    "Current results directly show "
-                    f"{', '.join(visible_selected_stack)}, while "
-                    f"{', '.join(missing_selected_stack)} is not visible in returned snippets."
-                ),
-                [
-                    {
-                        "operation": BRIEF_PATCH_REPLACE_STACK,
-                        "field": "stack",
-                        "values": visible_selected_stack[:3],
-                    }
-                ],
-            )
-        )
-
-    observation_threshold = next_iteration_stack_observation_threshold(candidate_count)
-    observed_unselected_stack = [
-        (term, count)
-        for term, count in unselected_counts.items()
-        if count >= observation_threshold
-    ]
-    observed_unselected_stack.sort(key=lambda item: (-item[1], item[0]))
-    if selected_stack and len(selected_stack) < 3 and observed_unselected_stack:
-        term, count = observed_unselected_stack[0]
-        options.append(
-            next_iteration_option(
-                "broaden_with_observed_stack",
-                f"Broaden stack with {term}",
-                (
-                    f"{term} is visible in {count} returned candidates but is not "
-                    "part of the selected stack."
-                ),
-                [
-                    {
-                        "operation": BRIEF_PATCH_ADD_STACK,
-                        "field": "stack",
-                        "value": term,
-                    }
-                ],
-            )
-        )
-
-    if (
-        selected_stack
-        and not visible_selected_stack
-        and int(signals.get("selected_stack_not_visible") or 0) > 0
-    ):
-        options.append(
-            next_iteration_option(
-                "clarify_stack_preference",
-                "Clarify stack preference",
-                (
-                    "Selected stack is not directly visible in the returned public snippets. "
-                    "The safest next step is to ask whether to keep or replace it."
-                ),
-                [
-                    {
-                        "operation": BRIEF_PATCH_RECONFIRM_FIELD,
-                        "field": "stack",
-                        "value": "current",
-                    }
-                ],
-                requires_clarification=True,
-            )
-        )
-
-    if search_depth != SEARCH_DEPTH_DEEP and mode != "multi_wave":
-        options.append(
-            next_iteration_option(
-                "try_deep_search_depth",
-                "Try deep search depth",
-                (
-                    "The current Search Brief uses standard depth. Deep depth is "
-                    "a brief-level change that still requires Build Plan and approval."
-                ),
-                [
-                    {
-                        "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,
-                        "field": "search_depth",
-                        "value": SEARCH_DEPTH_DEEP,
-                    }
-                ],
-            )
-        )
-
-    return options[:4]
-
-
-def build_agent_response(
-    query_plan: dict,
-    report: dict,
-    deduped_results: list[dict],
-    language: str | None = None,
-) -> dict:
-    normalized_language = normalize_agent_language(language)
-    summary_facts = agent_response_summary_facts(
-        query_plan,
-        report,
-        deduped_results,
-    )
-    message = (
-        agent_response_message_ru(summary_facts)
-        if normalized_language == "ru"
-        else agent_response_message_en(summary_facts)
-    )
-
-    return {
-        "message": message,
-        "summary_facts": summary_facts,
-        "quality_notes": agent_response_quality_notes(
-            normalized_language,
-            summary_facts,
-        ),
-        "limitations": agent_response_limitations(
-            normalized_language,
-            summary_facts,
-        ),
-        "suggested_next_actions": agent_response_suggested_next_actions(
-            normalized_language,
-            summary_facts,
-        ),
-        "next_iteration_options": agent_response_next_iteration_options(
-            query_plan,
-            summary_facts,
-            deduped_results,
-        ),
-        "language": normalized_language,
-        "source": "backend_returned_search_data",
-        "requires_approval_for_execution": True,
-    }
-
-
-def agent_wording_hard_boundaries() -> list[str]:
-    return [
-        "No web search by the wording helper.",
-        "No direct web-search by the agent outside the approved backend pipeline.",
-        "No LinkedIn login.",
-        "No LinkedIn scraping or restriction bypass.",
-        "No candidate messaging or automatic outreach.",
-        "No user or third-party account actions.",
-        "No autonomous execution.",
-        "Do not change facts, counts, actions, filters, scoring, location logic, dedupe, planner behavior, fingerprints, or approval state.",
-        "Do not invent candidates or claim direct LinkedIn inspection.",
-    ]
-
-
-def agent_wording_system_prompt() -> str:
-    return (
-        "You are a bounded wording helper for a human-approved recruiting agent. "
-        "Return one valid JSON object only. Your only job is to make the provided "
-        "deterministic Agent Plan or Agent Response text clearer and more natural. "
-        "You must not browse, search, call tools, access LinkedIn, log in, scrape, "
-        "message candidates, act on accounts, change facts, change counts, change "
-        "actions, change approval rules, or create executable next steps."
-    )
-
-
-def agent_wording_user_prompt(payload: dict) -> str:
-    return json.dumps(
-        {
-            "task": "Rewrite only allowed user-facing text fields.",
-            "required_output_shape": {
-                "message": "string",
-                "warnings": ["optional short strings"],
-                "limitations": [
-                    {
-                        "kind": "existing limitation kind only",
-                        "message": "optional rewritten limitation message",
-                    }
-                ],
-            },
-            "rules": [
-                "Return JSON only.",
-                "Use the requested language.",
-                "Use only facts present in the payload.",
-                "Do not add numbers outside allowed_numbers.",
-                "Do not include query text.",
-                "Do not create or change suggested_next_actions.",
-                "Do not make any next step executable.",
-                "Do not repeat prohibited behavior as a capability.",
-            ],
-            "payload": payload,
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
-
-
-def agent_wording_has_openai_config() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_MODEL"))
-
-
 async def run_openai_json_agent_wording(
     payload: dict,
 ) -> tuple[dict | None, str | None]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_MODEL")
-    if not api_key or not model:
-        return None, AGENT_WORDING_FALLBACK_NOT_CONFIGURED
-
-    request_payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": agent_wording_system_prompt()},
-            {"role": "user", "content": agent_wording_user_prompt(payload)},
-        ],
-        "temperature": 0.2,
-        "max_completion_tokens": OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS,
-        "response_format": {"type": "json_object"},
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=AGENT_WORDING_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                os.getenv("OPENAI_CHAT_COMPLETIONS_URL", OPENAI_CHAT_COMPLETIONS_URL),
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=request_payload,
-            )
-            response.raise_for_status()
-    except httpx.TimeoutException:
-        return None, "openai_wording_timeout"
-    except httpx.HTTPStatusError as exc:
-        return None, f"openai_wording_http_{exc.response.status_code}"
-    except httpx.HTTPError:
-        return None, "openai_wording_request_failed"
-
-    data = response.json()
-    content = (
-        data.get("choices", [{}])[0]
-        .get("message", {})
-        .get("content")
+    return await _run_openai_json_agent_wording(
+        payload,
+        chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
     )
-    if not content:
-        return None, "openai_wording_empty_content"
-
-    try:
-        parsed_content = json.loads(content)
-    except json.JSONDecodeError:
-        return None, "openai_wording_invalid_json"
-    if not isinstance(parsed_content, dict):
-        return None, "openai_wording_wrong_shape"
-
-    return parsed_content, None
-
-
-def agent_wording_number_tokens(value: str) -> set[str]:
-    return {
-        token
-        for token in re.findall(
-            r"(?<![A-Za-z0-9_])-?\d+(?:\.\d+)?(?![A-Za-z0-9_])",
-            value or "",
-        )
-    }
-
-
-def agent_wording_allowed_numbers(value: object) -> set[str]:
-    numbers: set[str] = set()
-    if isinstance(value, bool) or value is None:
-        return numbers
-    if isinstance(value, int):
-        numbers.add(str(value))
-        return numbers
-    if isinstance(value, float):
-        numbers.add(str(value))
-        if value.is_integer():
-            numbers.add(str(int(value)))
-        return numbers
-    if isinstance(value, str):
-        return agent_wording_number_tokens(value)
-    if isinstance(value, list):
-        for item in value:
-            numbers.update(agent_wording_allowed_numbers(item))
-        return numbers
-    if isinstance(value, dict):
-        for item in value.values():
-            numbers.update(agent_wording_allowed_numbers(item))
-        return numbers
-    return numbers
-
-
-def agent_wording_text_values(value: object) -> list[str]:
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list):
-        values: list[str] = []
-        for item in value:
-            values.extend(agent_wording_text_values(item))
-        return values
-    if isinstance(value, dict):
-        values: list[str] = []
-        for item in value.values():
-            values.extend(agent_wording_text_values(item))
-        return values
-    return []
-
-
-def agent_wording_has_disallowed_key(value: object) -> bool:
-    disallowed_keys = {
-        "summary_facts",
-        "quality_notes",
-        "suggested_next_actions",
-        "proposed_action",
-        "brief_fingerprint",
-        "plan_fingerprint",
-        "fingerprint",
-        "counts",
-        "approval_state",
-        "approval_required",
-        "requires_approval",
-        "executable",
-        "planner_mode",
-        "filters",
-        "scoring",
-        "dedupe",
-        "location_logic",
-        "query",
-        "queries",
-        "query_plan",
-        "candidate",
-        "candidates",
-        "url",
-        "urls",
-    }
-
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if str(key).lower() in disallowed_keys:
-                return True
-            if agent_wording_has_disallowed_key(item):
-                return True
-    if isinstance(value, list):
-        return any(agent_wording_has_disallowed_key(item) for item in value)
-    return False
-
-
-def agent_wording_language_matches(text: str, language: str) -> bool:
-    has_cyrillic = bool(re.search(r"[\u0400-\u04ff]", text or ""))
-    if language == "ru":
-        return has_cyrillic
-    return not has_cyrillic
-
-
-def agent_wording_has_prohibited_content(text: str) -> bool:
-    prohibited_patterns = [
-        r"\bsite:linkedin\.com\b",
-        r"\bdirect\s+web[- ]search\b",
-        r"\bsearched\s+linkedin\s+directly\b",
-        r"\blinkedin.{0,40}\b(log\s?in|login|sign in)\b",
-        r"\b(log\s?in|login|sign in)\b.{0,40}linkedin",
-        r"\b(scrape|scraping|scraper|crawl|crawler|bypass)\b",
-        r"\binmail\b",
-        r"\bsend.{0,30}(message|dm|email).{0,40}(candidate|profile)\b",
-        r"\bmessage.{0,40}(candidate|profile)\b",
-        r"\bcontact.{0,40}(candidate|profile)\b",
-        r"\b(use|used).{0,30}(my|user|recruiter).{0,30}account\b",
-        r"\bi\s+(will|can|am going to)\s+(run|execute|search|contact|message|scrape|log in)\b",
-        r"\bi\s+(ran|executed|searched|contacted|messaged|scraped|logged in)\b",
-        r"\bperfect\s+candidates?\b",
-        r"\bguarantee(d|s)?\b",
-        r"\u044f\s+(\u0437\u0430\u043f\u0443\u0449\u0443|\u0437\u0430\u043f\u0443\u0441\u0442\u0438\u043b|\u043d\u0430\u043f\u0438\u0441\u0430\u043b|\u0441\u0432\u044f\u0437\u0430\u043b\u0441\u044f)",
-        r"\u0441\u043a\u0440\u0435\u0439\u043f|\u043f\u0430\u0440\u0441.{0,40}linkedin",
-        r"\u0432\u043e\u0439\u0434.{0,40}linkedin|linkedin.{0,40}\u0432\u043e\u0439\u0434",
-        r"\u0430\u043a\u043a\u0430\u0443\u043d\u0442",
-        r"\u0433\u0430\u0440\u0430\u043d\u0442\u0438\u0440|\u0438\u0434\u0435\u0430\u043b\u044c\u043d",
-    ]
-    return any(re.search(pattern, text or "", re.IGNORECASE) for pattern in prohibited_patterns)
-
-
-def normalize_agent_wording_warnings(value: object) -> list[str] | None:
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        return None
-
-    warnings: list[str] = []
-    for item in value[:5]:
-        if not isinstance(item, str):
-            return None
-        normalized_item = normalize_text_value(item)
-        if normalized_item:
-            warnings.append(normalized_item)
-    return warnings
-
-
-def normalize_agent_wording_limitations(value: object) -> list[dict[str, str]] | None:
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        return None
-
-    limitations: list[dict[str, str]] = []
-    for item in value:
-        if not isinstance(item, dict):
-            return None
-        kind = normalize_text_value(str(item.get("kind") or ""))
-        message = normalize_text_value(str(item.get("message") or ""))
-        if not kind or not message:
-            return None
-        limitations.append({"kind": kind, "message": message})
-    return limitations
-
-
-def validate_agent_wording_output(
-    llm_output: dict,
-    *,
-    language: str,
-    allowed_numbers: set[str],
-    existing_limitation_kinds: set[str] | None = None,
-) -> tuple[dict | None, str | None]:
-    if agent_wording_has_disallowed_key(llm_output):
-        return None, "llm_output_disallowed_fields"
-
-    allowed_keys = {"message", "warnings", "limitations"}
-    if any(key not in allowed_keys for key in llm_output):
-        return None, "llm_output_unknown_fields"
-
-    message_value = llm_output.get("message")
-    if not isinstance(message_value, str):
-        return None, "llm_output_missing_message"
-    message = normalize_text_value(message_value)
-    if not message:
-        return None, "llm_output_missing_message"
-
-    warnings = normalize_agent_wording_warnings(llm_output.get("warnings"))
-    if warnings is None:
-        return None, "llm_output_invalid_warnings"
-
-    limitations = normalize_agent_wording_limitations(llm_output.get("limitations"))
-    if limitations is None:
-        return None, "llm_output_invalid_limitations"
-
-    if existing_limitation_kinds is not None:
-        for limitation in limitations:
-            if limitation["kind"] not in existing_limitation_kinds:
-                return None, "llm_output_new_limitation_kind"
-
-    combined_text = "\n".join(
-        [message] + warnings + [limitation["message"] for limitation in limitations]
-    )
-    if not agent_wording_language_matches(combined_text, language):
-        return None, "llm_output_wrong_language"
-    if agent_wording_has_prohibited_content(combined_text):
-        return None, "llm_output_unsafe_content"
-
-    output_numbers = agent_wording_number_tokens(combined_text)
-    if not output_numbers.issubset(allowed_numbers):
-        return None, "llm_output_disallowed_numbers"
-
-    return {
-        "message": message,
-        "warnings": warnings,
-        "limitations": limitations,
-    }, None
-
-
-def with_agent_wording_metadata(
-    value: dict,
-    *,
-    wording_mode: str,
-    fallback_reason: str | None = None,
-    llm_warnings: list[str] | None = None,
-) -> dict:
-    updated_value = copy.deepcopy(value)
-    updated_value["wording_mode"] = wording_mode
-    updated_value["fallback_reason"] = fallback_reason
-    updated_value["llm_warnings"] = llm_warnings or []
-    return updated_value
-
-
-def agent_plan_wording_payload(
-    agent_plan: dict,
-    normalized_request: dict,
-    language: str,
-) -> dict:
-    payload = {
-        "wording_use_case": "agent_plan",
-        "language": language,
-        "deterministic_message": agent_plan.get("message"),
-        "normalized_brief": agent_plan.get("input_snapshot") or {},
-        "normalized_structured_request": normalized_request,
-        "proposed_action": agent_plan.get("proposed_action") or {},
-        "approval_requirement": {
-            "build_plan_requires_approval": False,
-            "search_execution_requires_explicit_approval": True,
-        },
-        "hard_boundaries": agent_wording_hard_boundaries(),
-    }
-    payload["allowed_numbers"] = sorted(agent_wording_allowed_numbers(payload))
-    return payload
-
-
-def agent_response_wording_payload(agent_response: dict) -> dict:
-    payload = {
-        "wording_use_case": "agent_response",
-        "language": agent_response.get("language"),
-        "deterministic_message": agent_response.get("message"),
-        "summary_facts": agent_response.get("summary_facts") or {},
-        "quality_notes": agent_response.get("quality_notes") or [],
-        "limitations": agent_response.get("limitations") or [],
-        "suggested_next_actions": agent_response.get("suggested_next_actions") or [],
-        "requires_approval_for_execution": agent_response.get(
-            "requires_approval_for_execution"
-        ),
-        "hard_boundaries": agent_wording_hard_boundaries(),
-    }
-    payload["allowed_numbers"] = sorted(agent_wording_allowed_numbers(payload))
-    return payload
 
 
 async def apply_llm_wording_to_agent_plan(
@@ -2153,100 +1249,19 @@ async def apply_llm_wording_to_agent_plan(
     normalized_request: dict,
     language: str,
 ) -> dict:
-    if not agent_wording_has_openai_config():
-        return with_agent_wording_metadata(
-            agent_plan,
-            wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
-            fallback_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
-        )
-
-    payload = agent_plan_wording_payload(agent_plan, normalized_request, language)
-    llm_output, fallback_reason = await run_openai_json_agent_wording(payload)
-    if fallback_reason or llm_output is None:
-        return with_agent_wording_metadata(
-            agent_plan,
-            wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
-            fallback_reason=fallback_reason or "openai_wording_empty_output",
-        )
-
-    validated_output, validation_reason = validate_agent_wording_output(
-        llm_output,
-        language=language,
-        allowed_numbers=set(payload["allowed_numbers"]),
-    )
-    if validation_reason or validated_output is None:
-        return with_agent_wording_metadata(
-            agent_plan,
-            wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
-            fallback_reason=validation_reason or "llm_output_invalid",
-        )
-
-    updated_agent_plan = with_agent_wording_metadata(
+    return await _apply_llm_wording_to_agent_plan(
         agent_plan,
-        wording_mode=AGENT_WORDING_MODE_LLM_ASSISTED,
-        llm_warnings=validated_output["warnings"],
+        normalized_request,
+        language,
+        wording_runner=run_openai_json_agent_wording,
     )
-    updated_agent_plan["message"] = validated_output["message"]
-    return updated_agent_plan
 
 
 async def apply_llm_wording_to_agent_response(agent_response: dict) -> dict:
-    if not agent_wording_has_openai_config():
-        return with_agent_wording_metadata(
-            agent_response,
-            wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
-            fallback_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
-        )
-
-    payload = agent_response_wording_payload(agent_response)
-    existing_limitation_kinds = {
-        str(item.get("kind"))
-        for item in agent_response.get("limitations") or []
-        if isinstance(item, dict) and item.get("kind")
-    }
-    llm_output, fallback_reason = await run_openai_json_agent_wording(payload)
-    if fallback_reason or llm_output is None:
-        return with_agent_wording_metadata(
-            agent_response,
-            wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
-            fallback_reason=fallback_reason or "openai_wording_empty_output",
-        )
-
-    validated_output, validation_reason = validate_agent_wording_output(
-        llm_output,
-        language=agent_response.get("language") or "en",
-        allowed_numbers=set(payload["allowed_numbers"]),
-        existing_limitation_kinds=existing_limitation_kinds,
-    )
-    if validation_reason or validated_output is None:
-        return with_agent_wording_metadata(
-            agent_response,
-            wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
-            fallback_reason=validation_reason or "llm_output_invalid",
-        )
-
-    updated_agent_response = with_agent_wording_metadata(
+    return await _apply_llm_wording_to_agent_response(
         agent_response,
-        wording_mode=AGENT_WORDING_MODE_LLM_ASSISTED,
-        llm_warnings=validated_output["warnings"],
+        wording_runner=run_openai_json_agent_wording,
     )
-    updated_agent_response["message"] = validated_output["message"]
-
-    if validated_output["limitations"]:
-        limitation_messages = {
-            item["kind"]: item["message"]
-            for item in validated_output["limitations"]
-        }
-        updated_limitations = []
-        for limitation in updated_agent_response.get("limitations") or []:
-            updated_limitation = dict(limitation)
-            kind = updated_limitation.get("kind")
-            if kind in limitation_messages:
-                updated_limitation["message"] = limitation_messages[kind]
-            updated_limitations.append(updated_limitation)
-        updated_agent_response["limitations"] = updated_limitations
-
-    return updated_agent_response
 
 
 def build_agent_plan_response(request: AgentPlanRequest) -> dict:
@@ -2482,21 +1497,6 @@ def detected_search_depth_value(text: str) -> str | None:
     if re.search(r"\bstandard\b|стандарт|обычн", lowered_text, flags=re.IGNORECASE):
         return SEARCH_DEPTH_STANDARD
     return None
-
-
-def build_brief_patch(
-    *,
-    source_message: str,
-    operations: list[dict],
-    requires_clarification: bool = False,
-    assistant_message: str | None = None,
-) -> dict:
-    return {
-        "operations": operations,
-        "source_message": source_message,
-        "requires_clarification": requires_clarification,
-        "assistant_message": assistant_message,
-    }
 
 
 def deterministic_brief_patch_from_message(

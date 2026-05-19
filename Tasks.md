@@ -2141,8 +2141,6 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 
 ### Approved
 
-- [x] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
-
 ### Backlog
 
 - [ ] P5.5-008 Split FastAPI routes from domain logic
@@ -2159,6 +2157,7 @@ Phase 5 must preserve absolute product boundaries. The following are prohibited,
 - [x] P5.5-005 Extract Candidate Quality module
 - [x] P5.5-006 Extract Agent Tools and Agent Plan modules
 - [x] P5.5-006.1 Add local regression check script and GitHub Actions CI
+- [x] P5.5-007 Extract Agent Response and bounded wording/OpenAI modules
 
 ### Current Phase 5.5 strategy note
 
@@ -3438,7 +3437,7 @@ Add a local one-command regression check and GitHub Actions CI without changing 
 
 ### Status
 
-Approved / not implemented.
+Implemented.
 
 ### Context
 
@@ -3586,6 +3585,21 @@ Extract Agent Response, shared brief patch helpers needed by Agent Response, and
 - Recruiter chat and AI planner OpenAI orchestration do not import from `app.agent_wording` and do not change ownership of OpenAI URL/config.
 - Existing P5 wording smoke passes unchanged.
 - No Agent Response fields, wording metadata, fallback reasons, brief patch payloads, approval behavior, fingerprints, next-iteration options, planner behavior, execution behavior, recruiter chat refinement behavior, or frontend behavior change.
+
+### Implementation result
+
+- Added `app/brief_patch.py` for shared `BRIEF_PATCH_*` constants and `build_brief_patch`.
+- Added `app/agent_response.py` for deterministic Agent Response summaries, limitations, suggested actions, next-iteration options, and `build_agent_response`.
+- Added `app/agent_wording.py` for bounded Agent Plan/Agent Response wording prompts, OpenAI wording request helper, validators, metadata helpers, payload builders, and apply functions.
+- Updated `app/main.py` to import moved names and preserve `main.*` compatibility for brief patch constants/helper, Agent Response helpers, Agent wording constants/helpers, and `OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS`.
+- Preserved `main.run_openai_json_agent_wording` monkeypatch compatibility by keeping wrapper functions for `main.apply_llm_wording_to_agent_plan` and `main.apply_llm_wording_to_agent_response`.
+- Kept recruiter chat OpenAI orchestration and AI planner OpenAI orchestration in `app/main.py`; `app.agent_wording` is not a shared/general OpenAI client.
+- Confirmed extracted modules do not import `app.main`.
+- No endpoint paths, request payloads, response fields, validation errors, approval checks, QueryPlan output, fingerprints, execution behavior, frontend behavior, Agent Plan behavior, recruiter chat behavior, LLM fallback behavior, planner behavior, filters, scoring, dedupe, location logic, snapshots, or Phase 6 runtime behavior changed.
+
+### Verification completed
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
 
 ## Phase 6 - Human-approved Tool-Calling Agent Runtime
 
