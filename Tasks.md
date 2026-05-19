@@ -3922,7 +3922,6 @@ Use the most conservative implementation variant:
 
 ### Backlog
 
-- [ ] P6-001 Define human-approved Agent Runtime contract
 - [ ] P6-002 Implement typed tool registry and tool-call envelopes
 - [ ] P6-003 Add frontend agent action review queue
 - [ ] P6-004 Implement first approved tool loop for Java/Ukraine baseline
@@ -3933,6 +3932,8 @@ Use the most conservative implementation variant:
 
 ### Done
 
+- [x] P6-001 Define human-approved Agent Runtime contract
+
 ### Current Phase 6 strategy note
 
 Phase 6 should start only after Phase 5 is closed and Phase 5.5 modularization is complete.
@@ -3940,6 +3941,250 @@ Phase 6 should start only after Phase 5 is closed and Phase 5.5 modularization i
 Goal: let the agent choose from allowlisted backend tools, propose typed tool calls, wait for explicit user approval when execution is meaningful, execute only approved backend actions, inspect returned results, and suggest the next iteration.
 
 Phase 6 must not introduce autonomous execution. AI-generated query plans should remain non-executable unless a later reviewed task explicitly enables them through deterministic validation and approval.
+
+## Task: P6-001 Define human-approved Agent Runtime contract
+
+### Context
+
+Phase 4 defined `Agent Tools v0`. Phase 5 made recruiter chat the primary UX and added an approval-gated Java/Ukraine Agent v0 path. Phase 5.5 modularized backend code so Phase 6 runtime does not need to sit on top of route handlers.
+
+`P6-001` is not another tool-list task. It defines the runtime orchestration contract around existing tools: state, tool-call envelopes, approval boundaries, stale-context rules, result observation, and next-step suggestions.
+
+This is a docs-only contract task. No runtime code, Tavily calls, OpenAI behavior changes, frontend changes, or route changes should be implemented here.
+
+### Goal
+
+Define `Human-approved Agent Runtime v0`: a bounded runtime contract where the agent can propose allowlisted backend tool calls, the backend validates and normalizes them, execution waits for explicit user approval when meaningful, results are observed, and the agent can suggest the next step without autonomous action.
+
+The v0 scope remains the current narrow supported flow: `Backend Developer + Java + Ukraine`.
+
+### Runtime principles
+
+1. The backend is the source of truth for tool validity, approval requirements, risk level, fingerprints, and executable state.
+2. The agent or LLM may propose a tool call, but it must not be trusted to declare approval status or execution eligibility.
+3. Tool registry is deny-by-default: unknown `tool_name`, endpoint/path/freeform action, or unsupported tool input must be rejected.
+4. Runtime v0 is stateless/request-scoped on the backend. The frontend may hold current brief/plan/results, but every backend step must revalidate fingerprints and context.
+5. Execution tools must be approval-gated. Planning, validation, analysis, summary, and suggestion tools may run without approval if they do not call Tavily, perform external actions, or mutate approved execution/result state.
+6. After observing results, the runtime may suggest next actions or brief patches, but it must not mutate `Search Brief`, `QueryPlan`, filters, stack, depth, candidates, scores, or approval state without an explicit user action.
+7. AI-generated QueryPlans remain non-executable in Phase 6 v0 unless a later reviewed task explicitly enables that path through deterministic validation and approval.
+8. Runtime messages in Phase 6 should be structured/deterministic or use only already approved bounded wording paths. New ordinary LLM-assisted conversation wording belongs to Phase 7 and must not be introduced by the runtime contract.
+9. Future runtime implementation must call service/tool modules, not FastAPI route handlers.
+
+### Runtime states
+
+The contract should define at least these states:
+
+- `brief_draft` - recruiter intent exists, but the Search Brief is incomplete or not ready.
+- `brief_ready` - Search Brief is validated and ready for planning.
+- `tool_proposed` - the agent/runtime has prepared a tool call candidate.
+- `approval_pending` - the tool call is valid but requires explicit user approval.
+- `approved` - user approval matches the current tool input and context fingerprints.
+- `executing` - an approved execution tool is running.
+- `observed` - tool result has been returned and summarized/analyzed.
+- `blocked` - policy, unsupported flow, stale context, missing approval, or invalid input blocks the action.
+- `error` - tool execution or validation failed in a structured way.
+
+Allowed state transitions should be explicit:
+
+- `brief_draft -> brief_ready`;
+- `brief_ready -> tool_proposed`;
+- `tool_proposed -> approval_pending` for valid approval-required tools;
+- `tool_proposed -> observed` for valid no-approval planning/analysis/suggestion tools that execute immediately;
+- `approval_pending -> approved` when user approval matches current fingerprints;
+- `approval_pending -> blocked` when approval is rejected, missing, stale, or mismatched;
+- `approved -> executing`;
+- `executing -> observed`;
+- any state may move to `blocked` for policy, unsupported flow, invalid tool, invalid input, stale context, or missing approval;
+- execution/validation failures move to `error`.
+
+### Agent proposal vs backend runtime tool call
+
+The contract must separate an untrusted agent proposal from a backend-normalized runtime tool call.
+
+Agent proposal shape:
+
+```json
+{
+  "tool_name": "build_query_plan",
+  "input": {},
+  "reason": "Why this tool is useful now."
+}
+```
+
+Backend-normalized runtime tool call shape:
+
+```json
+{
+  "tool_call_id": "stable-id",
+  "tool_name": "build_query_plan",
+  "input": {},
+  "reason": "Why this tool is useful now.",
+  "requires_approval": false,
+  "approval_status": "not_required",
+  "risk_level": "planning",
+  "tool_input_fingerprint": "fingerprint",
+  "context_fingerprint": "fingerprint",
+  "idempotency_key": null,
+  "is_executable": true
+}
+```
+
+Important rule: `requires_approval`, `approval_status`, `risk_level`, fingerprints, and `is_executable` are backend-owned fields.
+
+`idempotency_key` is required for approval-required execution tools. Because runtime v0 is backend stateless/request-scoped, this key is part of the approval/runtime contract rather than a full server-side duplicate-execution guarantee. Actual duplicate-submit protection should be defined in `P6-004`/`P6-005` as frontend in-flight guard plus backend best-effort validation, or as a separately approved idempotency store if persistence is introduced later.
+
+Allowed `approval_status` values:
+
+- `not_required`;
+- `required`;
+- `approved`;
+- `rejected`.
+
+Allowed `risk_level` values:
+
+- `planning`;
+- `analysis`;
+- `suggestion`;
+- `execution`.
+
+### Tool result envelope
+
+Every runtime tool result should use a stable envelope:
+
+```json
+{
+  "tool_call_id": "stable-id",
+  "tool_name": "build_query_plan",
+  "ok": true,
+  "result": {},
+  "errors": [],
+  "observations": [],
+  "next_actions": []
+}
+```
+
+### Runtime turn response envelope
+
+Every runtime turn should return a stable response envelope that the frontend can render without inventing agent state:
+
+```json
+{
+  "ok": true,
+  "runtime_state": "tool_proposed",
+  "messages": [],
+  "tool_calls": [],
+  "pending_approvals": [],
+  "tool_results": [],
+  "errors": [],
+  "next_actions": []
+}
+```
+
+Frontend can display this response and hold current UI/session state, but backend remains responsible for recomputing executable state and validating fingerprints on every step.
+
+### Approval and fingerprint rules
+
+Execution approval must be bound to:
+
+- `tool_name` / action;
+- tool input fingerprint;
+- context fingerprint;
+- planner mode when relevant;
+- QueryPlan fingerprint when relevant;
+- query count when relevant;
+- Search Brief fingerprint when relevant.
+
+Any change to Search Brief, adapted structured request, QueryPlan, planner mode, query count, runtime tool input, or relevant context invalidates the previous approval.
+
+Current `ExecutionApproval` covers the existing QueryPlan approval path only. Phase 6 runtime approval must extend or replace it with runtime-level approval fields, including `tool_input_fingerprint`, `context_fingerprint`, and `idempotency_key`.
+
+### Tool categories
+
+No approval required:
+
+- `validate_search_brief`;
+- `adapt_brief_to_structured_request`;
+- `build_query_plan`;
+- `validate_query_plan`;
+- `analyze_candidate_quality`;
+- `summarize_search_results`;
+- `suggest_next_iteration`.
+
+Approval required:
+
+- `run_single_wave_search`;
+- `run_multi_wave_search`;
+- any future externally meaningful execution tool.
+
+### Error taxonomy
+
+The runtime contract should define structured errors for at least:
+
+- `unsupported_tool`;
+- `invalid_tool_input`;
+- `unsupported_flow`;
+- `stale_context`;
+- `approval_required`;
+- `approval_mismatch`;
+- `policy_blocked`;
+- `execution_failed`;
+- `tool_unavailable`;
+- `internal_error`.
+
+### Hard boundaries
+
+- No autonomous execution.
+- No direct web-search bypass outside the approved backend pipeline.
+- No direct LinkedIn access, login, scraping, automation, or restriction bypass.
+- No automatic candidate messaging or outreach.
+- No account actions.
+- No arbitrary HTTP requests.
+- No arbitrary code execution.
+- No database, persistent memory, shortlist, export, authentication, or new data sources in this task.
+- No country/technology expansion in this task.
+- No AI-generated executable QueryPlan path in this task.
+- No new ordinary LLM-assisted conversation wording in this task; that belongs to Phase 7.
+
+### Proposed task steps
+
+1. Review the existing `P4-004` Agent Tools v0 contract and current Phase 5/5.5 agent modules.
+2. Document runtime v0 scope and non-goals.
+3. Define runtime states and allowed state transitions.
+4. Define the difference between untrusted agent proposals and backend-owned runtime tool calls.
+5. Define `ToolCall` and `ToolResult` envelopes.
+6. Define approval, fingerprint, stale-context, and deny-by-default rules.
+7. Define tool categories and risk levels.
+8. Define structured error taxonomy.
+9. Define runtime turn response envelope for frontend rendering.
+10. Define frontend/backend ownership: frontend can hold current UI state; backend revalidates every runtime step.
+11. Define why current `ExecutionApproval` is not enough for full Phase 6 runtime approval.
+12. Define acceptance criteria for `P6-002`, `P6-003`, and `P6-004`.
+13. Update project docs only.
+
+### Acceptance criteria
+
+- Runtime v0 contract is documented.
+- Agent proposal and backend runtime tool call responsibilities are clearly separated.
+- Runtime states are documented.
+- Allowed state transitions are documented.
+- Runtime response envelope is documented.
+- Approval/fingerprint/stale-context rules are documented.
+- `approval_status`, `risk_level`, and idempotency expectations are documented.
+- Deny-by-default tool registry behavior is documented.
+- Error taxonomy is documented.
+- Current `ExecutionApproval` limitation and future runtime approval requirement are documented.
+- The task clearly says future runtime code should call service/tool modules, not route handlers.
+- No code behavior changes are made.
+
+### Approval result
+
+Approved as the docs-only Phase 6 runtime contract. The task defines the human-approved Agent Runtime v0 scope, state model, allowed transitions, backend-owned tool-call envelopes, runtime turn response envelope, approval/fingerprint/stale-context rules, deny-by-default tool registry behavior, idempotency expectations for stateless v0, error taxonomy, Phase 7 wording boundary, and the limitation of the current `ExecutionApproval` model.
+
+No code behavior, endpoint, frontend, Tavily, OpenAI, route, planner, scoring, filtering, dedupe, location, snapshot, or approval execution behavior changed.
+
+### Before implementation
+
+Codex must restate the task scope, critically review the steps, and wait for explicit approval before changing documents or code.
 
 ---
 
