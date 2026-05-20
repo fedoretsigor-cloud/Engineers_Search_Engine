@@ -14,7 +14,7 @@ Phase 3 - Candidate Quality Layer is completed.
 
 Phase 4 - AI Agent Foundation is completed.
 
-Current phase: `Phase 8 - Candidate Workspace/Table + Shortlist`.
+Current phase: `Phase 7.5 - Recruiter Simulation QA & Flow Hardening`.
 
 Completed through `P7-010`: Phase 4 is closed as an AI Agent Foundation, Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation, Phase 5.5 is closed as technical modularization before Agent Runtime, Phase 6 is closed as `AI Agent Runtime v0 baseline`, and Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline` in `docs/phase-7-closeout.md`. Phase 7 delivered the docs-only `Agent Message Taxonomy V0` contract in `docs/phase-7-agent-message-taxonomy.md`, the docs-only `Agent Message Facts Contract V0` in `docs/phase-7-message-facts-contract.md`, the docs-only `Agent Wording Style and Language Policy V0` in `docs/phase-7-agent-wording-style-policy.md`, the backend-first deterministic source-message helper layer in `app/agent_messages.py`, the docs-only `LLM Routing and Gating Policy V0` in `docs/phase-7-llm-routing-gating-policy.md`, the docs-only `Bounded LLM Wording Payload and Prompt Contract V0` in `docs/phase-7-bounded-llm-payload-prompt-contract.md`, code-level wording validation/fallback/provenance metadata in `app/agent_wording.py`, frontend typed rendering for current agent chat messages in `app/static/app.js`, and no-network golden conversation regression coverage in `scripts/smoke_p7_golden_conversations.py`. Phase 6 delivered the human-approved runtime contract, typed backend registry/envelope helpers, frontend Agent Action Review Queue, first approved runtime execution loop for the Java/Ukraine baseline, runtime guardrail regression coverage, repaired real runtime wrapper execution, and a dedicated closeout decision. The backend has Search Brief validation/adapter, extracted rule-based planner and deterministic AI QueryPlan validation modules, extracted Tavily/query-wave execution and snapshot modules, extracted Candidate Quality module, extracted Agent Tools/Agent Plan modules, extracted Agent Response/brief patch/Agent wording modules, extracted deterministic Agent Messages, extracted FastAPI route wrappers, typed Agent Runtime registry/envelope helpers, `POST /api/agent/runtime/turn`, route/import/runtime guardrail/unmocked-wrapper no-network HTTP smoke coverage in the regression baseline, local regression check script, GitHub Actions CI, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, `POST /api/recruiter-chat/turn`, `POST /api/agent/plan`, `agent_response`, and `agent_response.next_iteration_options` on approved search responses. The frontend starts from recruiter chat, shows typed current agent messages and current agent actions as a review/status queue, and `Approve & Search` uses the Agent Runtime path instead of direct structured-search execution. This is still not a complete autonomous recruiter agent.
 
@@ -26,7 +26,9 @@ Completed Phase 6 tasks: `P6-001 Define human-approved Agent Runtime contract`, 
 
 Completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`.
 
-Next Phase 8 task for review: `P8-001 Define candidate workspace contract`.
+After Phase 7 closeout, Phase 7.5 was inserted as the current QA gate before Phase 8. Phase 8 implementation is paused until RU/EN recruiter simulation QA is completed without Tavily execution.
+
+Next Phase 7.5 task for review: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
 
 Current agreed strategy:
 
@@ -42,7 +44,10 @@ Current agreed strategy:
 - `P6-005.1` is implemented as the repair before closeout: the real runtime execution wrappers no longer recurse, and an unmocked-wrapper no-network smoke verifies single/multi runtime `prepare -> execute_approved -> observed`;
 - `P6-006` closed Phase 6 as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent;
 - Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`: `P7-001` through `P7-010` are completed, and `docs/phase-7-closeout.md` records the closeout decision;
-- Phase 8 is now the active direction, with `P8-001 Define candidate workspace contract` as the next task for review;
+- Phase 7.5 is now the active direction as a recruiter simulation QA gate before Phase 8;
+- Phase 7.5 allows OpenAI live calls for existing chat/planning/wording paths when configured, but Tavily execution is blocked;
+- Phase 7.5 must cover both Russian and English recruiter simulation;
+- Phase 8 candidate workspace implementation is paused until Phase 7.5 closes with a readiness decision;
 - keep ordinary LLM-assisted agent conversation wording inside Phase 7 guardrails, after the runtime message taxonomy is stable;
 - Phase 7 task order is contract-first: message taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded prompt payloads, validation/fallback/provenance, frontend rendering, golden scenario tests, then closeout;
 - lightweight wording provenance/version metadata is carried inside `P7-007` and golden scenario assertions inside `P7-009`, not as a separate observability/product analytics task;
@@ -50,6 +55,7 @@ Current agreed strategy:
 
 Planned current and later phases:
 
+- Phase 7.5: `Recruiter Simulation QA & Flow Hardening`.
 - Phase 8: `Candidate Workspace/Table + Shortlist`.
 - Phase 9: `Persistent Memory + Saved Searches`.
 
@@ -399,10 +405,11 @@ Recommended next steps:
 - Phase 5.5: `Technical modularization before Agent Runtime`, completed as no-behavior-change backend modularization before the tool-calling runtime.
 - Phase 6: `Tool-Calling Agent Runtime`, completed as a bounded, human-approved Agent Runtime v0 baseline that can prepare approved backend tool calls, execute only after approval, inspect results, and suggest next iterations without autonomous execution.
 - Phase 7: `Agent Conversation Wording Layer`, completed and closed as `Agent Conversation Wording Layer v0 baseline`.
-- Phase 8: `Candidate Workspace/Table + Shortlist`, current active direction.
+- Phase 7.5: `Recruiter Simulation QA & Flow Hardening`, current active direction before Phase 8.
+- Phase 8: `Candidate Workspace/Table + Shortlist`, planned after Phase 7.5 readiness decision.
 - Phase 9: `Persistent Memory + Saved Searches`.
 
-Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is completed as technical preparation before runtime. Phase 6 is completed as `AI Agent Runtime v0 baseline`. Phase 7 is completed as `Agent Conversation Wording Layer v0 baseline`. Phase 8 is now the active direction. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
+Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is completed as technical preparation before runtime. Phase 6 is completed as `AI Agent Runtime v0 baseline`. Phase 7 is completed as `Agent Conversation Wording Layer v0 baseline`. Phase 7.5 is now the active direction as a no-Tavily recruiter simulation QA gate before Phase 8. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
 
 ## Verification
 
@@ -453,7 +460,7 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 - Phase 7 `P7-007` wording validation checks passed: code-level nested `wording_provenance`, deterministic fallback/no-call metadata, attempted-call fallback semantics, Agent Plan limitation rejection, Agent Response limitation-kind guardrail, unsafe wording fallback, and `main.run_openai_json_agent_wording` monkeypatch compatibility are covered by `scripts/smoke_p7_wording_validation.py` and the full local regression baseline.
 - Phase 7 `P7-008` frontend typed rendering completed: current recruiter chat, Agent Plan, Agent Response, tool-unavailable, safety, validation, refinement, clarification, and system-error messages now use frontend-local typed rendering metadata without changing backend/API/runtime/search behavior. `next_iteration_options` render as inert structured suggestions with only `id`, `label`, and `reason` in chat message payload.
 - Phase 7 `P7-009` golden conversation regression completed: `scripts/smoke_p7_golden_conversations.py` covers no-network recruiter chat, Search Brief refinement, Agent Plan, Build Plan, runtime prepare, Agent Response, wording fallback/provenance, and frontend typed-message contract scenarios, and it is included in `scripts/check_all.ps1`.
-- Phase 7 `P7-010` docs-only closeout completed: Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`, `docs/phase-7-closeout.md` records wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and Phase 8 handoff, and the local regression baseline passed after document updates.
+- Phase 7 `P7-010` docs-only closeout completed: Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`, `docs/phase-7-closeout.md` records wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and the original Phase 8 handoff; Phase 7.5 was later inserted as the QA gate before Phase 8, and the local regression baseline passed after document updates.
 
 ## Current known limitations
 

@@ -5726,11 +5726,11 @@ Codex restated the task scope, critically reviewed the closeout decision, and wa
 
 Closed Phase 6 as `AI Agent Runtime v0 baseline`.
 
-Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so the project now treats Phase 8 `Candidate Workspace/Table + Shortlist` as the current active direction.
+Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`; later project status now treats Phase 7.5 `Recruiter Simulation QA & Flow Hardening` as the current active direction before Phase 8 `Candidate Workspace/Table + Shortlist`.
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 8 is the current active direction, and the next task for review is `P8-001 Define candidate workspace contract`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8, and the next task for review is `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
 
 ---
 
@@ -8998,8 +8998,8 @@ Create a docs-only Phase 7 closeout decision that:
 - evaluates wording quality improvements honestly;
 - evaluates guardrails that prevent wording from changing backend state or authority;
 - records residual gaps and explicit non-goals;
-- identifies Phase 8 as the next active direction;
-- identifies `P8-001 Define candidate workspace contract` as the next task for review.
+- identifies Phase 8 as the original next product direction at closeout time;
+- records that a later planning update inserted Phase 7.5 before Phase 8.
 
 ### Final Reviewed Steps
 
@@ -9101,8 +9101,8 @@ Create a docs-only Phase 7 closeout decision that:
 13. Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`:
 
     - Phase 7 is completed;
-    - Phase 8 `Candidate Workspace/Table + Shortlist` becomes the next active direction;
-    - next task for review is `P8-001 Define candidate workspace contract`.
+    - Phase 8 `Candidate Workspace/Table + Shortlist` is recorded as the original next product direction;
+    - later planning may insert a QA gate before Phase 8 if needed.
 
 14. Run the local regression baseline again after all document updates:
 
@@ -9130,9 +9130,9 @@ Create a docs-only Phase 7 closeout decision that:
 ### Acceptance Criteria
 
 - `docs/phase-7-closeout.md` exists and records Phase 7 as `Agent Conversation Wording Layer v0 baseline`.
-- The closeout includes wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and Phase 8 handoff.
+- The closeout includes wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and the original Phase 8 handoff.
 - `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` consistently say Phase 7 is completed and Phase 8 is next.
-- `P8-001 Define candidate workspace contract` is identified as the next task for review.
+- The implementation summary records the later Phase 7.5 QA gate before Phase 8.
 - No backend/frontend/runtime/search behavior changes are made.
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passes after all document updates.
 
@@ -9162,16 +9162,82 @@ Created `docs/phase-7-closeout.md` with:
 - verification evidence;
 - residual gaps;
 - carry-forward boundaries;
-- Phase 8 handoff.
+- original Phase 8 handoff and any later inserted QA gate before Phase 8.
 
-Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so Phase 7 is completed and Phase 8 `Candidate Workspace/Table + Shortlist` is the current active direction.
+Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so Phase 7 is completed and Phase 8 `Candidate Workspace/Table + Shortlist` was identified as the next product direction.
 
-Next task for review: `P8-001 Define candidate workspace contract`.
+Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate.
+
+Next task for review: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
 
 Verification:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed before the closeout document updates.
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed after all closeout document updates.
+
+---
+
+## Phase 7.5 - Recruiter Simulation QA & Flow Hardening
+
+### Approved
+
+### Backlog
+
+- [ ] P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
+- [ ] P7.5-002 Define RU/EN recruiter simulation scenarios
+- [ ] P7.5-003 Prepare safe browser QA checklist with OpenAI allowed and Tavily blocked
+- [ ] P7.5-004 Run RU browser QA with OpenAI and without Tavily execution
+- [ ] P7.5-005 Run EN browser QA with OpenAI and without Tavily execution
+- [ ] P7.5-006 Create recruiter simulation QA findings report
+- [ ] P7.5-007 Review and approve current-flow fixes
+- [ ] P7.5-008 Implement approved critical current-flow fixes
+- [ ] P7.5-009 Add regression coverage for fixed issues
+- [ ] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
+
+### In Progress
+
+None.
+
+### Done
+
+### Current Phase 7.5 strategy note
+
+Phase 7.5 is inserted after Phase 7 closeout and before Phase 8 implementation.
+
+Goal: simulate a live recruiter in the local browser and harden the existing narrow `Backend Developer + Java + Ukraine` Agent flow before building the candidate workspace.
+
+OpenAI live calls are allowed where the current product already uses them, if configured. Tavily execution is not allowed in Phase 7.5. QA should test the flow up to the no-Tavily boundary: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> approval boundary.
+
+QA must cover both Russian and English recruiter communication. Findings must first be documented in a QA report; fixes require separate review and approval before implementation.
+
+Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
+
+## Task: P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
+
+### Status
+
+Backlog.
+
+### Goal
+
+Define Phase 7.5 as a temporary quality gate between the completed Phase 7 wording layer and the future Phase 8 candidate workspace. This task should make it explicit that Phase 8 implementation is paused until the existing Agent v0 flow is tested as a live recruiter would use it.
+
+### Initial Scope
+
+- Confirm the Phase 7.5 goal, boundaries, and no-goals.
+- Confirm that OpenAI live calls are allowed for current chat/planning/wording paths when configured.
+- Confirm that Tavily execution is blocked for this QA phase.
+- Confirm RU and EN recruiter simulation coverage.
+- Confirm that QA findings are documented before fixes are selected.
+- Confirm that any fixes require separate approval before coding.
+
+### No-Goals
+
+- No backend/frontend code changes in this task.
+- No Tavily execution.
+- No LinkedIn access, login, scraping, automation, restriction bypass, outreach, or account actions.
+- No Candidate Workspace/Table, shortlist, notes/statuses, export, persistence, saved searches, or memory.
+- No new countries, technologies, roles, search sources, or autonomous execution.
 
 ---
 

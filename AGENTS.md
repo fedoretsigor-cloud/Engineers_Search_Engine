@@ -48,7 +48,8 @@ Current product direction:
 - Phase 5.5: `Technical modularization before Agent Runtime` - completed through `P5.5-009`
 - Phase 6: `Tool-Calling Agent Runtime` - completed and closed as `AI Agent Runtime v0 baseline`
 - Phase 7: `Agent Conversation Wording Layer` - completed and closed as `Agent Conversation Wording Layer v0 baseline`
-- Phase 8: `Candidate Workspace/Table + Shortlist` - current active phase
+- Phase 7.5: `Recruiter Simulation QA & Flow Hardening` - current active phase
+- Phase 8: `Candidate Workspace/Table + Shortlist` - planned after Phase 7.5 readiness decision
 - Phase 9: `Persistent Memory + Saved Searches`
 - Phase 4 is completed as `AI Agent Foundation` through `P4-011`.
 - `P4-003` through `P4-010` are implemented in code.
@@ -86,8 +87,8 @@ Current product direction:
 - `P6-005.1` is completed as a runtime wrapper repair: `main.execute_single_wave_structured_search_response` and `main.execute_multi_wave_structured_search_response` now call the existing approved single/multi-wave pipelines instead of recursing, and `scripts/smoke_p6_runtime_unmocked_execution.py` verifies real `prepare -> execute_approved -> observed` without monkeypatching those wrappers.
 - `P6-006` is completed as the docs-only Phase 6 closeout: Phase 6 is closed as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent, and `docs/phase-6-closeout.md` records the decision.
 - `P7-009` is completed as no-network golden conversation scenario regression coverage: `scripts/smoke_p7_golden_conversations.py` covers recruiter chat, Search Brief refinement, Agent Plan, Build Plan, runtime prepare, Agent Response, wording fallback/provenance, and frontend typed-message contract scenarios, and it is included in `scripts/check_all.ps1`.
-- `P7-010` is completed as the docs-only Phase 7 closeout: Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`, `docs/phase-7-closeout.md` records wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and Phase 8 handoff.
-- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow and start Phase 8 `Candidate Workspace/Table + Shortlist`. Next task for review is `P8-001 Define candidate workspace contract`. Phase 8 should turn search results into the recruiter's working artifact while preserving human approval, backend tool boundaries, and the absolute product restrictions. Candidate workspace, shortlist, notes/statuses, and export belong to Phase 8; persistence/memory/saved searches remain Phase 9. Do not add autonomous execution, direct LinkedIn access/automation, LinkedIn login, scraping or restriction bypass, automatic candidate messaging, user/third-party account actions, or new countries/technologies without separate reviewed tasks.
+- `P7-010` is completed as the docs-only Phase 7 closeout: Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`, `docs/phase-7-closeout.md` records wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and the original Phase 8 handoff.
+- Next agreed direction: keep the product focused on one narrow Java/Ukraine flow and run Phase 7.5 `Recruiter Simulation QA & Flow Hardening` before Phase 8 implementation. Next task for review is `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`. Phase 7.5 should simulate a live recruiter in the local browser, cover RU and EN, allow OpenAI live calls only for existing configured chat/planning/wording paths, and block Tavily execution. Findings should be documented first; fixes require separate review and approval. Phase 8 should later turn search results into the recruiter's working artifact while preserving human approval, backend tool boundaries, and the absolute product restrictions. Candidate workspace, shortlist, notes/statuses, and export belong to Phase 8; persistence/memory/saved searches remain Phase 9. Do not add autonomous execution, direct LinkedIn access/automation, LinkedIn login, scraping or restriction bypass, automatic candidate messaging, user/third-party account actions, or new countries/technologies without separate reviewed tasks.
 
 ## Product Rules
 
@@ -96,6 +97,7 @@ Current product direction:
 - Current frontend search starts from recruiter chat that produces a validated `Search Brief`.
 - Current product focus is one high-quality supported flow first: `Backend Developer + Java + Ukraine`; do not expand countries or technologies without a separate reviewed task.
 - Current recruiter chat and AI planner paths require `OPENAI_API_KEY` and `OPENAI_MODEL`; LLM-assisted Agent Plan/Response wording falls back to deterministic wording when configuration or validation fails.
+- During Phase 7.5 QA, OpenAI live calls are allowed for current configured chat/planning/wording paths, but Tavily execution is blocked; browser QA should stop at the approval/no-Tavily boundary unless a later reviewed task explicitly changes this.
 - Backend execution is still driven by the adapted structured request fields: `Role Family`, `Technology`, `Stack`, and `Location`.
 - Primary chat `Build Plan` uses `planner_mode = rule_based` and produces an approvable Search Plan.
 - Phase 5 UI visual styling is CSS-first/UI-only; visual refreshes must not change backend code, frontend behavior, API contracts, request payloads, state semantics, or event flow unless separately approved.

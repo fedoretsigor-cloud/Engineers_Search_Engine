@@ -105,10 +105,14 @@ Phase 7 does not include:
 - Keep internal wording provenance as debugging/regression metadata, not product analytics, telemetry, memory, user tracking, or autonomous decision input.
 - Treat live Tavily counts as variable and use local snapshots for deterministic analysis.
 
-## Ready For Next Phase
+## Ready For QA Gate Before Phase 8
 
-The project is ready for Phase 8: `Candidate Workspace/Table + Shortlist`.
+The project was technically ready to hand off to Phase 8: `Candidate Workspace/Table + Shortlist`.
 
 Phase 8 should turn search results into the recruiter's working artifact: a candidate table/workspace with evidence, quality signals, shortlist, notes, statuses, and later export workflow. Phase 8 must preserve the human-approved runtime boundary and must not add persistence, saved searches, memory, outreach, LinkedIn automation, or autonomous execution unless separately reviewed.
 
-Next task to review: `P8-001 Define candidate workspace contract`.
+Later planning decision: before starting Phase 8 implementation, insert Phase 7.5 `Recruiter Simulation QA & Flow Hardening`.
+
+Phase 7.5 should simulate a live recruiter in the local browser on the existing narrow Java/Ukraine Agent flow. OpenAI live calls are allowed for existing configured chat/planning/wording paths, Tavily execution is blocked, and QA must cover both Russian and English recruiter communication. Findings should be documented first; fixes require separate review and approval.
+
+Next task to review: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
