@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8, and the next task for review is `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8, `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation` is approved, and the next task for review is `P7.5-002 Define RU/EN recruiter simulation scenarios`.
 
 ---
 
@@ -9168,7 +9168,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate.
 
-Next task for review: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
+Next task for review: `P7.5-002 Define RU/EN recruiter simulation scenarios`.
 
 Verification:
 
@@ -9181,9 +9181,10 @@ Verification:
 
 ### Approved
 
+- [x] P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
+
 ### Backlog
 
-- [ ] P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
 - [ ] P7.5-002 Define RU/EN recruiter simulation scenarios
 - [ ] P7.5-003 Prepare safe browser QA checklist with OpenAI allowed and Tavily blocked
 - [ ] P7.5-004 Run RU browser QA with OpenAI and without Tavily execution
@@ -9206,7 +9207,9 @@ Phase 7.5 is inserted after Phase 7 closeout and before Phase 8 implementation.
 
 Goal: simulate a live recruiter in the local browser and harden the existing narrow `Backend Developer + Java + Ukraine` Agent flow before building the candidate workspace.
 
-OpenAI live calls are allowed where the current product already uses them, if configured. Tavily execution is not allowed in Phase 7.5. QA should test the flow up to the no-Tavily boundary: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> approval boundary.
+OpenAI live calls are allowed where the current product already uses them, if configured. Tavily execution is not allowed in Phase 7.5. QA should test the flow up to the no-Tavily boundary: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> approval/no-Tavily boundary.
+
+Carryover for `P7.5-003`: the safe browser QA checklist must explicitly say not to click `Approve & Search`, not to call runtime `execute_approved`, and not to trigger any structured-search/Tavily execution path. The tester may inspect the approval boundary and visible QueryPlan, but must not cross it.
 
 QA must cover both Russian and English recruiter communication. Findings must first be documented in a QA report; fixes require separate review and approval before implementation.
 
@@ -9216,11 +9219,13 @@ Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuse
 
 ### Status
 
-Backlog.
+Approved.
 
 ### Goal
 
 Define Phase 7.5 as a temporary quality gate between the completed Phase 7 wording layer and the future Phase 8 candidate workspace. This task should make it explicit that Phase 8 implementation is paused until the existing Agent v0 flow is tested as a live recruiter would use it.
+
+Approval note: this task is approved as a docs-only QA gate definition. It does not approve browser QA execution, fixes, Tavily execution, Phase 8 work, or code changes.
 
 ### Initial Scope
 
@@ -9230,6 +9235,22 @@ Define Phase 7.5 as a temporary quality gate between the completed Phase 7 wordi
 - Confirm RU and EN recruiter simulation coverage.
 - Confirm that QA findings are documented before fixes are selected.
 - Confirm that any fixes require separate approval before coding.
+- Confirm that Phase 8 implementation remains paused until Phase 7.5 closes with a readiness decision.
+- Confirm the exact safe QA boundary: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> approval/no-Tavily boundary.
+
+### Exit Criteria
+
+- `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` consistently describe Phase 7.5 as the active QA gate before Phase 8.
+- Phase 8 is explicitly paused until Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`.
+- Phase 7.5 QA scope is limited to the existing narrow `Backend Developer + Java + Ukraine` Agent flow.
+- RU and EN recruiter simulation coverage is required.
+- OpenAI live calls are allowed only for the already configured chat, planning, and wording paths.
+- Tavily execution is blocked during Phase 7.5 QA.
+- QA stops at the approval/no-Tavily boundary unless a later reviewed task explicitly changes that rule.
+- `P7.5-003` must carry this boundary into the browser QA checklist with explicit "do not click/execute" instructions for `Approve & Search`, runtime `execute_approved`, structured-search execution, and Tavily.
+- Findings must be documented before fixes are selected.
+- Fixes require separate review and approval before implementation.
+- No-goals are explicit enough to prevent accidental Phase 8, persistence, expansion, autonomous execution, or prohibited LinkedIn/account behavior from entering this task.
 
 ### No-Goals
 

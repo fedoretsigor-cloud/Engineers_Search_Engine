@@ -26,9 +26,9 @@ Completed Phase 6 tasks: `P6-001 Define human-approved Agent Runtime contract`, 
 
 Completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`.
 
-After Phase 7 closeout, Phase 7.5 was inserted as the current QA gate before Phase 8. Phase 8 implementation is paused until RU/EN recruiter simulation QA is completed without Tavily execution.
+After Phase 7 closeout, Phase 7.5 was inserted as the current QA gate before Phase 8. Phase 8 implementation is paused until RU/EN recruiter simulation QA is completed without Tavily execution and Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`. Phase 7.5 QA stops at the approval/no-Tavily boundary: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> approval/no-Tavily boundary.
 
-Next Phase 7.5 task for review: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
+Next Phase 7.5 task for review: `P7.5-002 Define RU/EN recruiter simulation scenarios`.
 
 Current agreed strategy:
 
@@ -47,7 +47,7 @@ Current agreed strategy:
 - Phase 7.5 is now the active direction as a recruiter simulation QA gate before Phase 8;
 - Phase 7.5 allows OpenAI live calls for existing chat/planning/wording paths when configured, but Tavily execution is blocked;
 - Phase 7.5 must cover both Russian and English recruiter simulation;
-- Phase 8 candidate workspace implementation is paused until Phase 7.5 closes with a readiness decision;
+- Phase 8 candidate workspace implementation is paused until Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`;
 - keep ordinary LLM-assisted agent conversation wording inside Phase 7 guardrails, after the runtime message taxonomy is stable;
 - Phase 7 task order is contract-first: message taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded prompt payloads, validation/fallback/provenance, frontend rendering, golden scenario tests, then closeout;
 - lightweight wording provenance/version metadata is carried inside `P7-007` and golden scenario assertions inside `P7-009`, not as a separate observability/product analytics task;
