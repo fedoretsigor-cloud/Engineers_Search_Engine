@@ -5726,11 +5726,11 @@ Codex restated the task scope, critically reviewed the closeout decision, and wa
 
 Closed Phase 6 as `AI Agent Runtime v0 baseline`.
 
-Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so the project now treats Phase 7 `Agent Conversation Wording Layer` as the current active direction.
+Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so the project now treats Phase 8 `Candidate Workspace/Table + Shortlist` as the current active direction.
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current Phase 7 handoff: `P7-001` through `P7-009` are completed; next task for review is `P7-010 Close Phase 7 with wording quality and guardrail evaluation`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 8 is the current active direction, and the next task for review is `P8-001 Define candidate workspace contract`.
 
 ---
 
@@ -5739,8 +5739,6 @@ Current Phase 7 handoff: `P7-001` through `P7-009` are completed; next task for 
 ### Approved
 
 ### Backlog
-
-- [ ] P7-010 Close Phase 7 with wording quality and guardrail evaluation
 
 ### In Progress
 
@@ -5757,6 +5755,7 @@ None.
 - [x] P7-007 Add wording validation, fallback, and provenance metadata
 - [x] P7-008 Add frontend rendering for typed agent messages
 - [x] P7-009 Add golden conversation scenario regression tests
+- [x] P7-010 Close Phase 7 with wording quality and guardrail evaluation
 
 ### Current Phase 7 strategy note
 
@@ -8964,6 +8963,215 @@ Verification:
 - `.\.venv\Scripts\python.exe -m compileall app scripts` passed.
 - `node --check app/static/app.js` passed.
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
+
+---
+
+## Task: P7-010 Close Phase 7 with wording quality and guardrail evaluation
+
+### Status
+
+Implemented.
+
+### Context
+
+`P7-001` through `P7-009` completed the approved Phase 7 sequence:
+
+- `P7-001` defined the Agent Message Taxonomy V0;
+- `P7-002` defined the Agent Message Facts Contract V0;
+- `P7-003` defined the Agent Wording Style and Language Policy V0;
+- `P7-004` added deterministic source messages for approved current message types;
+- `P7-005` defined LLM routing and gating policy;
+- `P7-006` defined bounded LLM wording payload and prompt contract;
+- `P7-007` added code-level wording validation, fallback, and provenance metadata;
+- `P7-008` added frontend typed rendering for current agent chat messages;
+- `P7-009` added no-network golden conversation regression coverage.
+
+The next safe step is to close Phase 7 deliberately before moving into Phase 8. This closeout must evaluate wording quality and guardrails, not only mark the phase done.
+
+Phase 7 should close as a controlled `Agent Conversation Wording Layer v0 baseline`, not as a complete autonomous recruiter agent and not as a fully solved free-form conversation layer.
+
+### Goal
+
+Create a docs-only Phase 7 closeout decision that:
+
+- records what the Phase 7 wording layer now provides;
+- evaluates wording quality improvements honestly;
+- evaluates guardrails that prevent wording from changing backend state or authority;
+- records residual gaps and explicit non-goals;
+- identifies Phase 8 as the next active direction;
+- identifies `P8-001 Define candidate workspace contract` as the next task for review.
+
+### Final Reviewed Steps
+
+1. Read `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, `AGENTS.md`, and every `docs/phase-7-*.md` document.
+
+2. Verify that `P7-001` through `P7-009` are completed and reflected consistently in the project documents.
+
+3. Run the local regression baseline:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1
+   ```
+
+4. Create `docs/phase-7-closeout.md`.
+
+5. In the closeout document, include the closeout header:
+
+   ```text
+   Date: 2026-05-20
+   Task: P7-010 Close Phase 7 with wording quality and guardrail evaluation
+   ```
+
+6. In the closeout document, record the decision:
+
+   ```text
+   Phase 7 is closed as Agent Conversation Wording Layer v0 baseline.
+   ```
+
+7. Document what Phase 7 added:
+
+   - Agent Message Taxonomy V0;
+   - Agent Message Facts Contract V0;
+   - Agent Wording Style and Language Policy V0;
+   - deterministic source messages;
+   - LLM routing and gating policy;
+   - bounded LLM wording payload and prompt contract;
+   - wording validation, fallback, and provenance metadata;
+   - frontend typed rendering for current agent messages;
+   - golden conversation regression scenarios.
+
+8. Add a `Wording Quality Evaluation` section.
+
+   It must say that Phase 7 improved wording quality through controlled message types, source-of-truth facts, RU/EN language policy, deterministic fallback, typed frontend rendering, and bounded LLM wording for current allowed paths.
+
+   It must also say that Phase 7 does not mean the product now has a complete free-form conversation quality layer. Current ordinary conversation wording remains bounded by existing deterministic/backend contracts, and broader wording expansion requires later reviewed tasks.
+
+9. Add a `Guardrail Evaluation` section.
+
+   It must explicitly state that wording cannot change:
+
+   - state;
+   - tools;
+   - approval;
+   - Search Brief values;
+   - QueryPlan rows;
+   - candidates;
+   - counts;
+   - filters;
+   - scoring;
+   - location/dedupe behavior;
+   - Tavily execution;
+   - runtime actions;
+   - next-iteration option executability.
+
+10. Add a `Residual Gaps` section.
+
+   It must clearly state that Phase 7 still does not include:
+
+   - a complete autonomous recruiter agent;
+   - autonomous execution;
+   - executable AI-generated QueryPlans;
+   - candidate workspace/table;
+   - shortlist, notes, or statuses;
+   - export workflow;
+   - persistence, saved searches, or memory;
+   - authentication or user accounts;
+   - new countries, technologies, or role expansion;
+   - direct web-search bypass;
+   - LinkedIn login;
+   - LinkedIn scraping, automation, or restriction bypass;
+   - automatic candidate messaging or outreach;
+   - user or third-party account actions.
+
+11. Add a `Verification Evidence` section.
+
+    It should mention the Phase 7 regression coverage:
+
+    - `scripts/smoke_p7_agent_messages.py`;
+    - `scripts/smoke_p7_wording_validation.py`;
+    - `scripts/smoke_p7_golden_conversations.py`;
+    - full `scripts/check_all.ps1`.
+
+12. Update `Tasks.md`:
+
+    - move `P7-010` from Backlog to Done;
+    - mark Phase 7 completed;
+    - record the closeout implementation summary.
+
+13. Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`:
+
+    - Phase 7 is completed;
+    - Phase 8 `Candidate Workspace/Table + Shortlist` becomes the next active direction;
+    - next task for review is `P8-001 Define candidate workspace contract`.
+
+14. Run the local regression baseline again after all document updates:
+
+    ```powershell
+    powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1
+    ```
+
+15. Do not change Phase 8 scope while closing Phase 7. `P7-010` may point to Phase 8, but must not design or implement the candidate workspace.
+
+16. Do not change backend behavior, frontend behavior, API contracts, prompts, OpenAI/Tavily paths, runtime behavior, search execution, candidate logic, scoring, filtering, dedupe, location logic, snapshots, persistence, memory, shortlist, export, or product scope.
+
+### No-Goals
+
+- No backend code changes.
+- No frontend code changes.
+- No Tavily/OpenAI/network calls introduced by this task.
+- Verification uses the existing local no-network regression baseline.
+- No new LLM routing, prompts, payloads, validation logic, or wording behavior.
+- No new candidate workspace/table behavior.
+- No shortlist, notes, statuses, export, persistence, saved searches, memory, authentication, or user accounts.
+- No new countries, technologies, roles, or search sources.
+- No autonomous execution.
+- No direct LinkedIn access, login, scraping, automation, restriction bypass, or candidate messaging.
+
+### Acceptance Criteria
+
+- `docs/phase-7-closeout.md` exists and records Phase 7 as `Agent Conversation Wording Layer v0 baseline`.
+- The closeout includes wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and Phase 8 handoff.
+- `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` consistently say Phase 7 is completed and Phase 8 is next.
+- `P8-001 Define candidate workspace contract` is identified as the next task for review.
+- No backend/frontend/runtime/search behavior changes are made.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passes after all document updates.
+
+### Before Implementation
+
+Before implementing this task, Codex must restate:
+
+1. this is a docs-only closeout;
+2. exact expected files to change;
+3. that no backend/frontend/API/runtime/search behavior changes are included;
+4. how wording quality evaluation differs from new wording implementation;
+5. how guardrail evaluation preserves the human-approved Agent Runtime boundary;
+6. why Phase 8 is only a handoff, not part of this task;
+7. the verification plan.
+
+Then Codex must wait for explicit user approval to implement.
+
+### Implementation summary
+
+Implemented as a docs-only closeout.
+
+Created `docs/phase-7-closeout.md` with:
+
+- decision: Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`;
+- wording quality evaluation;
+- guardrail evaluation;
+- verification evidence;
+- residual gaps;
+- carry-forward boundaries;
+- Phase 8 handoff.
+
+Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so Phase 7 is completed and Phase 8 `Candidate Workspace/Table + Shortlist` is the current active direction.
+
+Next task for review: `P8-001 Define candidate workspace contract`.
+
+Verification:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed before the closeout document updates.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed after all closeout document updates.
 
 ---
 

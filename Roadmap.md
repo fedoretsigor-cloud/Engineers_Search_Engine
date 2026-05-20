@@ -137,9 +137,9 @@ POC прототип с легким фронтом и одним поисков
 - Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
-Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Phase 5.5 завершена как `Technical modularization before Agent Runtime`. Phase 6 завершена как `AI Agent Runtime v0 baseline`. Текущий активный этап - Phase 7 `Agent Conversation Wording Layer`.
+Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Phase 5.5 завершена как `Technical modularization before Agent Runtime`. Phase 6 завершена как `AI Agent Runtime v0 baseline`. Phase 7 завершена как `Agent Conversation Wording Layer v0 baseline`. Текущий активный этап - Phase 8 `Candidate Workspace/Table + Shortlist`.
 
-Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Phase 5.5 модульно подготовила backend. Phase 6 добавила human-approved runtime baseline. Дальше Phase 7 должна улучшить agent conversation wording без изменения state, tools, approval, Search Brief, QueryPlan, candidates, counts или execution actions.
+Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Phase 5.5 модульно подготовила backend. Phase 6 добавила human-approved runtime baseline. Phase 7 закрыла controlled agent conversation wording layer без изменения state, tools, approval, Search Brief, QueryPlan, candidates, counts или execution actions. Дальше Phase 8 должна превратить результаты поиска в рабочий recruiter artifact: candidate workspace/table, shortlist, notes/statuses и будущий export workflow.
 
 Фаза 4 - AI Agent Foundation
 
@@ -295,7 +295,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 - Для реально удобного recruiter workflow нужна еще Phase 8: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
 - Phase 9 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
 
-Вывод: через Phase 5 + Phase 5.5 + Phase 6 получен надежный AI Agent v0 baseline для узкого Java/Ukraine flow. Phase 7 улучшает обычную речь агента после стабилизации runtime, а Phase 8 и Phase 9 превращают его в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
+Вывод: через Phase 5 + Phase 5.5 + Phase 6 получен надежный AI Agent v0 baseline для узкого Java/Ukraine flow. Phase 7 улучшила обычную речь агента после стабилизации runtime, а Phase 8 и Phase 9 превращают его в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
 
 ### Ideas
 
@@ -312,18 +312,18 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### Planned
 
-- Phase 8: `Candidate Workspace/Table + Shortlist`.
 - Phase 9: `Persistent Memory + Saved Searches`.
 
 ### In Progress
 
-- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, and `P7-009 Add golden conversation scenario regression tests` are completed. Next task for review is `P7-010 Close Phase 7 with wording quality and guardrail evaluation`.
+- Phase 8: `Candidate Workspace/Table + Shortlist`; next task for review is `P8-001 Define candidate workspace contract`.
 
 ### Completed
 
 - Phase 5: `Recruiter Chat UX + Search Brief conversation` - `P5-001` through `P5-012` are completed. Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation.
 - Phase 5.5: `Technical modularization before Agent Runtime` - `P5.5-001` through `P5.5-009` are completed. Phase 5.5 is closed as no-behavior-change backend modularization before Phase 6.
 - Phase 6: `Tool-Calling Agent Runtime` - `P6-001` through `P6-006` are completed. Phase 6 is closed as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent.
+- Phase 7: `Agent Conversation Wording Layer` - `P7-001` through `P7-010` are completed. Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`.
 
 ### Phase 5 Approved Contract
 
@@ -385,7 +385,7 @@ Phase 5.5 progress:
 - `P6-004 Implement first approved tool loop for Java/Ukraine baseline` is completed as the first real approved runtime execution slice: `POST /api/agent/runtime/turn` supports stateless `prepare` and `execute_approved` for execution tools only, validates backend-owned fingerprints/context, bridges valid runtime approval into existing `ExecutionApproval`, and routes frontend `Approve & Search` through the Agent Runtime path without direct structured-search fallback.
 - `P6-005 Add runtime guardrail and stale-approval regression tests` is completed as no-network runtime hardening: stale/mutated approval, runtime context mismatch, unsafe frontend-owned fields, frontend runtime-only path, valid mocked execution, and missing-key guardrails are covered in `scripts/check_all.ps1`.
 - `P6-005.1 Fix runtime execution wrapper recursion and add unmocked runtime execution smoke` is completed: real single/multi runtime execution wrappers now call the existing approved pipelines instead of recursing, and no-network unmocked-wrapper smoke coverage is part of `scripts/check_all.ps1`.
-- `P6-006 Close Phase 6 with AI Agent v0 decision` is completed: Phase 6 is closed as `AI Agent Runtime v0 baseline`, the closeout decision is recorded in `docs/phase-6-closeout.md`, and Phase 7 is now the active direction.
+- `P6-006 Close Phase 6 with AI Agent v0 decision` is completed: Phase 6 is closed as `AI Agent Runtime v0 baseline`, the closeout decision is recorded in `docs/phase-6-closeout.md`, and Phase 7 became the active direction at that point.
 - `P7-001 Define agent message taxonomy and lifecycle mapping` is completed. `P7-002 Define message facts and source-of-truth contract` is completed with `docs/phase-7-message-facts-contract.md`. `P7-003 Define agent wording style and language policy` is completed with `docs/phase-7-agent-wording-style-policy.md`. `P7-004 Build deterministic source messages for approved message types` is completed with the backend-first deterministic source-message helper layer and smoke coverage.
 
 `P5-002` implementation result: added `POST /api/recruiter-chat/turn`, strict OpenAI/ChatGPT JSON extraction, deterministic refusal for prohibited requests, deterministic supported-signal hints, Ukraine alias normalization, conservative draft merge, existing Search Brief validation, one next clarification question, default `recommended_planner_mode = rule_based` after `P5-004`, and no-Tavily smoke coverage. Guardrail preserved: `chat messages -> draft Search Brief -> validation -> one assistant response`; it does not grow into an agent loop.
