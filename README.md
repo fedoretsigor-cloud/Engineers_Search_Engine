@@ -52,14 +52,15 @@ Status:
 - `P7-006` added the docs-only `Bounded LLM Wording Payload and Prompt Contract V0` in `docs/phase-7-bounded-llm-payload-prompt-contract.md`, defining current `agent_plan`/`agent_response` payload and prompt boundaries without changing code or behavior.
 - `P7-007` added wording validation, deterministic fallback/no-call metadata, and nested `wording_provenance` for current bounded Agent Plan/Response wording paths.
 - `P7-008` added frontend-only typed rendering for current agent chat messages, local-only system errors, and inert structured rendering for `agent_response.next_iteration_options` without backend/API/runtime/search changes.
+- `P7-009` added no-network golden conversation scenario regression coverage in `scripts/smoke_p7_golden_conversations.py` and wired it into `scripts/check_all.ps1`.
 
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
-- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`;
-- next Phase 7 task for review: `P7-009 Add golden conversation scenario regression tests`;
+- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`;
+- next Phase 7 task for review: `P7-010 Close Phase 7 with wording quality and guardrail evaluation`;
 - add ordinary agent conversation wording in Phase 7 after taxonomy/lifecycle, facts/source-of-truth, style policy, deterministic source messages, LLM routing/gating, bounded payloads, validation/fallback/provenance, typed frontend rendering, and golden scenario tests are reviewed;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 

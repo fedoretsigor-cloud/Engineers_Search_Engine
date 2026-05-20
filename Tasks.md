@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current Phase 7 handoff: `P7-001` through `P7-008` are completed; next task for review is `P7-009 Add golden conversation scenario regression tests`.
+Current Phase 7 handoff: `P7-001` through `P7-009` are completed; next task for review is `P7-010 Close Phase 7 with wording quality and guardrail evaluation`.
 
 ---
 
@@ -5740,7 +5740,6 @@ Current Phase 7 handoff: `P7-001` through `P7-008` are completed; next task for 
 
 ### Backlog
 
-- [ ] P7-009 Add golden conversation scenario regression tests
 - [ ] P7-010 Close Phase 7 with wording quality and guardrail evaluation
 
 ### In Progress
@@ -5757,6 +5756,7 @@ None.
 - [x] P7-006 Add bounded LLM wording payloads and prompt contract
 - [x] P7-007 Add wording validation, fallback, and provenance metadata
 - [x] P7-008 Add frontend rendering for typed agent messages
+- [x] P7-009 Add golden conversation scenario regression tests
 
 ### Current Phase 7 strategy note
 
@@ -8747,6 +8747,223 @@ Verification:
 - `C:\Users\fedor\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe --check app/static/app.js` passed.
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
 - Browser smoke passed: local app loaded, supported Java/Ukraine chat brief produced typed Search Brief and typed Agent Plan messages, `Build Plan` generated 10 rule-based queries, and browser console showed no errors.
+
+---
+
+## Task: P7-009 Add golden conversation scenario regression tests
+
+### Status
+
+Completed.
+
+### Critical review result
+
+Initial review found that `P7-009` existed only as a Phase 7 backlog title. That is not enough to approve or implement safely because this task touches regression coverage across recruiter chat, Search Brief state, Agent Plan, QueryPlan approval boundaries, Agent Response wording, and the frontend typed-message rendering contract.
+
+The task direction is correct: Phase 7 needs golden conversation scenarios before closeout. The safe version is not a brittle full-text snapshot suite. It should be a contract-level regression suite that checks stable lifecycle states, message types, payload boundaries, approval/execution boundaries, fallback/provenance metadata, and forbidden claims.
+
+Exact wording should be asserted only for deterministic source messages where the text is intentionally stable. LLM-assisted wording should be tested through mocked outputs, fallback/provenance expectations, allowed/blocked fields, and forbidden-claim checks, not through full prose snapshots.
+
+### Goal
+
+Add no-network golden conversation scenario regression tests for the current narrow Java/Ukraine AI Agent flow.
+
+The tests should protect the Phase 7 message/wording contracts without changing product behavior.
+
+### Scope
+
+In scope:
+
+1. Add a dedicated smoke script, recommended path: `scripts/smoke_p7_golden_conversations.py`.
+2. Include the script in `scripts/check_all.ps1`.
+3. Cover the current supported flow:
+   - recruiter greeting / near-empty input;
+   - complete `Backend Developer + Java + Ukraine + selected stack` brief;
+   - safety refusal for prohibited LinkedIn/account/outreach requests;
+   - Search Brief refinement and stale-state boundary;
+   - supported Agent Plan;
+   - Build Plan approval boundary;
+   - post-results Agent Response;
+   - inert next-iteration options;
+   - wording fallback/provenance behavior;
+   - frontend typed-message rendering invariants from `P7-008`.
+4. Use deterministic builders and mocked LLM runners only.
+5. Assert no Tavily call, no real OpenAI call, no direct web-search bypass, and no LinkedIn/account automation.
+6. Assert stable contract fields instead of snapshotting whole LLM prose.
+7. Add fail-fast guards so accidental Tavily/OpenAI/network execution fails the smoke script immediately.
+8. Restore every monkeypatch and environment override in `finally` blocks.
+9. Keep the test fast enough for the local and GitHub Actions regression baseline.
+
+Out of scope:
+
+- Tavily live execution.
+- Real OpenAI calls.
+- Browser visual QA.
+- Frontend redesign.
+- New message types.
+- New LLM routing.
+- New prompt behavior.
+- New product behavior.
+- New persistence, telemetry, analytics, memory, or tracking.
+- Candidate table, shortlist, notes, or database work.
+- Any autonomous execution.
+
+### Proposed implementation steps
+
+1. Restate the scope before coding:
+   - this is regression coverage only;
+   - no backend/frontend behavior changes are intended;
+   - no network calls are allowed.
+2. Create `scripts/smoke_p7_golden_conversations.py`.
+3. Add local test helpers for:
+   - a ready Java/Ukraine `SearchBrief`;
+   - a complete recruiter chat request;
+   - a deterministic sample `QueryPlan`;
+   - deterministic sample search report/results for Agent Response;
+   - mocked OpenAI wording runners;
+   - fail-fast Tavily/OpenAI/network guards;
+   - safe monkeypatch/environment restore helpers.
+4. Add a golden greeting / near-empty scenario:
+   - response stays `needs_clarification`;
+   - no Search Brief is ready;
+   - no plan/search action exists;
+   - OpenAI is not called for greeting-only or near-empty turns.
+5. Add a golden complete Java/Ukraine brief scenario:
+   - response becomes `ready_for_planning`;
+   - normalized brief has `role_family = Backend Developer`;
+   - `technology = Java`;
+   - `location = Ukraine`;
+   - selected stack is preserved;
+   - `recommended_planner_mode = rule_based`;
+   - `can_build_plan = true`;
+   - no execution happens.
+6. Add a safety refusal scenario:
+   - LinkedIn login, scraping, direct LinkedIn automation, candidate messaging, or account-action requests return refused state;
+   - no Build Plan/search action exists;
+   - forbidden behavior is not suggested as an alternative.
+7. Add Search Brief refinement scenarios:
+   - valid supported stack change returns a `brief_patch`, updates the normalized brief, and sets `stale_state_should_clear = true`;
+   - safe no-op/reconfirmation does not clear stale state;
+   - unsupported patch or removing the last stack item asks for clarification or rejects safely without mutating the brief.
+8. Add Agent Plan and Build Plan boundary scenarios:
+   - supported brief returns `agent_plan_status = supported`;
+   - Agent Plan has backend-owned `brief_fingerprint`, `input_snapshot`, and proposed action;
+   - Build Plan can produce a visible executable backend Search Plan only through the current approved planner path;
+   - no Tavily execution happens during planning;
+   - search execution still requires approval.
+9. Add Agent Runtime prepare boundary scenario:
+   - prepare the current executable search tool through `/api/agent/runtime/turn` or the current runtime service path;
+   - set a fake `TAVILY_API_KEY` only to pass the runtime prepare availability gate;
+   - assert `runtime_state = approval_pending`;
+   - assert `pending_approvals` contains backend-owned approval/fingerprint fields;
+   - assert no `execute_approved` request is sent;
+   - assert no Tavily/search execution helper is called.
+10. Add Agent Response / next-iteration scenarios:
+   - build Agent Response from deterministic sample report/results;
+   - summary facts, quality notes, limitations, suggested next actions, and next-iteration options are grounded in returned data only;
+   - `next_iteration_options` remain non-executable and require a future Build Plan plus approval;
+   - options are not added, removed, reordered, selected, mutated, or executed by wording.
+11. Add wording/provenance scenarios:
+    - mocked valid LLM wording may replace only allowed text fields;
+    - invalid, unsafe, or field-mutating LLM output falls back deterministically;
+    - no-call and attempted-call fallback semantics are distinct;
+    - `wording_provenance` carries expected internal version/source metadata;
+    - full LLM prose is not snapshotted as a golden string.
+12. Add lightweight frontend static contract checks for `app/static/app.js`:
+    - `chatMessagesForBackend()` excludes `localOnly` messages;
+    - backend chat payload contains only `{ role, content }`;
+    - frontend-local `messageType`, `surface`, and `payload` are not sent to backend;
+    - Agent Plan and Agent Response messages remain local-only;
+    - visible next-iteration option payload keeps only `id`, `label`, and `reason`;
+    - `proposed_brief_patch`, executable flags, approval flags, and `wording_provenance` are not rendered/stored as chat payload state.
+13. Wrap monkeypatches and environment changes in `try/finally`:
+    - restore `main.run_openai_json_recruiter_chat`;
+    - restore `main.run_openai_json_agent_wording`;
+    - restore any patched search execution helpers;
+    - restore `OPENAI_API_KEY`, `OPENAI_MODEL`, `TAVILY_API_KEY`, and any URL override used by the test.
+14. Avoid browser and visual checks in this task; those remain outside the golden regression script.
+15. Wire the new script into `scripts/check_all.ps1`.
+16. Run:
+    - `.\.venv\Scripts\python.exe -m compileall app scripts`;
+    - `node --check app/static/app.js`;
+    - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+    - `git diff --check`.
+17. After implementation and verification, update `Tasks.md`, `ProjectStatus.md`, `README.md`, `Roadmap.md`, and `AGENTS.md` to record completion and the next Phase 7 closeout task.
+
+### Acceptance criteria
+
+- `scripts/smoke_p7_golden_conversations.py` exists.
+- The new smoke script is included in `scripts/check_all.ps1`.
+- The script does not call Tavily.
+- The script does not call real OpenAI.
+- The script does not require network access.
+- The script has fail-fast guards for accidental Tavily/OpenAI/network calls.
+- The script restores monkeypatches and environment changes even if an assertion fails.
+- The script does not require a browser.
+- Runtime `prepare` may use a fake `TAVILY_API_KEY` for the availability gate, but must not call Tavily or any search execution helper.
+- Golden scenarios cover recruiter onboarding, complete Java/Ukraine brief, safety refusal, brief refinement, Agent Plan, Build Plan approval boundary, runtime prepare approval boundary, Agent Response, next-iteration options, wording fallback/provenance, and frontend typed-message invariants.
+- Tests assert contract-level stable facts, not full LLM prose snapshots.
+- Deterministic source messages may be asserted exactly when that is the contract being protected.
+- LLM wording is tested through mocked outputs, validation, fallback, blocked fields, provenance, and forbidden claims.
+- Search execution is not triggered by the golden tests.
+- `next_iteration_options` remain inert and non-executable.
+- Frontend typed metadata remains local rendering metadata only.
+- No product behavior changes are made.
+- No backend/API/frontend behavior changes are made unless a later explicit review changes this task.
+- Full local regression baseline passes.
+
+### Deep review checklist result
+
+- Existing coverage reviewed: `scripts/smoke_p5_chat_adapter.py`, `scripts/smoke_p7_agent_messages.py`, and `scripts/smoke_p7_wording_validation.py` already cover many individual pieces, so `P7-009` should add scenario-level coverage rather than duplicate all unit-like smoke assertions.
+- Backend contract check completed: tests should use existing backend functions and typed response fields, not route around the approved pipeline.
+- Frontend contract check completed: because `P7-008` just changed chat rendering, `P7-009` needs lightweight static assertions for `chatMessagesForBackend()`, local-only messages, and inert `next_iteration_options`.
+- LLM boundary check completed: real OpenAI must not be used; mocked wording may validate allowed output and fallback behavior.
+- Tavily/runtime execution boundary check completed: planning and runtime `prepare` can be tested, but approved Tavily execution should not run in this task.
+- Test isolation check completed: network guards, monkeypatch restore, and environment restore should be explicit so the new golden script cannot contaminate the rest of `check_all.ps1`.
+- Brittleness check completed: avoid full free-form wording snapshots for LLM-assisted messages.
+- Phase boundary check completed: this task should not add ordinary LLM chat expansion, candidate workspace, persistence, telemetry, memory, or autonomous behavior.
+- Verification plan check completed: compile, frontend syntax, full local regression baseline, and `git diff --check`.
+
+### Pre-implementation rule
+
+Before coding, Codex must restate:
+
+1. this is no-network regression coverage only;
+2. exact expected files to change;
+3. which existing behavior must remain unchanged;
+4. how golden tests avoid brittle LLM prose snapshots;
+5. how the task protects the `P7-008` frontend typed-message contract;
+6. how fail-fast network guards and `finally` restore keep the script isolated;
+7. the verification plan.
+
+Then Codex must wait for explicit user approval to code.
+
+### Implementation summary
+
+Implemented `scripts/smoke_p7_golden_conversations.py` as a no-network golden conversation regression smoke for the current Java/Ukraine Agent v0 flow.
+
+The smoke covers:
+
+- greeting and near-empty recruiter turns without OpenAI calls;
+- complete Java/Ukraine Search Brief extraction through a mocked recruiter-chat LLM;
+- safety refusal for LinkedIn login/scraping/messaging requests without LLM calls;
+- Search Brief refinement and stale-state boundaries;
+- supported Agent Plan and rule-based Build Plan boundaries;
+- Agent Runtime `prepare` approval boundary with a fake `TAVILY_API_KEY` availability gate and no execution;
+- deterministic Agent Response and inert `next_iteration_options`;
+- bounded wording success, no-call fallback, attempted-call fallback, and provenance expectations with mocked wording runners;
+- frontend static contract checks for `chatMessagesForBackend()`, local-only Agent Plan/Response messages, and visible-only next-iteration option payloads.
+
+The smoke uses fail-fast guards for accidental Tavily/OpenAI/network/search execution calls and restores monkeypatches/environment variables in `finally`.
+
+Added the new smoke to `scripts/check_all.ps1`.
+
+Verification:
+
+- `.\.venv\Scripts\python.exe scripts\smoke_p7_golden_conversations.py` passed.
+- `.\.venv\Scripts\python.exe -m compileall app scripts` passed.
+- `node --check app/static/app.js` passed.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
 
 ---
 
