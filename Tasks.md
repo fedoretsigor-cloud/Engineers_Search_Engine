@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current Phase 7 handoff: `P7-001` through `P7-007` are completed; next task for review is `P7-008 Add frontend rendering for typed agent messages`.
+Current Phase 7 handoff: `P7-001` through `P7-008` are completed; next task for review is `P7-009 Add golden conversation scenario regression tests`.
 
 ---
 
@@ -5740,7 +5740,6 @@ Current Phase 7 handoff: `P7-001` through `P7-007` are completed; next task for 
 
 ### Backlog
 
-- [ ] P7-008 Add frontend rendering for typed agent messages
 - [ ] P7-009 Add golden conversation scenario regression tests
 - [ ] P7-010 Close Phase 7 with wording quality and guardrail evaluation
 
@@ -5757,6 +5756,7 @@ None.
 - [x] P7-005 Define LLM routing and gating policy for conversation wording
 - [x] P7-006 Add bounded LLM wording payloads and prompt contract
 - [x] P7-007 Add wording validation, fallback, and provenance metadata
+- [x] P7-008 Add frontend rendering for typed agent messages
 
 ### Current Phase 7 strategy note
 
@@ -8428,6 +8428,325 @@ Before coding, Codex must restate:
 4. the verification plan.
 
 Then Codex must wait for explicit user approval to code.
+
+---
+
+## Task: P7-008 Add frontend rendering for typed agent messages
+
+### Status
+
+Completed.
+
+### Critical review result
+
+Initial review found that `P7-008` existed only as a Phase 7 backlog title. That is not enough to approve or code safely because the task touches the frontend chat rendering layer, where it is easy to accidentally turn local UI labels, wording metadata, or LLM output into state authority.
+
+The direction is correct only as a conservative frontend-only rendering task. It should improve how existing agent chat messages are rendered in the UI, while preserving backend/API/runtime/search behavior and keeping the backend facts contract authoritative.
+
+Current recommended scope: `P7-008` should type and render the existing chat messages already present in the frontend when the message type can be safely inferred from already-returned backend fields:
+
+- recruiter chat assistant messages from `/api/recruiter-chat/turn`;
+- `agent_plan`;
+- `agent_plan_unsupported`;
+- `planning_needs_clarification`;
+- `system_error` for frontend catch-path Agent Plan and recruiter-chat failures;
+- `tool_unavailable` for recruiter-chat assistant responses when `/api/recruiter-chat/turn` already returned missing/unavailable OpenAI/LLM configuration or service fields;
+- `agent_response`;
+- `next_iteration_options` as an inert structured section inside `agent_response`.
+
+The task is not ready for coding until the user explicitly says `task is approved`.
+
+### Goal
+
+Add typed frontend rendering for current agent chat messages so the UI reflects the Phase 7 message taxonomy without changing backend behavior.
+
+The goal is to stop treating all agent messages as one plain text blob, especially post-results `agent_response` plus `next_iteration_options`, while keeping all state, facts, approval, and execution authority in the backend/runtime pipeline.
+
+### Scope
+
+In scope:
+
+1. Use `app/static/app.js` as the primary implementation surface.
+2. Use `app/static/styles.css` only for minimal typed-message styling if needed.
+3. Keep backend responses unchanged.
+4. Keep the current local frontend message shape compatible:
+   - preserve `role`;
+   - preserve `content`;
+   - preserve `kind`;
+   - preserve `localOnly`.
+5. Add frontend-local typed message fields where useful:
+   - `messageType`;
+   - `surface`;
+   - optional `payload` for already-returned backend facts needed by rendering.
+6. Update `appendAgentPlanMessage(data)` so `messageType` is derived from backend `agent_plan_status`:
+   - `supported` -> `agent_plan`;
+   - `unsupported` -> `agent_plan_unsupported`;
+   - anything else -> `planning_needs_clarification`.
+7. Update frontend catch-path Agent Plan errors to use `messageType = "system_error"` while preserving the visible error text and current clearing behavior.
+8. Update `appendAgentResponseMessage(agentResponse)` so it stores:
+   - `messageType = "agent_response"`;
+   - `content = agentResponse.message`;
+   - `payload.next_iteration_options` with only the visible inert fields needed for rendering: `id`, `label`, and `reason`.
+9. Add frontend-local typing for recruiter chat assistant messages only when type can be inferred from backend response fields:
+   - `state = "refused"` -> `safety_refusal`;
+   - missing/unavailable OpenAI/LLM config or service errors already returned by recruiter-chat backend fields, such as `openai_api_key`, `openai_model`, `openai`, or explicit `tool_unavailable` error codes/classes -> `tool_unavailable`;
+   - if `brief_patch` exists and `brief_patch.requires_clarification` or `validation_errors.length > 0` -> `brief_refinement_rejected`;
+   - if `brief_patch` exists without clarification/errors -> `brief_refinement_applied`;
+   - if `brief_changed = false`, the renderer must not imply that the Search Brief changed; this may be a safe no-op or reconfirmation;
+   - `next_question` -> `clarification_question` only when it is a clean backend-selected missing-field clarification:
+     - `state = "needs_clarification"`;
+     - `next_question` exists;
+     - `missing_fields.length >= 1`;
+     - the rendered message asks only the one backend-selected `next_question`, even if more missing fields remain;
+     - no `brief_patch`;
+     - no `validation_errors`;
+     - no stronger `safety_refusal` or `tool_unavailable` classification applies;
+   - `validation_errors.length > 0` -> `validation_feedback` unless a stronger `safety_refusal`, `tool_unavailable`, or brief-refinement classification already applies;
+   - `state = "ready_for_planning"` -> `brief_summary`;
+   - greeting/near-empty/onboarding responses may be typed as `onboarding` only when no stronger backend state/error/refinement type applies;
+   - otherwise leave as a normal assistant message and render with the safe default renderer.
+10. Do not send frontend-local recruiter chat `messageType`, `surface`, or `payload` metadata back to `/api/recruiter-chat/turn`.
+11. Preserve backend-returned recruiter chat assistant messages as normal chat history:
+    - do not set `localOnly = true` on assistant messages returned by `/api/recruiter-chat/turn`;
+    - let `chatMessagesForBackend()` continue sending them back as `{ role, content }`;
+    - strip frontend-local `messageType`, `surface`, and `payload` through the existing `chatMessagesForBackend()` mapping.
+12. Update recruiter-chat catch-path errors in `sendChatTurn()` so they are local-only frontend `system_error` messages:
+    - preserve the visible error text;
+    - set `localOnly = true`;
+    - do not send the error message back into future `/api/recruiter-chat/turn` requests;
+    - do not claim validation, tool, runtime, execution, or result facts unless backend returned them.
+13. Replace plain text concatenation of `next_iteration_options` with structured inert rendering:
+    - render options as a separate section under the agent response message;
+    - show option label and reason as escaped text;
+    - store/render only visible inert option fields: `id`, `label`, and `reason`;
+    - do not render `proposed_brief_patch`;
+    - do not store `proposed_brief_patch`, `requires_approval_before_execution`, or `is_executable_now` in the chat message payload;
+    - do not add Apply buttons;
+    - do not add selectable state;
+    - do not make options executable.
+14. Update `renderChatMessages()` to route typed messages through a small typed renderer.
+15. Preserve current frontend HTML escaping behavior:
+    - all message text rendered by the typed renderer must use the existing `escapeHtml` helper or an equivalent safe escaping path;
+    - escape `message.content`, option labels, option reasons, visible notes, status/error text, and any other text derived from backend/frontend state;
+    - do not render raw HTML from `content`, `payload`, `next_iteration_options`, errors, labels, reasons, or assistant messages.
+16. Use only fixed frontend enum/map values for typed-message labels and CSS classes:
+    - do not interpolate raw backend strings or raw `messageType` values into class names;
+    - unknown message types must fall back to the safe plain renderer.
+17. Keep `chatMessagesForBackend()` behavior unchanged:
+    - local-only agent/error messages must not be sent back to `/api/recruiter-chat/turn`;
+    - backend-returned recruiter chat assistant messages must still be sent back as `{ role, content }`;
+    - frontend-local typed metadata must not be included in the backend payload.
+18. Keep `clearAgentPlanData()` and `clearSearchResultsData()` behavior compatible with existing `kind` filters.
+19. Keep `wording_provenance` hidden:
+    - do not render it;
+    - do not use it as UI state authority;
+    - do not use it for analytics, telemetry, persistence, memory, or user tracking.
+20. Keep all P7 message taxonomy/facts contracts as rendering guidance only in this task.
+
+### Non-goals
+
+This task must not:
+
+- change backend code;
+- add or change API response fields;
+- require backend `message_type` fields;
+- change OpenAI/LLM calls, prompts, routing, validation, fallback, or provenance generation;
+- use LLM routing or `wording_provenance` as state authority;
+- add LLM wording for any new message type;
+- change recruiter chat extraction/refinement;
+- change Search Brief state or normalized brief values;
+- change Agent Plan proposed actions;
+- change QueryPlan generation, validation, fingerprints, planner mode, or planner explanation;
+- change Agent Runtime transitions, approvals, pending approvals, idempotency, fingerprints, or execution state;
+- change Tavily execution;
+- rework `renderSearchErrors()`, `renderPlanErrors()`, runtime/status/results error rendering, or Tavily unavailable status handling;
+- change candidate results, counts, scoring, filtering, dedupe, location logic, snapshots, ordering, or reports;
+- add Apply buttons or executable next actions for `next_iteration_options`;
+- render `proposed_brief_patch` details;
+- render raw HTML from message content, typed payloads, option labels/reasons, validation/error text, or assistant messages;
+- add direct web search, LinkedIn login, scraping, restriction bypass, candidate messaging, account actions, or autonomous execution;
+- add persistence, database, analytics, telemetry, memory, shortlist, export, or user tracking;
+- perform a full visual redesign.
+
+### Proposed implementation steps
+
+1. Restate scope before coding:
+   - frontend-only;
+   - no backend/API/runtime/search changes;
+   - no executable next-iteration actions;
+   - no rendering of `wording_provenance`.
+2. Inspect current frontend paths:
+   - `renderChatMessages()`;
+   - `appendAgentPlanMessage(data)`;
+   - Agent Plan catch block in `fetchAgentPlanForCurrentBrief()`;
+   - `formatNextIterationOptions(agentResponse)`;
+   - `agentResponseMessageContent(agentResponse)`;
+   - `appendAgentResponseMessage(agentResponse)`;
+   - `updateChatStateFromResponse(data)`;
+   - catch block in `sendChatTurn(userText)`;
+   - `clearAgentPlanData()`;
+   - `clearSearchResultsData()`;
+   - `chatMessagesForBackend()`.
+3. Add a small frontend helper to classify Agent Plan message type from `agent_plan_status`.
+4. Add a small frontend helper to normalize typed chat messages without removing existing fields.
+5. Update `appendAgentPlanMessage(data)`:
+   - derive `messageType` from backend status;
+   - preserve `kind = "agent_plan"`;
+   - keep one current Agent Plan message by filtering existing `kind = "agent_plan"`.
+6. Update the Agent Plan error catch path:
+   - use `messageType = "system_error"`;
+   - keep `kind = "agent_plan"` only if needed for current clearing behavior, or use a compatible cleanup rule that still removes stale Agent Plan error messages.
+7. Update the recruiter-chat error catch path in `sendChatTurn(userText)`:
+   - use `messageType = "system_error"`;
+   - set `surface = "chat"`;
+   - set `localOnly = true`;
+   - preserve visible error text;
+   - do not add `kind = "agent_plan"` or `kind = "agent_response"`;
+   - do not let the transient frontend error become part of future backend chat history.
+8. Remove or replace `agentResponseMessageContent(agentResponse)` plain text concatenation.
+9. Update `appendAgentResponseMessage(agentResponse)`:
+   - store the backend message as `content`;
+   - preserve `kind = "agent_response"`;
+   - attach only visible inert `next_iteration_options` fields to local payload: `id`, `label`, and `reason`.
+10. Add a helper to classify recruiter chat assistant message types from backend response fields:
+   - prefer more specific types over generic ones;
+   - use the order: `safety_refusal`, `tool_unavailable`, `brief_refinement_rejected`, `brief_refinement_applied`, clean backend-selected `clarification_question`, `validation_feedback`, `brief_summary`, `onboarding`, then plain assistant message;
+   - preserve safety and validation classifications;
+   - do not present missing/unavailable OpenAI/LLM recruiter-chat configuration or service errors as recruiter-correctable validation feedback;
+   - treat recruiter-chat `validation_errors` with `field` equal to `openai_api_key`, `openai_model`, or `openai` as `tool_unavailable` unless a stronger `safety_refusal` classification applies;
+   - do not classify a response with `validation_errors.length > 0` as `clarification_question` unless a later reviewed backend contract explicitly separates missing-field clarification from validation errors;
+   - do not classify safe no-op/reconfirmation patches as if the Search Brief changed when `brief_changed = false`;
+   - never invent a type when backend data is ambiguous.
+11. Update `updateChatStateFromResponse(data)` so assistant messages are optionally stored with frontend-local `messageType`, `surface = "chat"`, and minimal rendering payload when safely classified.
+12. Ensure backend-returned recruiter chat assistant messages remain normal, non-local chat history:
+    - do not set `localOnly = true` on those messages;
+    - keep only frontend-local metadata extra;
+    - verify `chatMessagesForBackend()` still sends only `{ role, content }`.
+13. Ensure ordinary user messages and unclassified assistant messages still use the default plain renderer.
+14. Add a typed message renderer used by `renderChatMessages()`:
+   - default renderer remains available for ordinary user/assistant messages;
+   - typed renderer handles `onboarding`, `clarification_question`, `brief_summary`, `brief_refinement_applied`, `brief_refinement_rejected`, `validation_feedback`, `safety_refusal`, `tool_unavailable`, `agent_plan`, `agent_plan_unsupported`, `planning_needs_clarification`, `system_error`, and `agent_response`;
+   - typed renderer uses fixed frontend maps for labels and CSS classes;
+   - typed renderer does not interpolate raw backend strings or raw `messageType` values into class names;
+   - unknown message types fall back to safe plain text;
+   - every rendered text value uses `escapeHtml` or an equivalent safe escaping path.
+15. Render `next_iteration_options` inside `agent_response` as an inert list:
+    - local payload contains only `id`, `label`, and `reason`;
+    - escaped label;
+    - escaped reason;
+    - escaped visible non-executable note;
+    - no action controls.
+16. Add minimal CSS only if needed:
+    - keep current dark workspace style;
+    - no layout redesign;
+    - no large visual refresh.
+17. Verify typed rendering preserves escaping:
+    - `content`, labels, reasons, visible notes, and error/status text are escaped;
+    - sample text such as `<script>alert(1)</script>` renders as text, not as HTML.
+18. Verify that local-only typed messages and frontend-local typed metadata still do not go to the backend chat endpoint.
+19. Verify that backend-returned recruiter chat assistant messages still do go to the backend chat endpoint as normal `{ role, content }` chat history.
+20. Run:
+    - `node --check app/static/app.js`;
+    - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+21. Perform a light browser smoke after implementation:
+    - open the local app;
+    - send a supported Java/Ukraine brief;
+    - confirm recruiter chat assistant message renders safely;
+    - confirm backend-returned recruiter chat assistant messages remain part of the normal chat history sent to backend;
+    - confirm a simulated recruiter-chat request failure would remain local-only and typed as `system_error`;
+    - confirm Agent Plan message renders;
+    - confirm typed message text remains escaped and does not render raw HTML;
+    - Build Plan still works;
+    - no console errors.
+    Tavily execution is not required for this task unless the user explicitly asks.
+22. After implementation and verification, update task progress/status docs in `Tasks.md`, `ProjectStatus.md`, `README.md`, `Roadmap.md`, and `AGENTS.md`.
+
+### Acceptance criteria
+
+- `P7-008` changes frontend rendering only.
+- No backend files are changed unless a later explicit review changes this task.
+- Backend/API response shapes are unchanged.
+- Existing chat flow still works.
+- `chatMessagesForBackend()` still excludes local-only agent messages.
+- `chatMessagesForBackend()` does not send frontend-local `messageType`, `surface`, or `payload` metadata back to the backend.
+- Backend-returned recruiter chat assistant messages remain non-local chat history and are still sent back to `/api/recruiter-chat/turn` as `{ role, content }`.
+- Recruiter chat assistant messages are typed only when safely inferable from backend response fields.
+- Unknown/unclassified assistant messages fall back to safe plain rendering.
+- Recruiter chat assistant message classification uses the approved priority order: `safety_refusal`, `tool_unavailable`, `brief_refinement_rejected`, `brief_refinement_applied`, clean backend-selected `clarification_question`, `validation_feedback`, `brief_summary`, `onboarding`, then plain assistant message.
+- `clarification_question` is used only for clean backend-selected missing-field clarification: `state = "needs_clarification"`, `next_question` exists, `missing_fields.length >= 1`, the rendered message asks only the one backend-selected `next_question`, no `brief_patch`, no `validation_errors`, and no stronger safety/tool classification.
+- Responses with `validation_errors.length > 0` are not classified as `clarification_question` unless a stronger approved classification already applies.
+- Missing OpenAI/LLM recruiter-chat configuration or service failure is not rendered as recruiter-correctable validation feedback when backend-returned fields make `tool_unavailable` clear.
+- Recruiter-chat `validation_errors` with `field` equal to `openai_api_key`, `openai_model`, or `openai` are classified as `tool_unavailable` unless a stronger `safety_refusal` classification applies.
+- Tavily/runtime status error rendering remains out of scope for `P7-008`.
+- Safe no-op or reconfirmation patches with `brief_changed = false` do not render as if the Search Brief changed.
+- Safety, validation, refinement, clarification, ready-summary, and onboarding messages are not collapsed into one generic agent type when backend fields allow a safer classification.
+- Agent Plan frontend messages carry a frontend-local `messageType` matching backend `agent_plan_status`.
+- Agent Plan catch-path errors are typed as `system_error` or equivalent safe frontend-local type without changing backend error semantics.
+- Recruiter-chat catch-path errors are typed as local-only `system_error` messages and are not sent back to `/api/recruiter-chat/turn`.
+- `agent_response.message` renders separately from `next_iteration_options`.
+- `next_iteration_options` render as inert follow-up suggestions.
+- Chat message payload for `next_iteration_options` contains only visible inert fields: `id`, `label`, and `reason`.
+- Typed rendering preserves current HTML escaping behavior for message content, typed payload text, option labels/reasons, visible notes, and error/status text.
+- Raw HTML from backend/frontend message state is not rendered.
+- Typed-message labels and CSS classes come only from fixed frontend enum/map values, not raw backend strings or raw `messageType` interpolation.
+- No Apply/action buttons are introduced for `next_iteration_options`.
+- `next_iteration_options` do not become selected, executable, mutable, or state-changing.
+- `proposed_brief_patch` is not rendered.
+- `proposed_brief_patch`, `requires_approval_before_execution`, and `is_executable_now` are not stored in chat message payload.
+- `wording_provenance` is not rendered and is not used as UI state authority.
+- No LLM routing, prompt, validation, fallback, or provenance behavior changes.
+- No QueryPlan, runtime, approval, Tavily, candidate, scoring, filtering, dedupe, location, report, or result ordering behavior changes.
+- Frontend syntax check passes.
+- Full local regression baseline passes.
+- Light browser smoke passes after implementation.
+
+### Deep review checklist result
+
+- Exact scope reviewed: current frontend chat rendering only.
+- Internal dependency check completed for existing frontend message storage and cleanup behavior.
+- External reference check completed against Phase 7 taxonomy, facts contract, style policy, routing/gating policy, and bounded payload/prompt handoff.
+- State authority check completed: backend/runtime facts remain authoritative; frontend typed fields are local rendering metadata only.
+- LLM boundary check completed: no new LLM message types, no prompt changes, and no use of `wording_provenance` as state.
+- Recruiter chat classification check completed: frontend may add local message types for assistant messages only when already-returned backend fields make the type clear; ambiguous messages stay plain, OpenAI/LLM config or service unavailable errors with `field = openai_api_key`, `openai_model`, or `openai` take precedence over generic validation in recruiter-chat responses, and brief patch classification takes precedence over generic validation when the response is a refinement result.
+- Frontend catch-path check completed: Agent Plan and recruiter-chat request failures use local-only `system_error` rendering and do not become backend-owned chat facts.
+- HTML escaping check completed: typed rendering must preserve `escapeHtml`-style escaping for all rendered dynamic text and must not introduce raw HTML rendering.
+- Typed renderer class/label safety check completed: labels and CSS classes must come from fixed frontend maps, and unknown message types must use the safe plain fallback.
+- Next-iteration safety check completed: options stay inert and non-executable.
+- Verification plan check completed: frontend syntax, full regression baseline, and light browser smoke.
+
+### Pre-implementation rule
+
+Before coding, Codex must restate:
+
+1. this is frontend-only;
+2. exact expected files to change;
+3. exact behavior that must remain unchanged;
+4. how `next_iteration_options` stay inert;
+5. the verification plan.
+
+Then Codex must wait for explicit user approval to code.
+
+### Implementation summary
+
+Implemented as a frontend-only typed rendering task.
+
+- Added frontend-local message taxonomy constants, fixed label/class maps, and safe typed chat rendering in `app/static/app.js`.
+- Recruiter chat assistant messages now get local `messageType` only when safely inferable from existing backend response fields.
+- Backend-returned recruiter chat assistant messages remain normal non-local chat history and `chatMessagesForBackend()` still sends only `{ role, content }`.
+- Recruiter-chat request failures and Agent Plan catch-path failures are local-only `system_error` messages.
+- Agent Plan messages derive local `messageType` from `agent_plan_status`.
+- Agent Response now renders `agent_response.message` separately from structured inert `next_iteration_options`.
+- Chat message payload for `next_iteration_options` keeps only visible inert fields: `id`, `label`, and `reason`.
+- `proposed_brief_patch`, `requires_approval_before_execution`, `is_executable_now`, and `wording_provenance` are not rendered or stored in chat message payload.
+- Typed message labels and CSS classes come only from fixed frontend maps.
+- Added minimal CSS for typed messages and inert next-iteration options in `app/static/styles.css`.
+- No backend, API, runtime, Search Brief, QueryPlan, Tavily, candidate, scoring, filter, dedupe, location, report, LLM, prompt, validation, fallback, or provenance-generation behavior changed.
+
+Verification:
+
+- `C:\Users\fedor\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe --check app/static/app.js` passed.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
+- Browser smoke passed: local app loaded, supported Java/Ukraine chat brief produced typed Search Brief and typed Agent Plan messages, `Build Plan` generated 10 rule-based queries, and browser console showed no errors.
 
 ---
 

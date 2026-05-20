@@ -44,6 +44,96 @@ const AGENT_ACTION_STATUS_LABELS = {
   failed: "Failed",
 };
 
+const AGENT_MESSAGE_TYPES = {
+  ONBOARDING: "onboarding",
+  CLARIFICATION_QUESTION: "clarification_question",
+  BRIEF_SUMMARY: "brief_summary",
+  BRIEF_REFINEMENT_APPLIED: "brief_refinement_applied",
+  BRIEF_REFINEMENT_REJECTED: "brief_refinement_rejected",
+  VALIDATION_FEEDBACK: "validation_feedback",
+  SAFETY_REFUSAL: "safety_refusal",
+  TOOL_UNAVAILABLE: "tool_unavailable",
+  AGENT_PLAN: "agent_plan",
+  AGENT_PLAN_UNSUPPORTED: "agent_plan_unsupported",
+  PLANNING_NEEDS_CLARIFICATION: "planning_needs_clarification",
+  SYSTEM_ERROR: "system_error",
+  AGENT_RESPONSE: "agent_response",
+};
+
+const AGENT_MESSAGE_TYPE_META = {
+  [AGENT_MESSAGE_TYPES.ONBOARDING]: {
+    label: "Onboarding",
+    className: "typed-onboarding",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.CLARIFICATION_QUESTION]: {
+    label: "Clarification",
+    className: "typed-clarification",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.BRIEF_SUMMARY]: {
+    label: "Search Brief",
+    className: "typed-brief-summary",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.BRIEF_REFINEMENT_APPLIED]: {
+    label: "Brief refinement",
+    className: "typed-brief-refinement",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.BRIEF_REFINEMENT_REJECTED]: {
+    label: "Brief refinement blocked",
+    className: "typed-brief-refinement-rejected",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK]: {
+    label: "Validation",
+    className: "typed-validation",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.SAFETY_REFUSAL]: {
+    label: "Safety boundary",
+    className: "typed-safety",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.TOOL_UNAVAILABLE]: {
+    label: "Tool unavailable",
+    className: "typed-tool-unavailable",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.AGENT_PLAN]: {
+    label: "Agent Plan",
+    className: "typed-agent-plan",
+    speaker: "AI Agent",
+  },
+  [AGENT_MESSAGE_TYPES.AGENT_PLAN_UNSUPPORTED]: {
+    label: "Unsupported brief",
+    className: "typed-agent-plan-unsupported",
+    speaker: "AI Agent",
+  },
+  [AGENT_MESSAGE_TYPES.PLANNING_NEEDS_CLARIFICATION]: {
+    label: "Planning needs input",
+    className: "typed-planning-needs-clarification",
+    speaker: "AI Agent",
+  },
+  [AGENT_MESSAGE_TYPES.SYSTEM_ERROR]: {
+    label: "System error",
+    className: "typed-system-error",
+    speaker: "AI",
+  },
+  [AGENT_MESSAGE_TYPES.AGENT_RESPONSE]: {
+    label: "Agent Response",
+    className: "typed-agent-response",
+    speaker: "AI Agent",
+  },
+};
+
+const RECRUITER_CHAT_TOOL_UNAVAILABLE_FIELDS = new Set([
+  "openai_api_key",
+  "openai_model",
+  "openai",
+]);
+
 let messages = [];
 let draftBrief = null;
 let normalizedBrief = null;
@@ -101,6 +191,10 @@ function displayValue(value, fallback = "n/a") {
 
 function displayList(values = [], fallback = "none") {
   return values.length ? values.join(", ") : fallback;
+}
+
+function arrayValue(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function shortFingerprint(value) {
@@ -304,6 +398,103 @@ function chatMessagesForBackend() {
     }));
 }
 
+function typedChatMessage(baseMessage, metadata = {}) {
+  const message = {
+    ...baseMessage,
+  };
+
+  if (metadata.messageType && AGENT_MESSAGE_TYPE_META[metadata.messageType]) {
+    message.messageType = metadata.messageType;
+  }
+
+  if (metadata.surface) {
+    message.surface = metadata.surface;
+  }
+
+  if (metadata.payload) {
+    message.payload = metadata.payload;
+  }
+
+  return message;
+}
+
+function agentPlanMessageType(agentPlanStatus) {
+  if (agentPlanStatus === "supported") {
+    return AGENT_MESSAGE_TYPES.AGENT_PLAN;
+  }
+
+  if (agentPlanStatus === "unsupported") {
+    return AGENT_MESSAGE_TYPES.AGENT_PLAN_UNSUPPORTED;
+  }
+
+  return AGENT_MESSAGE_TYPES.PLANNING_NEEDS_CLARIFICATION;
+}
+
+function recruiterChatErrors(data = {}) {
+  return arrayValue(data.validation_errors);
+}
+
+function hasToolUnavailableError(errors = []) {
+  return errors.some((error) => {
+    const safeError = error || {};
+    const field = String(safeError.field || "").toLowerCase();
+    if (RECRUITER_CHAT_TOOL_UNAVAILABLE_FIELDS.has(field)) {
+      return true;
+    }
+
+    return [
+      safeError.code,
+      safeError.classification,
+      safeError.type,
+      safeError.category,
+    ].some((value) => String(value || "").toLowerCase() === AGENT_MESSAGE_TYPES.TOOL_UNAVAILABLE);
+  });
+}
+
+function recruiterChatMessageType(data = {}) {
+  const errors = recruiterChatErrors(data);
+  const hasBriefPatch = Boolean(data.brief_patch);
+
+  if (data.state === "refused") {
+    return AGENT_MESSAGE_TYPES.SAFETY_REFUSAL;
+  }
+
+  if (hasToolUnavailableError(errors)) {
+    return AGENT_MESSAGE_TYPES.TOOL_UNAVAILABLE;
+  }
+
+  if (hasBriefPatch && (data.brief_patch?.requires_clarification || errors.length > 0)) {
+    return AGENT_MESSAGE_TYPES.BRIEF_REFINEMENT_REJECTED;
+  }
+
+  if (hasBriefPatch) {
+    return AGENT_MESSAGE_TYPES.BRIEF_REFINEMENT_APPLIED;
+  }
+
+  if (
+    data.state === "needs_clarification" &&
+    data.next_question &&
+    arrayValue(data.missing_fields).length > 0 &&
+    !errors.length
+  ) {
+    return AGENT_MESSAGE_TYPES.CLARIFICATION_QUESTION;
+  }
+
+  if (errors.length > 0) {
+    return AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK;
+  }
+
+  if (data.state === "ready_for_planning") {
+    return AGENT_MESSAGE_TYPES.BRIEF_SUMMARY;
+  }
+
+  if (data.state === "needs_clarification") {
+    return AGENT_MESSAGE_TYPES.ONBOARDING;
+  }
+
+  return null;
+}
+
 function syncExecutionControlsFromPlan() {
   if (!adaptedStructuredRequest) {
     profilesOnlyInput.checked = true;
@@ -387,6 +578,76 @@ function buildApprovedRuntimeApproval() {
   };
 }
 
+function plainChatSpeaker(message = {}) {
+  if (message.kind?.startsWith("agent_")) {
+    return "AI Agent";
+  }
+
+  return message.role === "user" ? "You" : "AI";
+}
+
+function chatRoleClass(message = {}) {
+  return message.role === "user" ? "user-message" : "assistant-message";
+}
+
+function renderPlainChatMessage(message = {}) {
+  return `
+    <article class="chat-message ${chatRoleClass(message)}">
+      <span>${escapeHtml(plainChatSpeaker(message))}</span>
+      <p>${escapeHtml(message.content)}</p>
+    </article>
+  `;
+}
+
+function renderNextIterationOptions(options = []) {
+  const visibleOptions = arrayValue(options);
+  if (!visibleOptions.length) {
+    return "";
+  }
+
+  return `
+    <div class="next-iteration-options" aria-label="Next iteration options">
+      <strong>Next iteration options</strong>
+      <p>Not executable. Write a follow-up in chat if you want to change the Search Brief.</p>
+      <ol>
+        ${visibleOptions
+          .map((option, index) => {
+            const safeOption = option || {};
+            const label = safeOption.label || safeOption.id || `Option ${index + 1}`;
+            const reason = safeOption.reason || "Grounded in the returned search data.";
+            return `
+              <li>
+                <strong>${escapeHtml(label)}</strong>
+                <p>${escapeHtml(reason)}</p>
+              </li>
+            `;
+          })
+          .join("")}
+      </ol>
+    </div>
+  `;
+}
+
+function renderTypedChatMessage(message = {}) {
+  const meta = AGENT_MESSAGE_TYPE_META[message.messageType];
+  if (!meta) {
+    return renderPlainChatMessage(message);
+  }
+
+  const optionsMarkup =
+    message.messageType === AGENT_MESSAGE_TYPES.AGENT_RESPONSE
+      ? renderNextIterationOptions(message.payload?.next_iteration_options)
+      : "";
+
+  return `
+    <article class="chat-message ${chatRoleClass(message)} typed-message ${meta.className}">
+      <span>${escapeHtml(meta.speaker)} - ${escapeHtml(meta.label)}</span>
+      <p>${escapeHtml(message.content)}</p>
+      ${optionsMarkup}
+    </article>
+  `;
+}
+
 function renderChatMessages() {
   if (!messages.length) {
     chatMessagesElement.innerHTML = `
@@ -398,23 +659,8 @@ function renderChatMessages() {
   }
 
   chatMessagesElement.innerHTML = messages
-    .map(
-      (message) => {
-        const speaker =
-          message.kind?.startsWith("agent_")
-            ? "AI Agent"
-            : message.role === "user"
-              ? "You"
-              : "AI";
-        return `
-        <article class="chat-message ${
-          message.role === "user" ? "user-message" : "assistant-message"
-        }">
-          <span>${escapeHtml(speaker)}</span>
-          <p>${escapeHtml(message.content)}</p>
-        </article>
-      `;
-      }
+    .map((message) =>
+      message.messageType ? renderTypedChatMessage(message) : renderPlainChatMessage(message)
     )
     .join("");
   chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
@@ -948,51 +1194,58 @@ function appendAgentPlanMessage(data = {}) {
     "Agent Plan is not available for this Search Brief.";
 
   messages = messages.filter((message) => message.kind !== "agent_plan");
-  messages.push({
-    role: "assistant",
-    content,
-    kind: "agent_plan",
-    localOnly: true,
-  });
+  messages.push(
+    typedChatMessage(
+      {
+        role: "assistant",
+        content,
+        kind: "agent_plan",
+        localOnly: true,
+      },
+      {
+        messageType: agentPlanMessageType(data.agent_plan_status),
+        surface: "chat",
+      }
+    )
+  );
 }
 
-function formatNextIterationOptions(agentResponse = {}) {
-  const options = agentResponse.next_iteration_options || [];
-  if (!options.length) {
-    return "";
-  }
-
-  const optionLines = options.map((option, index) => {
-    const label = option.label || option.id || "Next option";
-    const reason = option.reason || "Grounded in the returned search data.";
-    return `${index + 1}. ${label} - ${reason}`;
+function visibleNextIterationOptions(agentResponse = {}) {
+  return arrayValue(agentResponse.next_iteration_options).map((option, index) => {
+    const safeOption = option || {};
+    return {
+      id: safeOption.id || `option_${index + 1}`,
+      label: safeOption.label || safeOption.id || `Option ${index + 1}`,
+      reason: safeOption.reason || "Grounded in the returned search data.",
+    };
   });
-
-  return [
-    "",
-    "Next iteration options (not executable):",
-    ...optionLines,
-    "Write a manual follow-up in chat if you want to change the Search Brief.",
-  ].join("\n");
-}
-
-function agentResponseMessageContent(agentResponse = {}) {
-  const message = agentResponse.message || "";
-  return `${message}${formatNextIterationOptions(agentResponse)}`.trim();
 }
 
 function appendAgentResponseMessage(agentResponse = null) {
-  const content = agentResponseMessageContent(agentResponse || {});
-  if (!content) {
+  const response = agentResponse || {};
+  const content = response.message || "";
+  const nextIterationOptions = visibleNextIterationOptions(response);
+  if (!content && !nextIterationOptions.length) {
     return;
   }
 
-  messages.push({
-    role: "assistant",
-    content,
-    kind: "agent_response",
-    localOnly: true,
-  });
+  messages.push(
+    typedChatMessage(
+      {
+        role: "assistant",
+        content,
+        kind: "agent_response",
+        localOnly: true,
+      },
+      {
+        messageType: AGENT_MESSAGE_TYPES.AGENT_RESPONSE,
+        surface: "chat",
+        payload: {
+          next_iteration_options: nextIterationOptions,
+        },
+      }
+    )
+  );
   renderChatMessages();
 }
 
@@ -1046,12 +1299,20 @@ async function fetchAgentPlanForCurrentBrief() {
     }
 
     clearAgentPlanData();
-    messages.push({
-      role: "assistant",
-      content: error.message,
-      kind: "agent_plan",
-      localOnly: true,
-    });
+    messages.push(
+      typedChatMessage(
+        {
+          role: "assistant",
+          content: error.message,
+          kind: "agent_plan",
+          localOnly: true,
+        },
+        {
+          messageType: AGENT_MESSAGE_TYPES.SYSTEM_ERROR,
+          surface: "chat",
+        }
+      )
+    );
     renderChatMessages();
     chatStatusElement.textContent = error.message;
     return null;
@@ -1176,7 +1437,19 @@ function updateChatStateFromResponse(data = {}) {
   }
 
   if (data.assistant_message) {
-    messages.push({ role: "assistant", content: data.assistant_message });
+    const messageType = recruiterChatMessageType(data);
+    messages.push(
+      typedChatMessage(
+        {
+          role: "assistant",
+          content: data.assistant_message,
+        },
+        {
+          messageType,
+          surface: messageType ? "chat" : null,
+        }
+      )
+    );
   }
 
   if (chatState === "ready_for_planning") {
@@ -1231,10 +1504,19 @@ async function sendChatTurn(userText) {
       return;
     }
 
-    messages.push({
-      role: "assistant",
-      content: error.message,
-    });
+    messages.push(
+      typedChatMessage(
+        {
+          role: "assistant",
+          content: error.message,
+          localOnly: true,
+        },
+        {
+          messageType: AGENT_MESSAGE_TYPES.SYSTEM_ERROR,
+          surface: "chat",
+        }
+      )
+    );
     chatStatusElement.textContent = error.message;
     renderChatMessages();
     updateActionState();
