@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Next Phase 7 task to review: `P7-005 Define LLM routing and gating policy for conversation wording`.
+Current Phase 7 handoff: `P7-005 Define LLM routing and gating policy for conversation wording` is completed; current review task is `P7-006 Add bounded LLM wording payloads and prompt contract`.
 
 ---
 
@@ -5740,8 +5740,6 @@ Next Phase 7 task to review: `P7-005 Define LLM routing and gating policy for co
 
 ### Backlog
 
-- [ ] P7-005 Define LLM routing and gating policy for conversation wording
-- [ ] P7-006 Add bounded LLM wording payloads and prompt contract
 - [ ] P7-007 Add wording validation, fallback, and provenance metadata
 - [ ] P7-008 Add frontend rendering for typed agent messages
 - [ ] P7-009 Add golden conversation scenario regression tests
@@ -5755,6 +5753,8 @@ Next Phase 7 task to review: `P7-005 Define LLM routing and gating policy for co
 - [x] P7-002 Define message facts and source-of-truth contract
 - [x] P7-003 Define agent wording style and language policy
 - [x] P7-004 Build deterministic source messages for approved message types
+- [x] P7-005 Define LLM routing and gating policy for conversation wording
+- [x] P7-006 Add bounded LLM wording payloads and prompt contract
 
 ### Current Phase 7 strategy note
 
@@ -7476,6 +7476,645 @@ Verification performed:
 
 - `python -m compileall app scripts`;
 - `python scripts/smoke_p7_agent_messages.py`.
+
+---
+
+## Task: P7-005 Define LLM routing and gating policy for conversation wording
+
+### Status
+
+Implemented.
+
+### Approval result
+
+`P7-005` was approved as a docs-only policy task. It created the LLM routing/gating policy document and synchronized project status docs without changing code, frontend behavior, backend behavior, API contracts, OpenAI calls, prompts, payloads, validation, runtime, search, candidates, or result handling.
+
+### Critical review result
+
+Initial review found that `P7-005` existed only as a Phase 7 backlog title. That was not enough to approve safely because the task had no scope, no message-type routing categories, no gating conditions, no no-goals, no acceptance criteria, and no explicit separation from `P7-006` prompt/payload work and `P7-007` validation/fallback/provenance work.
+
+The direction is correct: after `P7-001` taxonomy/lifecycle, `P7-002` facts/source-of-truth contract, `P7-003` style/language policy, and `P7-004` deterministic source messages, Phase 7 needs an LLM routing/gating policy before any broader wording prompt or payload work.
+
+This task should answer one narrow question:
+
+```text
+For each agent message type, is LLM wording allowed, forbidden, or only a future candidate?
+```
+
+It should not implement new LLM calls.
+
+### Context
+
+`P5-007` already added a bounded LLM-assisted wording overlay for two existing deterministic objects:
+
+- `agent_plan.message`;
+- `agent_response.message` plus allowed limitation wording.
+
+That current overlay lives in `app/agent_wording.py` and is invoked through `app/agent_plan.py`, `app/agent_response.py`, and `app/main.py`. It already has deterministic fallback behavior, output validation, and simple wording provenance fields such as `wording_mode`, `fallback_reason`, and `llm_warnings`.
+
+`P7-004` then added `app/agent_messages.py` as the deterministic source-message layer and a coverage matrix for the implemented message slice.
+
+The next risk is uncontrolled expansion: if later tasks simply add LLM wording to more messages, the agent could sound better while accidentally changing facts, approval state, runtime state, execution claims, or product boundaries.
+
+`P7-005` should prevent that by defining a default-deny routing/gating policy before `P7-006` designs bounded payloads and prompts.
+
+### Goal
+
+Define `LLM Routing and Gating Policy V0` for Phase 7 conversation wording.
+
+The policy should decide:
+
+- which `message_type` values may use LLM wording now;
+- which are future candidates but disabled until later approved work;
+- which must remain deterministic-only;
+- what runtime/config/context gates must pass before LLM wording can be attempted;
+- when deterministic fallback must be used.
+
+The output should be a docs-only contract:
+
+```text
+docs/phase-7-llm-routing-gating-policy.md
+```
+
+### Scope
+
+In scope:
+
+1. Read and align with:
+   - `docs/phase-7-agent-message-taxonomy.md`;
+   - `docs/phase-7-message-facts-contract.md`;
+   - `docs/phase-7-agent-wording-style-policy.md`;
+   - `app/agent_messages.py`;
+   - current `app/agent_wording.py` behavior;
+   - `app/agent_plan.py` and `app/agent_response.py` wording overlay call sites;
+   - `app/main.py` wording wrapper points.
+2. Define routing categories:
+   - `current_bounded_text_only`;
+   - `candidate_for_future_bounded_payload`;
+   - `frontend_transient_only`;
+   - `never`.
+3. Preserve the current allowed bounded overlay for:
+   - `agent_plan`;
+   - `agent_response`.
+4. Define future-candidate message types without enabling them yet.
+5. Define `never` message types and preserve deterministic-only as the reason, not as a separate routing category.
+6. Define gating conditions for any current or future LLM wording attempt.
+7. Define fallback conditions where deterministic source text must be used.
+8. Define stable internal no-call reasons that future implementation/tests can assert.
+9. Define failure handling for:
+   - missing `OPENAI_API_KEY` or `OPENAI_MODEL`;
+   - timeout;
+   - HTTP/OpenAI request failure;
+   - invalid response shape;
+   - wrong language;
+   - unsafe/prohibited content;
+   - disallowed facts/numbers/actions;
+   - stale context/fingerprint mismatch.
+10. Define the handoff to `P7-006`, `P7-007`, `P7-008`, and `P7-009`.
+11. Update `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` after implementation.
+
+### Proposed routing policy
+
+Default rule:
+
+```text
+LLM wording is forbidden unless the routing policy explicitly allows it.
+```
+
+Current allowed bounded overlay:
+
+| message_type | Status | Notes |
+| --- | --- | --- |
+| `agent_plan` | `current_bounded_text_only` | Preserve existing `P5-007` bounded overlay for `agent_plan.message` and wording metadata only; no action/fingerprint/facts mutation. |
+| `agent_response` | `current_bounded_text_only` | Preserve existing `P5-007` bounded overlay for `agent_response.message`, optional wording inside existing `limitations`, optional `llm_warnings`, and wording metadata only. |
+
+Future candidates, disabled until later approved tasks define payloads, validation, and provenance:
+
+| message_type | Status | Notes |
+| --- | --- | --- |
+| `onboarding` | `candidate_for_future_bounded_payload` | Could improve warm wording later, but remains disabled until bounded payload, validation, fallback, and provenance exist. Must not imply a brief/plan/execution exists. |
+| `clarification_question` | `candidate_for_future_bounded_payload` | Could reword one backend-selected missing-field question later, but remains disabled until bounded payload, validation, fallback, and provenance exist. |
+| `brief_summary` | `candidate_for_future_bounded_payload` | Could make normalized brief summary more natural later, but remains disabled until bounded payload, validation, fallback, and provenance exist. |
+| `planner_explanation` | `candidate_for_future_bounded_payload` | Could explain backend planner facts, warnings, or assumptions later, but remains disabled until bounded payload, validation, fallback, and provenance exist. |
+
+Blocked or frontend-transient unless a later reviewed task explicitly changes the contract:
+
+| message_type | Status | Reason |
+| --- | --- | --- |
+| `safety_refusal` | `never` | Must stay precise and must not suggest workarounds. |
+| `validation_feedback` | `never` | Deterministic-only: must preserve backend error meaning/codes. |
+| `brief_refinement_applied` | `never` | Deterministic-only: must preserve patch, `brief_changed`, and `stale_state_should_clear`. |
+| `brief_refinement_rejected` | `never` | Deterministic-only: must not imply partial application. |
+| `planning_needs_clarification` | `never` | Deterministic-only: must not invent readiness or proposed actions. |
+| `agent_plan_unsupported` | `never` | Deterministic-only: must not silently broaden supported scope. |
+| `query_plan_ready` | `never` | Deterministic-only: Search Plan readiness/approval facts must stay backend-owned. |
+| `query_plan_preview` | `never` | Deterministic-only: must not become executable through wording. |
+| `query_plan_rejected` | `never` | Deterministic-only: must not imply rejected plans can run. |
+| `approval_required` | `never` | Approval boundary must be exact. |
+| `runtime_action_pending` | `never` | Pending approval is backend-owned and fingerprint-bound. |
+| `runtime_action_rejected` | `never` | Stale/mismatched approval wording must be exact. |
+| `runtime_blocked` | `never` | Must not imply bypass or execution. |
+| `execution_started` | `frontend_transient_only` | Frontend transient state only; no result claims. |
+| `execution_completed` | `never` | Completion facts/counts must stay deterministic. |
+| `execution_failed` | `never` | Must not imply partial success or retry. |
+| `tool_unavailable` | `never` | Must not suggest direct web-search bypass or user fault. |
+| `search_result_summary` | `never` | Deterministic-only: counts/report facts must stay deterministic. |
+| `next_iteration_options` | `never` | Options are inert and must not become executable. |
+| `transient_status` | `frontend_transient_only` | Frontend request state only. |
+| `empty_state` | `frontend_transient_only` | UI guidance only. |
+| `system_error` | `never` | Deterministic-only fallback classification; must preserve error classification priority. |
+
+### Gating conditions
+
+LLM wording may be attempted only when all applicable gates pass:
+
+1. `message_type` is known in P7-001 taxonomy.
+2. `message_type` is `current_bounded_text_only` in the routing policy.
+3. Source facts are allowed by P7-002 facts contract.
+4. Deterministic source message exists from P7-004 or earlier deterministic builder.
+5. Style/language policy from P7-003 allows the wording surface.
+6. Language is supported: `ru` or `en`.
+7. `OPENAI_API_KEY` and `OPENAI_MODEL` are configured.
+8. Current source object is fresh:
+   - current Search Brief fingerprint for Agent Plan;
+   - current result/report/search plan for Agent Response.
+9. The message does not carry approval, runtime, execution, candidate, QueryPlan, or next-option mutation authority.
+10. The output can be validated by the existing or future validation layer.
+
+If any gate fails, deterministic source text must be used.
+
+### Fallback policy
+
+Use deterministic fallback when:
+
+- OpenAI config is missing;
+- request times out;
+- request fails;
+- response is empty;
+- response is not JSON;
+- response has wrong shape;
+- response includes unknown or disallowed fields;
+- response has wrong language;
+- response includes prohibited content;
+- response adds disallowed numbers/facts;
+- response tries to change actions, approval, runtime, QueryPlan, Search Brief, candidates, counts, filters, scoring, dedupe, location logic, or next-iteration options.
+
+Fallback must not be presented as search failure, planner failure, or recruiter input failure.
+
+### No-call reason vocabulary
+
+The policy document should define stable internal no-call reasons for future implementation and regression tests.
+
+These names are policy targets, not code changes in `P7-005`:
+
+| no_call_reason | Meaning |
+| --- | --- |
+| `message_type_not_allowed` | The message type is known, but routing policy does not allow LLM wording for it. |
+| `unknown_message_type` | The message type is not in the approved P7 taxonomy. |
+| `missing_deterministic_source_message` | There is no backend-owned deterministic source text to rewrite. |
+| `facts_contract_not_available` | Allowed facts for this message type are not defined or cannot be mapped safely. |
+| `style_policy_not_available` | The message surface/language cannot be validated against the wording style policy. |
+| `unsupported_language` | The requested message language is not supported by Phase 7 wording policy. |
+| `openai_not_configured` | `OPENAI_API_KEY` or `OPENAI_MODEL` is missing. |
+| `stale_context` | Search Brief, Agent Plan, QueryPlan, runtime, or result context is stale or fingerprint-mismatched. |
+| `forbidden_state_or_surface` | The message represents safety, approval, runtime, execution, tool availability, exact result facts, candidate facts, or executable next actions. |
+| `payload_contract_not_available` | `P7-006` has not defined a bounded payload/prompt contract for this message type. |
+| `validation_contract_not_available` | `P7-007` has not defined validation, fallback, and provenance for this message type. |
+| `llm_response_invalid` | The LLM response fails shape, language, safety, fact, number, action, or mutation validation. |
+
+These reasons must stay internal/debugging-oriented. They are not product analytics, telemetry, user tracking, memory, or recruiter-facing blame text.
+
+### Non-goals
+
+This task must not:
+
+- add new OpenAI calls;
+- add new prompts;
+- add new payload schemas;
+- change current `app/agent_wording.py` runtime behavior;
+- change existing LLM validation logic;
+- add new public API response fields;
+- add provenance/version fields to responses;
+- implement typed frontend rendering;
+- change frontend state/event flow;
+- change Search Brief extraction or refinement;
+- change Agent Plan actions;
+- change QueryPlan generation;
+- change approval/fingerprint rules;
+- change Agent Runtime transitions;
+- change Tavily execution;
+- change candidate results, counts, scoring, filtering, dedupe, location logic, reports, or snapshots;
+- expand supported roles, countries, technologies, sources, or search modes;
+- add persistence, memory, analytics, telemetry, database, shortlist, export, account behavior, or autonomous behavior.
+
+### Proposed steps
+
+1. Read:
+   - `instructions`;
+   - `AGENTS.md`;
+   - `ProjectStatus.md`;
+   - `Tasks.md`;
+   - `docs/phase-7-agent-message-taxonomy.md`;
+   - `docs/phase-7-message-facts-contract.md`;
+   - `docs/phase-7-agent-wording-style-policy.md`;
+   - `app/agent_messages.py`;
+   - `app/agent_wording.py`;
+   - `app/agent_plan.py`;
+   - `app/agent_response.py`;
+   - `app/main.py` wrapper points for wording calls.
+2. Inventory all P7-001 `message_type` values.
+3. Use `llm_payload_eligibility_later` from `docs/phase-7-message-facts-contract.md` as the source of truth for routing category names.
+4. Classify every `message_type` into one routing category:
+   - `current_bounded_text_only`;
+   - `candidate_for_future_bounded_payload`;
+   - `frontend_transient_only`;
+   - `never`.
+5. Explicitly preserve current `agent_plan` and `agent_response` bounded overlay behavior.
+6. Mark future-candidate message types as disabled for now.
+7. Mark safety/approval/runtime/execution/tool/result-count/next-option messages as `never`, with deterministic-only as the reason where applicable.
+8. Mark frontend transient message types as `frontend_transient_only`, not `never`.
+9. Define gates for config, language, source freshness, supported message type, facts contract, style policy, and validation availability.
+10. Define deterministic fallback reasons, no-call reasons, and user-facing interpretation.
+11. Define how missing OpenAI config should be treated for wording:
+   - not a recruiter input error;
+   - not a search failure;
+   - deterministic fallback for allowed wording paths.
+12. Define handoff to `P7-006`:
+    - `current_bounded_text_only` paths can continue using the existing bounded overlay;
+    - `candidate_for_future_bounded_payload` message types may receive bounded payload/prompt contracts, but must remain non-executing until `P7-007` adds validation/fallback/provenance and a later approved routing change explicitly enables them.
+13. Define handoff to `P7-007`:
+    - validation/fallback/provenance must enforce this routing policy.
+14. Define handoff to `P7-008`:
+    - frontend rendering may display typed messages but must not use LLM routing as state authority.
+15. Define handoff to `P7-009`:
+    - golden scenarios should assert routing decisions and fallback behavior.
+16. Add `docs/phase-7-llm-routing-gating-policy.md`.
+17. Update `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`.
+18. Run:
+    - `git diff --check`.
+
+### Acceptance criteria
+
+- `docs/phase-7-llm-routing-gating-policy.md` exists.
+- The policy is default-deny.
+- Every P7-001 `message_type` is assigned one routing category from `docs/phase-7-message-facts-contract.md`.
+- Existing `agent_plan` and `agent_response` bounded LLM overlay paths are preserved.
+- Future-candidate message types are explicitly disabled until later approved work.
+- Safety, approval, runtime, execution, tool-unavailable, result-count, and next-iteration option messages are not routed to LLM wording.
+- `execution_started`, `transient_status`, and `empty_state` are classified as `frontend_transient_only`.
+- `system_error` is classified as `never`.
+- The policy defines config, language, source freshness, facts-contract, style-policy, and validation gates.
+- The policy defines deterministic fallback behavior and fallback reasons.
+- The policy defines stable internal no-call reasons for future implementation and regression tests.
+- The policy does not add prompts, payloads, OpenAI calls, validation code, provenance fields, frontend rendering, or runtime behavior.
+- The policy preserves all absolute product boundaries:
+  - no direct web-search bypass;
+  - no LinkedIn login;
+  - no LinkedIn scraping or restriction bypass;
+  - no automatic candidate messaging;
+  - no user or third-party account actions;
+  - no autonomous execution.
+- Handoff to `P7-006`, `P7-007`, `P7-008`, and `P7-009` is explicit.
+- Status documents identify `P7-006` as the next task after `P7-005` is completed.
+- `git diff --check` passes.
+
+### Pre-implementation rule
+
+Codex must restate the task scope, perform a full deep review checklist, and wait for explicit approval before creating the routing/gating policy document or marking this task implemented.
+
+### Implementation result
+
+Created `docs/phase-7-llm-routing-gating-policy.md` as the stable `LLM Routing and Gating Policy V0` contract.
+
+The document defines:
+
+- default-deny LLM wording routing;
+- routing categories aligned to `llm_payload_eligibility_later` from `docs/phase-7-message-facts-contract.md`;
+- a routing matrix for every P7 message type;
+- the current allowed bounded overlay for `agent_plan` and `agent_response`;
+- blocked, frontend-transient, and future-candidate message rules;
+- config, language, freshness, facts-contract, style-policy, deterministic-source, and validation gates;
+- stable internal no-call reasons;
+- deterministic fallback policy;
+- handoff rules for `P7-006`, `P7-007`, `P7-008`, and `P7-009`.
+
+No code, frontend behavior, backend behavior, API contract, OpenAI call, prompt, payload, validation code, provenance field, runtime behavior, search behavior, candidate handling, scoring, filtering, dedupe, location logic, persistence, memory, or autonomous behavior changed.
+
+Current Phase 7 task under review: `P7-006 Add bounded LLM wording payloads and prompt contract`.
+
+---
+
+## Task: P7-006 Add bounded LLM wording payloads and prompt contract
+
+### Status
+
+Implemented.
+
+### Critical review result
+
+Initial review found that `P7-006` existed only as a Phase 7 backlog title. That was not enough to approve safely because the task had no goal, scope, explicit relationship to the existing `app/agent_wording.py` overlay, no payload boundaries, no prompt contract, no non-goals, no acceptance criteria, and no handoff to `P7-007`.
+
+The direction is correct: after `P7-005` defines default-deny LLM routing and gating, the next safe step is to define exactly what bounded LLM wording payloads and prompts are allowed to contain.
+
+This task should answer one narrow question:
+
+```text
+When LLM wording is allowed, what facts may be sent to the wording helper, what must the prompt require, and what must remain impossible?
+```
+
+This task should not enable new message types, add new OpenAI calls, or change runtime behavior.
+
+Final critical review result: ready for approval as a docs-only contract task. The reviewed scope matches the current Phase 7 docs and `app/agent_wording.py` behavior; known enforcement gaps are explicitly assigned to `P7-007`, and no backend/frontend/runtime/API/search behavior should change in `P7-006`.
+
+### Context
+
+`P5-007` already added the current bounded LLM-assisted wording overlay in `app/agent_wording.py`.
+
+Current allowed LLM-assisted wording paths are:
+
+- `agent_plan`;
+- `agent_response`.
+
+Current call sites:
+
+- `app/agent_plan.py` applies wording only for supported Agent Plan responses.
+- `app/agent_response.py` builds deterministic Agent Response facts.
+- `app/main.py` preserves monkeypatchable wrappers for `run_openai_json_agent_wording`, `apply_llm_wording_to_agent_plan`, and `apply_llm_wording_to_agent_response`.
+
+`P7-001` through `P7-005` now define the message taxonomy, facts contract, style policy, deterministic source-message layer, and default-deny LLM routing/gating policy.
+
+`P7-006` should turn those contracts into a clear bounded payload and prompt contract. It should document the existing safe overlay and define what later validation/provenance work in `P7-007` must enforce.
+
+### Goal
+
+Define `Bounded LLM Wording Payload and Prompt Contract V0` for Phase 7.
+
+The output should be a docs-only contract:
+
+```text
+docs/phase-7-bounded-llm-payload-prompt-contract.md
+```
+
+The contract should make the current `agent_plan` and `agent_response` wording overlay explicit, constrained, and ready for `P7-007` validation/fallback/provenance work.
+
+### Scope
+
+In scope:
+
+1. Read and align with:
+   - `docs/phase-7-agent-message-taxonomy.md`;
+   - `docs/phase-7-message-facts-contract.md`;
+   - `docs/phase-7-agent-wording-style-policy.md`;
+   - `docs/phase-7-llm-routing-gating-policy.md`;
+   - `app/agent_messages.py`;
+   - `app/agent_wording.py`;
+   - `app/agent_plan.py`;
+   - `app/agent_response.py`;
+   - `app/main.py` wording wrapper points;
+   - `scripts/smoke_p5_llm_wording.py`;
+   - `scripts/smoke_p7_agent_messages.py`.
+2. Define payload contract for current `current_bounded_text_only` message types only:
+   - `agent_plan`;
+   - `agent_response`.
+3. Define future-candidate payload contract stance for:
+   - `onboarding`;
+   - `clarification_question`;
+   - `brief_summary`;
+   - `planner_explanation`.
+4. Keep future-candidate message types disabled until later approved work explicitly enables them.
+5. Define shared payload rules:
+   - include deterministic source text before LLM wording;
+   - include language;
+   - include message type / use case;
+   - include only facts allowed by P7-002;
+   - include hard boundaries;
+   - include allowed numbers;
+   - exclude raw candidate URLs, full candidate records, raw snippets, raw Tavily payloads, raw `query_results`, and raw query text.
+6. Define prompt contract:
+   - system prompt role;
+   - user prompt structure;
+   - required JSON-only output;
+   - allowed output keys;
+   - language requirement;
+   - no new facts/numbers/actions;
+   - no executable next steps;
+   - no direct web-search, LinkedIn login/scraping/bypass, candidate messaging, account actions, or autonomous execution claims.
+7. Define per-use-case output boundaries:
+   - `agent_plan`: LLM may replace only `agent_plan.message` and allowed wording metadata/warnings; it must not change `proposed_action`, `brief_fingerprint`, input snapshot, approval facts, planner mode, QueryPlan, runtime state, execution claims, or result facts.
+   - `agent_response`: LLM may replace only `agent_response.message`, optional wording inside existing `limitations`, optional `llm_warnings`, and allowed wording metadata; it must not change `summary_facts`, `quality_notes`, `suggested_next_actions`, `next_iteration_options`, counts, candidates, filters, scoring, dedupe, location logic, or ordering.
+8. Explicitly document the current `agent_plan` limitation nuance:
+   - current generic output shape includes `limitations`;
+   - `agent_plan` should not treat `limitations` as an accepted semantic output;
+   - `P7-007` should enforce or normalize this so Agent Plan wording has no hidden limitation channel.
+9. Define compatibility rules for existing smoke tests and monkeypatch paths:
+   - keep `main.run_openai_json_agent_wording` monkeypatch compatibility;
+   - do not break `scripts/smoke_p5_llm_wording.py`;
+   - do not make `app.agent_wording` import `app.main`.
+10. Define handoff to `P7-007`, `P7-008`, and `P7-009`.
+11. Update `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` only where status or handoff wording truly changes.
+12. Include a current-implementation mapping:
+    - what currently exists in `app/agent_wording.py`;
+    - what the target payload/prompt contract says;
+    - which gaps are intentionally deferred to `P7-007` instead of fixed in `P7-006`.
+13. Define docs-only contract version identifiers:
+    - `payload_contract_version = phase_7_bounded_llm_payload_contract_v0`;
+    - `prompt_contract_version = phase_7_bounded_llm_prompt_contract_v0`.
+    These are contract names only in `P7-006`; they must not become public API fields or response provenance in this task.
+
+### Proposed payload contract
+
+Shared payload fields for allowed current overlay paths:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `wording_use_case` | Yes | Must be one of the current allowed use cases: `agent_plan`, `agent_response`. |
+| `language` | Yes | Must be `en` or `ru`. |
+| `deterministic_message` | Yes | Backend-owned source text to rewrite. |
+| `hard_boundaries` | Yes | Product safety and no-mutation rules. |
+| `allowed_numbers` | Yes | The only numbers the LLM may repeat. |
+| source facts | Use-case specific | Must come only from allowed P7 facts for that use case. |
+
+Before any payload is built, freshness must be backend-owned and checked outside the LLM:
+
+- `agent_plan.brief_fingerprint` must match the current Search Brief for Agent Plan wording;
+- `agent_response` facts must belong to the current completed approved result/report/search plan;
+- the LLM must not decide whether context is fresh.
+
+`agent_plan` payload may include:
+
+- normalized brief / input snapshot;
+- normalized structured request;
+- proposed action as read-only context;
+- approval requirement text;
+- hard boundaries;
+- allowed numbers.
+
+`agent_response` payload may include:
+
+- summary facts;
+- quality notes;
+- limitations;
+- suggested next actions as read-only context;
+- approval requirement;
+- hard boundaries;
+- allowed numbers.
+
+Future-candidate message types:
+
+- `onboarding`;
+- `clarification_question`;
+- `brief_summary`;
+- `planner_explanation`.
+
+`P7-006` may document why these are future candidates, but it must not create complete executable payload schemas for them. They remain disabled with `payload_contract_not_available` until a later reviewed routing change and validation/fallback/provenance work explicitly enables them.
+
+Forbidden payload content:
+
+- raw candidate URLs;
+- LinkedIn profile URLs;
+- raw candidate snippets;
+- full candidate records;
+- raw Tavily payloads;
+- raw `query_results`;
+- raw generated query text;
+- mutable `brief_patch` operations;
+- executable next-action instructions;
+- account, LinkedIn login, scraping, messaging, or direct web-search instructions.
+
+### Proposed prompt contract
+
+The wording prompt must:
+
+1. Say the model is a bounded wording helper, not an agent executor.
+2. Require one valid JSON object only.
+3. Require the requested language.
+4. Allow rewriting only approved user-facing text fields.
+5. Require use of payload facts only.
+6. Forbid new numbers outside `allowed_numbers`.
+7. Forbid query text, candidate URLs, candidate names as new facts, raw snippets, and raw results.
+8. Forbid creating or changing suggested next actions.
+9. Forbid making any next step executable.
+10. Forbid claims of direct LinkedIn inspection, scraping, login, messaging, account use, or autonomous execution.
+11. Require deterministic fallback when output cannot pass validation.
+
+Any examples in the contract must pass the same P7-002/P7-003 boundaries:
+
+- no candidate URLs;
+- no raw snippets;
+- no raw query text;
+- no invented counts;
+- no executable next steps;
+- no direct LinkedIn inspection, login, scraping, messaging, account use, or autonomous execution claims.
+
+### Non-goals
+
+This task must not:
+
+- change `app/agent_wording.py` runtime behavior;
+- add new OpenAI calls;
+- add new LLM-enabled message types;
+- enable LLM wording for ordinary onboarding, clarification, brief summary, or planner explanation;
+- change existing validation logic;
+- add public API response fields;
+- add frontend rendering behavior;
+- add provenance/version fields to responses;
+- change Search Brief extraction/refinement;
+- change Agent Plan actions;
+- change QueryPlan generation;
+- change approval/fingerprint rules;
+- change Agent Runtime transitions;
+- change Tavily execution;
+- change candidate results, counts, scoring, filtering, dedupe, location logic, reports, snapshots, or ordering;
+- expand supported roles, countries, technologies, sources, or search modes;
+- add persistence, memory, analytics, telemetry, database, shortlist, export, account behavior, or autonomous behavior.
+
+### Proposed steps
+
+1. Restate the exact docs-only scope before implementation.
+2. Read the required Phase 7 docs and current wording code/call sites.
+3. Inventory current payload builders in `app/agent_wording.py`:
+   - `agent_plan_wording_payload`;
+   - `agent_response_wording_payload`;
+   - `agent_wording_system_prompt`;
+   - `agent_wording_user_prompt`;
+   - `validate_agent_wording_output`.
+4. Identify current compatibility constraints:
+   - monkeypatch path through `main.run_openai_json_agent_wording`;
+   - existing `scripts/smoke_p5_llm_wording.py` expectations;
+   - no import from `app.agent_wording` into `app.agent_messages.py`.
+5. Create `docs/phase-7-bounded-llm-payload-prompt-contract.md`.
+6. Define contract version identifiers as docs-only names:
+   - `payload_contract_version = phase_7_bounded_llm_payload_contract_v0`;
+   - `prompt_contract_version = phase_7_bounded_llm_prompt_contract_v0`.
+7. Add a current-implementation mapping table:
+   - current `app/agent_wording.py` behavior;
+   - target contract rule;
+   - gap or compatibility note;
+   - owner task for later enforcement, if any.
+8. Define shared payload rules and forbidden payload content.
+9. Define pre-payload freshness gates and make them backend-owned, not LLM-owned.
+10. Define `agent_plan` payload and output boundaries.
+11. Define `agent_response` payload and output boundaries.
+12. Document the `agent_plan` limitations nuance and pass it to `P7-007`.
+13. Define future-candidate message-type stance without enabling those paths or creating complete executable payload schemas.
+14. Define prompt contract, output shape, fallback expectation, and example rules.
+15. Define handoff to `P7-007`:
+    - enforce routing/gating;
+    - enforce use-case-specific output validation;
+    - add lightweight internal provenance/version metadata;
+    - keep fallback deterministic.
+16. Define handoff to `P7-008`:
+    - frontend may render typed messages later;
+    - frontend must not treat LLM wording as state authority.
+17. Define handoff to `P7-009`:
+    - golden scenarios should assert payload boundaries, prompt contract, blocked fields, no-call/fallback behavior, and provenance expectations.
+18. Update status docs only where needed.
+19. Run:
+    - `git diff --check`.
+
+### Acceptance criteria
+
+- `docs/phase-7-bounded-llm-payload-prompt-contract.md` exists.
+- The document aligns with P7-001, P7-002, P7-003, P7-004, and P7-005.
+- The contract is default-deny and only defines current allowed payload/prompt paths for `agent_plan` and `agent_response`.
+- Future-candidate message types are documented but not enabled.
+- The contract explicitly forbids raw candidate URLs, full candidate records, raw snippets, raw Tavily payloads, raw `query_results`, raw query text, mutable brief patches, executable next actions, and prohibited product behavior.
+- `agent_plan` output boundary is explicit: only message and allowed wording metadata/warnings; no hidden semantic `limitations` channel.
+- `agent_response` output boundary is explicit: only message, optional wording inside existing limitations, optional warnings, and allowed wording metadata.
+- Prompt contract requires JSON-only output and forbids fact/action/state mutation.
+- The contract includes docs-only payload/prompt contract version identifiers without adding public API fields in this task.
+- The contract includes a current-implementation mapping from `app/agent_wording.py` to the target contract and explicitly assigns any enforcement gaps to `P7-007`.
+- The contract states that freshness is checked before payload building and is never decided by the LLM.
+- Future-candidate message types stay disabled and do not receive complete executable payload schemas in this task.
+- Examples, if included, follow P7-002/P7-003 and do not introduce forbidden facts, query text, raw snippets, counts, or executable actions.
+- Existing runtime behavior, OpenAI calls, validation code, API contracts, frontend behavior, search behavior, and candidate handling are unchanged.
+- Handoff to `P7-007`, `P7-008`, and `P7-009` is explicit.
+- Status documents identify `P7-006` as the current task under review or next task as appropriate.
+- `git diff --check` passes.
+
+### Pre-implementation rule
+
+Codex must restate the task scope, perform a full deep review checklist, and wait for explicit approval before creating the payload/prompt contract document or marking this task implemented.
+
+### Implementation result
+
+Created `docs/phase-7-bounded-llm-payload-prompt-contract.md` as the docs-only `Bounded LLM Wording Payload and Prompt Contract V0`.
+
+The document defines:
+
+- docs-only contract identifiers:
+  - `payload_contract_version = phase_7_bounded_llm_payload_contract_v0`;
+  - `prompt_contract_version = phase_7_bounded_llm_prompt_contract_v0`;
+- current allowed bounded payload/prompt paths for `agent_plan` and `agent_response`;
+- shared payload shape, forbidden payload content, and backend-owned freshness gates;
+- `agent_plan` and `agent_response` use-case-specific payload/output boundaries;
+- the current `agent_plan.limitations` semantic gap and handoff to `P7-007`;
+- future-candidate message-type stance without enabling those paths;
+- prompt contract, example rules, non-goals, current implementation mapping, and handoff to `P7-007`, `P7-008`, and `P7-009`.
+
+No code, frontend behavior, backend behavior, API contract, OpenAI call, prompt runtime, payload builder, validation code, provenance field, runtime behavior, search behavior, candidate handling, scoring, filtering, dedupe, location logic, persistence, memory, or autonomous behavior changed.
+
+Next Phase 7 task to review: `P7-007 Add wording validation, fallback, and provenance metadata`.
 
 ---
 

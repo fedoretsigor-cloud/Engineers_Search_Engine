@@ -48,14 +48,16 @@ Status:
 - `P6-005.1` repaired real single/multi runtime execution wrappers so they call the existing approved pipelines instead of recursing, with unmocked-wrapper no-network smoke coverage in `scripts/check_all.ps1`.
 - `P6-006` closed Phase 6 as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent. See `docs/phase-6-closeout.md`.
 - `P7-004` added the backend-first deterministic source-message helper layer in `app/agent_messages.py`, including an explicit coverage matrix and no-network smoke coverage for chat, Agent Plan, QueryPlan/runtime, and Agent Response source messages.
+- `P7-005` added the docs-only `LLM Routing and Gating Policy V0` in `docs/phase-7-llm-routing-gating-policy.md`, keeping LLM wording default-deny and preserving the current bounded overlay only for Agent Plan and Agent Response.
+- `P7-006` added the docs-only `Bounded LLM Wording Payload and Prompt Contract V0` in `docs/phase-7-bounded-llm-payload-prompt-contract.md`, defining current `agent_plan`/`agent_response` payload and prompt boundaries without changing code or behavior.
 
 Agreed next direction:
 
 - keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
-- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`;
-- next Phase 7 task to review: `P7-005 Define LLM routing and gating policy for conversation wording`;
+- completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`;
+- next Phase 7 task to review: `P7-007 Add wording validation, fallback, and provenance metadata`;
 - add ordinary agent conversation wording in Phase 7 after taxonomy/lifecycle, facts/source-of-truth, style policy, deterministic source messages, LLM routing/gating, bounded payloads, validation/fallback/provenance, typed frontend rendering, and golden scenario tests are reviewed;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 

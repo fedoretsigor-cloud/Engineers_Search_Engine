@@ -133,7 +133,7 @@ POC прототип с легким фронтом и одним поисков
 - Phase 5 - `Recruiter Chat UX + Search Brief conversation`: довести один узкий Java/Ukraine flow до качества: чат собирает и уточняет `Search Brief`, умеет менять brief через follow-up, показывает Agent Plan, запускает поиск только после approval и после результатов ведет к следующей итерации.
 - Phase 5.5 - `Technical modularization before Agent Runtime`: без изменения поведения разделить большой backend в `app/main.py` на модули перед настоящим tool-calling runtime.
 - Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в bounded human-approved tool loop: AI получает цель, планирует шаги, готовит вызовы доступных инструментов (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг; execution не автономный и требует approval.
-- Phase 7 - `Agent Conversation Wording Layer`: после Phase 6 runtime добавить controlled wording layer для agent conversation messages: taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded prompts, validation/fallback/provenance, typed frontend rendering и golden scenario regression. Lightweight wording provenance/version metadata входит в P7-007/P7-009, но не как отдельная product analytics/telemetry задача.
+- Phase 7 - `Agent Conversation Wording Layer`: после Phase 6 runtime добавить controlled wording layer для agent conversation messages: taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded payload/prompt contract, validation/fallback/provenance, typed frontend rendering и golden scenario regression. Lightweight wording provenance/version metadata входит в P7-007/P7-009, но не как отдельная product analytics/telemetry задача.
 - Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, and `P7-004 Build deterministic source messages for approved message types` are completed. Next review is `P7-005 Define LLM routing and gating policy for conversation wording`.
+- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, and `P7-006 Add bounded LLM wording payloads and prompt contract` are completed. Next review is `P7-007 Add wording validation, fallback, and provenance metadata`.
 
 ### Completed
 
