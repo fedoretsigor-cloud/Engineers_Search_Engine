@@ -75,5 +75,9 @@ Invoke-Check "P7 Agent Messages smoke" {
     & $python scripts/smoke_p7_agent_messages.py
 }
 
+Invoke-Check "P7 Wording Validation smoke" {
+    & $python scripts/smoke_p7_wording_validation.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

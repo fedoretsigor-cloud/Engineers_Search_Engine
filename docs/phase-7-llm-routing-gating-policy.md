@@ -107,14 +107,14 @@ The only current LLM-assisted wording paths are:
 For `agent_plan`, accepted LLM output may replace only:
 
 - `agent_plan.message`;
-- wording metadata: `wording_mode`, `fallback_reason`, `llm_warnings`.
+- wording metadata: `wording_mode`, `fallback_reason`, `llm_warnings`, `wording_provenance`.
 
 For `agent_response`, accepted LLM output may replace only:
 
 - `agent_response.message`;
 - optional wording inside existing `limitations`;
 - optional `llm_warnings`;
-- wording metadata: `wording_mode`, `fallback_reason`, `llm_warnings`.
+- wording metadata: `wording_mode`, `fallback_reason`, `llm_warnings`, `wording_provenance`.
 
 The overlay must not change:
 
@@ -179,7 +179,10 @@ They are not product analytics, telemetry, memory, user tracking, or recruiter-f
 | `forbidden_state_or_surface` | The message represents safety, approval, runtime, execution, tool availability, exact result facts, candidate facts, or executable next actions. |
 | `payload_contract_not_available` | `P7-006` has not defined a bounded payload/prompt contract for this message type. |
 | `validation_contract_not_available` | `P7-007` has not defined validation, fallback, and provenance for this message type. |
-| `llm_response_invalid` | The LLM response fails shape, language, safety, fact, number, action, or mutation validation. |
+
+These reasons apply only when the LLM wording call is not attempted.
+
+If an OpenAI wording call is attempted and then times out, fails, returns empty content, returns invalid JSON, has the wrong shape, or fails output validation, the result is deterministic fallback with a backend-owned `fallback_reason`. In that attempted-call fallback case, `no_call_reason` must be absent and `model` should be present in wording provenance when the configured model is known.
 
 ## Fallback Policy
 

@@ -88,7 +88,7 @@ notes
 | diagnostic/legacy backend route output | Diagnostic route facts that are not part of the primary Agent v0 UI path unless explicitly whitelisted. |
 | disabled legacy route output | Disabled raw search route error facts only. |
 | structured error envelope | `field`, `code`, `message`, classification, and user-correctable status for validation/runtime/system errors. |
-| wording/provenance metadata | `message_type`, `surface`, `language`, `taxonomy_version`, `facts_contract_version`, `wording_mode`, `fallback_reason`, `llm_warnings`, source/debug/version facts. |
+| wording/provenance metadata | `message_type`, `surface`, `language`, `wording_provenance`, `taxonomy_version`, `facts_contract_version`, `style_policy_version`, `routing_policy_version`, `payload_contract_version`, `prompt_contract_version`, `prompt_version`, `validator_version`, `wording_mode`, `fallback_reason`, `no_call_reason`, `llm_warnings`, `source_owner`, `source_object`, `deterministic_builder_version`, `model` when an OpenAI wording call was attempted. |
 
 ## Producer Inventory
 
@@ -159,7 +159,7 @@ Unless a row explicitly allows a fact, that fact is forbidden for the message ty
 | `validation_feedback` | `errors`, `validation_errors`, `field`, `code`, `message`, optional `normalized_brief`, optional `clarifying_questions` | Backend response error envelope | structured error envelope | At least one error required | `code` may be missing in older routes; default class remains validation feedback only when user-correctable | Recruiter can correct input only when error source is user-correctable. | Runtime blocked, tool unavailable, execution failed, candidate/result facts. | Current backend response only. | `never` | Must not soften or rewrite codes as different semantics. |
 | `safety_refusal` | `state = refused`, `language`, `assistant_message`, `validation_errors` for prohibited request | `/api/recruiter-chat/turn` prohibited request guard | Search Brief backend validation; structured error envelope | Refusal message required | `normalized_brief` may be null | Request violates product boundary. | Workarounds, LinkedIn login/scraping, direct web search, messaging candidates, account actions, autonomous execution. | Current chat turn only. | `never` | Highest error classification priority. |
 | `planning_needs_clarification` | `plan_status = needs_clarification`, `agent_plan_status = needs_clarification`, `normalized_brief`, `missing_fields`, `clarifying_questions`, `validation_errors` | `/api/agent/plan`; `/api/agent/query-plan` | Search Brief backend validation; Agent Plan backend; QueryPlan/planner backend | Status required | `agent_plan` and `query_plan` must be null/absent | Planning cannot continue because brief is not ready enough. | QueryPlan exists, proposed action exists, execution possible. | Current normalized brief only. | `never` | Deterministic-only. |
-| `agent_plan` | `agent_plan_status`, `agent_plan.message`, `agent_plan.brief_fingerprint`, `agent_plan.input_snapshot`, `agent_plan.proposed_action`, `adapted_structured_request`, `wording_mode`, `fallback_reason`, `llm_warnings` | `/api/agent/plan` | Agent Plan backend; wording/provenance metadata | `agent_plan_status = supported`, `brief_fingerprint`, `proposed_action` required | Wording metadata may be absent only before overlay/fallback is applied | Agent Plan supported only from supported status plus supported proposed action. | Changed action, changed fingerprint, approval/execution claims, QueryPlan/result facts. | `agent_plan.brief_fingerprint` must match current Search Brief fingerprint. | `current_bounded_text_only` | Existing LLM overlay may replace only `agent_plan.message` and wording metadata. |
+| `agent_plan` | `agent_plan_status`, `agent_plan.message`, `agent_plan.brief_fingerprint`, `agent_plan.input_snapshot`, `agent_plan.proposed_action`, `adapted_structured_request`, `agent_plan.wording_mode`, `agent_plan.fallback_reason`, `agent_plan.llm_warnings`, `agent_plan.wording_provenance` | `/api/agent/plan` | Agent Plan backend; wording/provenance metadata | `agent_plan_status = supported`, `brief_fingerprint`, `proposed_action` required | Wording metadata may be absent only before overlay/fallback is applied | Agent Plan supported only from supported status plus supported proposed action. | Changed action, changed fingerprint, approval/execution claims, QueryPlan/result facts. | `agent_plan.brief_fingerprint` must match current Search Brief fingerprint. | `current_bounded_text_only` | Existing LLM overlay may replace only `agent_plan.message` and wording metadata. |
 | `agent_plan_unsupported` | `agent_plan_status = unsupported`, `message`, `normalized_brief`, `adapted_structured_request` | `/api/agent/plan` | Agent Plan backend | Unsupported status/message required | `agent_plan` must be null | Agent v0 does not support ready brief. | Fallback to non-agent Build Plan, support for other countries/roles/tech, proposed action exists. | Current normalized brief only. | `never` | Deterministic-only. |
 | `query_plan_ready` | `ok`, `planner_mode`, `plan_status`, `execution_allowed`, `query_plan`, `plan_fingerprint`, `adapted_structured_request`, `approval_required`, `execution_approval_required`, `approval_notice` | `/api/agent/query-plan` | QueryPlan/planner backend | QueryPlan and fingerprint required | `warnings`/`assumptions` optional | Executable backend Search Plan ready for review. | AI preview executable, approval already granted, runtime approval exists without prepare. | Current visible `plan_fingerprint` and current Search Brief. | `never` | Deterministic-only. Current rule-based response uses `execution_allowed = false` but is runtime-compatible after approval preparation. |
 | `query_plan_preview` | `planner_mode`, `plan_status = validated_not_executable`, `query_plan`, `plan_fingerprint`, `draft_query_plan`, `warnings`, `coverage_policy`, `approval_notice` | `/api/agent/query-plan`; `/api/ai-query-plan/validate` | QueryPlan/planner backend; diagnostic/legacy backend route output | Preview plan/status required | `query_plan` may be absent if rejected | Non-executable preview is visible for review/diagnostics only. | Approval-ready, Run Search-ready, runtime-ready, executable. | Current backend response only; not an approval source. | `never` | Deterministic-only. |
@@ -174,7 +174,7 @@ Unless a row explicitly allows a fact, that fact is forbidden for the message ty
 | `execution_failed` | `runtime_state = error`, `tool_results.errors`, `errors`, `field`, `code`, `message` | `/api/agent/runtime/turn` execute_approved | Agent Runtime backend; structured error envelope | Error after execute_approved required | Result absent or incomplete | Approved execution started and failed. | Partial success unless backend report says so, invented candidates, retry automatically. | Current approved runtime request only. | `never` | Deterministic-only. |
 | `tool_unavailable` | `errors.field`, `errors.code`, `errors.message`, service name/config key | Backend service/config availability checks | backend service/config availability check; structured error envelope | Error required | `code` may be missing in legacy direct search responses | Required service/tool/config is unavailable. | Recruiter input is invalid, execution succeeded, bypass available. | Current backend response only. | `never` | OpenAI/LLM and Tavily unavailable states map here. |
 | `search_result_summary` | `report.queries_total`, `queries_succeeded`, `queries_failed`, `raw_total`, `normalized_total`, `displayed`, `unique_profiles`, `duplicates_removed`, filter/dedupe/location metrics, `query_contribution`, multi-wave metrics | Approved search response report | approved backend search executor/report builder | Report required | Metrics default to `0` only when backend report uses `0` | Summarize backend report counts. | Alter counts, candidates, filter metrics, dedupe metrics, location facts, scoring, ordering. | Current completed approved search response only. | `never` | Deterministic-only. |
-| `agent_response` | `message`, `summary_facts`, `quality_notes`, `limitations`, `suggested_next_actions`, `next_iteration_options`, `language`, `source`, `requires_approval_for_execution`, `wording_mode`, `fallback_reason`, `llm_warnings` | Approved search response `agent_response` | deterministic Agent Response backend; wording/provenance metadata | `message`, `summary_facts`, `language`, `source`, `requires_approval_for_execution` required | Wording metadata may be absent only before overlay/fallback is applied | Summarize results from returned Search Plan/report/results. | Change summary facts, quality notes, next actions, options, fingerprints, counts, filters, scoring, dedupe, location, candidates, ordering. | Current result/report/search plan that built it. | `current_bounded_text_only` | Existing LLM overlay may replace only message, optional limitation wording, optional warnings, and provenance. |
+| `agent_response` | `message`, `summary_facts`, `quality_notes`, `limitations`, `suggested_next_actions`, `next_iteration_options`, `language`, `source`, `requires_approval_for_execution`, `wording_mode`, `fallback_reason`, `llm_warnings`, `wording_provenance` | Approved search response `agent_response` | deterministic Agent Response backend; wording/provenance metadata | `message`, `summary_facts`, `language`, `source`, `requires_approval_for_execution` required | Wording metadata may be absent only before overlay/fallback is applied | Summarize results from returned Search Plan/report/results. | Change summary facts, quality notes, next actions, options, fingerprints, counts, filters, scoring, dedupe, location, candidates, ordering. | Current result/report/search plan that built it. | `current_bounded_text_only` | Existing LLM overlay may replace only message, optional limitation wording, optional warnings, and provenance. |
 | `next_iteration_options` | `next_iteration_options.id`, `label`, `reason`, `proposed_brief_patch`, `requires_approval_before_execution`, `is_executable_now` | `agent_response.next_iteration_options` | deterministic Agent Response backend | Option fields required per option | List may be empty | Non-executable follow-up options exist. | Option executable now, apply button exists, Build Plan/Tavily/runtime starts automatically. | Current result/report/search plan only. | `never` | Deterministic-only and inert. |
 | `transient_status` | Current frontend request state, action display state, current backend-derived context | Frontend status/actions rendering | frontend transient UI derived from current backend data | Status text/context required | Backend result absent | Preparing Agent Plan, building plan, preparing approval, running approved search, idle processing. | Durable backend fact, result success/failure, changed approval/fingerprint. | Current frontend request version only. | `frontend_transient_only` | Must clear or update when backend state changes. |
 | `empty_state` | Lack of current brief/plan/report/results/action, reset/default UI state | Frontend render state | frontend transient UI derived from current backend data | Empty target surface required | Data absent by definition | No action/report/results visible yet. | Data exists, execution readiness, fabricated summary. | Current UI state only. | `frontend_transient_only` | Guidance only. |
@@ -349,18 +349,24 @@ Allowed reserved wording/provenance fields for later Phase 7 tasks:
 
 - `message_type`;
 - `surface`;
+- `wording_provenance`;
 - `language`;
 - `taxonomy_version`;
 - `facts_contract_version`;
+- `style_policy_version`;
+- `routing_policy_version`;
+- `payload_contract_version`;
+- `prompt_contract_version`;
+- `prompt_version`;
+- `validator_version`;
 - `wording_mode`;
 - `fallback_reason`;
+- `no_call_reason`;
 - `llm_warnings`;
 - `source_owner`;
 - `source_object`;
 - `deterministic_builder_version`;
-- `prompt_version`;
-- `validator_version`;
-- `model` when LLM wording is used.
+- `model` when an OpenAI wording call was attempted.
 
 These are internal debugging/regression facts only. They must not become product analytics, external telemetry, persistent memory, user tracking, or autonomous decision inputs.
 
@@ -371,7 +377,10 @@ These are internal debugging/regression facts only. They must not become product
 For `agent_plan`, accepted LLM output may replace only:
 
 - `agent_plan.message`;
+- optional `llm_warnings`;
 - wording provenance metadata.
+
+`agent_plan` must not use `limitations` as a semantic output channel.
 
 For `agent_response`, accepted LLM output may replace only:
 

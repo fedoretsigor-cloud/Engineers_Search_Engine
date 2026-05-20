@@ -317,7 +317,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### In Progress
 
-- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, and `P7-006 Add bounded LLM wording payloads and prompt contract` are completed. Next review is `P7-007 Add wording validation, fallback, and provenance metadata`.
+- Phase 7: `Agent Conversation Wording Layer`; `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, and `P7-007 Add wording validation, fallback, and provenance metadata` are completed. Next task for review is `P7-008 Add frontend rendering for typed agent messages`.
 
 ### Completed
 

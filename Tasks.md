@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current Phase 7 handoff: `P7-005 Define LLM routing and gating policy for conversation wording` is completed; current review task is `P7-006 Add bounded LLM wording payloads and prompt contract`.
+Current Phase 7 handoff: `P7-001` through `P7-007` are completed; next task for review is `P7-008 Add frontend rendering for typed agent messages`.
 
 ---
 
@@ -5740,12 +5740,13 @@ Current Phase 7 handoff: `P7-005 Define LLM routing and gating policy for conver
 
 ### Backlog
 
-- [ ] P7-007 Add wording validation, fallback, and provenance metadata
 - [ ] P7-008 Add frontend rendering for typed agent messages
 - [ ] P7-009 Add golden conversation scenario regression tests
 - [ ] P7-010 Close Phase 7 with wording quality and guardrail evaluation
 
 ### In Progress
+
+None.
 
 ### Done
 
@@ -5755,6 +5756,7 @@ Current Phase 7 handoff: `P7-005 Define LLM routing and gating policy for conver
 - [x] P7-004 Build deterministic source messages for approved message types
 - [x] P7-005 Define LLM routing and gating policy for conversation wording
 - [x] P7-006 Add bounded LLM wording payloads and prompt contract
+- [x] P7-007 Add wording validation, fallback, and provenance metadata
 
 ### Current Phase 7 strategy note
 
@@ -7680,9 +7682,10 @@ These names are policy targets, not code changes in `P7-005`:
 | `forbidden_state_or_surface` | The message represents safety, approval, runtime, execution, tool availability, exact result facts, candidate facts, or executable next actions. |
 | `payload_contract_not_available` | `P7-006` has not defined a bounded payload/prompt contract for this message type. |
 | `validation_contract_not_available` | `P7-007` has not defined validation, fallback, and provenance for this message type. |
-| `llm_response_invalid` | The LLM response fails shape, language, safety, fact, number, action, or mutation validation. |
 
 These reasons must stay internal/debugging-oriented. They are not product analytics, telemetry, user tracking, memory, or recruiter-facing blame text.
+
+Attempted-call failures are not no-call reasons. If an OpenAI wording call is attempted and then times out, fails, returns empty content, returns invalid JSON, has the wrong shape, or fails output validation, deterministic fallback must use backend-owned `fallback_reason`; `no_call_reason` must be absent; `model` should be present in wording provenance when the configured model is known.
 
 ### Non-goals
 
@@ -7775,7 +7778,7 @@ This task must not:
   - no user or third-party account actions;
   - no autonomous execution.
 - Handoff to `P7-006`, `P7-007`, `P7-008`, and `P7-009` is explicit.
-- Status documents identify `P7-006` as the next task after `P7-005` is completed.
+- At the time of `P7-005` closeout, status documents identified `P7-006` as the next task.
 - `git diff --check` passes.
 
 ### Pre-implementation rule
@@ -7800,7 +7803,7 @@ The document defines:
 
 No code, frontend behavior, backend behavior, API contract, OpenAI call, prompt, payload, validation code, provenance field, runtime behavior, search behavior, candidate handling, scoring, filtering, dedupe, location logic, persistence, memory, or autonomous behavior changed.
 
-Current Phase 7 task under review: `P7-006 Add bounded LLM wording payloads and prompt contract`.
+Historical handoff after `P7-005`: `P7-007 Add wording validation, fallback, and provenance metadata` was identified as the later validation/fallback/provenance implementation task.
 
 ---
 
@@ -8089,7 +8092,7 @@ This task must not:
 - Examples, if included, follow P7-002/P7-003 and do not introduce forbidden facts, query text, raw snippets, counts, or executable actions.
 - Existing runtime behavior, OpenAI calls, validation code, API contracts, frontend behavior, search behavior, and candidate handling are unchanged.
 - Handoff to `P7-007`, `P7-008`, and `P7-009` is explicit.
-- Status documents identify `P7-006` as the current task under review or next task as appropriate.
+- At the time of `P7-006` closeout, status documents identified `P7-007` as the next handoff task.
 - `git diff --check` passes.
 
 ### Pre-implementation rule
@@ -8114,7 +8117,317 @@ The document defines:
 
 No code, frontend behavior, backend behavior, API contract, OpenAI call, prompt runtime, payload builder, validation code, provenance field, runtime behavior, search behavior, candidate handling, scoring, filtering, dedupe, location logic, persistence, memory, or autonomous behavior changed.
 
-Next Phase 7 task to review: `P7-007 Add wording validation, fallback, and provenance metadata`.
+Historical handoff after `P7-006`: `P7-007 Add wording validation, fallback, and provenance metadata` became the next implementation task.
+
+---
+
+## Task: P7-007 Add wording validation, fallback, and provenance metadata
+
+### Status
+
+Completed.
+
+### Critical review result
+
+Initial review found that `P7-007` existed only as a Phase 7 backlog title. That is not enough to approve or code safely because this task touches the existing LLM wording path and can affect public response shape, fallback semantics, smoke-test monkeypatch paths, and later Phase 7 frontend/golden-scenario work.
+
+The direction is correct: after `P7-005` routing/gating and `P7-006` bounded payload/prompt contract, the next safe step is to make current `agent_plan` and `agent_response` wording validation/fallback/provenance explicit in code.
+
+Final review verdict after the full pass: this should be a focused code task, not docs-only. It is ready for explicit user approval, but not ready for coding until the user says `task is approved`.
+
+Implementation result: completed in `app/agent_wording.py` with nested `wording_provenance`, stricter use-case validation for `agent_plan` and `agent_response`, explicit no-call vs attempted-call fallback semantics, preserved `main.run_openai_json_agent_wording` monkeypatch compatibility, and no changes to frontend/runtime/search/Tavily/candidate behavior. Added `scripts/smoke_p7_wording_validation.py` and included it in `scripts/check_all.ps1`.
+
+Verification passed:
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`;
+- `.\.venv\Scripts\python.exe scripts\smoke_p7_wording_validation.py`;
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+
+### Agreed design decision
+
+Approved direction for this task:
+
+```text
+Add a nested wording_provenance object inside agent_plan and agent_response API responses.
+```
+
+This metadata should be internal/debug/regression metadata only:
+
+- returned by the backend for smoke tests and later golden scenarios;
+- not rendered by the frontend in this task;
+- not product analytics;
+- not telemetry;
+- not persistence;
+- not memory;
+- not user tracking;
+- not an autonomous decision input.
+
+Existing flat fields must remain for compatibility:
+
+- `wording_mode`;
+- `fallback_reason`;
+- `llm_warnings`.
+
+This decision is accepted for `P7-007` as internal API metadata. The field remains a backend-owned diagnostic/regression aid and must not become frontend UI, analytics, telemetry, persistence, memory, user tracking, or autonomous decision input in this task.
+
+### Goal
+
+Implement the first code-level Phase 7 wording guardrail hardening for the current allowed bounded LLM wording paths:
+
+- `agent_plan`;
+- `agent_response`.
+
+The task should align code with:
+
+- `docs/phase-7-agent-message-taxonomy.md`;
+- `docs/phase-7-message-facts-contract.md`;
+- `docs/phase-7-agent-wording-style-policy.md`;
+- `docs/phase-7-llm-routing-gating-policy.md`;
+- `docs/phase-7-bounded-llm-payload-prompt-contract.md`.
+
+### Scope
+
+In scope:
+
+1. Use `app/agent_wording.py` as the primary code implementation surface.
+   Supporting changes may include smoke scripts, `scripts/check_all.ps1`, and status docs after implementation.
+2. Preserve `app/main.py` wrapper compatibility for:
+   - `main.run_openai_json_agent_wording`;
+   - `main.apply_llm_wording_to_agent_plan`;
+   - `main.apply_llm_wording_to_agent_response`.
+3. Keep current allowed LLM wording paths limited to:
+   - `agent_plan`;
+   - `agent_response`.
+4. Add use-case-specific validation:
+   - `agent_plan` must reject non-empty semantic `limitations` from LLM output and use deterministic fallback;
+   - `agent_response` may rewrite only existing limitation `kind` messages.
+5. Preserve deterministic fallback on:
+   - missing OpenAI config;
+   - OpenAI timeout/request/http/empty/invalid response;
+   - wrong output shape;
+   - wrong language;
+   - unknown/disallowed fields;
+   - disallowed numbers;
+   - prohibited content;
+   - use-case-specific output violations.
+6. Add lightweight wording provenance/version metadata using the agreed nested `wording_provenance` design.
+7. Keep `docs/phase-7-message-facts-contract.md` aligned with:
+   - the parent `wording_provenance` field;
+   - `agent_plan.wording_provenance`;
+   - `agent_response.wording_provenance`;
+   - the exact nested `wording_provenance` fields used by this task.
+8. Add no-call/fallback reason semantics aligned with `P7-005`.
+9. Add a dedicated P7 wording validation smoke script and include it in `scripts/check_all.ps1`.
+10. Treat facts-contract/routing-policy wording alignment as part of task review; update progress/status docs only after code behavior is implemented and verified.
+
+### Non-goals
+
+This task must not:
+
+- enable LLM wording for onboarding, clarification, brief summary, planner explanation, errors, runtime messages, execution messages, next-iteration options, or any new message type;
+- change recruiter chat extraction/refinement;
+- change Agent Plan proposed actions;
+- change QueryPlan generation or validation;
+- change Agent Runtime transitions;
+- change approval/fingerprint rules;
+- change Tavily execution;
+- change candidate results, counts, scoring, filtering, dedupe, location logic, snapshots, ordering, or reports;
+- change frontend rendering;
+- add Apply buttons or executable next actions;
+- add direct web-search, LinkedIn login, scraping, restriction bypass, candidate messaging, account actions, or autonomous execution;
+- add persistence, database, analytics, telemetry, memory, shortlist, export, or user tracking;
+- replace the existing `main.run_openai_json_agent_wording` monkeypatch path.
+
+### Proposed implementation steps
+
+1. Restate scope before coding and confirm that the agreed nested `wording_provenance` design still applies.
+2. Inspect current code paths:
+   - `app/agent_wording.py`;
+   - `app/agent_plan.py`;
+   - `app/agent_response.py`;
+   - `app/main.py` wording wrappers;
+   - `scripts/smoke_p5_llm_wording.py`;
+   - `scripts/smoke_p7_agent_messages.py`.
+3. Add wording contract constants in `app/agent_wording.py`:
+   - `AGENT_WORDING_TAXONOMY_VERSION = "phase_7_agent_message_taxonomy_v0"`;
+   - `AGENT_WORDING_FACTS_CONTRACT_VERSION = "phase_7_message_facts_contract_v0"`;
+   - `AGENT_WORDING_STYLE_POLICY_VERSION = "phase_7_agent_wording_style_policy_v0"`;
+   - `AGENT_WORDING_ROUTING_POLICY_VERSION = "phase_7_llm_routing_gating_policy_v0"`;
+   - `AGENT_WORDING_PAYLOAD_CONTRACT_VERSION = "phase_7_bounded_llm_payload_contract_v0"`;
+   - `AGENT_WORDING_PROMPT_CONTRACT_VERSION = "phase_7_bounded_llm_prompt_contract_v0"`;
+   - `AGENT_WORDING_PROMPT_VERSION = "phase_7_agent_wording_prompt_v0"`;
+   - `AGENT_WORDING_VALIDATOR_VERSION = "phase_7_wording_validator_v0"`;
+   - `AGENT_WORDING_DETERMINISTIC_BUILDER_VERSION = "phase_7_agent_messages_v0"`.
+4. Add a small helper to build `wording_provenance`.
+5. Keep flat compatibility fields:
+   - `wording_mode`;
+   - `fallback_reason`;
+   - `llm_warnings`.
+6. Define provenance fields conservatively:
+   - `message_type`;
+   - `surface`;
+   - `source_owner`;
+   - `source_object`;
+   - `language`;
+   - `wording_mode`;
+   - `fallback_reason`;
+   - `no_call_reason`;
+   - `taxonomy_version`;
+   - `facts_contract_version`;
+   - `style_policy_version`;
+   - `routing_policy_version`;
+   - `payload_contract_version`;
+   - `prompt_contract_version`;
+   - `prompt_version`;
+   - `validator_version`;
+   - `deterministic_builder_version`;
+   - `model` only when an OpenAI wording call was attempted.
+   Presence rules:
+   - `no_call_reason` belongs only inside nested `wording_provenance`;
+   - `no_call_reason` is present only when the LLM was not called;
+   - `fallback_reason` remains the existing flat compatibility field and is also copied into `wording_provenance` for fallback cases;
+   - `model` is absent when the LLM was not called;
+   - `model` is present only when an OpenAI wording call was attempted;
+   - do not add `no_call_reason` as a new top-level response field.
+7. Use exact initial provenance values:
+   - `agent_plan`:
+     - `message_type = "agent_plan"`;
+     - `surface = "chat"`;
+     - `source_owner = "Agent Plan backend; bounded wording overlay"`;
+     - `source_object = "/api/agent/plan agent_plan.message"`;
+     - `deterministic_builder_version = "phase_7_agent_messages_v0"`.
+   - `agent_response`:
+     - `message_type = "agent_response"`;
+     - `surface = "chat"`;
+     - `source_owner = "deterministic Agent Response backend; bounded wording overlay"`;
+     - `source_object = "approved search response agent_response.message"`;
+     - `deterministic_builder_version = "phase_7_agent_messages_v0"`.
+8. Do not include timestamps, user ids, session ids, profile/candidate URLs, query text, raw snippets, raw Tavily payloads, or full candidate records in provenance.
+9. Add use-case-specific validation without changing existing generic validator more than needed:
+   - either add a `wording_use_case` argument to `validate_agent_wording_output`;
+   - or add thin per-use-case wrapper validators.
+10. For `agent_plan`:
+   - reject non-empty `limitations` from LLM output;
+   - preserve `proposed_action`;
+   - preserve `brief_fingerprint`;
+   - preserve `input_snapshot`;
+   - preserve `adapted_structured_request` outside the plan object;
+   - preserve supported status semantics.
+11. For `agent_response`:
+    - continue accepting limitation rewrites only for existing `kind`;
+    - preserve `summary_facts`;
+    - preserve `quality_notes`;
+    - preserve `suggested_next_actions`;
+    - preserve `next_iteration_options`;
+    - preserve `requires_approval_for_execution`;
+    - preserve source/counts/candidate/filter/scoring/dedupe/location/order facts.
+12. Strengthen prohibited-content validation for wording output:
+    - URLs;
+    - LinkedIn profile URLs;
+    - direct LinkedIn inspection claims;
+    - direct web-search bypass claims;
+    - scraping/crawling/bypass;
+    - candidate messaging/outreach;
+    - user/recruiter account usage;
+    - autonomous execution claims;
+    - guaranteed/perfect candidate claims.
+13. Keep language validation conservative:
+    - RU output should contain Cyrillic;
+    - EN output should not contain Cyrillic;
+    - if validation fails, deterministic fallback.
+14. Map fallback/no-call reasons to existing semantics:
+   - missing config remains `openai_not_configured`;
+   - invalid LLM output remains a deterministic fallback;
+   - new use-case-specific failures should use stable reason codes;
+   - `no_call_reason` is used only when the LLM was not called;
+   - `fallback_reason` is used whenever deterministic fallback is returned, including rejected LLM output after a call.
+15. Preserve monkeypatch compatibility:
+    - `main.run_openai_json_agent_wording` must still control wording runner behavior in smoke tests.
+16. Add `scripts/smoke_p7_wording_validation.py`.
+17. The new smoke must be no-network:
+    - no real OpenAI calls;
+    - no Tavily calls;
+    - use monkeypatch/fake wording runners only.
+18. Smoke coverage must include:
+    - accepted `agent_plan` LLM wording preserves action/fingerprint and gets provenance;
+    - accepted `agent_plan` LLM wording keeps top-level `response["message"]` equal to `response["agent_plan"]["message"]`;
+    - accepted `agent_response` LLM wording preserves summary/actions/options and gets provenance;
+    - no OpenAI config creates deterministic fallback/no-call metadata without a `model`;
+    - no OpenAI config keeps top-level Agent Plan `response["message"]` equal to fallback `response["agent_plan"]["message"]`;
+    - attempted-call invalid LLM output creates deterministic fallback with `fallback_reason`, present `model`, and absent `no_call_reason`;
+    - `agent_plan` with non-empty `limitations` falls back;
+    - `agent_response` with new limitation `kind` falls back;
+    - URL/LinkedIn/direct-inspection/autonomous/action claims fall back;
+    - disallowed number still falls back;
+    - disallowed field still falls back;
+    - monkeypatch path through `main.run_openai_json_agent_wording` still works.
+19. Smoke coverage must assert exact provenance shape and exact `agent_plan` / `agent_response` provenance values from this task.
+20. Keep freshness backend-owned:
+    - do not add frontend-owned freshness fields;
+    - current `agent_plan` freshness remains tied to the backend-built brief fingerprint;
+    - current `agent_response` freshness remains tied to the completed approved result/report/search plan that built the deterministic object before wording.
+21. Add the new smoke script to `scripts/check_all.ps1`.
+22. Run:
+    - `.\.venv\Scripts\python.exe -m compileall app scripts`;
+    - `.\.venv\Scripts\python.exe scripts\smoke_p5_llm_wording.py`;
+    - `.\.venv\Scripts\python.exe scripts\smoke_p7_wording_validation.py`;
+    - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+23. After implementation and verification, update task progress/status docs in `Tasks.md`, `ProjectStatus.md`, `README.md`, `Roadmap.md`, and `AGENTS.md`.
+
+### Acceptance criteria
+
+- Current allowed LLM wording paths remain only `agent_plan` and `agent_response`.
+- Existing flat fields remain present when applicable:
+  - `wording_mode`;
+  - `fallback_reason`;
+  - `llm_warnings`.
+- `wording_provenance` is present on worded/fallback `agent_plan` and `agent_response`.
+- Provenance contains only internal/debug/regression metadata and no candidate/profile/search/raw data.
+- `agent_plan` rejects non-empty semantic `limitations` from LLM output.
+- `agent_response` allows limitation rewrites only for existing limitation kinds.
+- LLM output cannot change actions, approval, fingerprints, Search Brief, QueryPlan, runtime state, result facts, counts, candidates, filters, scoring, dedupe, location logic, suggested next actions, next-iteration options, or ordering.
+- Missing OpenAI config and invalid LLM output produce deterministic fallback, not recruiter-input errors or search failures.
+- `no_call_reason` is present only for no-call fallback cases.
+- `no_call_reason` is nested under `wording_provenance` only and is not added as a top-level response field.
+- `fallback_reason` is present for deterministic fallback cases, including rejected LLM output after an attempted call.
+- Attempted-call fallback has `fallback_reason`, no `no_call_reason`, and `model` present in provenance when the configured model is known.
+- `model` appears in provenance only when an OpenAI wording call was attempted and is absent for no-call fallback.
+- Provenance includes `surface`, `source_owner`, `source_object`, `prompt_version`, and `deterministic_builder_version`.
+- Provenance values for `agent_plan` and `agent_response` match the exact values listed in the task.
+- Top-level Agent Plan `response["message"]` equals `response["agent_plan"]["message"]` after accepted LLM wording and deterministic fallback.
+- `docs/phase-7-message-facts-contract.md` explicitly allows the parent `wording_provenance` field and the same nested reserved wording/provenance fields used by implementation.
+- `docs/phase-7-message-facts-contract.md` explicitly allows `agent_plan.wording_provenance` and `agent_response.wording_provenance`.
+- Freshness remains backend-owned and does not depend on frontend-supplied freshness metadata.
+- Forbidden content validation blocks URL/direct LinkedIn/direct search/scraping/messaging/account/autonomous/guaranteed-match claims.
+- `main.run_openai_json_agent_wording` monkeypatch compatibility is preserved.
+- Frontend rendering is unchanged.
+- No new LLM message types are enabled.
+- New no-network P7 smoke coverage is included in `scripts/check_all.ps1`.
+- Full local regression baseline passes.
+
+### Deep review checklist result
+
+- Exact scope reviewed: current bounded wording paths only, `agent_plan` and `agent_response`.
+- Internal dependency check completed for `app/agent_wording.py`, `app/agent_plan.py`, `app/agent_response.py`, and `app/agent_messages.py`.
+- External reference check completed for `app/main.py` wrappers, smoke scripts, Phase 7 docs, frontend references, and public response fields.
+- Constants/config/defaults check completed: versions should live in `app/agent_wording.py`, not global domain config.
+- Import direction/circular dependency check completed: `app.agent_wording` must not import `app.main`; `app.agent_messages` must not import `app.agent_wording`.
+- Future extraction dependency-direction check completed: this task should not move wording logic out of the wording layer or into runtime/search modules.
+- Backward compatibility check completed: preserve flat wording fields and monkeypatch paths.
+- Verification/test plan check completed: add P7 smoke and run full `check_all`.
+- Batch update check completed: material review findings are captured here together, including the second-pass fixes for strict `agent_plan` limitation rejection, attempted-call model provenance, no-call vs fallback semantics, source metadata, exact provenance values, facts-contract alignment, no-network smoke coverage, and backend-owned freshness.
+
+### Pre-implementation rule
+
+Before coding, Codex must restate:
+
+1. that `wording_provenance` remains approved as a nested API response field for internal/debug/regression metadata;
+2. exact code files expected to change;
+3. exact behavior that must remain unchanged;
+4. the verification plan.
+
+Then Codex must wait for explicit user approval to code.
 
 ---
 

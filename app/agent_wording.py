@@ -14,6 +14,17 @@ AGENT_WORDING_MODE_LLM_ASSISTED = "llm_assisted"
 AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 AGENT_WORDING_FALLBACK_NOT_CONFIGURED = "openai_not_configured"
 AGENT_WORDING_TIMEOUT_SECONDS = 8.0
+AGENT_WORDING_USE_CASE_AGENT_PLAN = "agent_plan"
+AGENT_WORDING_USE_CASE_AGENT_RESPONSE = "agent_response"
+AGENT_WORDING_TAXONOMY_VERSION = "phase_7_agent_message_taxonomy_v0"
+AGENT_WORDING_FACTS_CONTRACT_VERSION = "phase_7_message_facts_contract_v0"
+AGENT_WORDING_STYLE_POLICY_VERSION = "phase_7_agent_wording_style_policy_v0"
+AGENT_WORDING_ROUTING_POLICY_VERSION = "phase_7_llm_routing_gating_policy_v0"
+AGENT_WORDING_PAYLOAD_CONTRACT_VERSION = "phase_7_bounded_llm_payload_contract_v0"
+AGENT_WORDING_PROMPT_CONTRACT_VERSION = "phase_7_bounded_llm_prompt_contract_v0"
+AGENT_WORDING_PROMPT_VERSION = "phase_7_agent_wording_prompt_v0"
+AGENT_WORDING_VALIDATOR_VERSION = "phase_7_wording_validator_v0"
+AGENT_WORDING_DETERMINISTIC_BUILDER_VERSION = "phase_7_agent_messages_v0"
 
 
 def agent_wording_hard_boundaries() -> list[str]:
@@ -233,16 +244,23 @@ def agent_wording_language_matches(text: str, language: str) -> bool:
 
 def agent_wording_has_prohibited_content(text: str) -> bool:
     prohibited_patterns = [
+        r"https?://\S+",
+        r"\bwww\.\S+",
         r"\bsite:linkedin\.com\b",
+        r"\blinkedin\.com/in/\S*",
         r"\bdirect\s+web[- ]search\b",
+        r"\bdirect\s+linkedin\s+(search|inspection|check|review)\b",
         r"\bsearched\s+linkedin\s+directly\b",
+        r"\b(opened|viewed|visited|checked|inspected).{0,50}linkedin\b",
+        r"\blinkedin.{0,50}\b(opened|viewed|visited|checked|inspected)\b",
         r"\blinkedin.{0,40}\b(log\s?in|login|sign in)\b",
         r"\b(log\s?in|login|sign in)\b.{0,40}linkedin",
         r"\b(scrape|scraping|scraper|crawl|crawler|bypass)\b",
         r"\binmail\b",
-        r"\bsend.{0,30}(message|dm|email).{0,40}(candidate|profile)\b",
-        r"\bmessage.{0,40}(candidate|profile)\b",
-        r"\bcontact.{0,40}(candidate|profile)\b",
+        r"\bsend.{0,30}(message|dm|email|outreach).{0,40}(candidates?|profiles?)\b",
+        r"\bmessage.{0,40}(candidates?|profiles?)\b",
+        r"\boutreach.{0,40}(candidates?|profiles?)\b",
+        r"\bcontact.{0,40}(candidates?|profiles?)\b",
         r"\b(use|used).{0,30}(my|user|recruiter).{0,30}account\b",
         r"\bi\s+(will|can|am going to)\s+(run|execute|search|contact|message|scrape|log in)\b",
         r"\bi\s+(ran|executed|searched|contacted|messaged|scraped|logged in)\b",
@@ -296,6 +314,7 @@ def validate_agent_wording_output(
     *,
     language: str,
     allowed_numbers: set[str],
+    wording_use_case: str | None = None,
     existing_limitation_kinds: set[str] | None = None,
 ) -> tuple[dict | None, str | None]:
     if agent_wording_has_disallowed_key(llm_output):
@@ -319,6 +338,9 @@ def validate_agent_wording_output(
     limitations = normalize_agent_wording_limitations(llm_output.get("limitations"))
     if limitations is None:
         return None, "llm_output_invalid_limitations"
+
+    if wording_use_case == AGENT_WORDING_USE_CASE_AGENT_PLAN and limitations:
+        return None, "llm_output_agent_plan_limitations_not_allowed"
 
     if existing_limitation_kinds is not None:
         for limitation in limitations:
@@ -344,17 +366,80 @@ def validate_agent_wording_output(
     }, None
 
 
+def agent_wording_provenance_source(message_type: str) -> dict[str, str]:
+    if message_type == AGENT_WORDING_USE_CASE_AGENT_PLAN:
+        return {
+            "source_owner": "Agent Plan backend; bounded wording overlay",
+            "source_object": "/api/agent/plan agent_plan.message",
+        }
+    if message_type == AGENT_WORDING_USE_CASE_AGENT_RESPONSE:
+        return {
+            "source_owner": "deterministic Agent Response backend; bounded wording overlay",
+            "source_object": "approved search response agent_response.message",
+        }
+    return {
+        "source_owner": "bounded wording overlay",
+        "source_object": message_type,
+    }
+
+
+def build_agent_wording_provenance(
+    *,
+    message_type: str,
+    language: str,
+    wording_mode: str,
+    fallback_reason: str | None = None,
+    no_call_reason: str | None = None,
+    model: str | None = None,
+) -> dict[str, str]:
+    provenance = {
+        "message_type": message_type,
+        "surface": "chat",
+        **agent_wording_provenance_source(message_type),
+        "language": language,
+        "wording_mode": wording_mode,
+        "taxonomy_version": AGENT_WORDING_TAXONOMY_VERSION,
+        "facts_contract_version": AGENT_WORDING_FACTS_CONTRACT_VERSION,
+        "style_policy_version": AGENT_WORDING_STYLE_POLICY_VERSION,
+        "routing_policy_version": AGENT_WORDING_ROUTING_POLICY_VERSION,
+        "payload_contract_version": AGENT_WORDING_PAYLOAD_CONTRACT_VERSION,
+        "prompt_contract_version": AGENT_WORDING_PROMPT_CONTRACT_VERSION,
+        "prompt_version": AGENT_WORDING_PROMPT_VERSION,
+        "validator_version": AGENT_WORDING_VALIDATOR_VERSION,
+        "deterministic_builder_version": AGENT_WORDING_DETERMINISTIC_BUILDER_VERSION,
+    }
+    if fallback_reason:
+        provenance["fallback_reason"] = fallback_reason
+    if no_call_reason:
+        provenance["no_call_reason"] = no_call_reason
+    if model:
+        provenance["model"] = model
+    return provenance
+
+
 def with_agent_wording_metadata(
     value: dict,
     *,
+    message_type: str,
+    language: str,
     wording_mode: str,
     fallback_reason: str | None = None,
+    no_call_reason: str | None = None,
+    model: str | None = None,
     llm_warnings: list[str] | None = None,
 ) -> dict:
     updated_value = copy.deepcopy(value)
     updated_value["wording_mode"] = wording_mode
     updated_value["fallback_reason"] = fallback_reason
     updated_value["llm_warnings"] = llm_warnings or []
+    updated_value["wording_provenance"] = build_agent_wording_provenance(
+        message_type=message_type,
+        language=language,
+        wording_mode=wording_mode,
+        fallback_reason=fallback_reason,
+        no_call_reason=no_call_reason,
+        model=model,
+    )
     return updated_value
 
 
@@ -364,7 +449,7 @@ def agent_plan_wording_payload(
     language: str,
 ) -> dict:
     payload = {
-        "wording_use_case": "agent_plan",
+        "wording_use_case": AGENT_WORDING_USE_CASE_AGENT_PLAN,
         "language": language,
         "deterministic_message": agent_plan.get("message"),
         "normalized_brief": agent_plan.get("input_snapshot") or {},
@@ -382,7 +467,7 @@ def agent_plan_wording_payload(
 
 def agent_response_wording_payload(agent_response: dict) -> dict:
     payload = {
-        "wording_use_case": "agent_response",
+        "wording_use_case": AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
         "language": agent_response.get("language"),
         "deterministic_message": agent_response.get("message"),
         "summary_facts": agent_response.get("summary_facts") or {},
@@ -408,34 +493,48 @@ async def apply_llm_wording_to_agent_plan(
     if not agent_wording_has_openai_config():
         return with_agent_wording_metadata(
             agent_plan,
+            message_type=AGENT_WORDING_USE_CASE_AGENT_PLAN,
+            language=language,
             wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
             fallback_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+            no_call_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
         )
 
     payload = agent_plan_wording_payload(agent_plan, normalized_request, language)
+    model = normalize_text_value(os.getenv("OPENAI_MODEL") or "") or None
     llm_output, fallback_reason = await wording_runner(payload)
     if fallback_reason or llm_output is None:
         return with_agent_wording_metadata(
             agent_plan,
+            message_type=AGENT_WORDING_USE_CASE_AGENT_PLAN,
+            language=language,
             wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
             fallback_reason=fallback_reason or "openai_wording_empty_output",
+            model=model,
         )
 
     validated_output, validation_reason = validate_agent_wording_output(
         llm_output,
         language=language,
         allowed_numbers=set(payload["allowed_numbers"]),
+        wording_use_case=AGENT_WORDING_USE_CASE_AGENT_PLAN,
     )
     if validation_reason or validated_output is None:
         return with_agent_wording_metadata(
             agent_plan,
+            message_type=AGENT_WORDING_USE_CASE_AGENT_PLAN,
+            language=language,
             wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
             fallback_reason=validation_reason or "llm_output_invalid",
+            model=model,
         )
 
     updated_agent_plan = with_agent_wording_metadata(
         agent_plan,
+        message_type=AGENT_WORDING_USE_CASE_AGENT_PLAN,
+        language=language,
         wording_mode=AGENT_WORDING_MODE_LLM_ASSISTED,
+        model=model,
         llm_warnings=validated_output["warnings"],
     )
     updated_agent_plan["message"] = validated_output["message"]
@@ -447,14 +546,19 @@ async def apply_llm_wording_to_agent_response(
     *,
     wording_runner=run_openai_json_agent_wording,
 ) -> dict:
+    language = agent_response.get("language") or "en"
     if not agent_wording_has_openai_config():
         return with_agent_wording_metadata(
             agent_response,
+            message_type=AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
+            language=language,
             wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
             fallback_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+            no_call_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
         )
 
     payload = agent_response_wording_payload(agent_response)
+    model = normalize_text_value(os.getenv("OPENAI_MODEL") or "") or None
     existing_limitation_kinds = {
         str(item.get("kind"))
         for item in agent_response.get("limitations") or []
@@ -464,26 +568,36 @@ async def apply_llm_wording_to_agent_response(
     if fallback_reason or llm_output is None:
         return with_agent_wording_metadata(
             agent_response,
+            message_type=AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
+            language=language,
             wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
             fallback_reason=fallback_reason or "openai_wording_empty_output",
+            model=model,
         )
 
     validated_output, validation_reason = validate_agent_wording_output(
         llm_output,
-        language=agent_response.get("language") or "en",
+        language=language,
         allowed_numbers=set(payload["allowed_numbers"]),
+        wording_use_case=AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
         existing_limitation_kinds=existing_limitation_kinds,
     )
     if validation_reason or validated_output is None:
         return with_agent_wording_metadata(
             agent_response,
+            message_type=AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
+            language=language,
             wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
             fallback_reason=validation_reason or "llm_output_invalid",
+            model=model,
         )
 
     updated_agent_response = with_agent_wording_metadata(
         agent_response,
+        message_type=AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
+        language=language,
         wording_mode=AGENT_WORDING_MODE_LLM_ASSISTED,
+        model=model,
         llm_warnings=validated_output["warnings"],
     )
     updated_agent_response["message"] = validated_output["message"]
