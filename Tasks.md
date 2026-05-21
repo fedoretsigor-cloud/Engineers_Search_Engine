@@ -10838,6 +10838,11 @@ Run `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision` after reviewing w
 - [ ] P8-004 Add shortlist, notes, and statuses
 - [ ] P8-005 Add candidate-level agent explanations
 - [ ] P8-006 Prepare export workflow
+- [ ] P8-007 Add bounded LLM onboarding wording overlay
+- [ ] P8-008 Add off-topic and unclear input guardrails before Search Brief extraction
+- [ ] P8-009 Define conservative off-topic and unclear/noise classification policy
+- [ ] P8-010 Apply Russian answers to pending clarification fields
+- [ ] P8-011 Localize next iteration options in Agent Response
 
 ### In Progress
 
@@ -10850,6 +10855,607 @@ Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the r
 Phase 8 should start with `P8-001 Define candidate workspace contract`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Candidate workspace/table implementation should not start until its contract task is reviewed and approved.
+
+---
+
+## Task: P8-007 Add bounded LLM onboarding wording overlay
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+The current recruiter chat handles greeting-only and near-empty turns deterministically. This is safe, but repeated greetings can return the same cold onboarding text, for example:
+
+`Привет. Расскажи, кого ищем: роль, основная технология, локация и 1-3 сигнала стека.`
+
+The desired direction is a more natural AI Agent conversation where the backend still owns meaning, state, safety, and tool boundaries, while the LLM can make the surface wording warmer and less repetitive.
+
+### Goal
+
+Add a bounded LLM wording overlay for the `onboarding` / greeting-only message type.
+
+The LLM may improve only the human-facing wording. It must not decide Search Brief state, missing fields, readiness, Agent Plan, QueryPlan, approval, execution, results, filters, scoring, location logic, or candidate facts.
+
+### Proposed Steps
+
+1. Preserve the deterministic backend decision path:
+   - safety/prohibited-intent detection still runs before onboarding;
+   - backend still decides when a turn is `onboarding`;
+   - backend still decides language, required fields, current Search Brief state, and whether an existing draft brief must be preserved.
+
+2. Define a bounded onboarding wording payload:
+   - `message_type = onboarding`;
+   - `language`;
+   - session-only greeting count derived from current chat messages;
+   - whether a current/draft Search Brief exists;
+   - backend-selected required fields: role, technology, location, and 1-3 stack signals;
+   - allowed meaning: greet or re-greet the recruiter and ask for the required search inputs;
+   - forbidden claims: no search started, no results exist, no LinkedIn opening, no candidate messaging, no autonomous execution, no approval bypass.
+
+3. Add LLM wording only as an overlay:
+   - accepted LLM output may replace only the assistant onboarding message text and wording provenance metadata;
+   - it must not change normalized brief values, missing fields, readiness, actions, fingerprints, approvals, QueryPlan, results, or any backend-owned facts.
+
+4. Add deterministic fallback:
+   - if OpenAI config is missing, the call fails, JSON is invalid, validation fails, or the wording crosses boundaries, return the current deterministic onboarding text;
+   - fallback must preserve existing behavior and not create a blocker for recruiter chat.
+
+5. Keep the state session-only:
+   - do not add database, memory, saved sessions, or persistent personalization;
+   - repeated-greeting variation should be derived only from the current request/chat history.
+
+6. Add no-network regression coverage:
+   - first RU/EN greeting can use deterministic fallback;
+   - repeated RU/EN greeting can accept a mocked warmer LLM wording;
+   - existing draft brief is preserved after greeting;
+   - safety/prohibited requests still refuse before onboarding/LLM wording;
+   - invalid LLM output falls back deterministically;
+   - LLM output cannot claim search/results/approval/LinkedIn/account actions.
+
+7. Add a small browser sanity check after coding:
+   - repeated `привет` does not show identical robotic wording when LLM wording succeeds;
+   - the UI still asks for role, technology, location, and stack;
+   - no Search Brief, Agent Plan, QueryPlan, or approval state is fabricated by the greeting.
+
+### Critical Review Notes
+
+- This task should move the product toward a real AI Agent experience, but only at the wording layer.
+- Backend remains source of truth. LLM is not allowed to infer or mutate product state.
+- The task must not reopen Phase 7.5 or weaken the Phase 8 handoff.
+- `P8-001 Define candidate workspace contract` remains the contract-first Phase 8 task. This task is a separate chat-quality improvement that can be reviewed and implemented independently.
+- The scope should stay narrow: onboarding/greeting only. Clarification, brief summary, planner explanation, result analysis, and candidate workspace wording require separate reviewed tasks.
+
+### Acceptance Criteria
+
+- The task defines a bounded LLM onboarding wording payload.
+- The LLM can vary/warm up greeting-only onboarding text without changing backend facts or actions.
+- Deterministic fallback is preserved.
+- Session-only greeting variation is used; no persistence or memory is added.
+- Safety refusal still wins before onboarding.
+- Existing draft/current Search Brief state is preserved on greeting-only turns.
+- Tests cover accepted wording, fallback, and boundary rejection.
+- No Tavily execution, direct web search, LinkedIn access, candidate messaging, account action, autonomous execution, or candidate workspace behavior is added.
+
+### Non-Goals
+
+- Do not implement candidate workspace/table behavior.
+- Do not change Search Brief extraction, validation, readiness, or refinement semantics.
+- Do not change Agent Plan, QueryPlan, approval, runtime execution, Tavily, scoring, filters, dedupe, location logic, Candidate Quality, snapshots, or results.
+- Do not add persistence, memory, personalization, saved searches, or sessions.
+- Do not enable broad free-form LLM chat behavior.
+- Do not let LLM decide whether to search or what action is available.
+- Do not change clarification/result/candidate wording in this task.
+
+### Before Coding
+
+Codex must critically review this task against the Phase 7 message facts/wording contracts, current `app/recruiter_chat.py`, `app/agent_wording.py`, frontend chat rendering, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-008 Add off-topic and unclear input guardrails before Search Brief extraction
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Current recruiter chat can over-interpret meaningless, unintelligible, or clearly non-sourcing natural-language input as a partial sourcing request.
+
+Examples observed in the UI:
+
+- recruiter input: `долрлрлрлрлрл`
+- current response: `В какой локации ищем кандидатов?`
+- recruiter input: `какая погода?`
+- current response: `В какой локации ищем кандидатов?`
+
+This is wrong because neither input contains a clear sourcing intent, role, technology, stack, or location. The agent should not pretend it understood enough to ask a field-specific clarification.
+
+Expected behavior for unclear/noise input:
+
+`Не понял запрос. Я могу помочь с поиском кандидатов: напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека.`
+
+Expected behavior for clearly non-sourcing natural-language input:
+
+`Похоже, это не про поиск кандидатов. Я могу помочь с sourcing: напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека.`
+
+The response should not be a hard domain-specific refusal such as `я не работаю с погодой`. It should be a soft generic redirect back to the candidate-search workflow.
+
+### Goal
+
+Add deterministic off-topic and unclear/noise input guardrails before Search Brief extraction and before LLM wording.
+
+The agent should distinguish:
+
+- valid incomplete sourcing request -> ask the specific missing field;
+- greeting/near-empty message -> onboarding;
+- clearly non-sourcing natural-language message -> soft generic redirect to sourcing;
+- unintelligible/noise message -> say it did not understand and ask the recruiter to describe the sourcing task.
+
+### Proposed Steps
+
+1. Define the unclear/noise category:
+   - meaningless repeated characters;
+   - keyboard mash / random letters;
+   - no recognizable recruiter intent;
+   - no supported role, technology, stack, location, or sourcing action signal;
+   - not a normal greeting and not a prohibited request.
+
+2. Add deterministic detection before LLM extraction:
+   - safety/prohibited-intent refusal remains first;
+   - reset/meta handling keeps its existing priority;
+   - greeting/near-empty handling remains separate;
+   - clearly non-sourcing natural-language input should be redirected softly before Search Brief extraction;
+   - unclear/noise detection should run before Search Brief extraction so the backend does not ask a fake missing-field question.
+
+3. Return bounded responses:
+   - for `unclear_request`, say the request was not understood and ask for the sourcing task;
+   - for `off_topic_redirect`, say it does not look like candidate search and ask for the sourcing task;
+   - Russian input: `Не понял запрос. Я могу помочь с поиском кандидатов: напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека.`
+   - English input: `I did not understand the request. I can help with candidate search: tell me the role, main technology, location, and 1-3 stack signals.`
+   - Russian off-topic: `Похоже, это не про поиск кандидатов. Я могу помочь с sourcing: напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека.`
+   - English off-topic: `This does not look like candidate search. I can help with sourcing: tell me the role, main technology, location, and 1-3 stack signals.`
+   - do not say the agent cannot do a specific outside topic such as weather, currency, news, or general advice unless a later reviewed policy asks for that wording;
+   - do not create or mutate Search Brief;
+   - do not create Agent Plan;
+   - keep Build Plan and approval disabled.
+
+4. Preserve existing valid incomplete-request behavior:
+   - `Backend Developer Java Spring` may still ask for location;
+   - `Spring Kafka Ukraine` may still ask for role/technology when appropriate;
+   - a valid partial sourcing request should not be classified as noise just because it is incomplete.
+
+5. Add regression coverage:
+   - RU gibberish input returns unclear/noise response and no Search Brief mutation;
+   - EN gibberish input returns unclear/noise response and no Search Brief mutation;
+   - RU weather/currency-style off-topic input returns soft generic sourcing redirect and no Search Brief mutation;
+   - EN weather/currency-style off-topic input returns soft generic sourcing redirect and no Search Brief mutation;
+   - recruiting-related currency/salary wording is not routed by keyword alone; if the message has candidate/recruiting context, handle it through sourcing-context rules or an unsupported-constraint clarification instead of a generic off-topic redirect;
+   - valid incomplete sourcing request still asks a specific missing field;
+   - safety/prohibited request still refuses before unclear/noise;
+   - greeting still routes to onboarding;
+   - off-topic still redirects without Search Brief mutation.
+
+6. Add browser sanity check after coding:
+   - send gibberish like `долрлрлрлрлрл`;
+   - verify the visible response says the agent did not understand and asks for the sourcing task;
+   - send clearly non-sourcing text like `какая погода?`;
+   - verify the visible response softly redirects to candidate search without a hard topic-specific refusal;
+   - verify no Search Brief/Agent Plan/QueryPlan/approval state is created.
+
+### Critical Review Notes
+
+- This should be deterministic guardrail logic, not an LLM creativity task.
+- It should run before the LLM can over-infer a partial brief.
+- Off-topic wording should be generic and soft. Do not hardcode a harsh refusal like `I do not handle weather/currency`.
+- Do not classify by a single keyword when there is recruiter context. For example, `какой курс доллара учитывать для зарплаты кандидата?` is not the same as `какой курс доллара?`.
+- Do not make the classifier too aggressive: real recruiter typos and noisy job descriptions should still be handled by existing typo/noisy-input logic.
+- The goal is to prevent fake confidence, not to reject incomplete but meaningful sourcing requests.
+
+### Acceptance Criteria
+
+- Unintelligible/noise input no longer becomes a field-specific clarification.
+- Clearly non-sourcing natural-language input no longer becomes a field-specific clarification.
+- The response tells the recruiter the request was not understood and asks for a proper sourcing task.
+- Off-topic response is a soft generic redirect, not a hard topic-specific refusal.
+- No Search Brief, Agent Plan, QueryPlan, approval, search, result, or candidate state is created from noise.
+- No Search Brief, Agent Plan, QueryPlan, approval, search, result, or candidate state is created from clearly non-sourcing off-topic input.
+- Valid incomplete sourcing requests still work.
+- Recruiting-related context is not rejected as off-topic by keyword alone.
+- Safety, greeting, reset/meta, and off-topic priorities remain intact.
+- No Tavily execution, direct web search, LinkedIn behavior, account action, autonomous execution, persistence, memory, or candidate workspace behavior is added.
+
+### Non-Goals
+
+- Do not implement candidate workspace/table behavior.
+- Do not add LLM wording overlay in this task.
+- Do not change Search Brief semantics for valid sourcing input.
+- Do not change planner, QueryPlan, approval, runtime execution, Tavily, scoring, filters, dedupe, location logic, Candidate Quality, snapshots, or results.
+- Do not add persistence or memory.
+
+### Before Coding
+
+Codex must critically review this task against current recruiter chat routing, Phase 7 message taxonomy/facts contracts, P7.5 QA findings, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-009 Define conservative off-topic and unclear/noise classification policy
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Before implementing the guardrail, the project needs a precise policy for deciding when user input is clearly non-sourcing off-topic, truly unclear/noise, or a valid but incomplete sourcing request.
+
+The risk is false confidence:
+
+- bad: `долрлрлрлрлрл` becomes `В какой локации ищем кандидатов?`;
+- correct: `долрлрлрлрлрл` becomes `Не понял запрос. Я могу помочь с поиском кандидатов...`;
+- bad: `какая погода?` becomes `В какой локации ищем кандидатов?`;
+- correct: `какая погода?` becomes a soft generic redirect back to candidate search;
+- also correct: `Java Spring Ukraine` is not noise, because it contains sourcing signals and should get a targeted clarification.
+- also correct: `какой курс доллара учитывать для зарплаты кандидата?` should not be routed as off-topic by the words `курс доллара` alone, because it has recruiter/candidate context.
+
+### Goal
+
+Define a conservative deterministic classification policy for `off_topic_redirect` and `unclear_request` / noise input.
+
+The policy should make it hard to classify meaningful recruiter input as off-topic/noise, while preventing keyboard mash, unintelligible text, or clearly non-sourcing natural-language questions from becoming a fake Search Brief.
+
+### Proposed Policy
+
+Treat input as `off_topic_redirect` only when all of these are true:
+
+1. The text is understandable natural language.
+
+2. No sourcing or recruiter-context signals are present:
+   - no supported or close role signal;
+   - no supported technology signal;
+   - no supported stack signal;
+   - no supported location signal;
+   - no sourcing action signal such as `найди`, `ищем`, `search`, `looking for`, `hire`, `sourcing`;
+   - no candidate, vacancy, salary, compensation, hiring, recruiter, or search-process context.
+
+3. The request is clearly outside candidate sourcing:
+   - weather;
+   - currency rate;
+   - news/current affairs;
+   - restaurant recommendations;
+   - poems/general entertainment;
+   - general advice unrelated to sourcing.
+
+4. The response should be a soft generic redirect to sourcing, not a hard refusal for the specific topic.
+
+Do not classify by a single keyword when recruiter context is present. For example, `какой курс доллара?` can be off-topic, but `какой курс доллара учитывать для зарплаты кандидата?` has candidate/compensation context and should route through sourcing-context or unsupported-constraint handling instead.
+
+Treat input as `unclear_request` only when all of these are true:
+
+1. No sourcing signals are present:
+   - no supported or close role signal;
+   - no supported technology signal;
+   - no supported stack signal;
+   - no supported location signal;
+   - no sourcing action signal such as `найди`, `ищем`, `search`, `looking for`, `hire`, `sourcing`.
+
+2. The text is not a known higher-priority route:
+   - not safety/prohibited intent;
+   - not reset/meta command;
+   - not greeting or near-empty onboarding;
+   - not clearly non-sourcing natural-language request.
+
+3. The text has one or more noise-like signals:
+   - repeated alternating character pattern, for example `лрлрлрлр`;
+   - keyboard mash / random letters;
+   - very low word quality for the detected script;
+   - no recognizable normal words after normalization;
+   - abnormal consonant-heavy or vowel-poor token shape for the script.
+
+### Routing Order
+
+The intended routing order should be:
+
+1. safety/prohibited request -> safety refusal;
+2. reset/meta command -> reset/meta behavior;
+3. greeting/near-empty -> onboarding;
+4. clearly non-sourcing natural-language request with no recruiter context -> soft `off_topic_redirect`;
+5. any sourcing or recruiter-context signal -> normal Search Brief extraction, targeted clarification, or unsupported-constraint clarification;
+6. noise-like with no sourcing signal -> `unclear_request`;
+7. otherwise -> conservative generic sourcing redirect without Search Brief mutation.
+
+### Expected Responses
+
+For `unclear_request`.
+
+Russian:
+
+`Не понял запрос. Я могу помочь с поиском кандидатов: напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека.`
+
+English:
+
+`I did not understand the request. I can help with candidate search: tell me the role, main technology, location, and 1-3 stack signals.`
+
+For `off_topic_redirect`.
+
+Russian:
+
+`Похоже, это не про поиск кандидатов. Я могу помочь с sourcing: напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека.`
+
+English:
+
+`This does not look like candidate search. I can help with sourcing: tell me the role, main technology, location, and 1-3 stack signals.`
+
+Do not hardcode topic-specific refusal wording such as `я не работаю с погодой` or `I do not handle currency rates`.
+
+### LLM Boundary
+
+LLM must not decide whether input is off-topic or noise.
+
+Allowed future shape:
+
+`deterministic classifier -> message_type = unclear_request/off_topic_redirect -> optional bounded LLM wording overlay`
+
+Forbidden shape:
+
+`raw off-topic/unclear/noise input -> LLM decides what the recruiter meant`
+
+Reason: off-topic and unclear/noise input are exactly where LLM over-inference is risky. The safe behavior is to redirect softly or admit uncertainty and ask the recruiter to restate the sourcing task.
+
+### Test Matrix
+
+Must classify as `unclear_request`:
+
+- `долрлрлрлрлрл`;
+- `asdfasdfasdf`;
+- `лрлрлрлр`;
+- random long text with no known words or sourcing signals.
+
+Must not classify as noise:
+
+- `привет` -> onboarding;
+- `hello` -> onboarding;
+- `Java Spring Ukraine` -> targeted clarification;
+- `Backend Developer Java` -> targeted clarification;
+- `зайди в LinkedIn` -> safety refusal;
+- noisy but meaningful job description with role/tech/location/stack signals -> normal extraction / clarification.
+
+Must classify as `off_topic_redirect`:
+
+- `какая погода?`;
+- `какой курс доллара?`;
+- `what is the weather?`;
+- `write a poem`;
+- `recommend a restaurant`.
+
+Must not classify as off-topic solely by keyword:
+
+- `какой курс доллара учитывать для зарплаты кандидата?` -> recruiter/candidate context; use sourcing-context or unsupported-constraint handling;
+- `какая погода в Киеве для релокации кандидата?` -> recruiter/candidate context; ask a relevant clarification or explain supported sourcing scope without creating a fake Search Brief.
+
+### Acceptance Criteria
+
+- The policy defines required positive off-topic and noise conditions and required absence of sourcing/recruiter-context signals.
+- The policy preserves higher-priority safety/greeting/off-topic/reset routes.
+- The policy protects valid incomplete sourcing requests from being rejected as noise.
+- The policy protects recruiter-context questions from being rejected as off-topic by keyword alone.
+- The policy explicitly forbids LLM-based classification for off-topic/noise detection.
+- `P8-008` can implement the guardrail against this policy after separate coding approval.
+
+### Non-Goals
+
+- Do not implement code in this task.
+- Do not add LLM wording overlay in this task.
+- Do not change Search Brief extraction, planner, approval, runtime, Tavily, scoring, filters, dedupe, location logic, Candidate Quality, snapshots, results, persistence, memory, or candidate workspace behavior.
+
+### Before Implementation
+
+Codex must critically review this policy against current recruiter chat routing, Phase 7 message taxonomy/facts contracts, P7.5 QA findings, and absolute product boundaries. The user must approve the policy before it is used for coding.
+
+---
+
+## Task: P8-010 Apply Russian answers to pending clarification fields
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Current recruiter chat can fail to apply a short Russian answer to the clarification question it just asked.
+
+Observed flow:
+
+1. Recruiter: `найди программиста в Киеве Джава`
+2. Agent: `Какие Java stack сигналы важны: Spring, Kafka, AWS, Hibernate или что-то другое?`
+3. Recruiter: `Спринг`
+4. Current behavior: agent repeats the same stack clarification question.
+
+Expected behavior:
+
+- The agent should understand that `Спринг` answers the pending stack clarification.
+- It should normalize `Спринг` to `Spring`.
+- It should update the Search Brief to include `stack = Spring`.
+- It should not repeat the same question.
+
+Same expected behavior for Russian stack aliases such as `кафка` -> `Kafka`.
+
+### Goal
+
+Teach the chat flow to apply short Russian answers to the pending clarification field, starting with Java stack answers.
+
+This is dialogue-state routing, not free-form LLM guessing. It should use the current pending clarification context from the visible/current chat state.
+
+### Proposed Steps
+
+1. Detect pending clarification context:
+   - identify when the current backend state is waiting for a specific missing field;
+   - first scope: missing `stack` for the current Java/Ukraine flow;
+   - derive this from current request/chat state, not database or persistent memory.
+
+2. Add Russian stack answer normalization for pending stack clarification:
+   - `спринг` -> `Spring`;
+   - `спринг бут` / `spring boot` -> `Spring` or `Spring Boot` according to current allowed stack normalization;
+   - `кафка` -> `Kafka`;
+   - `докер` -> `Docker`;
+   - `кубернетес` -> `Kubernetes`;
+   - `кубер` -> `Kubernetes`;
+   - `хайбернейт` -> `Hibernate`;
+   - `авс` / `aws` -> `AWS`.
+
+3. Apply the answer only when context supports it:
+   - if the agent just asked for stack and the recruiter answers `Спринг`, apply it as stack;
+   - if the agent just asked for stack and the recruiter answers `кафка`, apply it as stack;
+   - do not build a complete Search Brief from a single stack word when there is no current/pending clarification context.
+
+4. Preserve safe behavior without pending context:
+   - clean chat input `кафка` should not create a fake ready Search Brief;
+   - if partial-slot state is supported, it may record stack as partial and ask for role/technology/location;
+   - if partial-slot state is not supported yet, ask the recruiter to provide role, technology, location, and stack in one request.
+
+5. Avoid repeating the same question:
+   - after applying the pending stack answer, recompute Search Brief validation;
+   - if the brief is ready, show ready summary and allow the normal Agent Plan / Build Plan flow;
+   - if another field is missing, ask the next specific missing-field question.
+
+6. Add regression coverage:
+   - RU flow `найди программиста в Киеве Джава` -> asks stack -> `Спринг` -> ready or next correct clarification, not repeated stack question;
+   - same with `кафка`;
+   - same with `докер` / `кубер`;
+   - clean-state `кафка` does not create ready Search Brief;
+   - invalid answer to pending stack does not invent stack and asks a useful clarification;
+   - safety/prohibited input still wins over pending clarification handling.
+
+7. Add browser sanity check after coding:
+   - reproduce the observed `Спринг` case;
+   - reproduce the `кафка` case;
+   - verify the visible chat does not repeat the same stack question;
+   - verify no search executes without explicit approval.
+
+### Critical Review Notes
+
+- This task is about dialogue continuity: short answers should be interpreted relative to the last backend-selected clarification question.
+- Do not use LLM to guess arbitrary one-word meanings without pending context.
+- Keep the first implementation narrow to Java stack aliases in Russian/English/translit.
+- Do not broaden supported roles/countries/search sources.
+- Do not add persistence or long-term memory.
+
+### Acceptance Criteria
+
+- `Спринг` answers a pending stack clarification as `Spring`.
+- `кафка` answers a pending stack clarification as `Kafka`.
+- Supported Russian/translit stack aliases normalize correctly in pending stack context.
+- The agent does not repeat the same stack question after receiving a valid stack answer.
+- A single stack word without pending context does not create a fake ready Search Brief.
+- Existing safety/off-topic/unclear guardrails keep priority.
+- No Tavily execution, direct web search, LinkedIn behavior, account action, autonomous execution, persistence, memory, or candidate workspace behavior is added.
+
+### Non-Goals
+
+- Do not implement candidate workspace/table behavior.
+- Do not change planner, QueryPlan, approval, runtime execution, Tavily, scoring, filters, dedupe, location logic, Candidate Quality, snapshots, or results.
+- Do not add broad multilingual NLU.
+- Do not make LLM the source of truth for field extraction.
+- Do not add database or persistent memory.
+
+### Before Coding
+
+Codex must critically review this task against current Search Brief validation, recruiter chat routing, stack normalization config, Phase 7 message facts contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-011 Localize next iteration options in Agent Response
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+The main `agent_response.message` can be localized to Russian, but the structured `next_iteration_options` block remains partly English.
+
+Observed UI:
+
+- main Agent Response text is Russian;
+- frontend block heading is English: `NEXT ITERATION OPTIONS`;
+- frontend helper text is English: `Not executable. Write a follow-up in chat if you want to change the Search Brief.`;
+- backend option labels/reasons are English:
+  - `Review high-quality candidates first`;
+  - `Try deep search depth`;
+  - `17 candidates are in the strong quality bucket...`;
+  - `The current Search Brief uses standard depth...`.
+
+This creates a mixed-language Agent Response and makes the product feel unfinished for Russian recruiter flow.
+
+### Goal
+
+Localize `agent_response.next_iteration_options` and its frontend wrapper text according to the current Agent Response language.
+
+This is a deterministic localization task. It must not make `next_iteration_options` executable, LLM-generated, selected, auto-applied, or state-changing.
+
+### Proposed Steps
+
+1. Localize backend next-iteration option copy:
+   - pass `language` into `agent_response_next_iteration_options`;
+   - update helper copy functions in `app/agent_messages.py` or equivalent to return RU/EN labels and reasons;
+   - keep option IDs and `proposed_brief_patch` unchanged.
+
+2. Localize frontend wrapper text:
+   - `Next iteration options` / `NEXT ITERATION OPTIONS`;
+   - `Not executable. Write a follow-up in chat if you want to change the Search Brief.`;
+   - fallback to English when language is missing/unsupported.
+
+3. Preserve inert rendering:
+   - no Apply buttons;
+   - no direct action execution;
+   - no automatic Search Brief mutation;
+   - no Build Plan / Tavily / runtime call from option rendering.
+
+4. Preserve LLM boundary:
+   - `next_iteration_options` remain deterministic-only;
+   - LLM wording overlay must not add, remove, reorder, select, mutate, or translate options unless a later reviewed task changes that contract.
+
+5. Add regression coverage:
+   - RU Agent Response produces RU option labels/reasons and RU frontend wrapper text;
+   - EN Agent Response keeps EN option labels/reasons and EN wrapper text;
+   - option IDs, proposed brief patches, `is_executable_now`, and `requires_approval_before_execution` remain unchanged;
+   - frontend still renders options as inert text only.
+
+6. Add browser sanity check after coding:
+   - run or reuse an approved-results state with Russian chat language;
+   - verify the Agent Response and `next_iteration_options` block are consistently Russian;
+   - verify no option has an Apply button or executes anything.
+
+### Critical Review Notes
+
+- This is not an LLM task. It is deterministic RU/EN copy selection.
+- This should not change the semantics of `next_iteration_options`.
+- The current Phase 7 contracts say `next_iteration_options` are deterministic-only and inert; this task must preserve that.
+- The task should not change candidate counts, quality logic, ranking, filters, dedupe, location logic, search execution, or approval.
+
+### Acceptance Criteria
+
+- Russian Agent Response renders the next-iteration block in Russian.
+- English Agent Response renders the next-iteration block in English.
+- Backend labels and reasons are localized by language.
+- Frontend heading/helper text are localized by language.
+- Option IDs and proposed patch payloads are unchanged.
+- Options remain inert, non-executable, and not auto-applied.
+- No Tavily execution, direct web search, LinkedIn behavior, account action, autonomous execution, persistence, memory, or candidate workspace behavior is added.
+
+### Non-Goals
+
+- Do not implement candidate workspace/table behavior.
+- Do not add LLM generation/translation for `next_iteration_options`.
+- Do not change Agent Response facts, counts, quality notes, limitations, suggested actions, candidates, filters, scoring, dedupe, location logic, QueryPlan, approval, runtime, Tavily, snapshots, or results.
+- Do not add Apply buttons or executable next actions.
+- Do not add persistence or memory.
+
+### Before Coding
+
+Codex must critically review this task against `app/agent_response.py`, `app/agent_messages.py`, `app/static/app.js`, Phase 7 message facts/wording contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
 
 ---
 
