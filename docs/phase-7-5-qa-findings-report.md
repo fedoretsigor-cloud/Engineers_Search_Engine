@@ -2,15 +2,18 @@
 
 Task: `P7.5-006 Create recruiter simulation QA findings report`
 
-Status: completed as an initial RU findings report
+Status: completed as an initial RU findings report; updated with P7.5-005 EN/mixed QA addendum
 
-Source evidence: `docs/phase-7-5-ru-browser-qa-results.md`
+Source evidence:
+
+- `docs/phase-7-5-ru-browser-qa-results.md`
+- `docs/phase-7-5-en-browser-qa-results.md`
 
 ## Scope
 
-This report consolidates the completed `P7.5-004` Russian browser QA pass.
+This report originally consolidated the completed `P7.5-004` Russian browser QA pass early because the RU pass found product-blocking issues before EN/mixed QA.
 
-The English/mixed pass `P7.5-005` has not run yet. The RU pass found product-blocking issues in the current flow, so this report intentionally consolidates RU findings early instead of waiting for EN QA. The next decision should be whether to fix and retest these blockers before spending more QA time on EN/mixed scenarios.
+After `P7.5-007`/`P7.5-008`/`P7.5-009`, the approved current-flow fixes and no-network regression coverage were completed. The English/mixed pass `P7.5-005` has now also completed; its raw evidence is in `docs/phase-7-5-en-browser-qa-results.md`.
 
 No code changes are included in this task.
 
@@ -39,13 +42,44 @@ Finding IDs:
 - `P75-QA-006`
 - `P75-QA-007`
 
+## EN/Mixed QA Addendum After P7.5-005
+
+| Metric | Count |
+| --- | ---: |
+| assigned scenarios | 57 |
+| run scenarios | 57 |
+| pass | 37 |
+| fail | 20 |
+| blocked | 0 |
+| not_run | 0 |
+| needs_retest | 0 |
+| live Tavily budget used | 1 |
+| critical finding groups | 1 |
+| high finding groups | 3 |
+| medium finding groups | 3 |
+| low finding groups | 0 |
+
+`CORE-EN-001` completed the visible approved UI flow end to end with one single-wave Tavily-backed execution through `Approve & Search`. Visible LinkedIn result links were not opened.
+
+New EN/mixed finding IDs:
+
+- `P75-QA-008` - schema/validation error leaks instead of useful clarification;
+- `P75-QA-009` - post-results follow-up routed as brief update;
+- `P75-QA-010` - EN prohibited requests not always refused;
+- `P75-QA-011` - off-topic prompts mutate Search Brief;
+- `P75-QA-012` - incomplete/ambiguous/contradictory prompts over-inferred;
+- `P75-QA-013` - meta/reset-like turns treated as ordinary brief updates;
+- `P75-QA-014` - typo robustness gap in plan-boundary flow.
+
 ## Main Conclusion
 
 Phase 7.5 is already useful: it found real current-flow blockers, not cosmetic issues.
 
 The system is not ready to move directly into Phase 8. The narrow Java/Ukraine Agent flow needs a focused hardening pass first.
 
-The highest priority is not candidate table work. The highest priority is restoring the approved search path and closing safety/classification gaps in the current recruiter conversation.
+The original highest priority was restoring the approved search path and closing RU safety/classification gaps. Those fixes were implemented and regression-covered in P7.5-008/P7.5-009, and EN QA confirms the approved search path now works end to end for `CORE-EN-001`.
+
+The remaining Phase 7.5 decision is whether to fix the newly observed EN/mixed blockers before Phase 8, or close Phase 7.5 as `ready after approved fixes` with a precise approved fix list.
 
 ## Root Cause Group 1: Runtime Approval Is Not Prepared After Build Plan
 
@@ -182,24 +216,12 @@ This means the next step should be focused hardening, not a full rewrite.
 
 ## Recommended Next Sequence
 
-1. Run `P7.5-007 Review and approve current-flow fixes`.
-2. Approve a small fix set, in this order:
-   - runtime approval preparation after Build Plan;
-   - RU prohibited-intent guardrail gaps;
-   - clean-state initial-vs-refinement classification.
-3. Implement the approved fixes in `P7.5-008`.
-4. Add regression coverage in `P7.5-009`.
-5. Retest the failed/blocked RU scenarios:
-   - `CORE-RU-001`
-   - `CORE-RU-002`
-   - `NOISE-RU-004`
-   - `SAFE-RU-003`
-   - `SAFE-RU-005`
-   - `SAFE-RU-007`
-   - `FLOW-RU-004`
-   - `FLOW-RU-005`
-6. Run `P7.5-005` EN/mixed QA after the core approved-search path is restored.
-7. Close Phase 7.5 only after the readiness decision is explicit.
+1. Completed: `P7.5-007 Review and approve current-flow fixes`.
+2. Completed: `P7.5-008 Implement approved critical current-flow fixes`.
+3. Completed: `P7.5-009 Add regression coverage for fixed issues`.
+4. Completed: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
+5. Next: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
+6. In P7.5-010, consolidate RU and EN/mixed evidence together and decide whether the EN/mixed findings require an approved hardening task before Phase 8.
 
 ## Phase 8 Readiness
 
@@ -207,11 +229,13 @@ Current decision: not ready yet.
 
 Reason:
 
-- The core approved search path cannot currently complete from the browser UI.
-- Several RU safety requests are not refused correctly.
-- Some realistic RU initial requests are incorrectly treated as blocked refinements.
+- The core approved search path now completes from the browser UI for `CORE-EN-001`, but EN/mixed QA exposed additional blockers.
+- Several EN prohibited requests are still not refused correctly.
+- Off-topic and reset/meta turns can mutate or preserve Search Brief state incorrectly.
+- Some incomplete, ambiguous, or contradictory prompts are over-inferred instead of clarified.
+- Supported/near-supported inputs can leak schema validation errors instead of producing useful clarification.
 
 Expected readiness path:
 
-- `ready after approved fixes`, if the focused P7.5 fix/retest pass resolves the blockers without introducing new boundary regressions.
+- `P7.5-010` should choose between `ready after approved fixes` with a focused EN/mixed hardening task, or `not ready` if the remaining failures are judged to block Phase 8.
 

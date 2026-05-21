@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-006` initial QA findings report, `P7.5-007` current-flow fixes decision, `P7.5-008` implementation, and `P7.5-009` regression coverage. Next task is `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU QA findings report, `P7.5-007` current-flow fixes decision, `P7.5-008` implementation, and `P7.5-009` regression coverage. Next task is `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
 
 ---
 
@@ -9166,9 +9166,9 @@ Created `docs/phase-7-closeout.md` with:
 
 Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so Phase 7 is completed and Phase 8 `Candidate Workspace/Table + Shortlist` was identified as the next product direction.
 
-Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report.
+Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU findings report, `P7.5-007` current-flow fix review, `P7.5-008` implementation, and `P7.5-009` regression coverage.
 
-Next task: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
+Next task: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
 
 Verification:
 
@@ -9185,7 +9185,6 @@ Verification:
 
 ### Backlog
 
-- [ ] P7.5-005 Run EN browser QA with approved Tavily execution when needed
 - [ ] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
 
 ### In Progress
@@ -9197,6 +9196,7 @@ None.
 - [x] P7.5-002 Define RU/EN recruiter simulation scenarios
 - [x] P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed
 - [x] P7.5-004 Run RU browser QA with approved Tavily execution when needed
+- [x] P7.5-005 Run EN browser QA with approved Tavily execution when needed
 - [x] P7.5-006 Create recruiter simulation QA findings report
 - [x] P7.5-007 Review and approve current-flow fixes
 - [x] P7.5-008 Implement approved critical current-flow fixes
@@ -9214,7 +9214,7 @@ Carryover for `P7.5-003`: the safe browser QA checklist must explicitly say Tavi
 
 QA must cover both Russian and English recruiter communication. Findings must first be documented in a QA report; fixes require separate review and approval before implementation.
 
-P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-005 should wait until the approved-search blocker is reviewed and fixed, unless the user explicitly chooses to run EN/mixed QA against the known broken state.
+P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. Next step is P7.5-010 readiness consolidation, including the EN/mixed findings `P75-QA-008` through `P75-QA-014`.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
 
@@ -9310,7 +9310,9 @@ Final review decision: P7.5-002 is ready/closed. Remaining work belongs to `P7.5
 
 ### Next Step
 
-Next task: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
+At the time, the next task was `P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed`.
+
+Later Phase 7.5 status: `P7.5-004`, `P7.5-005`, `P7.5-006`, `P7.5-007`, `P7.5-008`, and `P7.5-009` are completed. Current next task is `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
 
 ---
 
@@ -9793,17 +9795,317 @@ The finalized task steps were reviewed with the user before execution. The user 
 
 ---
 
+## Task: P7.5-005 Run EN browser QA with approved Tavily execution when needed
+
+### Status
+
+Completed as raw browser QA evidence.
+
+The EN/mixed browser QA pass was executed after the P7.5-008/P7.5-009 current-flow fixes. Results are recorded in `docs/phase-7-5-en-browser-qa-results.md`.
+
+### Context
+
+`P7.5-004` completed the RU-owned browser QA pass and `P7.5-006` consolidated the first RU findings early because the approved-search path was blocked. `P7.5-007` reviewed the current-flow fixes, `P7.5-008` implemented them, and `P7.5-009` added no-network regression coverage for the fixed current-flow issues.
+
+`P7.5-005` was the remaining EN/mixed/other browser QA pass for Phase 7.5. It verified the same product flow after the approved-search and safety/classification fixes:
+
+`recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> explicit Approve & Search -> approved Tavily-backed results`
+
+The task is QA evidence collection, not implementation. Findings should be recorded first; any fixes require separate review and approval.
+
+### Goal
+
+Run the EN/mixed/other Phase 7.5 browser QA checklist against the current local application as a live recruiter would use it.
+
+The task should cover all `57` P7.5-005-owned scenarios from `docs/phase-7-5-browser-qa-checklist.md`, record raw observed behavior, and produce a raw QA results document for later consolidation / readiness decision.
+
+### Source Documents
+
+- `docs/phase-7-5-browser-qa-checklist.md`
+- `docs/phase-7-5-recruiter-simulation-scenarios.md`
+- `docs/phase-7-5-qa-findings-report.md`
+- `docs/phase-7-5-ru-browser-qa-results.md`
+- `ProjectStatus.md`
+- `Roadmap.md`
+- `AGENTS.md`
+- `instructions`
+
+### Expected Output
+
+Create or update:
+
+`docs/phase-7-5-en-browser-qa-results.md`
+
+The result document should be raw QA evidence, not a fix plan. It should let a later consolidation/readiness step understand exactly what was run, what passed, what failed, what was blocked, and whether the approved UI-only Tavily boundary was preserved.
+
+### Proposed Steps
+
+1. Run preflight:
+   - record date/time, branch, commit hash, server URL, browser tool, OpenAI configured/not configured, Tavily configured/not configured, and temporary blockers;
+   - run `python scripts/smoke_p75_current_flow_regressions.py` before browser QA to confirm the P7.5-008/P7.5-009 current-flow fixes still hold;
+   - if the focused regression smoke fails, stop before live browser QA and before spending Tavily budget; record the blocker instead of continuing against a known broken flow;
+   - optionally run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` when time allows or before committing QA docs;
+   - start the local server if needed;
+   - open `http://localhost:8000`;
+   - confirm the app loads without visible startup errors;
+   - capture browser console or network errors when relevant;
+   - if OpenAI is not configured, stop the EN/mixed QA pass and record a preflight blocker instead of marking dozens of OpenAI-dependent scenarios as individually blocked;
+   - if Tavily is not configured, continue non-search scenarios, but mark `CORE-EN-001` and dependent `FLOW-EN-004` as blocked by environment;
+   - do not print secrets or `.env` values.
+
+2. Confirm execution boundaries before QA:
+   - use the visible local UI only;
+   - do not call direct backend APIs for QA execution;
+   - do not call Tavily directly;
+   - do not bypass the app with direct web search;
+   - do not open LinkedIn profiles;
+   - do not log in to LinkedIn;
+   - do not scrape LinkedIn or bypass restrictions;
+   - do not message candidates or perform outreach;
+   - do not perform user or third-party account actions;
+   - do not execute searches autonomously;
+   - do not use this QA pass to start Phase 8 Candidate Workspace/Table work.
+
+3. Create the raw results skeleton before browser execution:
+   - create `docs/phase-7-5-en-browser-qa-results.md`;
+   - include run metadata fields from the checklist;
+   - include a section or table for all `57` P7.5-005-owned scenario IDs;
+   - include EN, mixed-language, other-language, and shared robustness scenarios assigned to P7.5-005;
+   - keep the document as raw QA evidence, not a fix plan.
+
+4. Apply state setup rules consistently:
+   - for `clean` scenarios, use the visible `Reset` control or page reload before starting the scenario;
+   - for `clean` scenarios, make sure the visible `Multi-wave` toggle is off unless a scenario explicitly tests multi-wave;
+   - for `current_brief` scenarios, prepare a ready Search Brief through the visible chat flow without spending Tavily budget;
+   - for `visible_plan` scenarios, prepare chat -> Search Brief -> Agent Plan -> Build Plan and stop before approval;
+   - for `approved_results` scenarios, use approved results from `CORE-EN-001` only;
+   - do not accidentally reset state before stateful scenarios that depend on current brief, visible plan, or approved results.
+
+5. Run `CORE-EN-001` as the only EN approved live search:
+   - start from clean app/browser state;
+   - send the scenario recruiter input from the source scenario bank;
+   - verify the Search Brief is ready for the supported `Backend Developer / Java / Ukraine` baseline and the scenario's stack signals;
+   - verify Agent Plan appears and `Build Plan` becomes available;
+   - click `Build Plan`;
+   - verify visible QueryPlan/Search Plan is produced;
+   - keep multi-wave off;
+   - verify `Approve & Search` becomes available only after backend-owned runtime approval is prepared;
+   - if `Approve & Search` does not become available after the visible Search Plan, record this as a product failure with UI/network evidence;
+   - do not bypass unavailable approval by calling runtime, structured-search, Tavily, or any backend API directly;
+   - click `Approve & Search` explicitly;
+   - record that Tavily executed through the visible approved UI flow;
+   - record visible result/report state without treating live result count variability as a failure;
+   - inspect only the visible in-app results, table rows, links, snippets, and report output; do not open LinkedIn profile links;
+   - keep these approved results available for `FLOW-EN-004` when possible.
+
+6. Run `FLOW-EN-004` using approved results from `CORE-EN-001`:
+   - start from the approved results produced by `CORE-EN-001`;
+   - send the EN post-results follow-up from the scenario bank;
+   - verify the agent response is grounded in visible/current results;
+   - verify the agent does not claim fresh execution unless a new explicit approval flow happens;
+   - do not click `Approve & Search` again;
+   - do not spend an extra Tavily call;
+   - if `CORE-EN-001` was blocked, mark `FLOW-EN-004` as blocked by dependency.
+
+7. Run EN plan-boundary scenarios:
+   - run `CORE-EN-002`, `CORE-EN-003`, `CORE-EN-004`;
+   - run `NOISE-EN-001`, `NOISE-EN-002`, `NOISE-EN-003`, `NOISE-EN-004`;
+   - run `FLOW-EN-005`;
+   - stop after recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan;
+   - do not click `Approve & Search` for these scenarios;
+   - leave mixed-language plan-boundary scenarios to the dedicated mixed/other-language step.
+
+8. Run EN conversation-only missing-field scenarios:
+   - `MISS-EN-001`;
+   - `MISS-EN-002`;
+   - `MISS-EN-003`;
+   - `MISS-EN-004`;
+   - verify the agent asks one useful clarification and does not invent missing required fields.
+
+9. Run EN conversation-only refinement scenarios:
+   - prepare a ready current Search Brief without spending Tavily budget;
+   - run `REF-EN-001`, `REF-EN-002`, `REF-EN-003`, `REF-EN-004`;
+   - verify Search Brief changes are applied or rejected consistently;
+   - verify stale downstream Agent Plan/QueryPlan/results state is cleared only when appropriate.
+
+10. Run EN ambiguity and contradiction scenarios:
+    - `AMB-EN-001`, `AMB-EN-002`, `AMB-EN-003`, `AMB-EN-004`;
+    - `CONTRA-EN-001`, `CONTRA-EN-002`, `CONTRA-EN-003`, `CONTRA-EN-004`;
+    - verify the agent asks for clarification instead of silently choosing unsupported or conflicting scope.
+
+11. Run EN technology-confusion scenarios:
+    - `TECH-EN-001`, `TECH-EN-002`, `TECH-EN-003`, `TECH-EN-004`;
+    - verify JavaScript is not treated as Java;
+    - verify Kotlin/related JVM signals are not treated as exact Java without clarification;
+    - verify non-technical `Spring` context does not become stack evidence;
+    - verify the current Java flow still requires at least one valid stack signal.
+
+12. Run mixed/other-language scenarios assigned to P7.5-005:
+    - run `LANG-UA-001`, `LANG-PL-001`, `LANG-DE-001`, `LANG-ES-001`, `LANG-TR-001`, `LANG-FR-001`;
+    - run `MIX-RU-001`, `MIX-EN-001`, `MIX-RU-002`, `MIX-EN-002`;
+    - for plan-boundary mixed-language scenarios, stop after recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan;
+    - for conversation-only mixed/other-language scenarios, do not build or execute a plan unless the checklist mode explicitly requires it;
+    - verify language handling is useful and safe without expanding supported role/country/technology scope;
+    - verify mixed-language inputs do not bypass required Search Brief validation.
+
+13. Run EN off-topic scenarios:
+    - `OFF-EN-001`, `OFF-EN-002`, `OFF-EN-003`, `OFF-EN-004`, `OFF-EN-005`;
+    - verify the app does not perform weather/search/recommendation/coding/general-chat actions;
+    - verify it redirects to sourcing without mutating Search Brief or preparing a search from off-topic text.
+
+14. Run EN safety/prohibited scenarios:
+    - `SAFE-EN-001` through `SAFE-EN-008`;
+    - verify refusal or safe redirection for LinkedIn login, scraping, opening profiles, outreach, private contact harvesting, restriction bypass, direct Google/web-search bypass, and autonomous execution;
+    - verify prohibited requests do not call OpenAI extraction when the deterministic safety gate should refuse first;
+    - verify an older prohibited turn does not permanently poison a later normal recruiter request.
+
+15. Run remaining EN state/flow scenarios:
+    - `FLOW-EN-001`, `FLOW-EN-002`, `FLOW-EN-003`, `FLOW-EN-006`;
+    - for current-brief scenarios, prepare the current brief through the visible chat flow;
+    - for visible-plan scenarios, stop at the visible QueryPlan/Search Plan boundary;
+    - do not spend an extra Tavily call to avoid a blocker.
+
+16. Record per-scenario results using the checklist fields:
+    - `scenario_id`;
+    - `batch`;
+    - `language`;
+    - `execution_mode`;
+    - `search_mode`;
+    - `expectation_type`;
+    - `openai_required`;
+    - `llm_path_expected`;
+    - `starting_state`;
+    - `setup_dependency`;
+    - `recruiter_input`;
+    - `expected_search_brief`;
+    - `expected_agent_behavior`;
+    - `expected_ui_state`;
+    - `tavily_execution`;
+    - `actual_behavior`;
+    - `pass_fail`;
+    - `severity`;
+    - `finding_id`;
+    - `evidence`;
+    - `requires_fix`;
+    - `qa_notes`.
+
+17. Assign findings carefully:
+    - continue existing finding IDs only when the root cause is genuinely the same as a prior RU finding;
+    - create new finding IDs like `P75-QA-008` when EN/mixed QA exposes a new root cause;
+    - one root cause may reference multiple scenario IDs;
+    - record severity only for failures;
+    - mark environment/service/setup problems as `blocked`, not product failures;
+    - do not propose broad fixes inside this task beyond concise `requires_fix` notes.
+
+18. Preserve evidence discipline:
+    - capture enough transcript/UI evidence to reproduce issues;
+    - record whether `Approve & Search` was clicked;
+    - record whether Tavily executed;
+    - record visible Search Brief values, Agent Plan state, QueryPlan state, approval state, results/report state when relevant;
+    - screenshots are allowed for evidence, but bulky artifacts should stay outside git unless separately approved;
+    - avoid bulk-copying candidate data unless needed for a specific finding.
+
+19. Finish with an EN/mixed QA summary:
+    - total scenarios assigned;
+    - total scenarios run;
+    - pass/fail/blocked/not_run/needs_retest counts;
+    - live Tavily budget used;
+    - critical/high/medium/low finding counts;
+    - list of finding IDs;
+    - explicit note whether `CORE-EN-001` executed through visible `Approve & Search`;
+    - clear handoff note for the Phase 7.5 readiness decision / findings consolidation.
+
+### Acceptance Criteria
+
+- If OpenAI is not configured during preflight, the EN/mixed QA pass may stop as `blocked`; in that case the result document must record the preflight blocker, and the full `57`-scenario completion criteria below apply only after the blocker is resolved and a full pass is run.
+- `docs/phase-7-5-en-browser-qa-results.md` exists after the task is run.
+- All `57` P7.5-005-owned scenarios from the checklist are recorded exactly once.
+- Each scenario has a result status.
+- Every failure has evidence, severity, `finding_id`, and `requires_fix`.
+- `CORE-EN-001` is the only P7.5-005 scenario that spends live Tavily budget.
+- `CORE-EN-001` runs single-wave only, with the visible multi-wave toggle off.
+- If `CORE-EN-001` cannot reach an enabled `Approve & Search` state, the task records the unavailable approval state as a product failure instead of bypassing through direct runtime/API/Tavily calls.
+- `FLOW-EN-004` reuses `CORE-EN-001` results when possible and does not force another Tavily call.
+- No direct Tavily/API/runtime/web-search bypass happens.
+- No LinkedIn login, profile opening, scraping, restriction bypass, outreach, candidate messaging, contact harvesting, or account action happens.
+- Visible result links from `CORE-EN-001` are not opened during QA; evidence comes from the in-app result/report state only.
+- Live Tavily count variability alone is not recorded as a product failure.
+- The task records raw QA results only; it does not implement fixes.
+- The result document is detailed enough for a later findings consolidation / readiness decision without guessing missing context.
+
+### No-Goals
+
+- Do not run RU-owned QA again in this task, except where a mixed-language scenario is explicitly assigned to P7.5-005.
+- Do not implement fixes.
+- Do not change backend code, frontend code, prompts, API contracts, search execution, Candidate Quality, scoring, filters, dedupe, location logic, snapshots, persistence, memory, shortlist, export, or Phase 8 scope.
+- Do not add regression automation in this task.
+- Do not add new countries, technologies, roles, search sources, or autonomous execution.
+- Do not open LinkedIn, log in to LinkedIn, scrape LinkedIn, bypass LinkedIn restrictions, message candidates, harvest private contacts, or perform account actions.
+
+### Verification
+
+- `docs/phase-7-5-en-browser-qa-results.md` records exactly `57` P7.5-005 scenarios.
+- Status totals add up to `57`: 37 pass, 20 fail, 0 blocked, 0 not_run, 0 needs_retest.
+- `.venv\Scripts\python.exe scripts\smoke_p75_current_flow_regressions.py` passed before browser QA.
+- P7.5-005 live Tavily budget used was `1`, only for `CORE-EN-001`.
+- Total Phase 7.5 live Tavily budget across P7.5-004 and P7.5-005 stayed within the `2` approved-search budget.
+- Every failure has severity, evidence, finding ID, and `requires_fix`.
+- No direct execution boundary was crossed.
+- Run `git diff --check` after documentation updates.
+
+### Before Running
+
+Codex critically reviewed this task against the current code, current Phase 7.5 docs, the P7.5-002 scenario bank, the P7.5-003 checklist, and the completed P7.5-008/P7.5-009 fixes. The user approved the task for browser QA execution.
+
+Before spending live Tavily budget in `CORE-EN-001`, Codex must still follow the visible UI flow and click `Approve & Search` only as part of that approved scenario. If the preflight regression smoke fails, stop before browser QA/live Tavily and record the blocker.
+
+### Implementation Result
+
+Created `docs/phase-7-5-en-browser-qa-results.md` as raw EN/mixed browser QA evidence.
+
+Result summary:
+
+- assigned scenarios: 57;
+- run scenarios: 57;
+- pass: 37;
+- fail: 20;
+- blocked: 0;
+- not_run: 0;
+- needs_retest: 0;
+- live Tavily budget used: 1;
+- critical finding groups: 1;
+- high finding groups: 3;
+- medium finding groups: 3.
+
+`CORE-EN-001` completed the visible approved UI flow end to end: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible 10-query QueryPlan -> runtime approval preparation -> explicit `Approve & Search` -> single-wave Tavily-backed results -> Agent Response. Visible LinkedIn result links were not opened.
+
+New EN/mixed findings:
+
+- `P75-QA-008` - schema/validation error leaks instead of useful clarification;
+- `P75-QA-009` - post-results follow-up routed as brief update;
+- `P75-QA-010` - EN prohibited requests not always refused;
+- `P75-QA-011` - off-topic prompts mutate Search Brief;
+- `P75-QA-012` - incomplete/ambiguous/contradictory prompts over-inferred;
+- `P75-QA-013` - meta/reset-like turns treated as ordinary brief updates;
+- `P75-QA-014` - typo robustness gap in plan-boundary flow.
+
+Handoff: P7.5-010 should consolidate RU and EN/mixed QA evidence and decide Phase 8 readiness before any Phase 8 implementation starts.
+
+---
+
 ## Task: P7.5-006 Create recruiter simulation QA findings report
 
 ### Status
 
-Approved and completed as an initial RU findings report.
+Approved and completed as an initial RU findings report; later updated with a P7.5-005 EN/mixed QA addendum.
 
 ### Context
 
-`P7.5-004` completed the RU browser QA pass before `P7.5-005` EN/mixed QA. The original checklist expected P7.5-006 to consolidate RU and EN raw result documents together. During RU QA, the current browser flow exposed product-blocking issues that make it inefficient to continue EN/mixed QA without first reviewing fixes.
+`P7.5-004` completed the RU browser QA pass before `P7.5-005` EN/mixed QA. The original checklist expected P7.5-006 to consolidate RU and EN raw result documents together. During RU QA, the current browser flow exposed product-blocking issues that made it inefficient to continue EN/mixed QA without first reviewing fixes.
 
-Decision: consolidate the RU findings now, explicitly mark this as an initial findings report, and use it to drive `P7.5-007 Review and approve current-flow fixes`.
+Decision at execution time: consolidate the RU findings early, explicitly mark this as an initial findings report, and use it to drive `P7.5-007 Review and approve current-flow fixes`.
+
+Later update: after `P7.5-008`/`P7.5-009` fixed and covered the approved current-flow blockers, `P7.5-005` completed EN/mixed QA and `docs/phase-7-5-qa-findings-report.md` was updated with an EN/mixed addendum.
 
 ### Goal
 
@@ -9833,22 +10135,18 @@ Created:
 
 ### Recommended Next Sequence
 
-1. Run `P7.5-007 Review and approve current-flow fixes`.
-2. Approve focused fixes for:
-   - runtime approval preparation after Build Plan;
-   - RU prohibited-intent detection before extraction/patching;
-   - clean-state initial request vs refinement classification.
-3. Implement approved fixes in `P7.5-008`.
-4. Add regression coverage in `P7.5-009`.
-5. Retest failed/blocked RU scenarios.
-6. Run `P7.5-005` EN/mixed QA after the approved-search path is restored, unless the user explicitly chooses to run it earlier against the known broken state.
-7. Close Phase 7.5 with an explicit Phase 8 readiness decision.
+1. Completed: run `P7.5-007 Review and approve current-flow fixes`.
+2. Completed: approve focused fixes for runtime approval preparation, RU prohibited-intent detection, and clean-state initial request routing.
+3. Completed: implement approved fixes in `P7.5-008`.
+4. Completed: add regression coverage in `P7.5-009`.
+5. Completed: run `P7.5-005` EN/mixed QA after the approved-search path was restored.
+6. Next: close Phase 7.5 with an explicit Phase 8 readiness decision in `P7.5-010`.
 
 ### Acceptance Criteria
 
 - `docs/phase-7-5-qa-findings-report.md` exists.
-- The report references the raw RU QA result document.
-- The report states that EN/mixed QA has not run yet.
+- The report references the raw RU QA result document and the raw EN/mixed QA result document.
+- The report states that it was initially RU-only and now includes the P7.5-005 EN/mixed addendum.
 - Findings are grouped by likely root cause instead of repeated scenario rows.
 - Recommended next steps preserve the human-approved execution boundary.
 - No code is changed by this task.
@@ -9884,7 +10182,7 @@ The purpose of this task is to approve the exact fix scope for `P7.5-008` and th
 
 Define the smallest safe fix set needed to restore the current narrow `Backend Developer + Java + Ukraine` Agent flow enough to continue Phase 7.5 QA.
 
-This task should decide what to fix, what not to fix, how to verify it, and whether `P7.5-005` EN/mixed QA remains paused until after the approved fixes.
+This task decided what to fix, what not to fix, how to verify it, and whether `P7.5-005` EN/mixed QA should remain paused until after the approved fixes.
 
 ### Source Documents
 
@@ -9977,7 +10275,7 @@ Approved behavior:
 
 ### Proposed Regression Scope For P7.5-009
 
-P7.5-009 should add regression checks before `P7.5-005` continues.
+P7.5-009 should add regression checks before `P7.5-005` continues. Later status: P7.5-009 added this coverage and P7.5-005 completed.
 
 Clarification after review: this regression scope is approved for `P7.5-009`, not for `P7.5-008`. `P7.5-008` should implement the three approved current-flow fixes and verify them with the existing local baseline plus focused manual/ad-hoc checks as needed. Permanent regression automation and wiring belong to `P7.5-009`.
 
@@ -10029,7 +10327,7 @@ Required checks:
 
 Approved: implement all three focused fixes in `P7.5-008`, then add the required regression checks in `P7.5-009`.
 
-Keep `P7.5-005` EN/mixed QA paused until the approved-search blocker is fixed and the failed/blocked RU scenarios are retested, unless the user explicitly decides to run EN/mixed QA against the known broken state.
+At execution time, keep `P7.5-005` EN/mixed QA paused until the approved-search blocker is fixed and the failed/blocked RU scenarios are retested, unless the user explicitly decides to run EN/mixed QA against the known broken state. Later status: the approved fixes and regression coverage were completed, then `P7.5-005` ran and is now complete.
 
 ### Acceptance Criteria
 
@@ -10037,7 +10335,7 @@ Keep `P7.5-005` EN/mixed QA paused until the approved-search blocker is fixed an
 - The regression scope for P7.5-009 is explicit.
 - The task confirms that P7.5-007 itself is docs-only.
 - The task confirms that Phase 8 remains paused.
-- The task confirms that EN/mixed QA remains paused by default until the approved-search blocker is fixed.
+- At execution time, the task confirmed that EN/mixed QA remained paused by default until the approved-search blocker was fixed.
 - The task preserves human approval, runtime approval, and external-action boundaries.
 
 ### Before Coding
@@ -10134,7 +10432,7 @@ Verification result:
 ### Non-Goals
 
 - Do not add permanent regression automation; that belongs to `P7.5-009`.
-- Do not run EN/mixed QA; that remains `P7.5-005`.
+- Do not run EN/mixed QA in this implementation task; that remained `P7.5-005` and is now complete.
 - Do not retest the full RU browser QA pass unless separately requested.
 - Do not change Tavily query templates, planner coverage, scoring, Candidate Quality, filters, dedupe, location logic, snapshots, or multi-wave behavior.
 - Do not change Search Brief schema or QueryPlan contract unless a blocker requires separate review.
@@ -10238,7 +10536,7 @@ No Tavily, LinkedIn, Google, direct web search, browser QA, Phase 8 UI, planner/
 9. Update task/status docs after implementation:
    - update `Tasks.md` with implementation result and verification evidence;
    - update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` only where needed for consistency;
-   - keep `P7.5-005` EN/mixed QA as the next QA task after regression coverage is in place.
+   - record the handoff from regression coverage to `P7.5-005` EN/mixed QA. Later status: P7.5-005 completed and P7.5-010 is next.
 
 ### Critical Review Notes
 

@@ -62,6 +62,7 @@ Status:
 - `P7.5-007` completed the docs-only current-flow fixes decision and approved the exact implementation scope for P7.5-008 plus regression scope for P7.5-009.
 - `P7.5-008` implemented the approved current-flow fixes: runtime approval preparation now happens after `Build Plan` settles, latest-turn RU/EN prohibited-intent refusal is tightened, refusals preserve the visible Search Brief while clearing stale executable state, and clean-state recruiter messages use initial extraction instead of refinement blocking.
 - `P7.5-009` added no-network regression coverage for the fixed current-flow issues and wired it into `scripts/check_all.ps1`.
+- `P7.5-005` completed EN/mixed browser QA in `docs/phase-7-5-en-browser-qa-results.md`: 57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. New findings are `P75-QA-008` through `P75-QA-014`.
 
 Agreed next direction:
 
@@ -69,7 +70,7 @@ Agreed next direction:
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
 - Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`;
-- next Phase 7.5 task: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`;
+- next Phase 7.5 task: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`;
 - Phase 8 candidate workspace implementation is paused until Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 

@@ -218,7 +218,7 @@ Raw QA result destinations:
 | --- | --- |
 | P7.5-004 | `docs/phase-7-5-ru-browser-qa-results.md` |
 | P7.5-005 | `docs/phase-7-5-en-browser-qa-results.md` |
-| P7.5-006 | Consolidates raw result documents into a QA findings report. If P7.5-004 finds product-blocking issues before P7.5-005, P7.5-006 may run early as an initial RU findings report and explicitly record that EN/mixed QA has not run yet. |
+| P7.5-006 | Consolidates raw result documents into a QA findings report. P7.5-006 ran early as an initial RU findings report after P7.5-004 found product-blocking issues, and was later updated with the completed P7.5-005 EN/mixed QA addendum. |
 
 ## Traceability Summary
 
