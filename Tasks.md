@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-006` initial QA findings report, `P7.5-007` current-flow fixes decision, and `P7.5-008` implementation. Next task is `P7.5-009 Add regression coverage for fixed issues`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-006` initial QA findings report, `P7.5-007` current-flow fixes decision, `P7.5-008` implementation, and `P7.5-009` regression coverage. Next task is `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
 
 ---
 
@@ -9168,7 +9168,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report.
 
-Next task: `P7.5-009 Add regression coverage for fixed issues`.
+Next task: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
 
 Verification:
 
@@ -9186,7 +9186,6 @@ Verification:
 ### Backlog
 
 - [ ] P7.5-005 Run EN browser QA with approved Tavily execution when needed
-- [ ] P7.5-009 Add regression coverage for fixed issues
 - [ ] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
 
 ### In Progress
@@ -9201,6 +9200,7 @@ None.
 - [x] P7.5-006 Create recruiter simulation QA findings report
 - [x] P7.5-007 Review and approve current-flow fixes
 - [x] P7.5-008 Implement approved critical current-flow fixes
+- [x] P7.5-009 Add regression coverage for fixed issues
 
 ### Current Phase 7.5 strategy note
 
@@ -9310,7 +9310,7 @@ Final review decision: P7.5-002 is ready/closed. Remaining work belongs to `P7.5
 
 ### Next Step
 
-Next task: `P7.5-009 Add regression coverage for fixed issues`.
+Next task: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
 
 ---
 
@@ -10143,6 +10143,152 @@ Verification result:
 ### Before Coding
 
 The user must explicitly ask to code `P7.5-008`.
+
+---
+
+## Task: P7.5-009 Add regression coverage for fixed issues
+
+### Status
+
+Implemented.
+
+### Goal
+
+Add permanent no-network regression coverage for the current-flow issues fixed in `P7.5-008`, so Phase 7.5 can continue EN/mixed browser QA without silently reintroducing the same blockers.
+
+This task should protect the existing narrow `Backend Developer + Java + Ukraine` Agent flow:
+
+`recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> runtime approval prepare -> explicit Approve & Search`
+
+It is a regression-hardening task, not browser QA, not Tavily QA, and not Phase 8 implementation.
+
+### Implementation Result
+
+Implemented `scripts/smoke_p75_current_flow_regressions.py` and wired it into `scripts/check_all.ps1`.
+
+The new no-network smoke covers:
+
+- `P75-QA-001`: runtime approval prepare after Build Plan through backend runtime contract and frontend timing/static guardrails;
+- `P75-QA-002` / `P75-QA-003`: clean-state initial Java/Ukraine requests do not become refinement-blocked;
+- `P75-QA-004` / `P75-QA-005` / `P75-QA-006`: RU/EN prohibited latest-turn requests refuse before LLM extraction and do not call OpenAI;
+- `P75-QA-007`: dependent setup failure covered through clean-state and runtime approval checks;
+- frontend refusal-state preservation: refusal clears executable state without clearing `draftBrief` / `normalizedBrief`;
+- frontend approved-search boundary: `Approve & Search` remains tied to Agent Runtime and pending runtime approval, with no direct structured-search fallback.
+
+No Tavily, LinkedIn, Google, direct web search, browser QA, Phase 8 UI, planner/search/scoring/filter/dedupe/location behavior, or autonomous execution was added.
+
+### Approved Implementation Steps
+
+1. Add a dedicated no-network regression smoke script:
+   - create `scripts/smoke_p75_current_flow_regressions.py`;
+   - keep it deterministic and fast;
+   - monkeypatch OpenAI/Tavily-facing paths where needed;
+   - import `app.main` and reuse existing smoke helpers where practical without adding new app/module coupling;
+   - do not call Tavily, LinkedIn, Google, direct web search, or external accounts.
+
+2. Cover backend recruiter-chat safety regressions:
+   - RU/EN prohibited intent is detected on the latest recruiter/user turn before LLM extraction/refinement;
+   - profile opening/reading requests refuse;
+   - private contact harvesting requests such as email/phone collection refuse;
+   - direct Google/web-search bypass requests refuse;
+   - refusal does not create or mutate a Search Brief;
+   - prohibited requests must not call OpenAI/LLM extraction;
+   - an older prohibited turn does not permanently poison a later normal recruiter request.
+
+3. Cover clean-state initial request classification:
+   - clean RU senior Java/Ukraine request does not produce `BRIEF_REFINEMENT_BLOCKED`;
+   - clean noisy/job-description-like Java/Ukraine request does not produce `BRIEF_REFINEMENT_BLOCKED`;
+   - clean state still uses initial Search Brief extraction unless the message is greeting-only, near-empty, or prohibited;
+   - deterministic refinement still works when an existing draft/current Search Brief is present.
+
+4. Cover backend runtime approval behavior without Tavily execution:
+   - ready Search Brief can produce a supported Agent Plan;
+   - `Build Plan` can produce an executable visible QueryPlan;
+   - `POST /api/agent/runtime/turn` with `prepare` creates backend-owned pending approval;
+   - `POST /api/agent/runtime/turn` with `execute_approved` remains impossible without explicit runtime approval;
+   - no search execution happens during `prepare`;
+   - do not simulate the whole browser flow in Python when a backend contract check is enough.
+
+5. Add frontend runtime/static guardrail checks:
+   - use focused JavaScript function-body extraction helpers similar to `scripts/smoke_p6_runtime_guardrails.py`, not broad fragile whole-file substring checks when a function-level check is possible;
+   - `prepareRuntimeSearchAction()` is not called from `renderAgentQueryPlan()`;
+   - runtime prepare is triggered only after `planRequestInFlight = false` in the Build Plan flow;
+   - `Approve & Search` remains disabled unless both `latestExecutablePlan` and `currentRuntimePendingApproval` exist;
+   - `AGENT_RUNTIME_TURN_ENDPOINT` remains `/api/agent/runtime/turn`;
+   - approved execution still uses `AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED`;
+   - no direct `/api/structured-search` or `/api/structured-search/multi-wave` frontend fallback is reintroduced for approved search.
+
+6. Add frontend refusal-state preservation checks:
+   - `updateChatStateFromResponse()` must not set `normalizedBrief = null` for `chatState === "refused"`;
+   - refusal must call `clearExecutableStateAfterRefusal()`;
+   - `clearExecutableStateAfterRefusal()` must clear executable downstream state without clearing `draftBrief` or `normalizedBrief`;
+   - stale Agent Plan, QueryPlan, runtime pending approval, action queue state, and prior result panels must be cleared/disabled after refusal.
+
+7. Tie the regression cases back to Phase 7.5 QA findings:
+   - `P75-QA-001`: runtime approval prepare after Build Plan;
+   - `P75-QA-002` / `P75-QA-003`: clean-state initial request should not become refinement-blocked;
+   - `P75-QA-004` / `P75-QA-005` / `P75-QA-006`: RU prohibited requests must refuse before extraction/refinement;
+   - `P75-QA-007`: dependent setup failure should be covered through the clean-state and runtime approval checks.
+
+8. Wire the new smoke into the local baseline:
+   - add it to `scripts/check_all.ps1`;
+   - keep existing P5/P6/P7 smoke tests intact;
+   - avoid duplicating large browser QA scenarios in unit/smoke form.
+
+9. Update task/status docs after implementation:
+   - update `Tasks.md` with implementation result and verification evidence;
+   - update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` only where needed for consistency;
+   - keep `P7.5-005` EN/mixed QA as the next QA task after regression coverage is in place.
+
+### Critical Review Notes
+
+- This should be no-network coverage. Browser QA and live Tavily execution belong to `P7.5-005` or later explicit QA tasks.
+- The frontend checks should be static and narrow; do not introduce a fragile browser automation dependency just to prove button state.
+- The runtime approval checks should separate backend contract checks from frontend static checks and should reuse the existing Agent Runtime contract and smoke patterns instead of creating a parallel approval model.
+- Existing P5/P6/P7 smoke tests should remain intact. P7.5-009 adds coverage for the current-flow fixes; it should not rewrite older regression tasks.
+- The task must not broaden supported roles, countries, technologies, sources, planner coverage, scoring, filtering, dedupe, location logic, snapshots, or multi-wave behavior.
+- The task must not add Candidate Workspace/Table, shortlist, notes/statuses, export, persistence, saved searches, memory, autonomous execution, executable AI-generated QueryPlans, or prohibited LinkedIn/account behavior.
+
+### Verification
+
+- `python -m compileall app scripts`
+- `node --check app/static/app.js`
+- `python scripts/smoke_p75_current_flow_regressions.py`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
+- `git diff --check`
+
+### Acceptance Criteria
+
+- P7.5-008 runtime approval timing cannot regress without failing local checks.
+- Latest-turn prohibited-intent refusal cannot regress without failing local checks.
+- Refusal/Search Brief preservation semantics are covered at backend state level.
+- Refusal/Search Brief preservation semantics are covered at frontend state level so a refusal cannot visually erase an already visible Search Brief.
+- Clean-state initial requests cannot regress into refinement-blocked responses without failing local checks.
+- The new regression smoke explicitly maps to `P75-QA-001` through `P75-QA-007`.
+- Direct frontend structured-search fallback cannot be reintroduced without failing local checks.
+- Existing human approval, runtime approval, and external-action boundaries remain intact.
+
+### Non-Goals
+
+- Do not run browser QA in this task.
+- Do not call Tavily or any external search provider.
+- Do not access, open, scrape, automate, or log in to LinkedIn.
+- Do not collect private candidate contact details.
+- Do not message candidates or perform account actions.
+- Do not implement Phase 8 candidate workspace/table behavior.
+- Do not change product UX beyond regression-test support.
+- Do not change production planner/search/scoring/filter/dedupe/location logic unless an existing test harness bug requires a separately reviewed fix.
+
+### Before Coding
+
+The final task steps were critically reviewed with the user and approved before coding.
+
+### Verification Result
+
+- `python scripts/smoke_p75_current_flow_regressions.py` passed.
+- `python -m compileall app scripts` passed.
+- `node --check app/static/app.js` passed through the bundled Codex Node runtime.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
 
 ---
 

@@ -83,5 +83,9 @@ Invoke-Check "P7 Golden Conversations smoke" {
     & $python scripts/smoke_p7_golden_conversations.py
 }
 
+Invoke-Check "P7.5 Current Flow Regressions smoke" {
+    & $python scripts/smoke_p75_current_flow_regressions.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."
