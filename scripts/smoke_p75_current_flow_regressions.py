@@ -99,6 +99,8 @@ async def fake_recruiter_chat_llm(
             stack.append("Docker")
         if "kubernetes" in normalized:
             stack.append("Kubernetes")
+        if "docker" in normalized and "kubernetes" in normalized and "spring" not in normalized:
+            stack.append("Spring")
         if not stack:
             stack = ["Spring", "Kafka"]
 
@@ -327,6 +329,15 @@ async def assert_en_hardening_regressions() -> None:
     assert docker_kubernetes["normalized_brief"]["stack"] == ["Docker", "Kubernetes"]
     assert "Input should be a valid string" not in docker_kubernetes["assistant_message"]
 
+    no_stack = await main.recruiter_chat_turn_response(
+        chat_request("Find Java backend developers in Ukraine.", language="en")
+    )
+    assert no_stack["ok"] is True
+    assert no_stack["state"] == "needs_clarification"
+    assert no_stack["normalized_brief"]["stack"] == []
+    assert "stack" in no_stack["normalized_brief"]["missing_fields"]
+    assert no_stack["can_build_plan"] is False
+
     typo = await main.recruiter_chat_turn_response(
         chat_request("need java backend ukrane sping kafak", language="en")
     )
@@ -545,6 +556,7 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     update_action_body = extract_js_function_body(source, "updateActionState")
     run_search_body = extract_js_function_body(source, "runStructuredSearch")
     update_chat_body = extract_js_function_body(source, "updateChatStateFromResponse")
+    ready_status_body = extract_js_function_body(source, "readyBriefChatStatus")
     clear_refusal_body = extract_js_function_body(source, "clearExecutableStateAfterRefusal")
     send_chat_body = extract_js_function_body(source, "sendChatTurn")
     post_results_body = extract_js_function_body(source, "handlePostResultsFollowUp")
@@ -570,6 +582,9 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert "if (data.clear_brief)" in update_chat_body
     assert "draftBrief = null;" in update_chat_body
     assert 'else if (chatState !== "refused")' in update_chat_body
+    assert "chatStatusElement.textContent = readyBriefChatStatus();" in update_chat_body
+    assert "hasSupportedAgentAction()" in ready_status_body
+    assert "Agent Plan ready. Build Plan is available." in ready_status_body
     refusal_branch_start = update_chat_body.index('if (chatState === "refused")')
     assert "clearExecutableStateAfterRefusal();" in update_chat_body[refusal_branch_start:]
 

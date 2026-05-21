@@ -225,7 +225,6 @@ from app.search_validation import (
     canonical_value,
     normalize_location_value,
     normalize_multi_wave_search_request,
-    normalize_stack_items,
     normalize_structured_search_request,
 )
 from app.search_execution import (
@@ -1366,6 +1365,14 @@ def recruiter_chat_text(messages: list[RecruiterChatMessage]) -> str:
     )
 
 
+def recruiter_chat_user_text(messages: list[RecruiterChatMessage]) -> str:
+    return "\n".join(
+        f"{normalize_text_value(message.role) or 'user'}: {message.content}"
+        for message in messages
+        if (normalize_text_value(message.role) or "").lower() in {"user", "recruiter"}
+    )
+
+
 def recruiter_chat_language(request: RecruiterChatTurnRequest) -> str:
     language = (normalize_text_value(request.language) or "").lower()
     if language.startswith(("ru", "рус")):
@@ -1975,11 +1982,7 @@ def deterministic_chat_brief_hints(source_text: str) -> dict:
         hints["technology"] = "Java"
         hints["must_have"] = ["Java"]
 
-    stack: list[str] = []
-    for alias, canonical_stack_item in JAVA_STACK_VALUES.items():
-        if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", lowered_text):
-            if canonical_stack_item not in stack:
-                stack.append(canonical_stack_item)
+    stack = java_stack_terms_in_text(lowered_text)
     typo_stack_aliases = {
         "sping": "Spring",
         "sprng": "Spring",
@@ -2077,9 +2080,11 @@ def merge_chat_draft_brief(
     existing_brief: SearchBrief | None,
     llm_draft: dict,
     source_text: str,
+    evidence_text: str | None = None,
 ) -> tuple[SearchBrief | None, list[dict[str, str]]]:
     merged = clean_search_brief_dict(existing_brief)
-    deterministic_hints = deterministic_chat_brief_hints(source_text)
+    deterministic_hints = deterministic_chat_brief_hints(evidence_text or source_text)
+    explicit_stack = deterministic_hints.get("stack") or []
 
     for field_name, value in deterministic_hints.items():
         if value is not None and value != []:
@@ -2093,16 +2098,33 @@ def merge_chat_draft_brief(
             continue
         if isinstance(value, list) and not value:
             continue
+        if field_name in {"stack", "nice_to_have"}:
+            if not explicit_stack:
+                continue
+            normalized_stack_value, _ = normalize_brief_stack_items(value)
+            value = [
+                stack_item
+                for stack_item in normalized_stack_value
+                if stack_item in explicit_stack
+            ]
+            if not value:
+                continue
         if not should_merge_chat_brief_field(field_name, value, merged.get(field_name)):
             continue
         merged[field_name] = value
 
     if "source_text" not in merged:
         merged["source_text"] = source_text
+    elif evidence_text is not None:
+        merged["source_text"] = source_text
     if "search_depth" not in merged:
         merged["search_depth"] = SEARCH_DEPTH_STANDARD
     if "profile_sources" not in merged:
         merged["profile_sources"] = [PROFILE_SOURCE_LINKEDIN_PUBLIC]
+    if merged.get("stack"):
+        synced_stack, _ = normalize_brief_stack_items(merged["stack"])
+        merged["stack"] = synced_stack
+        merged["nice_to_have"] = synced_stack
 
     try:
         return SearchBrief(**merged), []
@@ -2793,6 +2815,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
 
     latest_user_text = latest_recruiter_chat_user_text(request.messages)
     chat_text = recruiter_chat_text(request.messages)
+    user_text = recruiter_chat_user_text(request.messages)
     prohibited_errors = detect_recruiter_chat_prohibited_requests(latest_user_text)
     if prohibited_errors:
         return build_recruiter_chat_response(
@@ -2882,6 +2905,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         request.draft_brief,
         extract_chat_draft_brief(ai_output),
         chat_text,
+        evidence_text=user_text,
     )
     if draft_errors or brief is None:
         return build_recruiter_chat_response(

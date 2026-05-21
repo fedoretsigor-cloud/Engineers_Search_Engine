@@ -281,6 +281,27 @@ function hasSupportedAgentAction() {
   );
 }
 
+function readyBriefChatStatus(options = {}) {
+  const includePending = options.includePending !== false;
+  if (includePending && agentPlanRequestInFlight) {
+    return "Search Brief ready. Preparing Agent Plan...";
+  }
+
+  if (hasSupportedAgentAction()) {
+    return "Agent Plan ready. Build Plan is available.";
+  }
+
+  if (currentAgentPlanData?.agent_plan_status === "unsupported") {
+    return "Agent v0 does not support this brief yet.";
+  }
+
+  if (currentAgentPlanData) {
+    return "Agent Plan needs clarification before Build Plan.";
+  }
+
+  return "Search Brief ready. Preparing Agent Plan...";
+}
+
 function isBackendSearchPlan(data = {}) {
   return (
     data.planner_mode === "rule_based" ||
@@ -1295,13 +1316,7 @@ async function fetchAgentPlanForCurrentBrief() {
     appendAgentPlanMessage(data);
     renderChatMessages();
 
-    if (data.agent_plan_status === "supported" && hasSupportedAgentAction()) {
-      chatStatusElement.textContent = "Agent Plan ready. Build Plan is available.";
-    } else if (data.agent_plan_status === "unsupported") {
-      chatStatusElement.textContent = "Agent v0 does not support this brief yet.";
-    } else {
-      chatStatusElement.textContent = "Agent Plan needs clarification before Build Plan.";
-    }
+    chatStatusElement.textContent = readyBriefChatStatus({ includePending: false });
 
     return data;
   } catch (error) {
@@ -1478,7 +1493,7 @@ function updateChatStateFromResponse(data = {}) {
   }
 
   if (chatState === "ready_for_planning") {
-    chatStatusElement.textContent = "Search Brief ready. Preparing Agent Plan...";
+    chatStatusElement.textContent = readyBriefChatStatus();
   } else if (chatState === "refused") {
     chatStatusElement.textContent = "Request refused by product safety boundaries.";
   } else {
