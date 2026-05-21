@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8, `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation` is approved, `P7.5-002 Define RU/EN recruiter simulation scenarios` is completed, and `P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed` is implemented. Next task is `P7.5-004 Run RU browser QA with approved Tavily execution when needed`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report. Next task is `P7.5-007 Review and approve current-flow fixes`.
 
 ---
 
@@ -9166,9 +9166,9 @@ Created `docs/phase-7-closeout.md` with:
 
 Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so Phase 7 is completed and Phase 8 `Candidate Workspace/Table + Shortlist` was identified as the next product direction.
 
-Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate.
+Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report.
 
-Next task: `P7.5-004 Run RU browser QA with approved Tavily execution when needed`.
+Next task: `P7.5-007 Review and approve current-flow fixes`.
 
 Verification:
 
@@ -9185,9 +9185,7 @@ Verification:
 
 ### Backlog
 
-- [ ] P7.5-004 Run RU browser QA with approved Tavily execution when needed
 - [ ] P7.5-005 Run EN browser QA with approved Tavily execution when needed
-- [ ] P7.5-006 Create recruiter simulation QA findings report
 - [ ] P7.5-007 Review and approve current-flow fixes
 - [ ] P7.5-008 Implement approved critical current-flow fixes
 - [ ] P7.5-009 Add regression coverage for fixed issues
@@ -9201,6 +9199,8 @@ None.
 
 - [x] P7.5-002 Define RU/EN recruiter simulation scenarios
 - [x] P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed
+- [x] P7.5-004 Run RU browser QA with approved Tavily execution when needed
+- [x] P7.5-006 Create recruiter simulation QA findings report
 
 ### Current Phase 7.5 strategy note
 
@@ -9213,6 +9213,8 @@ OpenAI live calls are allowed where the current product already uses them, if co
 Carryover for `P7.5-003`: the safe browser QA checklist must explicitly say Tavily can be used only through the visible approved application flow. It must forbid direct Tavily calls, direct structured-search/runtime execution outside the UI flow, direct web-search bypass, LinkedIn login/access/scraping/automation, outreach, account actions, and autonomous execution.
 
 QA must cover both Russian and English recruiter communication. Findings must first be documented in a QA report; fixes require separate review and approval before implementation.
+
+P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-005 should wait until the approved-search blocker is reviewed and fixed, unless the user explicitly chooses to run EN/mixed QA against the known broken state.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
 
@@ -9308,7 +9310,7 @@ Final review decision: P7.5-002 is ready/closed. Remaining work belongs to `P7.5
 
 ### Next Step
 
-Next task: `P7.5-004 Run RU browser QA with approved Tavily execution when needed`.
+Next task: `P7.5-007 Review and approve current-flow fixes`.
 
 ---
 
@@ -9568,9 +9570,9 @@ Codex must critically review this task against the current code and P7.5-002 sce
 
 ### Status
 
-Drafted for review.
+Approved and completed.
 
-This task is not approved yet and should not start until the user explicitly approves it.
+Implementation result: created `docs/phase-7-5-ru-browser-qa-results.md` with raw evidence for all 47 RU-owned scenarios. The pass recorded 39 pass, 7 fail, 1 blocked, 0 not-run, and 0 live Tavily executions because the approved runtime path did not reach approval preparation. The raw evidence was later consolidated in `P7.5-006`.
 
 ### Goal
 
@@ -9782,9 +9784,76 @@ The result document should be raw QA evidence, not a fix plan. It should make `P
 - Verify no direct execution boundary was crossed.
 - Run `git diff --check` after documentation updates.
 
-### Before Running
+### Approval History
 
-Codex must review the finalized task steps with the user and wait for explicit approval before starting browser QA.
+The finalized task steps were reviewed with the user before execution. The user approved running P7.5-004, then the RU browser QA pass was executed and recorded in the raw results document.
+
+---
+
+## Task: P7.5-006 Create recruiter simulation QA findings report
+
+### Status
+
+Approved and completed as an initial RU findings report.
+
+### Context
+
+`P7.5-004` completed the RU browser QA pass before `P7.5-005` EN/mixed QA. The original checklist expected P7.5-006 to consolidate RU and EN raw result documents together. During RU QA, the current browser flow exposed product-blocking issues that make it inefficient to continue EN/mixed QA without first reviewing fixes.
+
+Decision: consolidate the RU findings now, explicitly mark this as an initial findings report, and use it to drive `P7.5-007 Review and approve current-flow fixes`.
+
+### Goal
+
+Turn the raw RU QA evidence into a concise findings report with grouped root causes, impact, and recommended next sequence.
+
+The report must not implement fixes or silently change Phase 7.5 scope.
+
+### Output
+
+Created:
+
+`docs/phase-7-5-qa-findings-report.md`
+
+### Consolidated Findings
+
+1. Runtime approval is not prepared after Build Plan:
+   - `CORE-RU-001` produced a Search Brief and 10-query Search Plan, but `Approve & Search` stayed disabled;
+   - no `/api/agent/runtime/turn` prepare request was observed;
+   - Tavily did not execute;
+   - `FLOW-RU-005` was blocked by this dependency.
+
+2. Clean RU initial requests can be misclassified as brief refinement:
+   - `CORE-RU-002`, `NOISE-RU-004`, and dependent `FLOW-RU-004` show enough recruiter intent, but the app answered with `BRIEF REFINEMENT BLOCKED` from clean state.
+
+3. Some RU prohibited requests are treated as normal search clarifications:
+   - `SAFE-RU-003`, `SAFE-RU-005`, and `SAFE-RU-007` should refuse or safely redirect direct profile opening, private contact harvesting, and direct Google/web-search bypass requests.
+
+### Recommended Next Sequence
+
+1. Run `P7.5-007 Review and approve current-flow fixes`.
+2. Approve focused fixes for:
+   - runtime approval preparation after Build Plan;
+   - RU prohibited-intent detection before extraction/patching;
+   - clean-state initial request vs refinement classification.
+3. Implement approved fixes in `P7.5-008`.
+4. Add regression coverage in `P7.5-009`.
+5. Retest failed/blocked RU scenarios.
+6. Run `P7.5-005` EN/mixed QA after the approved-search path is restored, unless the user explicitly chooses to run it earlier against the known broken state.
+7. Close Phase 7.5 with an explicit Phase 8 readiness decision.
+
+### Acceptance Criteria
+
+- `docs/phase-7-5-qa-findings-report.md` exists.
+- The report references the raw RU QA result document.
+- The report states that EN/mixed QA has not run yet.
+- Findings are grouped by likely root cause instead of repeated scenario rows.
+- Recommended next steps preserve the human-approved execution boundary.
+- No code is changed by this task.
+
+### Verification
+
+- Review `docs/phase-7-5-qa-findings-report.md`.
+- Run `git diff --check` after documentation updates.
 
 ---
 

@@ -26,7 +26,7 @@ Completed Phase 6 tasks: `P6-001 Define human-approved Agent Runtime contract`, 
 
 Completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`.
 
-Completed Phase 7.5 tasks: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`, `P7.5-002 Define RU/EN recruiter simulation scenarios`, `P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed`.
+Completed Phase 7.5 tasks: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`, `P7.5-002 Define RU/EN recruiter simulation scenarios`, `P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed`, `P7.5-004 Run RU browser QA with approved Tavily execution when needed`, `P7.5-006 Create recruiter simulation QA findings report`.
 
 After Phase 7 closeout, Phase 7.5 was inserted as the current QA gate before Phase 8. Phase 8 implementation is paused until RU/EN recruiter simulation QA is completed and Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`. Phase 7.5 QA may use Tavily when a scenario requires it, but only through the existing approved backend pipeline and explicit `Approve & Search` flow: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> explicit approval -> approved Tavily-backed results.
 
@@ -36,7 +36,11 @@ After Phase 7 closeout, Phase 7.5 was inserted as the current QA gate before Pha
 
 `P7.5-003` verification passed: the checklist matrix was reconciled against all 104 scenario IDs, owner/mode/search-mode totals matched the intended QA split, and `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed after the document updates.
 
-Next Phase 7.5 task: `P7.5-004 Run RU browser QA with approved Tavily execution when needed`.
+`P7.5-004` completed the RU browser QA pass in `docs/phase-7-5-ru-browser-qa-results.md`: 47/47 RU scenarios were run, with 39 pass, 7 fail, 1 blocked, 0 not-run, and 0 live Tavily executions. The pass found that the browser flow can build a Search Brief and visible Search Plan, but the runtime approval preparation can remain blocked after Build Plan, leaving `Approve & Search` disabled and preventing approved Tavily execution.
+
+`P7.5-006` consolidated those RU findings in `docs/phase-7-5-qa-findings-report.md`. The current grouped blockers are: runtime approval not prepared after Build Plan, clean RU initial requests sometimes misclassified as blocked refinements, and several RU prohibited requests treated as normal search clarifications. EN/mixed QA (`P7.5-005`) has not run yet and should wait until the approved-search blocker is reviewed/fixed, unless the user explicitly chooses to run it against the known broken state.
+
+Next Phase 7.5 task: `P7.5-007 Review and approve current-flow fixes`.
 
 Current agreed strategy:
 
@@ -471,6 +475,8 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 - Phase 7 `P7-009` golden conversation regression completed: `scripts/smoke_p7_golden_conversations.py` covers no-network recruiter chat, Search Brief refinement, Agent Plan, Build Plan, runtime prepare, Agent Response, wording fallback/provenance, and frontend typed-message contract scenarios, and it is included in `scripts/check_all.ps1`.
 - Phase 7 `P7-010` docs-only closeout completed: Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`, `docs/phase-7-closeout.md` records wording quality evaluation, guardrail evaluation, residual gaps, verification evidence, and the original Phase 8 handoff; Phase 7.5 was later inserted as the QA gate before Phase 8, and the local regression baseline passed after document updates.
 - Phase 7.5 `P7.5-003` browser QA checklist completed: all 104 scenario IDs are mapped with no missing/extra/duplicates, the QA split is 47 RU scenarios and 57 EN/mixed/other scenarios, live Tavily is limited to two approved single-wave UI searches, and the local regression baseline passed after document updates.
+- Phase 7.5 `P7.5-004` RU browser QA completed: 47/47 RU scenarios were recorded in `docs/phase-7-5-ru-browser-qa-results.md`, with 39 pass, 7 fail, 1 blocked, and 0 live Tavily executions because approved runtime preparation did not complete.
+- Phase 7.5 `P7.5-006` initial QA findings report completed: `docs/phase-7-5-qa-findings-report.md` groups the RU blockers and sets `P7.5-007 Review and approve current-flow fixes` as the next task.
 
 ## Current known limitations
 
