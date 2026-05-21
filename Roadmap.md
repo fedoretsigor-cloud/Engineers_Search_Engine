@@ -134,13 +134,13 @@ POC прототип с легким фронтом и одним поисков
 - Phase 5.5 - `Technical modularization before Agent Runtime`: без изменения поведения разделить большой backend в `app/main.py` на модули перед настоящим tool-calling runtime.
 - Phase 6 - `Tool-Calling Agent Runtime`: превратить чат в bounded human-approved tool loop: AI получает цель, планирует шаги, готовит вызовы доступных инструментов (`AI Query Planner`, search runner, multi-wave runner, quality layer), смотрит на результаты и предлагает следующий шаг; execution не автономный и требует approval.
 - Phase 7 - `Agent Conversation Wording Layer`: после Phase 6 runtime добавить controlled wording layer для agent conversation messages: taxonomy/lifecycle, facts contract, style policy, deterministic source messages, LLM routing/gating, bounded payload/prompt contract, validation/fallback/provenance, typed frontend rendering и golden scenario regression. Lightweight wording provenance/version metadata входит в P7-007/P7-009, но не как отдельная product analytics/telemetry задача.
-- Phase 7.5 - `Recruiter Simulation QA & Flow Hardening`: перед Phase 8 провести глубокую симуляцию живого рекрутера в локальном браузере на текущем Java/Ukraine Agent flow. OpenAI live calls разрешены для существующих chat/planning/wording paths. Tavily-backed execution разрешен, если сценарий этого требует, но только через существующий approved backend pipeline и явный `Approve & Search`. Покрытие обязательно RU + EN. Цель - собрать QA findings, согласовать исправления текущего flow и только потом принять readiness decision для Phase 8: `ready`, `ready after approved fixes` или `not ready`.
+- Phase 7.5 - `Recruiter Simulation QA & Flow Hardening`: перед Phase 8 проведена глубокая симуляция живого рекрутера в локальном браузере на текущем Java/Ukraine Agent flow. OpenAI live calls были разрешены для существующих chat/planning/wording paths. Tavily-backed execution был разрешен только через существующий approved backend pipeline и явный `Approve & Search`. Покрытие RU + EN завершено, approved fixes реализованы, closeout decision: `ready after approved fixes completed`.
 - Phase 8 - `Candidate Workspace/Table + Shortlist`: сделать таблицу кандидатов главным рабочим artifact после чата: score, evidence, role/tech/location fit, review flags, query/wave source, filters, сортировка, объяснения, shortlist и экспорт.
 - Phase 9 - `Persistent Memory + Saved Searches`: добавить хранение chat sessions, search briefs, runs, candidates, scores, shortlists и saved searches, чтобы агент мог продолжать работу между сессиями и не терять контекст.
 
-Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Phase 5.5 завершена как `Technical modularization before Agent Runtime`. Phase 6 завершена как `AI Agent Runtime v0 baseline`. Phase 7 завершена как `Agent Conversation Wording Layer v0 baseline`. Текущий активный этап - Phase 7.5 `Recruiter Simulation QA & Flow Hardening`.
+Phase 4 завершена как `AI Agent Foundation`. Phase 5 завершена как narrow Java/Ukraine Agent UX foundation. Phase 5.5 завершена как `Technical modularization before Agent Runtime`. Phase 6 завершена как `AI Agent Runtime v0 baseline`. Phase 7 завершена как `Agent Conversation Wording Layer v0 baseline`. Phase 7.5 завершена как `Recruiter Simulation QA & Flow Hardening` с решением `ready after approved fixes completed`. Текущий активный этап - Phase 8 `Candidate Workspace/Table + Shortlist`.
 
-Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Phase 5.5 модульно подготовила backend. Phase 6 добавила human-approved runtime baseline. Phase 7 закрыла controlled agent conversation wording layer без изменения state, tools, approval, Search Brief, QueryPlan, candidates, counts или execution actions. Перед Phase 8 вводим Phase 7.5: recruiter simulation QA в RU/EN с разрешенным OpenAI и approved Tavily-backed execution через существующий UI/backend flow, чтобы найти и согласовать проблемы текущего flow до строительства candidate workspace/table. RU и EN/mixed browser QA уже выполнены; Phase 7.5 должна завершиться readiness decision, а не автоматическим стартом Phase 8. После Phase 7.5 Phase 8 должна превратить результаты поиска в рабочий recruiter artifact: candidate workspace/table, shortlist, notes/statuses и будущий export workflow.
+Критическое решение по дальнейшему пути: сначала доводим до качества один узкий flow `Backend Developer + Java + Ukraine`, а не расширяем страны/технологии. Phase 5 закрыла агентный UX на этом flow: onboarding, clarification, brief refinement, approved search, result-to-next-iteration loop и единый AI Agent visual style. Phase 5.5 модульно подготовила backend. Phase 6 добавила human-approved runtime baseline. Phase 7 закрыла controlled agent conversation wording layer без изменения state, tools, approval, Search Brief, QueryPlan, candidates, counts или execution actions. Phase 7.5 проверила текущий flow глазами рекрутера в RU/EN, нашла blockers, провела approved fixes и закрылась решением `ready after approved fixes completed`. Теперь Phase 8 должна превратить результаты поиска в рабочий recruiter artifact: candidate workspace/table, shortlist, notes/statuses и будущий export workflow, начиная с `P8-001 Define candidate workspace contract`.
 
 Фаза 4 - AI Agent Foundation
 
@@ -293,11 +293,11 @@ Absolute product boundaries: запрещены direct web-search агентом
 - Phase 5.5 технически готовит код к runtime: разделяет `app/main.py` на модули без изменения поведения.
 - Phase 6 добавляет настоящий human-approved tool loop: агент планирует следующий шаг, готовит вызов доступных инструментов, выполняет execution только после approval, анализирует результат и предлагает итерацию.
 - Phase 7 добавляет LLM-assisted Agent Conversation Wording Layer поверх стабильного runtime/message taxonomy, без права менять state, tools, approval, Search Brief, QueryPlan, candidates, counts или actions.
-- Phase 7.5 добавляет recruiter simulation QA gate: проверяем текущий Java/Ukraine flow как живой рекрутер в RU/EN, с OpenAI для существующих путей и approved Tavily-backed execution через существующий UI/backend flow, если сценарий этого требует.
-- Для реально удобного recruiter workflow нужна еще Phase 8: candidate workspace, shortlist, notes/statuses и рабочая таблица кандидатов.
+- Phase 7.5 добавила recruiter simulation QA gate: текущий Java/Ukraine flow проверен как живой рекрутер в RU/EN, с OpenAI для существующих путей и approved Tavily-backed execution через существующий UI/backend flow, когда сценарий этого требовал.
+- Phase 8 теперь должна добавить реально удобный recruiter workflow: candidate workspace, shortlist, notes/statuses и рабочую таблицу кандидатов.
 - Phase 9 добавляет persistence/memory, чтобы агент мог продолжать работу между сессиями.
 
-Вывод: через Phase 5 + Phase 5.5 + Phase 6 получен надежный AI Agent v0 baseline для узкого Java/Ukraine flow. Phase 7 улучшила обычную речь агента после стабилизации runtime. Phase 7.5 должна проверить этот flow глазами рекрутера и дать список approved fixes перед тем, как Phase 8 и Phase 9 превратят его в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
+Вывод: через Phase 5 + Phase 5.5 + Phase 6 получен надежный AI Agent v0 baseline для узкого Java/Ukraine flow. Phase 7 улучшила обычную речь агента после стабилизации runtime. Phase 7.5 проверила этот flow глазами рекрутера, закрыла approved fixes и дала Phase 8 readiness decision. Phase 8 и Phase 9 должны превратить этот foundation в полноценный recruiter workflow с рабочей таблицей и памятью между сессиями.
 
 ### Ideas
 
@@ -314,12 +314,11 @@ Absolute product boundaries: запрещены direct web-search агентом
 
 ### Planned
 
-- Phase 8: `Candidate Workspace/Table + Shortlist`.
 - Phase 9: `Persistent Memory + Saved Searches`.
 
 ### In Progress
 
-- Phase 7.5: `Recruiter Simulation QA & Flow Hardening`; `P7.5-002` created the full 104-scenario recruiter simulation bank in `docs/phase-7-5-recruiter-simulation-scenarios.md`, with QA result capture fields and disciplined approved-flow Tavily usage. `P7.5-003` created `docs/phase-7-5-browser-qa-checklist.md`, assigning all 104 scenarios, defining evidence/status/severity capture, and limiting live Tavily to two approved single-wave searches. `P7.5-004` completed RU browser QA in `docs/phase-7-5-ru-browser-qa-results.md`, `P7.5-006` consolidated the first findings in `docs/phase-7-5-qa-findings-report.md`, `P7.5-007` approved the exact current-flow fix scope, `P7.5-008` implemented approved-search runtime preparation, latest-turn safety guardrails, and clean-state chat-classification fixes, `P7.5-009` added no-network regression coverage for those fixed issues, `P7.5-005` completed EN/mixed browser QA in `docs/phase-7-5-en-browser-qa-results.md` with 57/57 scenarios run and findings `P75-QA-008` through `P75-QA-014`, and `P7.5-011` implemented immediate EN/mixed hardening fixes for those findings. Next task is `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
+- Phase 8: `Candidate Workspace/Table + Shortlist`; current active phase after `P7.5-010`. Next task is `P8-001 Define candidate workspace contract`.
 
 ### Completed
 
@@ -327,6 +326,7 @@ Absolute product boundaries: запрещены direct web-search агентом
 - Phase 5.5: `Technical modularization before Agent Runtime` - `P5.5-001` through `P5.5-009` are completed. Phase 5.5 is closed as no-behavior-change backend modularization before Phase 6.
 - Phase 6: `Tool-Calling Agent Runtime` - `P6-001` through `P6-006` are completed. Phase 6 is closed as `AI Agent Runtime v0 baseline`, not as a complete autonomous recruiter agent.
 - Phase 7: `Agent Conversation Wording Layer` - `P7-001` through `P7-010` are completed. Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline`.
+- Phase 7.5: `Recruiter Simulation QA & Flow Hardening` - `P7.5-001` through `P7.5-011` are completed. Phase 7.5 is closed with the decision `ready after approved fixes completed`; see `docs/phase-7-5-closeout.md`.
 
 ### Phase 5 Approved Contract
 

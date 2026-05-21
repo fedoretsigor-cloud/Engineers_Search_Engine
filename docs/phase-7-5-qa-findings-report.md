@@ -2,18 +2,21 @@
 
 Task: `P7.5-006 Create recruiter simulation QA findings report`
 
-Status: completed as an initial RU findings report; updated with P7.5-005 EN/mixed QA addendum
+Status: completed as an initial RU findings report; updated with P7.5-005 EN/mixed QA addendum; finalized by P7.5-010 closeout
 
 Source evidence:
 
 - `docs/phase-7-5-ru-browser-qa-results.md`
 - `docs/phase-7-5-en-browser-qa-results.md`
+- `docs/phase-7-5-closeout.md`
 
 ## Scope
 
 This report originally consolidated the completed `P7.5-004` Russian browser QA pass early because the RU pass found product-blocking issues before EN/mixed QA.
 
 After `P7.5-007`/`P7.5-008`/`P7.5-009`, the approved current-flow fixes and no-network regression coverage were completed. The English/mixed pass `P7.5-005` has now also completed; its raw evidence is in `docs/phase-7-5-en-browser-qa-results.md`.
+
+`P7.5-011` implemented the immediate EN/mixed hardening fixes, and the follow-up stack-grounding hotfix in commit `6e3df0c` passed local checks, targeted browser retest, and CI. `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`.
 
 No code changes are included in this task.
 
@@ -73,13 +76,15 @@ New EN/mixed finding IDs:
 
 ## Main Conclusion
 
-Phase 7.5 is already useful: it found real current-flow blockers, not cosmetic issues.
+Phase 7.5 was useful: it found real current-flow blockers, not cosmetic issues.
 
-The system is not ready to move directly into Phase 8. The narrow Java/Ukraine Agent flow needs a focused hardening pass first.
+Historical QA conclusion before fixes: the system was not ready to move directly into Phase 8, and the narrow Java/Ukraine Agent flow needed focused hardening first.
 
 The original highest priority was restoring the approved search path and closing RU safety/classification gaps. Those fixes were implemented and regression-covered in P7.5-008/P7.5-009, and EN QA confirms the approved search path now works end to end for `CORE-EN-001`.
 
-The remaining Phase 7.5 decision is whether to fix the newly observed EN/mixed blockers before Phase 8, or close Phase 7.5 as `ready after approved fixes` with a precise approved fix list.
+Final closeout conclusion after P7.5-011 and commit `6e3df0c`: Phase 7.5 is closed as `ready after approved fixes completed`.
+
+This means Phase 8 can start with `P8-001 Define candidate workspace contract`. It does not mean broad support for new roles, countries, technologies, private sources, direct LinkedIn access, autonomous execution, or executable AI-generated QueryPlans.
 
 ## Root Cause Group 1: Runtime Approval Is Not Prepared After Build Plan
 
@@ -221,21 +226,45 @@ This means the next step should be focused hardening, not a full rewrite.
 3. Completed: `P7.5-009 Add regression coverage for fixed issues`.
 4. Completed: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
 5. Completed: `P7.5-011 Implement immediate EN/mixed hardening fixes` for findings `P75-QA-008` through `P75-QA-014`.
-6. Next: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
-7. In P7.5-010, consolidate RU and EN/mixed evidence together and decide whether any targeted retest is needed before Phase 8.
+6. Completed: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
+7. Next: `P8-001 Define candidate workspace contract`.
 
 ## Phase 8 Readiness
 
-Current decision: pending P7.5-010.
+Current decision: `ready after approved fixes completed`.
 
 Reason:
 
 - The core approved search path now completes from the browser UI for `CORE-EN-001`.
 - The initial RU blockers were fixed in P7.5-008/P7.5-009.
 - The EN/mixed blockers `P75-QA-008` through `P75-QA-014` were fixed in P7.5-011 and covered by the extended no-network P7.5 regression smoke.
-- P7.5 still needs an explicit closeout/readiness decision and may need targeted browser retest before Phase 8 starts.
+- The final targeted retest/hotfix in commit `6e3df0c` fixed Docker/Kubernetes stack fact grounding, no-stack clarification, and stale ready-flow status after stack explanation.
+- Local checks, targeted browser retest, and CI passed after the final hotfix.
 
-Expected readiness path:
+Phase 8 handoff:
 
-- `P7.5-010` should decide whether the project is `ready`, `ready after approved fixes`, or still `not ready`, using the completed RU QA, EN/mixed QA, immediate hardening fixes, and verification evidence.
+- Start with `P8-001 Define candidate workspace contract`.
+- Do not treat this closeout as approval to implement candidate workspace/table without reviewing the contract task.
+- Preserve the human-approved runtime boundary and the absolute product restrictions.
+
+## Final Finding Closure Summary
+
+| Finding | Closure status | Verification evidence |
+| --- | --- | --- |
+| `P75-QA-001` | fixed and verified | `P7.5-008`; `P7.5-009` smoke; EN approved UI flow |
+| `P75-QA-002` | fixed and verified | `P7.5-008`; `P7.5-009` smoke |
+| `P75-QA-003` | fixed and verified | `P7.5-008`; `P7.5-009` smoke |
+| `P75-QA-004` | fixed and verified | `P7.5-008`; `P7.5-009` smoke |
+| `P75-QA-005` | fixed and verified | `P7.5-008`; `P7.5-009` smoke |
+| `P75-QA-006` | fixed and verified | `P7.5-008`; `P7.5-009` smoke |
+| `P75-QA-007` | fixed and verified | `P7.5-008`; `P7.5-009` smoke |
+| `P75-QA-008` | fixed and verified | `P7.5-011`; extended P7.5 smoke; `6e3df0c` targeted browser retest |
+| `P75-QA-009` | fixed and verified | `P7.5-011`; extended P7.5 smoke |
+| `P75-QA-010` | fixed and verified | `P7.5-011`; extended P7.5 smoke |
+| `P75-QA-011` | fixed and verified | `P7.5-011`; extended P7.5 smoke |
+| `P75-QA-012` | fixed and verified | `P7.5-011`; extended P7.5 smoke; no-stack targeted browser retest |
+| `P75-QA-013` | fixed and verified | `P7.5-011`; extended P7.5 smoke; ready-flow targeted browser retest |
+| `P75-QA-014` | fixed and verified | `P7.5-011`; extended P7.5 smoke |
+
+Detailed closeout record: `docs/phase-7-5-closeout.md`.
 

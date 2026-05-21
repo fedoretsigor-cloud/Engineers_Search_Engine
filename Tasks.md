@@ -5726,11 +5726,11 @@ Codex restated the task scope, critically reviewed the closeout decision, and wa
 
 Closed Phase 6 as `AI Agent Runtime v0 baseline`.
 
-Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`; later project status now treats Phase 7.5 `Recruiter Simulation QA & Flow Hardening` as the current active direction before Phase 8 `Candidate Workspace/Table + Shortlist`.
+Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md`; later project status now treats Phase 7.5 `Recruiter Simulation QA & Flow Hardening` as completed and Phase 8 `Candidate Workspace/Table + Shortlist` as the current active direction.
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU QA findings report, `P7.5-007` current-flow fixes decision, `P7.5-008` implementation, `P7.5-009` regression coverage, and `P7.5-011` immediate EN/mixed hardening. Next task is `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, and the `P7.5-010` closeout. Next task is `P8-001 Define candidate workspace contract`.
 
 ---
 
@@ -9181,11 +9181,11 @@ Verification:
 
 ### Approved
 
-- [x] P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
+None.
 
 ### Backlog
 
-- [ ] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
+None.
 
 ### In Progress
 
@@ -9193,6 +9193,7 @@ None.
 
 ### Done
 
+- [x] P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
 - [x] P7.5-002 Define RU/EN recruiter simulation scenarios
 - [x] P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed
 - [x] P7.5-004 Run RU browser QA with approved Tavily execution when needed
@@ -9202,28 +9203,213 @@ None.
 - [x] P7.5-008 Implement approved critical current-flow fixes
 - [x] P7.5-009 Add regression coverage for fixed issues
 - [x] P7.5-011 Implement immediate EN/mixed hardening fixes
+- [x] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
 
-### Current Phase 7.5 strategy note
+### Final Phase 7.5 closeout note
 
-Phase 7.5 is inserted after Phase 7 closeout and before Phase 8 implementation.
+Phase 7.5 is closed by `P7.5-010` with the readiness decision `ready after approved fixes completed`.
 
-Goal: simulate a live recruiter in the local browser and harden the existing narrow `Backend Developer + Java + Ukraine` Agent flow before building the candidate workspace.
+Meaning: the existing narrow `Backend Developer + Java + Ukraine` Agent flow is ready enough to start the Phase 8 contract task, not broadly ready for all recruiter searches.
 
-OpenAI live calls are allowed where the current product already uses them, if configured. Tavily execution is allowed in Phase 7.5 when the scenario requires it, but only through the existing approved backend pipeline and explicit `Approve & Search` flow. QA should test the recruiter flow end-to-end when useful: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> explicit approval -> approved Tavily-backed results.
+Phase 7.5 simulated a live recruiter in the local browser and hardened the current narrow Agent flow before candidate workspace work. The QA path preserved the visible approved execution chain: recruiter chat -> Search Brief -> Agent Plan -> Build Plan -> visible QueryPlan -> explicit approval -> approved Tavily-backed results.
 
-Carryover for `P7.5-003`: the safe browser QA checklist must explicitly say Tavily can be used only through the visible approved application flow. It must forbid direct Tavily calls, direct structured-search/runtime execution outside the UI flow, direct web-search bypass, LinkedIn login/access/scraping/automation, outreach, account actions, and autonomous execution.
+OpenAI live calls were allowed where the current product already used them, if configured. Tavily execution was allowed only through the existing approved backend pipeline and explicit `Approve & Search` flow. Phase 7.5 did not use direct Tavily calls, direct structured-search/runtime execution outside the UI flow, direct web-search bypass, LinkedIn login/access/scraping/automation, outreach, account actions, or autonomous execution.
 
-QA must cover both Russian and English recruiter communication. Findings must first be documented in a QA report; fixes require separate review and approval before implementation.
+QA covered both Russian and English recruiter communication. Findings were documented first, then approved fixes were implemented in `P7.5-008` and `P7.5-011`, with regression coverage in `P7.5-009` and the extended P7.5 smoke.
 
-P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. P7.5-011 implemented immediate fixes for the EN/mixed findings `P75-QA-008` through `P75-QA-014` and extended the no-network P7.5 regression smoke. Next step is P7.5-010 readiness consolidation and, if needed, targeted retest before Phase 8.
+P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. P7.5-011 implemented immediate fixes for the EN/mixed findings `P75-QA-008` through `P75-QA-014` and extended the no-network P7.5 regression smoke. A later targeted browser retest found two additional hardening issues in the same closeout area: LLM/brief stack fact contamination for Docker/Kubernetes and stale ready-flow status after stack explanation. Commit `6e3df0c` fixed those issues and passed local regression checks, targeted browser retest, CI, and no-LinkedIn/no-Tavily-boundary checks.
+
+Final closeout artifact: `docs/phase-7-5-closeout.md`.
+
+Next active phase: Phase 8 `Candidate Workspace/Table + Shortlist`.
+
+Next task: `P8-001 Define candidate workspace contract`.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
+
+## Task: P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
+
+### Status
+
+Completed.
+
+Approval note: the user approved this task after critical review. The approved readiness decision to execute is `ready after approved fixes completed`.
+
+### Implementation Result
+
+Implemented as a docs-only closeout.
+
+Created `docs/phase-7-5-closeout.md` as the final Phase 7.5 closeout artifact. The closeout records:
+
+- readiness decision: `ready after approved fixes completed`;
+- evidence summary from RU QA, EN/mixed QA, approved fixes, regression coverage, targeted browser retest, commit `6e3df0c`, and CI;
+- closure status for `P75-QA-001` through `P75-QA-014`;
+- residual limitations accepted for Phase 8 handoff;
+- absolute product boundaries;
+- Phase 8 handoff to `P8-001 Define candidate workspace contract`.
+
+Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, `AGENTS.md`, `docs/phase-7-closeout.md`, and `docs/phase-7-5-qa-findings-report.md` so they consistently describe Phase 7.5 as closed and Phase 8 as the current active phase.
+
+No backend code, frontend code, tests, prompts, Tavily execution, browser QA, candidate workspace, persistence, new country/technology support, executable AI QueryPlans, LinkedIn/account behavior, or autonomous execution was added.
+
+### Goal
+
+Close Phase 7.5 as a QA gate and make an explicit Phase 8 readiness decision.
+
+This task should consolidate the completed RU QA, EN/mixed QA, approved fixes, regression coverage, targeted retest, and residual limitations. It must decide whether the project is:
+
+- `ready`;
+- `ready after approved fixes completed`;
+- `not ready`.
+
+Recommended decision for review: `ready after approved fixes completed`.
+
+Reason: Phase 7.5 found real blockers, the approved fixes were implemented and verified, the final targeted retest/hotfix passed, and the remaining limitations are expected Phase 8/Phase 9 scope rather than blockers for starting the candidate workspace contract.
+
+### Source Evidence
+
+- `docs/phase-7-5-ru-browser-qa-results.md`
+- `docs/phase-7-5-en-browser-qa-results.md`
+- `docs/phase-7-5-qa-findings-report.md`
+- `scripts/smoke_p75_current_flow_regressions.py`
+- `P7.5-008` implementation and verification result
+- `P7.5-009` regression coverage result
+- `P7.5-011` implementation and verification result
+- Targeted browser retest after P7.5-011:
+  - Docker/Kubernetes request no longer invents Spring;
+  - QueryPlan uses Docker/Kubernetes without Spring;
+  - no-stack request asks for stack instead of inventing defaults;
+  - stack explanation preserves ready status;
+  - browser console had no errors.
+- Commit `6e3df0c fix: keep recruiter chat stack facts grounded`
+- GitHub Actions CI for `6e3df0c`: success
+
+### Proposed Steps
+
+1. Consolidate Phase 7.5 evidence:
+   - RU QA result: `47/47` scenarios run, initial `39 pass / 7 fail / 1 blocked`;
+   - EN/mixed QA result: `57/57` scenarios run, initial `37 pass / 20 fail / 0 blocked`;
+   - live Tavily usage stayed inside the approved UI flow and explicit `Approve & Search`;
+   - no LinkedIn profile opening, login, scraping, restriction bypass, messaging, outreach, account action, direct web-search bypass, or autonomous execution occurred.
+
+2. Build a finding closure table for `P75-QA-001` through `P75-QA-014`:
+   - original finding summary;
+   - source scenario(s);
+   - severity;
+   - fix task or code commit;
+   - verification evidence;
+   - residual follow-up, if any.
+
+3. Explicitly include the final targeted retest/hotfix evidence:
+   - `CORE-EN-003` Docker/Kubernetes no longer leaks schema errors and no longer invents Spring;
+   - no-stack Java/Ukraine request remains clarification-only;
+   - stack-explanation meta turn keeps ready brief and supported Agent Plan status;
+   - `scripts/check_all.ps1` passed;
+   - browser console errors were empty;
+   - CI passed after push.
+
+4. Decide Phase 8 readiness:
+   - recommended decision: `ready after approved fixes completed`;
+   - do not mark as plain `ready` without explaining that the readiness came after approved hardening and retest;
+   - do not mark as `not ready` unless a remaining blocker is found during the closeout review.
+
+5. Record residual limitations:
+   - supported product flow is still narrow: `Backend Developer + Java + Ukraine`;
+   - current executable planner remains `RuleBasedQueryPlanner v1`;
+   - AI-generated QueryPlans remain non-executable;
+   - Tavily result pools vary between runs;
+   - candidate table/workspace, shortlist, notes/statuses, export, persistence, saved searches, and memory are not implemented yet;
+   - candidate quality remains deterministic signal, not final recruiting truth;
+   - location confidence still depends on public snippets/content and is not verified profile enrichment.
+
+6. Preserve absolute boundaries:
+   - no direct web-search by the agent outside the approved backend pipeline;
+   - no direct LinkedIn access/automation;
+   - no LinkedIn login;
+   - no LinkedIn scraping or restriction bypass;
+   - no candidate messaging, outreach, or automatic contact action;
+   - no autonomous execution;
+   - no user or third-party account actions.
+
+7. Update documents consistently:
+   - `Tasks.md`: move `P7.5-010` to done after approval/execution and mark Phase 7.5 closed;
+   - `ProjectStatus.md`: set current phase to Phase 8 after closeout;
+   - `Roadmap.md`: record Phase 7.5 closeout decision and Phase 8 as active;
+   - create `docs/phase-7-5-closeout.md` as the final closeout artifact with the readiness decision, evidence summary, closed findings, residual limitations, and Phase 8 handoff;
+   - `docs/phase-7-5-qa-findings-report.md`: add final readiness decision and finding closure summary;
+   - update `README.md` and `AGENTS.md` only if their current phase/status sections become inconsistent.
+
+8. Define the Phase 8 handoff:
+   - next task: `P8-001 Define candidate workspace contract`;
+   - P7.5-010 must not implement the candidate workspace/table itself;
+   - Phase 8 should start with a contract for the recruiter-facing candidate workspace/table, shortlist, notes/statuses, explanations, sorting/filtering, and export boundaries.
+
+9. Verify closeout docs:
+   - run `git diff --check`;
+   - run the local regression baseline only if the closeout edits touch executable code or scripts;
+   - if docs only, no browser/Tavily run is required unless the user asks for another live retest;
+   - no fresh Tavily run is required for P7.5-010 by default because the EN happy path already passed through the approved UI Tavily flow and the final fixes were chat/brief/status boundary fixes; run fresh Tavily only if the user explicitly asks or a new closeout blocker appears.
+
+10. Commit and push after approval:
+    - commit the closeout documentation only after the user approves the task or asks to execute it;
+    - after push, check CI if CI is triggered.
+
+### Critical Review Notes
+
+- `ready after approved fixes completed` means the current narrow Java/Ukraine Agent v0 flow is ready enough to start the Phase 8 contract task. It does not mean the product is broadly ready for all recruiter searches.
+- The closeout must not imply support for new countries, technologies, roles, private sources, LinkedIn account access, or autonomous execution.
+- The closeout must not imply AI-generated QueryPlans are executable. `RuleBasedQueryPlanner v1` remains the executable planner unless a later reviewed task changes that.
+- The finding closure table should distinguish:
+  - fixed and verified;
+  - fixed with residual limitation;
+  - expected out-of-scope limitation for Phase 8 or Phase 9;
+  - needs future task.
+- Do not invent missing evidence. If a finding was covered only by no-network smoke or targeted browser retest, say that precisely.
+- Do not rerun Tavily just to get a new candidate count. Tavily variability is expected and not useful as a closeout signal unless the app flow itself fails.
+- Do not rewrite raw QA pass/fail numbers after fixes. Raw QA results remain historical evidence; P7.5-010 records closure based on implemented fixes, regression coverage, targeted browser retest, and CI, not a full rerun of all 104 scenarios.
+
+### Acceptance Criteria
+
+- Phase 7.5 has an explicit readiness decision.
+- `docs/phase-7-5-closeout.md` exists as the final closeout artifact.
+- `P75-QA-001` through `P75-QA-014` have documented closure status and verification evidence.
+- The final Docker/Kubernetes stack-grounding hotfix is included in the evidence.
+- The decision explains why Phase 8 can start and what remains out of scope.
+- All absolute product boundaries remain explicit.
+- Phase 8 starts with `P8-001 Define candidate workspace contract`, not implementation.
+- Docs do not imply broader country/technology support than the code has.
+- Docs do not imply AI-generated QueryPlans are executable.
+- Docs do not imply autonomous execution or LinkedIn/account behavior is allowed.
+
+### Non-Goals
+
+- Do not implement Candidate Workspace/Table.
+- Do not add shortlist, notes/statuses, export, persistence, saved searches, or memory.
+- Do not add new countries, technologies, roles, search sources, or planner coverage.
+- Do not make AI-generated QueryPlans executable.
+- Do not call Tavily during the closeout unless the user explicitly requests a fresh approved UI retest.
+- Do not treat Tavily result variability as a closeout blocker unless a new app-flow/product failure appears.
+- Do not call direct Tavily/API/runtime/search endpoints outside the UI-approved flow.
+- Do not open LinkedIn profiles, log in, scrape, bypass restrictions, message candidates, or perform account actions.
+- Do not change production code unless a new blocker is found and separately approved.
+
+### Verification Result
+
+- `git diff --check` passed.
+- Closeout was docs-only, so no fresh Tavily run or browser QA was required.
+- Local regression code was not rerun for this task because no executable code or scripts changed.
+
+### Pre-execution Rule
+
+Codex critically reviewed this task against current `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, QA result documents, latest code status, and absolute product boundaries. The user approved the readiness decision before the closeout was executed.
+
+---
 
 ## Task: P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation
 
 ### Status
 
-Approved.
+Implemented as a docs-only QA gate definition.
 
 ### Goal
 
@@ -10537,7 +10723,7 @@ No Tavily, LinkedIn, Google, direct web search, browser QA, Phase 8 UI, planner/
 9. Update task/status docs after implementation:
    - update `Tasks.md` with implementation result and verification evidence;
    - update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` only where needed for consistency;
-   - record the handoff from regression coverage to `P7.5-005` EN/mixed QA. Later status: P7.5-005 completed and P7.5-010 is next.
+   - record the handoff from regression coverage to `P7.5-005` EN/mixed QA. Later status: P7.5-005 and P7.5-010 are completed; Phase 8 is active.
 
 ### Critical Review Notes
 
@@ -10659,7 +10845,11 @@ Run `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision` after reviewing w
 
 ### Current Phase 8 strategy note
 
-Phase 8 should start after the approved agent loop and conversation wording layer exist. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`.
+
+Phase 8 should start with `P8-001 Define candidate workspace contract`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+
+Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Candidate workspace/table implementation should not start until its contract task is reviewed and approved.
 
 ---
 

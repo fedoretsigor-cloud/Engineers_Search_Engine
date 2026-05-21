@@ -13,7 +13,7 @@ Status:
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
-- Current active phase: Phase 7.5 `Recruiter Simulation QA & Flow Hardening`.
+- Current active phase: Phase 8 `Candidate Workspace/Table + Shortlist`.
 - Phase 6 `Human-approved Tool-Calling Agent Runtime` is completed through `P6-006 Close Phase 6 with AI Agent v0 decision` and closed as `AI Agent Runtime v0 baseline`.
 - Phase 5.5 `Technical modularization before Agent Runtime` is completed through `P5.5-009`.
 - Phase 5 `Recruiter Chat UX + Search Brief conversation` is completed and closed as a narrow Java/Ukraine Agent UX foundation.
@@ -54,7 +54,7 @@ Status:
 - `P7-008` added frontend-only typed rendering for current agent chat messages, local-only system errors, and inert structured rendering for `agent_response.next_iteration_options` without backend/API/runtime/search changes.
 - `P7-009` added no-network golden conversation scenario regression coverage in `scripts/smoke_p7_golden_conversations.py` and wired it into `scripts/check_all.ps1`.
 - `P7-010` closed Phase 7 as `Agent Conversation Wording Layer v0 baseline` in `docs/phase-7-closeout.md`.
-- Phase 7.5 was inserted after Phase 7 as a recruiter simulation QA gate before Phase 8. OpenAI live calls are allowed for existing chat/planning/wording paths when configured. Tavily-backed execution is allowed when a scenario requires it, but only through the existing approved backend pipeline and explicit `Approve & Search` flow. QA must cover both Russian and English recruiter communication.
+- Phase 7.5 was inserted after Phase 7 as a recruiter simulation QA gate before Phase 8. It is now closed with the decision `ready after approved fixes completed`; see `docs/phase-7-5-closeout.md`.
 - `P7.5-002` created `docs/phase-7-5-recruiter-simulation-scenarios.md` with the full 104-scenario QA bank for RU/EN, noisy, negative, multilingual, off-topic, safety, and state-stress recruiter simulations, including QA result capture fields and disciplined approved-flow Tavily usage.
 - `P7.5-003` created `docs/phase-7-5-browser-qa-checklist.md`, assigning all 104 scenarios to RU/EN QA batches, limiting live Tavily to two approved single-wave searches, and defining evidence/status/severity capture for P7.5-004 and P7.5-005.
 - `P7.5-004` completed RU browser QA in `docs/phase-7-5-ru-browser-qa-results.md`: 47 scenarios run, 39 pass, 7 fail, 1 blocked, and 0 live Tavily executions because runtime approval preparation did not reach `Approve & Search`.
@@ -64,6 +64,7 @@ Status:
 - `P7.5-009` added no-network regression coverage for the fixed current-flow issues and wired it into `scripts/check_all.ps1`.
 - `P7.5-005` completed EN/mixed browser QA in `docs/phase-7-5-en-browser-qa-results.md`: 57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. New findings are `P75-QA-008` through `P75-QA-014`.
 - `P7.5-011` implemented immediate EN/mixed hardening for `P75-QA-008` through `P75-QA-014`: safer EN refusals, deterministic off-topic/meta/reset/ambiguity/contradiction handling, typo normalization, LLM draft sanitization, and local grounded post-results follow-up.
+- `P7.5-010` closed Phase 7.5 as `ready after approved fixes completed`, documented closure for `P75-QA-001` through `P75-QA-014`, and handed off to Phase 8.
 
 Agreed next direction:
 
@@ -71,8 +72,8 @@ Agreed next direction:
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
 - Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`;
-- next Phase 7.5 task: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`;
-- Phase 8 candidate workspace implementation is paused until Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`;
+- next task: `P8-001 Define candidate workspace contract`;
+- Phase 8 is active after the Phase 7.5 closeout decision `ready after approved fixes completed`;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 
 Current pipeline:
