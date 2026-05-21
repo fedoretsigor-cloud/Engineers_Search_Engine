@@ -220,22 +220,22 @@ This means the next step should be focused hardening, not a full rewrite.
 2. Completed: `P7.5-008 Implement approved critical current-flow fixes`.
 3. Completed: `P7.5-009 Add regression coverage for fixed issues`.
 4. Completed: `P7.5-005 Run EN browser QA with approved Tavily execution when needed`.
-5. Next: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
-6. In P7.5-010, consolidate RU and EN/mixed evidence together and decide whether the EN/mixed findings require an approved hardening task before Phase 8.
+5. Completed: `P7.5-011 Implement immediate EN/mixed hardening fixes` for findings `P75-QA-008` through `P75-QA-014`.
+6. Next: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
+7. In P7.5-010, consolidate RU and EN/mixed evidence together and decide whether any targeted retest is needed before Phase 8.
 
 ## Phase 8 Readiness
 
-Current decision: not ready yet.
+Current decision: pending P7.5-010.
 
 Reason:
 
-- The core approved search path now completes from the browser UI for `CORE-EN-001`, but EN/mixed QA exposed additional blockers.
-- Several EN prohibited requests are still not refused correctly.
-- Off-topic and reset/meta turns can mutate or preserve Search Brief state incorrectly.
-- Some incomplete, ambiguous, or contradictory prompts are over-inferred instead of clarified.
-- Supported/near-supported inputs can leak schema validation errors instead of producing useful clarification.
+- The core approved search path now completes from the browser UI for `CORE-EN-001`.
+- The initial RU blockers were fixed in P7.5-008/P7.5-009.
+- The EN/mixed blockers `P75-QA-008` through `P75-QA-014` were fixed in P7.5-011 and covered by the extended no-network P7.5 regression smoke.
+- P7.5 still needs an explicit closeout/readiness decision and may need targeted browser retest before Phase 8 starts.
 
 Expected readiness path:
 
-- `P7.5-010` should choose between `ready after approved fixes` with a focused EN/mixed hardening task, or `not ready` if the remaining failures are judged to block Phase 8.
+- `P7.5-010` should decide whether the project is `ready`, `ready after approved fixes`, or still `not ready`, using the completed RU QA, EN/mixed QA, immediate hardening fixes, and verification evidence.
 

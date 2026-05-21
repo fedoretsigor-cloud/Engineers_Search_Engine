@@ -148,6 +148,7 @@ let latestPlannerData = null;
 let latestQueryPlan = null;
 let latestPlanFingerprint = null;
 let latestExecutablePlan = false;
+let latestAgentResponse = null;
 let currentRuntimePendingApproval = null;
 let currentRuntimeToolCall = null;
 let runtimeApprovalVersion = 0;
@@ -372,6 +373,7 @@ function clearAgentPlanData() {
 }
 
 function clearSearchResultsData() {
+  latestAgentResponse = null;
   messages = messages.filter((message) => message.kind !== "agent_response");
   reportStatus.textContent = "Run a search to see counts.";
   reportGrid.innerHTML = "";
@@ -1237,6 +1239,7 @@ function appendAgentResponseMessage(agentResponse = null) {
     return;
   }
 
+  latestAgentResponse = response;
   messages.push(
     typedChatMessage(
       {
@@ -1442,7 +1445,10 @@ function updateChatStateFromResponse(data = {}) {
   recommendedPlannerMode = data.recommended_planner_mode || PRIMARY_BUILD_PLAN_MODE;
   const responseBrief = data.normalized_brief || null;
 
-  if (responseBrief) {
+  if (data.clear_brief) {
+    draftBrief = null;
+    normalizedBrief = null;
+  } else if (responseBrief) {
     draftBrief = responseBrief;
     normalizedBrief = responseBrief;
   } else if (chatState !== "refused") {
@@ -1488,7 +1494,55 @@ function updateChatStateFromResponse(data = {}) {
   }
 }
 
+function isPostResultsFollowUpMessage(text) {
+  const normalizedText = String(text || "").toLowerCase();
+  return Boolean(
+    latestAgentResponse &&
+      /what should we improve next|what.+improve next|next iteration|what next|improve the next/i.test(
+        normalizedText
+      )
+  );
+}
+
+function handlePostResultsFollowUp(userText) {
+  const options = visibleNextIterationOptions(latestAgentResponse);
+  const optionText = options.length
+    ? ` Current options: ${options
+        .slice(0, 3)
+        .map((option) => option.label)
+        .join("; ")}.`
+    : "";
+  messages.push({ role: "user", content: userText, localOnly: true });
+  messages.push(
+    typedChatMessage(
+      {
+        role: "assistant",
+        content:
+          `Based on the visible results, improve the next iteration by reviewing the strongest candidates first and then choosing a refined follow-up search.${optionText} I will not rerun search without explicit approval.`,
+        kind: "agent_response",
+        localOnly: true,
+      },
+      {
+        messageType: AGENT_MESSAGE_TYPES.AGENT_RESPONSE,
+        surface: "chat",
+        payload: {
+          next_iteration_options: options,
+        },
+      }
+    )
+  );
+  chatStatusElement.textContent = "Results are visible. Follow-up suggestions are grounded in the current results.";
+  renderChatMessages();
+  updateActionState();
+}
+
 async function sendChatTurn(userText) {
+  if (isPostResultsFollowUpMessage(userText)) {
+    handlePostResultsFollowUp(userText);
+    chatInput.focus();
+    return;
+  }
+
   const requestVersion = interactionVersion;
   messages.push({ role: "user", content: userText });
   renderChatMessages();

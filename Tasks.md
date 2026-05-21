@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU QA findings report, `P7.5-007` current-flow fixes decision, `P7.5-008` implementation, and `P7.5-009` regression coverage. Next task is `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU QA findings report, `P7.5-007` current-flow fixes decision, `P7.5-008` implementation, `P7.5-009` regression coverage, and `P7.5-011` immediate EN/mixed hardening. Next task is `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
 
 ---
 
@@ -9166,7 +9166,7 @@ Created `docs/phase-7-closeout.md` with:
 
 Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` so Phase 7 is completed and Phase 8 `Candidate Workspace/Table + Shortlist` was identified as the next product direction.
 
-Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU findings report, `P7.5-007` current-flow fix review, `P7.5-008` implementation, and `P7.5-009` regression coverage.
+Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA, `P7.5-005` EN/mixed browser QA, `P7.5-006` initial RU findings report, `P7.5-007` current-flow fix review, `P7.5-008` implementation, `P7.5-009` regression coverage, and `P7.5-011` immediate EN/mixed hardening.
 
 Next task: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
 
@@ -9201,6 +9201,7 @@ None.
 - [x] P7.5-007 Review and approve current-flow fixes
 - [x] P7.5-008 Implement approved critical current-flow fixes
 - [x] P7.5-009 Add regression coverage for fixed issues
+- [x] P7.5-011 Implement immediate EN/mixed hardening fixes
 
 ### Current Phase 7.5 strategy note
 
@@ -9214,7 +9215,7 @@ Carryover for `P7.5-003`: the safe browser QA checklist must explicitly say Tavi
 
 QA must cover both Russian and English recruiter communication. Findings must first be documented in a QA report; fixes require separate review and approval before implementation.
 
-P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. Next step is P7.5-010 readiness consolidation, including the EN/mixed findings `P75-QA-008` through `P75-QA-014`.
+P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. P7.5-011 implemented immediate fixes for the EN/mixed findings `P75-QA-008` through `P75-QA-014` and extended the no-network P7.5 regression smoke. Next step is P7.5-010 readiness consolidation and, if needed, targeted retest before Phase 8.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
 
@@ -10562,7 +10563,7 @@ No Tavily, LinkedIn, Google, direct web search, browser QA, Phase 8 UI, planner/
 - Refusal/Search Brief preservation semantics are covered at backend state level.
 - Refusal/Search Brief preservation semantics are covered at frontend state level so a refusal cannot visually erase an already visible Search Brief.
 - Clean-state initial requests cannot regress into refinement-blocked responses without failing local checks.
-- The new regression smoke explicitly maps to `P75-QA-001` through `P75-QA-007`.
+- At execution time, the new regression smoke explicitly mapped to `P75-QA-001` through `P75-QA-007`; later `P7.5-011` extended the same smoke to `P75-QA-014`.
 - Direct frontend structured-search fallback cannot be reintroduced without failing local checks.
 - Existing human approval, runtime approval, and external-action boundaries remain intact.
 
@@ -10587,6 +10588,55 @@ The final task steps were critically reviewed with the user and approved before 
 - `python -m compileall app scripts` passed.
 - `node --check app/static/app.js` passed through the bundled Codex Node runtime.
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
+
+---
+
+## Task: P7.5-011 Implement immediate EN/mixed hardening fixes
+
+### Status
+
+Implemented.
+
+### Context
+
+After P7.5-005 EN/mixed browser QA, the user decided that the found issues should be fixed immediately before closing Phase 7.5.
+
+This task fixes the EN/mixed findings `P75-QA-008` through `P75-QA-014` without starting Phase 8, expanding supported countries/roles/search sources, adding autonomous execution, or weakening the approved backend pipeline.
+
+### Implementation Result
+
+Implemented focused hardening for:
+
+- `P75-QA-008`: sanitized LLM-produced chat draft fields so internal Pydantic/schema messages like `Input should be a valid string` are not exposed, while supported Docker/Kubernetes Java stack requests can still become a ready Search Brief.
+- `P75-QA-009`: added a frontend post-results follow-up path that answers from the latest visible Agent Response / next-iteration options and does not call `/api/recruiter-chat/turn`, rerun search, or mutate Search Brief state.
+- `P75-QA-010`: expanded deterministic EN safety coverage for LinkedIn login phrasing, automatic candidate messaging, and autonomous search execution without approval.
+- `P75-QA-011`: added deterministic off-topic routing for weather, greetings/social chat, poems, restaurant recommendations, and current-affairs prompts so they redirect to sourcing without creating Search Brief state.
+- `P75-QA-012`: added deterministic clarification routing for missing role/technology, too many stack signals, multiple roles/markets, conflicting technology, conflicting location, conflicting stack, and conflicting execution intent.
+- `P75-QA-013`: added deterministic reset/meta handling. `Start over` clears the current Search Brief and downstream executable state; stack/planning explanation requests preserve the current brief and explain why stack is required.
+- `P75-QA-014`: added conservative typo handling for `ukrane`/`ukraien`/`ukrain`, `sping`/`sprng`, and `kafak`/`kafkaa`.
+
+Extended `scripts/smoke_p75_current_flow_regressions.py` so the no-network regression smoke now maps and covers `P75-QA-001` through `P75-QA-014`.
+
+### Boundaries
+
+- No Tavily execution was added or run for this coding task.
+- No direct web-search bypass was added.
+- No LinkedIn login, scraping, profile opening, restriction bypass, outreach, candidate messaging, or account action was added.
+- No autonomous execution was added.
+- No Phase 8 Candidate Workspace/Table, shortlist, notes/statuses, export, persistence, saved searches, memory, new countries, new roles, or new search sources were added.
+
+### Verification Result
+
+- `.venv\Scripts\python.exe scripts\smoke_p5_chat_adapter.py` passed.
+- `.venv\Scripts\python.exe scripts\smoke_p75_current_flow_regressions.py` passed.
+- `.venv\Scripts\python.exe -m compileall app scripts` passed.
+- Bundled Codex Node `node.exe --check app\static\app.js` passed.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
+- Browser sanity QA on `http://127.0.0.1:8000` passed for EN LinkedIn-login refusal, off-topic weather redirect, `Spring Kafka Ukraine` clarification, typo normalization to Java/Ukraine/Spring/Kafka, 10-query Build Plan, and `Start over` reset clearing the brief.
+
+### Next Step
+
+Run `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision` after reviewing whether a targeted retest is needed.
 
 ---
 

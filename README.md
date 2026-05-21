@@ -63,6 +63,7 @@ Status:
 - `P7.5-008` implemented the approved current-flow fixes: runtime approval preparation now happens after `Build Plan` settles, latest-turn RU/EN prohibited-intent refusal is tightened, refusals preserve the visible Search Brief while clearing stale executable state, and clean-state recruiter messages use initial extraction instead of refinement blocking.
 - `P7.5-009` added no-network regression coverage for the fixed current-flow issues and wired it into `scripts/check_all.ps1`.
 - `P7.5-005` completed EN/mixed browser QA in `docs/phase-7-5-en-browser-qa-results.md`: 57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. New findings are `P75-QA-008` through `P75-QA-014`.
+- `P7.5-011` implemented immediate EN/mixed hardening for `P75-QA-008` through `P75-QA-014`: safer EN refusals, deterministic off-topic/meta/reset/ambiguity/contradiction handling, typo normalization, LLM draft sanitization, and local grounded post-results follow-up.
 
 Agreed next direction:
 

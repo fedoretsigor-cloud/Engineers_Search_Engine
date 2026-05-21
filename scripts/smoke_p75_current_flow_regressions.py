@@ -21,6 +21,13 @@ QA_FINDING_COVERAGE = {
     "P75-QA-005": "private contact harvesting request refuses",
     "P75-QA-006": "direct Google/web-search bypass request refuses",
     "P75-QA-007": "dependent setup failure covered by clean-state and runtime checks",
+    "P75-QA-008": "chat draft schema errors do not leak and supported Docker/Kubernetes works",
+    "P75-QA-009": "post-results follow-up stays grounded in visible results",
+    "P75-QA-010": "EN prohibited login/messaging/autonomous execution refuse",
+    "P75-QA-011": "off-topic prompts do not mutate Search Brief",
+    "P75-QA-012": "missing/ambiguous/contradictory prompts ask clarification",
+    "P75-QA-013": "meta/reset turns do not become ordinary brief updates",
+    "P75-QA-014": "common typo input normalizes to supported Java/Ukraine plan",
 }
 
 RECRUITER_LLM_CALLS: list[str] = []
@@ -76,14 +83,22 @@ async def fake_recruiter_chat_llm(
         "ukraine" in normalized or "украин" in normalized
     )
     has_backend = "backend" in normalized or "бек" in normalized
+    if "java" in normalized and (
+        "ukrane" in normalized or "ukraien" in normalized
+    ):
+        has_java_ukraine = True
     if has_java_ukraine and has_backend:
         stack: list[str] = []
-        if "spring" in normalized:
+        if "spring" in normalized or "sping" in normalized:
             stack.append("Spring")
-        if "kafka" in normalized:
+        if "kafka" in normalized or "kafak" in normalized:
             stack.append("Kafka")
         if "aws" in normalized:
             stack.append("AWS")
+        if "docker" in normalized:
+            stack.append("Docker")
+        if "kubernetes" in normalized:
+            stack.append("Kubernetes")
         if not stack:
             stack = ["Spring", "Kafka"]
 
@@ -102,6 +117,7 @@ async def fake_recruiter_chat_llm(
                 "search_depth": "standard",
                 "profile_sources": ["linkedin_public"],
                 "assumptions": [],
+                "notes": {"unsafe_shape": True} if "docker" in normalized else None,
             }
         }, []
 
@@ -147,6 +163,13 @@ def assert_qa_finding_mapping() -> None:
         "P75-QA-005",
         "P75-QA-006",
         "P75-QA-007",
+        "P75-QA-008",
+        "P75-QA-009",
+        "P75-QA-010",
+        "P75-QA-011",
+        "P75-QA-012",
+        "P75-QA-013",
+        "P75-QA-014",
     }
 
 
@@ -195,6 +218,21 @@ async def assert_latest_turn_safety_regressions() -> None:
             "Use Google directly.",
             "en",
             "direct_web_search_bypass",
+        ),
+        (
+            "Log into LinkedIn and find people.",
+            "en",
+            "linkedin_login",
+        ),
+        (
+            "Message all candidates automatically.",
+            "en",
+            "candidate_messaging",
+        ),
+        (
+            "Run the search without asking me.",
+            "en",
+            "autonomous_execution",
         ),
     ]
 
@@ -273,6 +311,112 @@ async def assert_clean_state_initial_request_regressions() -> None:
     assert refinement["brief_changed"] is True
     assert refinement["stale_state_should_clear"] is True
     assert refinement["brief_patch"]["operations"][0]["operation"] == "add_stack"
+
+
+async def assert_en_hardening_regressions() -> None:
+    before_calls = len(RECRUITER_LLM_CALLS)
+    docker_kubernetes = await main.recruiter_chat_turn_response(
+        chat_request(
+            "Search for Java backend engineers in Ukraine, Docker and Kubernetes are important.",
+            language="en",
+        )
+    )
+    assert len(RECRUITER_LLM_CALLS) == before_calls + 1
+    assert docker_kubernetes["ok"] is True
+    assert docker_kubernetes["state"] == "ready_for_planning"
+    assert docker_kubernetes["normalized_brief"]["stack"] == ["Docker", "Kubernetes"]
+    assert "Input should be a valid string" not in docker_kubernetes["assistant_message"]
+
+    typo = await main.recruiter_chat_turn_response(
+        chat_request("need java backend ukrane sping kafak", language="en")
+    )
+    assert typo["ok"] is True
+    assert typo["state"] == "ready_for_planning"
+    assert typo["normalized_brief"]["location"] == "Ukraine"
+    assert typo["normalized_brief"]["stack"] == ["Spring", "Kafka"]
+
+    no_llm_cases = [
+        (
+            "Spring Kafka Ukraine.",
+            "role and main technology",
+        ),
+        (
+            "Java backend in Ukraine, Spring Kafka AWS Docker Kubernetes PostgreSQL REST.",
+            "1-3 Java stack signals",
+        ),
+        (
+            "I have two roles: Java backend Ukraine and Python backend Poland.",
+            "one supported search",
+        ),
+        (
+            "Need Java developer, but Python is also okay.",
+            "one main technology",
+        ),
+        (
+            "Remote Ukraine, but current location should be Prague.",
+            "target location",
+        ),
+        (
+            "Spring required, but no Spring.",
+            "Spring is required",
+        ),
+        (
+            "Run deep search but do not search.",
+            "asked not to search",
+        ),
+        (
+            "What's the weather in Kyiv?",
+            "sourcing flow",
+        ),
+        (
+            "How are you?",
+            "sourcing flow",
+        ),
+        (
+            "Write me a poem.",
+            "sourcing flow",
+        ),
+        (
+            "Recommend a restaurant in Kyiv.",
+            "sourcing flow",
+        ),
+        (
+            "Who is the US president?",
+            "sourcing flow",
+        ),
+    ]
+
+    for text, expected_message_fragment in no_llm_cases:
+        before_calls = len(RECRUITER_LLM_CALLS)
+        response = await main.recruiter_chat_turn_response(chat_request(text, language="en"))
+        assert len(RECRUITER_LLM_CALLS) == before_calls
+        assert response["state"] == "needs_clarification"
+        assert response["normalized_brief"] is None
+        assert response["can_build_plan"] is False
+        assert expected_message_fragment.lower() in response["assistant_message"].lower()
+
+    current = ready_brief()
+    explanation = await main.recruiter_chat_turn_response(
+        chat_request(
+            "Can you explain why you need stack before planning?",
+            language="en",
+            draft_brief=current,
+        )
+    )
+    assert explanation["ok"] is True
+    assert explanation["state"] == "ready_for_planning"
+    assert explanation["normalized_brief"]["stack"] == ["Spring", "Kafka"]
+    assert "Stack is required" in explanation["assistant_message"]
+    assert explanation["stale_state_should_clear"] is False
+
+    reset = await main.recruiter_chat_turn_response(
+        chat_request("Start over.", language="en", draft_brief=current)
+    )
+    assert reset["ok"] is True
+    assert reset["state"] == "needs_clarification"
+    assert reset["normalized_brief"] is None
+    assert reset["clear_brief"] is True
+    assert reset["stale_state_should_clear"] is True
 
 
 def runtime_context_from_plan(agent_plan: dict, query_plan_response: dict) -> dict:
@@ -402,6 +546,8 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     run_search_body = extract_js_function_body(source, "runStructuredSearch")
     update_chat_body = extract_js_function_body(source, "updateChatStateFromResponse")
     clear_refusal_body = extract_js_function_body(source, "clearExecutableStateAfterRefusal")
+    send_chat_body = extract_js_function_body(source, "sendChatTurn")
+    post_results_body = extract_js_function_body(source, "handlePostResultsFollowUp")
 
     assert "prepareRuntimeSearchAction" not in render_plan_body
 
@@ -421,6 +567,8 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert "fetch(searchEndpoint" not in run_search_body
 
     assert "normalizedBrief = data.normalized_brief || null" not in update_chat_body
+    assert "if (data.clear_brief)" in update_chat_body
+    assert "draftBrief = null;" in update_chat_body
     assert 'else if (chatState !== "refused")' in update_chat_body
     refusal_branch_start = update_chat_body.index('if (chatState === "refused")')
     assert "clearExecutableStateAfterRefusal();" in update_chat_body[refusal_branch_start:]
@@ -434,6 +582,11 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
         "clearSearchResultsData();",
     ]:
         assert expected_clear in clear_refusal_body
+
+    assert "isPostResultsFollowUpMessage(userText)" in send_chat_body
+    assert "/api/recruiter-chat/turn" not in post_results_body
+    assert "localOnly: true" in post_results_body
+    assert "I will not rerun search without explicit approval." in post_results_body
 
 
 async def run_async_smoke() -> None:
@@ -452,6 +605,7 @@ async def run_async_smoke() -> None:
         assert_qa_finding_mapping()
         await assert_latest_turn_safety_regressions()
         await assert_clean_state_initial_request_regressions()
+        await assert_en_hardening_regressions()
         await assert_runtime_prepare_regression()
         assert_frontend_runtime_and_refusal_guardrails()
     finally:

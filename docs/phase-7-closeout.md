@@ -115,6 +115,6 @@ Later planning decision: before starting Phase 8 implementation, insert Phase 7.
 
 Phase 7.5 should simulate a live recruiter in the local browser on the existing narrow Java/Ukraine Agent flow. OpenAI live calls are allowed for existing configured chat/planning/wording paths. Tavily-backed execution is allowed when a scenario requires it, but only through the existing approved backend pipeline and explicit `Approve & Search` flow. QA must cover both Russian and English recruiter communication. Findings should be documented first; fixes require separate review and approval.
 
-Current Phase 7.5 status: `P7.5-001` through `P7.5-009` are completed except `P7.5-010`. RU browser QA is recorded in `docs/phase-7-5-ru-browser-qa-results.md`, EN/mixed browser QA is recorded in `docs/phase-7-5-en-browser-qa-results.md`, and the findings report is in `docs/phase-7-5-qa-findings-report.md`.
+Current Phase 7.5 status: `P7.5-001` through `P7.5-009` plus `P7.5-011` are completed; `P7.5-010` remains the closeout/readiness decision. RU browser QA is recorded in `docs/phase-7-5-ru-browser-qa-results.md`, EN/mixed browser QA is recorded in `docs/phase-7-5-en-browser-qa-results.md`, and the findings report is in `docs/phase-7-5-qa-findings-report.md`.
 
 Next Phase 7.5 task: `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision`.
