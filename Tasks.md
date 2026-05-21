@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-006` initial QA findings report, and `P7.5-007` current-flow fixes decision. Next task is `P7.5-008 Implement approved critical current-flow fixes`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-006` initial QA findings report, `P7.5-007` current-flow fixes decision, and `P7.5-008` implementation. Next task is `P7.5-009 Add regression coverage for fixed issues`.
 
 ---
 
@@ -9168,7 +9168,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report.
 
-Next task: `P7.5-008 Implement approved critical current-flow fixes`.
+Next task: `P7.5-009 Add regression coverage for fixed issues`.
 
 Verification:
 
@@ -9186,7 +9186,6 @@ Verification:
 ### Backlog
 
 - [ ] P7.5-005 Run EN browser QA with approved Tavily execution when needed
-- [ ] P7.5-008 Implement approved critical current-flow fixes
 - [ ] P7.5-009 Add regression coverage for fixed issues
 - [ ] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
 
@@ -9201,6 +9200,7 @@ None.
 - [x] P7.5-004 Run RU browser QA with approved Tavily execution when needed
 - [x] P7.5-006 Create recruiter simulation QA findings report
 - [x] P7.5-007 Review and approve current-flow fixes
+- [x] P7.5-008 Implement approved critical current-flow fixes
 
 ### Current Phase 7.5 strategy note
 
@@ -9310,7 +9310,7 @@ Final review decision: P7.5-002 is ready/closed. Remaining work belongs to `P7.5
 
 ### Next Step
 
-Next task: `P7.5-008 Implement approved critical current-flow fixes`.
+Next task: `P7.5-009 Add regression coverage for fixed issues`.
 
 ---
 
@@ -9979,6 +9979,8 @@ Approved behavior:
 
 P7.5-009 should add regression checks before `P7.5-005` continues.
 
+Clarification after review: this regression scope is approved for `P7.5-009`, not for `P7.5-008`. `P7.5-008` should implement the three approved current-flow fixes and verify them with the existing local baseline plus focused manual/ad-hoc checks as needed. Permanent regression automation and wiring belong to `P7.5-009`.
+
 Required checks:
 
 1. Runtime approval happy path:
@@ -10041,6 +10043,106 @@ Keep `P7.5-005` EN/mixed QA paused until the approved-search blocker is fixed an
 ### Before Coding
 
 P7.5-007 was critically reviewed with the user and approved. P7.5-008 may start only when the user explicitly asks to code it.
+
+---
+
+## Task: P7.5-008 Implement approved critical current-flow fixes
+
+### Status
+
+Implemented.
+
+### Goal
+
+Implement only the three approved current-flow fixes needed to restore the narrow `Backend Developer + Java + Ukraine` Agent flow enough to continue Phase 7.5 QA.
+
+This task is an implementation task, not a regression-automation task and not a Phase 8 task.
+
+### Implementation Result
+
+Implemented the three approved current-flow fixes:
+
+1. Frontend runtime approval preparation now runs after `Build Plan` settles, so `Approve & Search` becomes available only after backend-owned pending runtime approval exists.
+2. Recruiter chat prohibited-intent detection now checks the latest recruiter/user turn before LLM extraction/refinement, with added RU/EN guards for profile opening/reading, private contact harvesting, and direct Google/web-search bypass.
+3. Clean-state recruiter messages now go through initial Search Brief extraction unless they are greeting-only, near-empty, or prohibited; deterministic refinement runs only when an existing draft/current Search Brief is available.
+
+Refusals preserve the visible current Search Brief while clearing stale executable downstream state: Agent Plan, QueryPlan, runtime pending approval, action queue state, and prior result panels.
+
+### Approved Implementation Steps
+
+1. Fix runtime approval preparation after `Build Plan`:
+   - ensure runtime approval prepare happens only after the Build Plan request has fully settled;
+   - make `Approve & Search` enabled only after backend-owned pending runtime approval exists;
+   - do not auto-run search;
+   - do not bypass `POST /api/agent/runtime/turn`;
+   - do not reintroduce direct structured-search fallback;
+   - preserve stale/fingerprint/runtime approval guards.
+
+2. Preserve approval and execution boundaries:
+   - no direct Tavily calls;
+   - no direct `/api/structured-search` or `/api/structured-search/multi-wave` frontend fallback;
+   - no direct runtime `execute_approved` outside explicit user approval;
+   - no autonomous execution;
+   - no LinkedIn access/login/scraping/automation/outreach/account actions.
+
+3. Refuse RU/EN prohibited intents on the latest user turn:
+   - detect profile opening/reading requests;
+   - detect private contact harvesting requests such as email/phone collection;
+   - detect direct Google/web-search bypass requests;
+   - run this detection before OpenAI extraction and before deterministic brief patch/refinement;
+   - check the latest recruiter/user turn so an older refusal does not permanently poison later normal requests.
+
+4. Preserve the current Search Brief on refusal while clearing stale executable state:
+   - do not create or mutate Search Brief on refusal;
+   - if a Search Brief is already visible, keep it visible;
+   - do not clear `draftBrief` / `normalizedBrief` solely because refusal has no `normalized_brief`;
+   - clear or disable stale downstream executable state: Agent Plan, QueryPlan, runtime pending approval, `Approve & Search`, stale Agent Action queue state, and stale result-dependent execution state when applicable.
+
+5. Route clean-state initial requests through initial extraction:
+   - run deterministic refinement only when an existing draft/current Search Brief is available;
+   - in clean state, route recruiter messages through initial Search Brief extraction unless they are greeting-only, near-empty, or prohibited;
+   - normal clean-state RU requests with seniority or job-description-like text must not return `BRIEF_REFINEMENT_BLOCKED`;
+   - if initial extraction is incomplete, ask a normal clarification instead of returning a refinement-blocked message.
+
+6. Verify without expanding scope:
+   - run the existing local regression baseline;
+   - use focused manual/ad-hoc checks for the fixed RU findings if needed;
+   - do not add or wire permanent regression automation in this task.
+
+### Verification
+
+- `node --check app/static/app.js`
+- `python -m compileall app scripts`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
+- Focused validation that:
+  - `chat -> Build Plan -> runtime approval prepared -> Approve & Search enabled`;
+  - no search executes before explicit approval;
+  - latest-turn RU/EN prohibited intents refuse/safely redirect;
+  - refusal preserves existing Search Brief while clearing stale executable downstream state;
+  - a later normal recruiter message after refusal is not blocked by the earlier refusal;
+  - clean-state RU senior/noisy initial requests do not return `BRIEF_REFINEMENT_BLOCKED`.
+
+Verification result:
+
+- `node --check app/static/app.js` passed through the bundled Codex Node runtime.
+- `python -m compileall app scripts` passed.
+- `scripts/smoke_p5_chat_adapter.py` passed.
+- `scripts/smoke_p7_golden_conversations.py` passed.
+- Focused ad-hoc P7.5-008 chat checks passed for latest-turn refusal, later normal turn after refusal, and clean-state initial extraction.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
+
+### Non-Goals
+
+- Do not add permanent regression automation; that belongs to `P7.5-009`.
+- Do not run EN/mixed QA; that remains `P7.5-005`.
+- Do not retest the full RU browser QA pass unless separately requested.
+- Do not change Tavily query templates, planner coverage, scoring, Candidate Quality, filters, dedupe, location logic, snapshots, or multi-wave behavior.
+- Do not change Search Brief schema or QueryPlan contract unless a blocker requires separate review.
+- Do not add Candidate Workspace/Table, shortlist, notes/statuses, export, persistence, saved searches, memory, new countries, new technologies, new sources, AI-generated executable QueryPlans, or autonomous execution.
+
+### Before Coding
+
+The user must explicitly ask to code `P7.5-008`.
 
 ---
 

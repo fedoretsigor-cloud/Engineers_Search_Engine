@@ -301,10 +301,35 @@ RECRUITER_CHAT_PROHIBITED_RULES = [
         "message": "Direct web-search by the agent outside the approved backend pipeline is prohibited.",
         "patterns": [
             r"\bdirect web[- ]search\b",
+            r"\bdirect (google|web) search\b",
+            r"\bdirect linkedin search\b",
+            r"\b(search|google).{0,40}(directly|outside|instead of the app)\b",
+            r"\bgoogle\b.{0,40}\bdirectly\b",
             r"\boutside (the )?approved backend\b",
             r"\bwithout (the )?backend\b",
             r"в обход (backend|бекенд|бекэнда)",
             r"прям(ой|ую|ым).{0,30}web[- ]?search",
+            r"поищ.{0,40}(напрямую|в google|в гугл)",
+        ],
+    },
+    {
+        "code": "profile_opening_or_reading",
+        "message": "Opening or reading LinkedIn profiles directly is prohibited.",
+        "patterns": [
+            r"\b(open|read|inspect|visit).{0,40}(profile|profiles|linkedin)\b",
+            r"\b(profile|profiles|linkedin).{0,40}(open|read|inspect|visit)\b",
+            r"(открой|прочитай|посмотри).{0,40}(профил|linkedin)",
+            r"(профил|linkedin).{0,40}(открой|прочитай|посмотри)",
+        ],
+    },
+    {
+        "code": "private_contact_harvesting",
+        "message": "Harvesting private candidate contact details is prohibited.",
+        "patterns": [
+            r"\b(collect|gather|find|get|extract).{0,40}(email|emails|phone|phones|telephone|contact|contacts)\b",
+            r"\b(email|emails|phone|phones|telephone|contact|contacts).{0,40}(candidate|profile|linkedin)\b",
+            r"(собери|найди|достань|извлеки).{0,40}(email|емейл|почт|телефон|контакт)",
+            r"(email|емейл|почт|телефон|контакт).{0,40}(кандидат|профил|linkedin)",
         ],
     },
     {
@@ -2479,8 +2504,9 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             planner_mode=planner_mode,
         )
 
+    latest_user_text = latest_recruiter_chat_user_text(request.messages)
     chat_text = recruiter_chat_text(request.messages)
-    prohibited_errors = detect_recruiter_chat_prohibited_requests(chat_text)
+    prohibited_errors = detect_recruiter_chat_prohibited_requests(latest_user_text)
     if prohibited_errors:
         return build_recruiter_chat_response(
             ok=False,
@@ -2488,9 +2514,9 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             language=language,
             validation_errors=prohibited_errors,
             planner_mode=planner_mode,
+            stale_state_should_clear=True,
         )
 
-    latest_user_text = latest_recruiter_chat_user_text(request.messages)
     if is_greeting_only_chat_message(latest_user_text):
         return build_recruiter_chat_onboarding_response(
             request,
@@ -2507,15 +2533,16 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             recruiter_chat_near_empty_message(language),
         )
 
-    brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
-    if brief_patch is not None:
-        return build_recruiter_chat_refinement_response(
-            request,
-            language,
-            planner_mode,
-            brief_patch,
-            chat_text,
-        )
+    if request.draft_brief:
+        brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
+        if brief_patch is not None:
+            return build_recruiter_chat_refinement_response(
+                request,
+                language,
+                planner_mode,
+                brief_patch,
+                chat_text,
+            )
 
     ai_output, ai_errors = await run_openai_json_recruiter_chat(request)
     if ai_errors or ai_output is None:

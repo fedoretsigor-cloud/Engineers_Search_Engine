@@ -235,14 +235,16 @@ async def run_smoke() -> None:
             for operation in unsupported_patch["brief_patch"]["operations"]
         )
 
-        refinement_without_draft = await main.recruiter_chat_turn_response(
+        before_clean_initial = len(LLM_CALLS)
+        clean_initial_without_draft = await main.recruiter_chat_turn_response(
             chat_request("add Docker", language="en")
         )
-        assert refinement_without_draft["state"] == "needs_clarification"
-        assert refinement_without_draft["normalized_brief"] is None
-        assert refinement_without_draft["brief_changed"] is False
-        assert refinement_without_draft["stale_state_should_clear"] is False
-        assert refinement_without_draft["brief_patch"]["requires_clarification"] is True
+        assert len(LLM_CALLS) == before_clean_initial + 1
+        assert clean_initial_without_draft["state"] == "needs_clarification"
+        assert clean_initial_without_draft["normalized_brief"]["role_family"] == "Backend Developer"
+        assert clean_initial_without_draft["normalized_brief"]["technology"] == "Java"
+        assert clean_initial_without_draft["normalized_brief"]["location"] is None
+        assert clean_initial_without_draft["brief_patch"] is None
 
         duplicate_add = await main.recruiter_chat_turn_response(
             chat_request(

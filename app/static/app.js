@@ -389,6 +389,15 @@ function clearDownstreamStateAfterBriefChange() {
   queryList.innerHTML = "";
 }
 
+function clearExecutableStateAfterRefusal() {
+  clearAgentActionDisplayState();
+  clearPlannerData();
+  clearAgentPlanData();
+  clearSearchResultsData();
+  planStatus.textContent = "Build a plan from the current Search Brief.";
+  queryList.innerHTML = "";
+}
+
 function chatMessagesForBackend() {
   return messages
     .filter((message) => !message.localOnly)
@@ -1173,7 +1182,6 @@ function renderAgentQueryPlan(data) {
   if (latestExecutablePlan) {
     resultsStatus.textContent =
       "Search plan is ready. Review the queries before running search.";
-    void prepareRuntimeSearchAction();
     return;
   }
 
@@ -1401,6 +1409,9 @@ async function buildPlanFromChat() {
     if (requestVersion === interactionVersion) {
       planRequestInFlight = false;
       updateActionState();
+      if (latestExecutablePlan) {
+        void prepareRuntimeSearchAction();
+      }
     }
   }
 }
@@ -1429,10 +1440,18 @@ function updateChatStateFromResponse(data = {}) {
   chatState = data.state || "needs_clarification";
   currentChatLanguage = data.language || currentChatLanguage;
   recommendedPlannerMode = data.recommended_planner_mode || PRIMARY_BUILD_PLAN_MODE;
-  draftBrief = data.normalized_brief || draftBrief;
-  normalizedBrief = data.normalized_brief || null;
+  const responseBrief = data.normalized_brief || null;
 
-  if (data.stale_state_should_clear) {
+  if (responseBrief) {
+    draftBrief = responseBrief;
+    normalizedBrief = responseBrief;
+  } else if (chatState !== "refused") {
+    normalizedBrief = null;
+  }
+
+  if (chatState === "refused") {
+    clearExecutableStateAfterRefusal();
+  } else if (data.stale_state_should_clear) {
     clearDownstreamStateAfterBriefChange();
   }
 
