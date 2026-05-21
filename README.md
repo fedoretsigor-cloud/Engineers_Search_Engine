@@ -58,7 +58,8 @@ Status:
 - `P7.5-002` created `docs/phase-7-5-recruiter-simulation-scenarios.md` with the full 104-scenario QA bank for RU/EN, noisy, negative, multilingual, off-topic, safety, and state-stress recruiter simulations, including QA result capture fields and disciplined approved-flow Tavily usage.
 - `P7.5-003` created `docs/phase-7-5-browser-qa-checklist.md`, assigning all 104 scenarios to RU/EN QA batches, limiting live Tavily to two approved single-wave searches, and defining evidence/status/severity capture for P7.5-004 and P7.5-005.
 - `P7.5-004` completed RU browser QA in `docs/phase-7-5-ru-browser-qa-results.md`: 47 scenarios run, 39 pass, 7 fail, 1 blocked, and 0 live Tavily executions because runtime approval preparation did not reach `Approve & Search`.
-- `P7.5-006` created `docs/phase-7-5-qa-findings-report.md` as an initial RU findings report. Current blockers are runtime approval preparation after Build Plan, RU safety/prohibited-intent detection, and clean-state initial request vs refinement classification.
+- `P7.5-006` created `docs/phase-7-5-qa-findings-report.md` as an initial RU findings report. Current blockers are runtime approval preparation after Build Plan, latest-turn RU safety/prohibited-intent detection that preserves the current Search Brief while clearing stale executable state, and clean-state initial request vs refinement classification.
+- `P7.5-007` completed the docs-only current-flow fixes decision and approved the exact implementation scope for P7.5-008 plus regression scope for P7.5-009.
 
 Agreed next direction:
 
@@ -66,7 +67,7 @@ Agreed next direction:
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
 - Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`;
-- next Phase 7.5 task: `P7.5-007 Review and approve current-flow fixes`;
+- next Phase 7.5 task: `P7.5-008 Implement approved critical current-flow fixes`;
 - Phase 8 candidate workspace implementation is paused until Phase 7.5 closes with a readiness decision: `ready`, `ready after approved fixes`, or `not ready`;
 - keep candidate workspace/shortlist for Phase 8 and persistence/memory for Phase 9.
 

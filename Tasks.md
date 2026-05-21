@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report. Next task is `P7.5-007 Review and approve current-flow fixes`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is the current active direction as a recruiter simulation QA gate before Phase 8. Later updates completed `P7.5-004` RU browser QA, `P7.5-006` initial QA findings report, and `P7.5-007` current-flow fixes decision. Next task is `P7.5-008 Implement approved critical current-flow fixes`.
 
 ---
 
@@ -9168,7 +9168,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Later planning update: before starting Phase 8 implementation, Phase 7.5 `Recruiter Simulation QA & Flow Hardening` was inserted as the current active QA gate. Later Phase 7.5 updates completed `P7.5-004` RU browser QA and `P7.5-006` initial QA findings report.
 
-Next task: `P7.5-007 Review and approve current-flow fixes`.
+Next task: `P7.5-008 Implement approved critical current-flow fixes`.
 
 Verification:
 
@@ -9186,7 +9186,6 @@ Verification:
 ### Backlog
 
 - [ ] P7.5-005 Run EN browser QA with approved Tavily execution when needed
-- [ ] P7.5-007 Review and approve current-flow fixes
 - [ ] P7.5-008 Implement approved critical current-flow fixes
 - [ ] P7.5-009 Add regression coverage for fixed issues
 - [ ] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
@@ -9201,6 +9200,7 @@ None.
 - [x] P7.5-003 Prepare safe browser QA checklist with approved Tavily execution when needed
 - [x] P7.5-004 Run RU browser QA with approved Tavily execution when needed
 - [x] P7.5-006 Create recruiter simulation QA findings report
+- [x] P7.5-007 Review and approve current-flow fixes
 
 ### Current Phase 7.5 strategy note
 
@@ -9310,7 +9310,7 @@ Final review decision: P7.5-002 is ready/closed. Remaining work belongs to `P7.5
 
 ### Next Step
 
-Next task: `P7.5-007 Review and approve current-flow fixes`.
+Next task: `P7.5-008 Implement approved critical current-flow fixes`.
 
 ---
 
@@ -9572,7 +9572,7 @@ Codex must critically review this task against the current code and P7.5-002 sce
 
 Approved and completed.
 
-Implementation result: created `docs/phase-7-5-ru-browser-qa-results.md` with raw evidence for all 47 RU-owned scenarios. The pass recorded 39 pass, 7 fail, 1 blocked, 0 not-run, and 0 live Tavily executions because the approved runtime path did not reach approval preparation. The raw evidence was later consolidated in `P7.5-006`.
+Implementation result: created `docs/phase-7-5-ru-browser-qa-results.md` with raw evidence for all 47 RU-owned scenarios. The pass recorded 39 pass, 7 fail, 1 blocked, 0 not-run, and 0 live Tavily executions because the approved runtime path did not reach approval preparation. QA did not bypass the unavailable `Approve & Search` state with direct runtime/API/Tavily calls; it recorded the behavior as product evidence. The raw evidence was later consolidated in `P7.5-006`.
 
 ### Goal
 
@@ -9644,6 +9644,8 @@ The result document should be raw QA evidence, not a fix plan. It should make `P
    - click `Build Plan`;
    - verify visible QueryPlan/Search Plan is produced;
    - keep multi-wave off;
+   - if `Approve & Search` does not become available after the visible Search Plan, record this as a product failure with UI/network evidence;
+   - do not bypass unavailable approval by calling runtime, structured-search, Tavily, or any backend API directly;
    - click `Approve & Search` explicitly;
    - record that Tavily executed through the visible approved UI flow;
    - record visible result/report state without treating live result count variability as a failure;
@@ -9759,6 +9761,7 @@ The result document should be raw QA evidence, not a fix plan. It should make `P
 - Every failure has evidence, severity, `finding_id`, and `requires_fix`.
 - `CORE-RU-001` is the only RU scenario that spends live Tavily budget.
 - `CORE-RU-001` runs single-wave only, with the visible multi-wave toggle off.
+- If `CORE-RU-001` cannot reach an enabled `Approve & Search` state, the task records the unavailable approval state as a product failure instead of bypassing through direct runtime/API/Tavily calls.
 - `FLOW-RU-005` reuses `CORE-RU-001` results when possible and does not force another Tavily call.
 - No direct Tavily/API/runtime/web-search bypass happens.
 - No LinkedIn login, profile opening, scraping, restriction bypass, outreach, candidate messaging, or account action happens.
@@ -9854,6 +9857,190 @@ Created:
 
 - Review `docs/phase-7-5-qa-findings-report.md`.
 - Run `git diff --check` after documentation updates.
+
+---
+
+## Task: P7.5-007 Review and approve current-flow fixes
+
+### Status
+
+Approved and completed as a docs-only decision task.
+
+This is a docs-only decision task. It should not change backend code, frontend code, tests, prompts, API contracts, search execution, planner behavior, Candidate Quality, filters, dedupe, location logic, snapshots, persistence, memory, or Phase 8 scope.
+
+Approval result: all three focused fixes are approved for `P7.5-008`, and the regression scope is approved for `P7.5-009`. No code was changed by P7.5-007.
+
+### Context
+
+`P7.5-004` RU browser QA and `P7.5-006` findings report identified three current-flow blocker groups:
+
+1. Runtime approval is not prepared after Build Plan, leaving `Approve & Search` disabled.
+2. Clean RU initial requests can be misclassified as blocked Search Brief refinements.
+3. Some RU prohibited requests are treated as normal sourcing clarifications instead of refusal/safe redirect.
+
+The purpose of this task is to approve the exact fix scope for `P7.5-008` and the regression scope for `P7.5-009` before any coding starts.
+
+### Goal
+
+Define the smallest safe fix set needed to restore the current narrow `Backend Developer + Java + Ukraine` Agent flow enough to continue Phase 7.5 QA.
+
+This task should decide what to fix, what not to fix, how to verify it, and whether `P7.5-005` EN/mixed QA remains paused until after the approved fixes.
+
+### Source Documents
+
+- `docs/phase-7-5-qa-findings-report.md`
+- `docs/phase-7-5-ru-browser-qa-results.md`
+- `docs/phase-7-5-browser-qa-checklist.md`
+- `ProjectStatus.md`
+- `Roadmap.md`
+- `instructions`
+
+### Proposed Fix Scope For P7.5-008
+
+#### Fix 1: Prepare runtime approval after Build Plan completes
+
+Problem:
+
+- The frontend can render a valid Search Plan, but `Approve & Search` remains disabled.
+- The observed UI state is `Run Search BLOCKED / Waiting for runtime approval preparation`.
+- QA evidence shows no `/api/agent/runtime/turn` prepare call after Build Plan.
+
+Likely implementation cause to verify during coding:
+
+- `renderAgentQueryPlan()` calls `prepareRuntimeSearchAction()` while `buildPlanFromChat()` still has `planRequestInFlight = true`.
+- `prepareRuntimeSearchAction()` exits when `planRequestInFlight` is true.
+- After `planRequestInFlight` becomes false, no retry happens.
+
+Approved behavior:
+
+- After a successful executable Build Plan, the frontend should prepare runtime approval only after the Build Plan request has fully settled.
+- `Approve & Search` should become enabled only after backend-owned pending runtime approval is prepared.
+- The fix must not auto-run search.
+- The fix must not bypass `POST /api/agent/runtime/turn`.
+- The fix must not reintroduce direct structured-search fallback.
+- The fix must preserve stale/fingerprint/runtime approval guards.
+
+#### Fix 2: Refuse RU prohibited intents without mutating state
+
+Problem:
+
+- RU prohibited requests for opening/reading profiles, collecting private contacts, and direct Google/web-search bypass were handled as ordinary sourcing clarifications.
+
+Approved behavior:
+
+- Detect these prohibited intents on the latest recruiter/user turn before OpenAI extraction and before brief patch/refinement.
+- Do not let an older prohibited message in chat history permanently poison later normal recruiter turns after refusal.
+- Return refusal or safe redirect.
+- Do not create or mutate Search Brief.
+- Preserve the currently displayed/draft Search Brief if one already exists.
+- Do not clear `draftBrief` / `normalizedBrief` solely because a refusal response has no `normalized_brief`.
+- Do not create Agent Plan.
+- Do not create QueryPlan.
+- Do not prepare runtime approval.
+- Do not enable `Approve & Search`.
+- Clear or disable any existing downstream executable state that could otherwise allow a stale action after refusal:
+  - Agent Plan;
+  - QueryPlan;
+  - runtime pending approval;
+  - `Approve & Search`;
+  - stale Agent Action queue state;
+  - stale result-dependent execution state when applicable.
+- Do not call Tavily, LinkedIn, Google, direct web search, or any external account/action path.
+
+Approved detection scope:
+
+- RU/EN profile opening/reading intent:
+  - examples: `открой профили`, `прочитай профили`, `open profiles`, `read profiles`.
+- RU/EN private contact harvesting:
+  - examples: `собери email`, `собери телефоны`, `find emails`, `collect phone numbers`.
+- RU/EN direct web-search bypass:
+  - examples: `поищи напрямую в Google`, `search directly in Google`, `use Google directly`.
+
+Guardrail:
+
+- Keep the patterns conservative enough to avoid blocking normal public-search sourcing requests such as `найди Java разработчиков в Украине`.
+
+#### Fix 3: Route clean-state initial requests to initial extraction, not refinement blocking
+
+Problem:
+
+- Clean initial RU requests with enough information can trigger deterministic brief patch/refinement behavior and return `BRIEF REFINEMENT BLOCKED`.
+
+Approved behavior:
+
+- The deterministic refinement path should run only when there is an existing draft/current Search Brief to refine.
+- In clean state, a recruiter message should go through initial Search Brief extraction unless it is greeting-only, near-empty, or prohibited.
+- Clean state examples that should not become `BRIEF_REFINEMENT_BLOCKED`:
+  - `Ищем Senior Java Backend Developer, Украина, Spring Boot, AWS.`
+  - `Вакансия: команда ищет backend инженера... Украина, основной язык Java, стек Spring и Kafka...`
+- If clean-state extraction cannot produce a ready brief, the agent may ask a normal clarification, but not a refinement-blocked message.
+
+### Proposed Regression Scope For P7.5-009
+
+P7.5-009 should add regression checks before `P7.5-005` continues.
+
+Required checks:
+
+1. Runtime approval happy path:
+   - chat creates ready Search Brief;
+   - Build Plan creates visible executable QueryPlan;
+   - runtime prepare is called after Build Plan settles;
+   - pending runtime approval exists;
+   - `Approve & Search` is enabled;
+   - no search executes before explicit approval.
+
+2. No direct execution fallback:
+   - frontend still uses the Agent Runtime endpoint for approved search;
+   - old direct structured-search fallback is not reintroduced.
+
+3. RU prohibited-intent refusal:
+   - `Открой профили сам и прочитай их.`
+   - `Собери email и телефоны кандидатов.`
+   - `Поищи напрямую в Google.`
+   - Each should refuse/safely redirect, keep the current Search Brief visible/unchanged when one already exists, clear or disable stale downstream executable state, and not prepare plan/search approval.
+   - A later normal recruiter message in the same chat should not be blocked solely because an earlier turn was prohibited.
+
+4. Clean RU initial request classification:
+   - `Ищем Senior Java Backend Developer, Украина, Spring Boot, AWS.`
+   - long noisy RU job-description-like Java/Ukraine/Spring/Kafka request;
+   - neither should return `BRIEF_REFINEMENT_BLOCKED` from clean state.
+
+5. Existing boundary preservation:
+   - no autonomous execution;
+   - no LinkedIn access/login/scraping;
+   - no candidate outreach;
+   - no direct Google/web-search bypass;
+   - no Phase 8 candidate workspace behavior.
+
+### Explicit Non-Goals
+
+- Do not implement fixes in P7.5-007.
+- Do not run EN/mixed QA in P7.5-007.
+- Do not change Tavily query templates, planner coverage, scoring, Candidate Quality, filters, dedupe, location logic, snapshots, or multi-wave behavior.
+- Do not change the Search Brief schema or QueryPlan contract unless a fix cannot be made safely without separate review.
+- Do not add database, persistence, saved searches, candidate workspace/table, shortlist, notes/statuses, export, or Phase 8 UI.
+- Do not add new countries, technologies, roles, or search sources.
+- Do not enable AI-generated executable QueryPlans.
+- Do not add autonomous execution.
+
+### Recommended Decision
+
+Approved: implement all three focused fixes in `P7.5-008`, then add the required regression checks in `P7.5-009`.
+
+Keep `P7.5-005` EN/mixed QA paused until the approved-search blocker is fixed and the failed/blocked RU scenarios are retested, unless the user explicitly decides to run EN/mixed QA against the known broken state.
+
+### Acceptance Criteria
+
+- The approved fix scope for P7.5-008 is explicit.
+- The regression scope for P7.5-009 is explicit.
+- The task confirms that P7.5-007 itself is docs-only.
+- The task confirms that Phase 8 remains paused.
+- The task confirms that EN/mixed QA remains paused by default until the approved-search blocker is fixed.
+- The task preserves human approval, runtime approval, and external-action boundaries.
+
+### Before Coding
+
+P7.5-007 was critically reviewed with the user and approved. P7.5-008 may start only when the user explicitly asks to code it.
 
 ---
 
