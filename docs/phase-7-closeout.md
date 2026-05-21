@@ -113,6 +113,8 @@ Phase 8 should turn search results into the recruiter's working artifact: a cand
 
 Later planning decision: before starting Phase 8 implementation, insert Phase 7.5 `Recruiter Simulation QA & Flow Hardening`.
 
-Phase 7.5 should simulate a live recruiter in the local browser on the existing narrow Java/Ukraine Agent flow. OpenAI live calls are allowed for existing configured chat/planning/wording paths, Tavily execution is blocked, and QA must cover both Russian and English recruiter communication. Findings should be documented first; fixes require separate review and approval.
+Phase 7.5 should simulate a live recruiter in the local browser on the existing narrow Java/Ukraine Agent flow. OpenAI live calls are allowed for existing configured chat/planning/wording paths. Tavily-backed execution is allowed when a scenario requires it, but only through the existing approved backend pipeline and explicit `Approve & Search` flow. QA must cover both Russian and English recruiter communication. Findings should be documented first; fixes require separate review and approval.
 
-Next task to review: `P7.5-001 Define Phase 7.5 QA gate and pause Phase 8 implementation`.
+Current Phase 7.5 status: `P7.5-001` is approved as the QA gate definition, `P7.5-002` created the full 104-scenario recruiter simulation bank in `docs/phase-7-5-recruiter-simulation-scenarios.md`, and `P7.5-003` created `docs/phase-7-5-browser-qa-checklist.md` with all 104 scenarios assigned to browser QA batches.
+
+Next Phase 7.5 task: `P7.5-004 Run RU browser QA with approved Tavily execution when needed`.
