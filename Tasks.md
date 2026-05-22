@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, and the `P7.5-010` closeout. Next task is `P8-001 Define candidate workspace contract`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, the `P7.5-010` closeout, `P8-001 Define candidate workspace contract`, and the first Phase 8 frontend-only Candidate Workspace implementation batch: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`.
 
 ---
 
@@ -9224,7 +9224,7 @@ Final closeout artifact: `docs/phase-7-5-closeout.md`.
 
 Next active phase: Phase 8 `Candidate Workspace/Table + Shortlist`.
 
-Next task: `P8-001 Define candidate workspace contract`.
+`P8-001 Define candidate workspace contract` is completed. Current approved Phase 8 candidate-workspace implementation batch: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
 
@@ -9377,7 +9377,7 @@ Reason: Phase 7.5 found real blockers, the approved fixes were implemented and v
 - The final Docker/Kubernetes stack-grounding hotfix is included in the evidence.
 - The decision explains why Phase 8 can start and what remains out of scope.
 - All absolute product boundaries remain explicit.
-- Phase 8 starts with `P8-001 Define candidate workspace contract`, not implementation.
+- At Phase 7.5 closeout time, Phase 8 starts with `P8-001 Define candidate workspace contract`, not implementation. Later status: `P8-001`, `P8-002`, `P8-003`, and `P8-004` are completed as the first conservative frontend-only Candidate Workspace slice.
 - Docs do not imply broader country/technology support than the code has.
 - Docs do not imply AI-generated QueryPlans are executable.
 - Docs do not imply autonomous execution or LinkedIn/account behavior is allowed.
@@ -10885,12 +10885,9 @@ Implemented focused hardening:
 
 ### Approved
 
+
 ### Backlog
 
-- [ ] P8-001 Define candidate workspace contract
-- [ ] P8-002 Build recruiter-facing candidate table
-- [ ] P8-003 Add sorting and filtering by quality signals
-- [ ] P8-004 Add shortlist, notes, and statuses
 - [ ] P8-005 Add candidate-level agent explanations
 - [ ] P8-006 Prepare export workflow
 - [ ] P8-007 Add bounded LLM onboarding wording overlay
@@ -10906,15 +10903,956 @@ Implemented focused hardening:
 
 ### Done
 
+- [x] P8-001 Define candidate workspace contract
+- [x] P8-002 Build recruiter-facing candidate table
+- [x] P8-003 Add sorting and filtering by quality signals
+- [x] P8-004 Add shortlist, notes, and statuses
+
 ### Current Phase 8 strategy note
 
 Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`.
 
-Phase 8 should start with `P8-001 Define candidate workspace contract`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+`P8-001 Define candidate workspace contract` is completed as a docs-only contract task in `docs/phase-8-candidate-workspace-contract.md`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+
+The first candidate-workspace implementation batch is completed: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`. The batch stayed frontend-only: approved search results now map into explicit workspace state, workspace view controls sort/filter already returned candidates, and review state/shortlist/notes/statuses stay browser in-memory only.
 
 Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without changing search execution boundaries. These tasks must keep `Build Plan` separate from Tavily execution and keep `Approve & Search` as the explicit approval gate before real search.
 
-Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Candidate workspace/table implementation should not start until its contract task is reviewed and approved.
+Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
+
+---
+
+## Task: P8-002 Build recruiter-facing candidate table
+
+### Status
+
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented as a frontend-only candidate workspace foundation:
+
+- added DOM-free `app/static/candidate_workspace.js`;
+- loaded the helper before `app/static/app.js`;
+- mapped approved runtime `deduped_results` into `latestWorkspaceRun` and `workspaceCandidates`;
+- captured runtime/tool-call context before `clearRuntimeApproval()`;
+- rendered a responsive recruiter-facing workspace list from explicit state;
+- used safe LinkedIn profile href validation based on `normalized_url` first and `result.url` only as fallback;
+- cleared workspace state on reset/stale/search-start/search-failure paths;
+- added no-network helper smoke coverage in `scripts/smoke_p8_candidate_workspace_helpers.js` and wired it into `scripts/check_all.ps1`.
+
+### Context
+
+`P8-001 Define candidate workspace contract` is completed. The next candidate-workspace step should turn the existing approved search results into a recruiter-facing working artifact.
+
+Current frontend results are rendered as candidate cards from `renderResults(dedupedResults, report)` in `app/static/app.js`. This works for proof-of-concept review, but the recruiter now needs a denser table/list view that makes candidates easier to scan and compare.
+
+`P8-002` should be a conservative frontend-only foundation task. It should not expand the product into shortlist/notes/status editing, sorting/filtering, candidate explanations, export, backend schemas, persistence, new search behavior, or autonomous behavior.
+
+### Goal
+
+Build a read-only recruiter-facing candidate workspace table/list from already approved runtime search results.
+
+The goal is to create the frontend foundation for Phase 8:
+
+- explicit workspace run state;
+- explicit workspace candidate state;
+- safe candidate mapping from `deduped_results`;
+- a dense read-only table/list;
+- expandable/read-only candidate evidence details;
+- safe manual profile links;
+- responsive hybrid layout.
+
+### Scope
+
+Included:
+
+- product behavior changes are frontend-only and limited to `app/static/app.js`, `app/static/index.html`, `app/static/styles.css`, plus a required pure helper file such as `app/static/candidate_workspace.js`;
+- no-network regression/check changes are allowed in `scripts/` and `scripts/check_all.ps1`;
+- mapping approved `deduped_results` into explicit frontend state;
+- creating a browser in-memory `latestWorkspaceRun`;
+- creating browser in-memory `workspaceCandidates`;
+- clearing workspace state through the existing frontend stale/reset/error result-clearing paths;
+- read-only candidate table/list;
+- read-only candidate details/evidence sections;
+- safe profile URL validation before rendering clickable links;
+- preserving the existing approved runtime execution flow.
+
+Not included:
+
+- backend changes;
+- API/schema changes;
+- persistence;
+- browser storage;
+- database;
+- saved searches;
+- saved candidates;
+- sorting/filtering interactions;
+- shortlist interactions;
+- notes;
+- editable statuses;
+- candidate-level AI explanations;
+- export;
+- new countries/technologies/sources;
+- direct web-search bypass;
+- direct LinkedIn access/automation/login/scraping/restriction bypass;
+- autonomous execution;
+- outreach or account actions.
+
+Sorting/filtering belongs to `P8-003`. Shortlist, notes, and editable statuses belong to `P8-004`. Candidate-level agent explanations belong to `P8-005`. Export belongs to `P8-006`.
+
+Layout boundary: `P8-002` may change the results area (`#results-list`), candidate rendering, and related result/candidate CSS. It should not redesign or structurally change recruiter chat, Search Brief, QueryPlan, Report, Agent Actions, approval controls, or the overall workspace shell except for minimal compatibility with the new results rendering.
+
+Rendering preference: the recruiter-facing "table/list" should be implemented as a responsive CSS grid/list, not a native HTML `<table>`. The current candidate data contains long profile URLs, snippets, evidence, flags, query sources, and expandable details, so a grid/list is safer for desktop density and mobile fallback.
+
+Implementation boundary: `P8-002` codes only the mapper, workspace run state, recruiter-facing table/list, and read-only candidate details. It may leave inert view-model fields or markup structure that later tasks can use, but it must not implement interactive sorting/filtering, shortlist controls, notes, editable statuses, candidate-level explanations, export, or persistence.
+
+### Proposed Steps
+
+1. Keep backend response contracts unchanged.
+   - Do not change FastAPI endpoints.
+   - Do not change runtime approval.
+   - Do not change Tavily execution.
+   - Do not change planner, scoring, filters, dedupe, location logic, or Candidate Quality.
+
+2. Add explicit frontend workspace state.
+   - Add `latestWorkspaceRun`.
+   - Add `workspaceCandidates`.
+   - Add a local `workspaceRunCounter`.
+   - Add a single `clearWorkspaceState()` helper or equivalent.
+   - Keep all state browser in-memory only.
+   - Do not add `localStorage`, `sessionStorage`, IndexedDB, backend save, logs, snapshots, or hidden persistence.
+   - Make existing result-clearing paths also clear workspace state, including Search Brief stale changes, refused/safety turns, chat reset, search start, search failure, and any current `clearSearchResultsData()` equivalent.
+
+3. Add pure frontend workspace helpers in a separate file.
+   - Add a DOM-free helper file such as `app/static/candidate_workspace.js`.
+   - Expose helpers through a small namespace such as `window.CandidateWorkspace`.
+   - Load the helper file in `app/static/index.html` before `app/static/app.js`.
+   - Prefer a small IIFE/root namespace pattern so the same helper file can run in the browser and in a Node smoke test with a fake `window`.
+   - Keep mapper, safe href builder, URL validator, class allowlist helpers, and workspace run id helper free of DOM side effects and direct `document` access.
+   - Do not add npm dependencies for helper tests; use Node built-ins such as `vm` if needed.
+   - `app/static/app.js` should call these helpers rather than embedding all pure workspace logic inline.
+
+4. Create workspace run state only after successful approved runtime search.
+   - Create or replace `latestWorkspaceRun` only after a valid runtime tool result contains `query_plan`, `report`, and `deduped_results`.
+   - Do not create a new successful workspace run when runtime/search fails.
+   - Capture runtime approval/context values needed for `workspace_run_id` before `clearRuntimeApproval()` runs.
+   - Capture from the current runtime approval/tool-call state before it is cleared, including values such as `currentRuntimePendingApproval.idempotency_key`, approval id, `currentRuntimeToolCall.id`, tool-call fingerprint, selected run mode, runtime context fingerprint, and QueryPlan fingerprint when available.
+   - Do not try to reconstruct these workspace-run identifiers after `clearRuntimeApproval()` has nulled the runtime approval/tool-call state.
+   - Include a per-run component in `workspace_run_id`, such as local counter/timestamp plus runtime approval idempotency key or tool-call fingerprint when available.
+   - Store QueryPlan fingerprint as context, but do not use it alone as the unique workspace run id.
+
+5. Add a workspace candidate mapper.
+   - Add a helper such as `mapDedupedResultToWorkspaceCandidate(item)`.
+   - Use `item.normalized_url` as primary `candidate_id`.
+   - Treat `item.normalized_url` as the backend dedupe key and primary profile identity source.
+   - `result.url` must never override `item.normalized_url` for candidate identity when `item.normalized_url` is present.
+   - If `item.normalized_url` is missing, create a local render-only fallback id such as `row_${index}` so rendering does not crash.
+   - A render-only fallback id is not stable profile identity, is not a backend dedupe key, and must not be used for future persistence, shortlist carryover, or saved candidates.
+   - Add `source_index` or `display_index` to the view model for preserving backend order and showing row numbers.
+   - Treat `source_index` / `display_index` as display/render metadata only, not as candidate identity.
+   - Do not assume `item.normalized_url` is already an absolute browser URL; current backend normalized URLs are scheme-less, for example `ua.linkedin.com/in/example`.
+   - Use `result.url` only as fallback/display data after validation.
+   - Map identity, score, role, technology, stack, seniority, location, review flags, score details, query sources, wave sources, and snippet/evidence.
+   - Handle missing optional fields without throwing.
+   - Keep backend order: mapped `workspaceCandidates` must preserve the `deduped_results` order exactly.
+   - Do not compute new quality, fit, role-match, stack-match, location, seniority, or scoring decisions in the frontend.
+   - If candidate `name` is missing or `unknown`, the primary visible candidate label should fall back to a useful safe display value such as headline, title, or profile id rather than showing `unknown` as the main recruiter-facing label.
+
+6. Add safe profile URL handling.
+   - Add a helper such as `buildSafeLinkedInProfileHref(item)`.
+   - Use `item.normalized_url` first.
+   - If `item.normalized_url` has no scheme, build a canonical href candidate as `https://${item.normalized_url}`.
+   - Validate the canonical href candidate with the browser `URL()` parser.
+   - Use `result.url` only as fallback if `item.normalized_url` cannot produce a valid safe profile href.
+   - `result.url` fallback is link/display fallback only; it is not candidate identity and must not change `candidate_id`.
+   - Validate with the browser `URL()` parser.
+   - Allow only `http:` or `https:` protocols.
+   - Allow only `linkedin.com` or hostnames ending with `.linkedin.com`.
+   - Do not allow lookalike hostnames such as `linkedin.com.evil.com`.
+   - Require LinkedIn profile path shape, especially `/in/...`.
+   - Render unsafe, unsupported, empty, or unvalidated URLs as escaped plain text or hide them.
+   - Failed URL validation must not remove or hide the candidate row itself.
+   - URL validation is link-safety/display logic only, not a candidate filter.
+   - Use `target="_blank"` and `rel="noopener noreferrer"` for clickable links.
+   - Do not auto-open or fetch candidate URLs.
+
+7. Render the table/list from explicit frontend state.
+   - `renderResults` may become the bridge from approved search response to workspace state and workspace rendering.
+   - Do not parse rendered DOM as a data source.
+   - Render from `workspaceCandidates`.
+   - Preserve the backend `deduped_results` order; do not introduce frontend sorting/filtering in `P8-002`.
+   - Treat frontend mapping as display/view-model normalization only, not as a new ranking or quality layer.
+   - Keep existing empty-state behavior.
+   - Keep existing report rendering behavior.
+   - Limit layout changes to the results area and related result/candidate CSS.
+   - Do not redesign chat, Search Brief, QueryPlan, Report, Agent Actions, approval controls, or the overall workspace shell.
+
+8. Build a read-only recruiter table/list.
+   - Use responsive CSS grid/list markup, not native HTML `<table>`.
+   - Candidate.
+   - Quality.
+   - Role.
+   - Technology.
+   - Stack.
+   - Location.
+   - Seniority.
+   - Flags.
+   - Source / Query sources.
+   - Do not add interactive shortlist/status/notes controls in this task.
+   - Do not build CSS class names directly from backend/public candidate data.
+   - Use local allowlist/map helpers for any dynamic classes such as quality bucket, flag severity, source type, location status, or fit status.
+   - Render dynamic text separately through escaping.
+
+9. Define empty and error state behavior.
+   - If a successful approved runtime search returns `deduped_results = []`, create/replace the workspace run with empty `workspaceCandidates` and show the visible empty state.
+   - If runtime/search execution fails, do not create a new successful workspace run.
+   - On runtime/search failure, clear the visible workspace/results state consistently with the current behavior so stale candidates are not shown as current results.
+   - Do not silently restore previous workspace state after a failed search.
+   - If Search Brief, Agent Plan, QueryPlan, runtime approval, or safety/refusal state becomes stale, workspace state must be cleared together with the visible results state.
+
+10. Preserve evidence/details.
+   - Keep snippet/public text visible or expandable.
+   - Keep quality score breakdown and penalties visible or expandable.
+   - Keep review flag details visible or expandable.
+   - Keep role/technology/stack/seniority evidence visible or expandable where practical.
+   - Keep query source details visible or expandable.
+   - Keep wave source details visible or expandable when multi-wave is used.
+
+11. Add responsive hybrid layout.
+   - Desktop should feel like a dense recruiter table/list.
+   - Narrow/mobile should fall back to stacked rows/cards or detail-first layout.
+   - Avoid text overflow, overlapping controls, and layout jumps.
+   - Preserve the current dark AI Agent visual direction.
+   - Keep readable labels/headers on narrow/mobile layouts.
+
+12. Preserve basic accessibility.
+    - Expandable evidence/details should remain keyboard-accessible; native `details`/`summary` is acceptable.
+    - Profile URLs should remain normal links when clickable.
+    - Do not make an entire row a clickable `div`.
+    - Preserve visible or screen-reader-available labels for the read-only fields.
+
+13. Preserve all execution boundaries.
+    - No new execution buttons.
+    - No rerun/search actions from candidate rows.
+    - No direct Tavily calls.
+    - No direct LinkedIn access/automation.
+    - No account actions.
+    - No candidate messaging.
+
+14. Add mandatory focused pure helper smoke coverage.
+   - Add a no-network Node smoke script such as `scripts/smoke_p8_candidate_workspace_helpers.js`.
+   - Load/test the DOM-free helper file without loading `app/static/app.js`.
+   - If using a browser namespace, load the helper with a fake `window` through Node built-ins such as `vm`.
+   - Add the smoke script to `scripts/check_all.ps1`.
+   - Add `node --check app/static/candidate_workspace.js` or the equivalent helper file syntax check to `scripts/check_all.ps1` using the existing `$node` variable.
+   - Run the helper smoke from `scripts/check_all.ps1` with the existing `$node`, for example `& $node scripts/smoke_p8_candidate_workspace_helpers.js`.
+   - Check that `app/static/index.html` loads the workspace helper before `app/static/app.js`.
+   - Mapper handles missing optional fields.
+   - Mapper preserves input order.
+   - Mapper creates a render-only fallback id when `normalized_url` is absent and marks/keeps it non-stable.
+   - Mapper exposes `source_index` or `display_index` without using it as candidate identity.
+   - Missing/unknown candidate name falls back to headline/title/profile id for the primary display label.
+   - Profile URL validator rejects unsafe/non-LinkedIn/non-profile/lookalike URLs.
+   - Failed profile URL validation disables/hides only the clickable link, not the candidate row.
+   - Scheme-less normalized URLs such as `ua.linkedin.com/in/example` become clickable canonical hrefs such as `https://ua.linkedin.com/in/example`.
+   - Fallback `result.url` is used only when `item.normalized_url` cannot produce a valid safe profile href.
+   - Dynamic CSS class helpers use allowlists and never raw backend/public values.
+   - `workspace_run_id` differs for two successful runs with the same QueryPlan fingerprint.
+   - Workspace clear/reset helper behavior is covered where practical without Tavily.
+
+15. Verify with local checks.
+    - `node --check app/static/app.js`.
+    - `node --check app/static/candidate_workspace.js` or the equivalent required helper file.
+    - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+    - Browser sanity check after an approved search: workspace table/list renders, details open, candidate text is escaped, profile links are safe/manual only, and mobile/narrow layout is readable.
+
+### Acceptance Criteria
+
+- Approved search results render as a recruiter-facing candidate workspace table/list.
+- Workspace candidates are mapped from `deduped_results` into explicit frontend state.
+- Pure workspace helpers live in a DOM-free frontend helper file loaded before `app/static/app.js`.
+- The helper file can be tested from Node without loading DOM-bound `app/static/app.js` and without new npm dependencies.
+- `app/static/index.html` loads the workspace helper before `app/static/app.js`.
+- Workspace UI renders from frontend state, not parsed DOM.
+- Workspace table/list uses responsive grid/list markup, not native HTML `<table>`.
+- Layout changes are limited to the results area and related result/candidate CSS.
+- `workspace_run_id` includes a per-run component and does not rely only on QueryPlan fingerprint.
+- Runtime approval/tool-call values needed for `workspace_run_id` are captured before `clearRuntimeApproval()` clears `currentRuntimePendingApproval` and `currentRuntimeToolCall`.
+- A new successful approved search replaces the in-memory workspace run.
+- A successful approved search with zero candidates creates/replaces an empty workspace run and shows an empty state.
+- Failed runtime/search execution does not create a new successful workspace run.
+- Failed runtime/search execution clears visible workspace/results state and does not leave stale candidates shown as current results.
+- Search Brief changes, safety/refusal turns, reset paths, plan/query/runtime stale paths, search start, and search failure clear workspace state consistently with visible results state.
+- `item.normalized_url` is the primary candidate id and backend dedupe/profile identity source.
+- `result.url` never overrides `item.normalized_url` for candidate identity when `item.normalized_url` exists.
+- Missing `item.normalized_url` does not crash rendering; it gets a clearly render-only fallback id that is not treated as stable identity.
+- Workspace candidates include `source_index` or `display_index` for order/display, and that index is not treated as candidate identity.
+- The frontend preserves backend `deduped_results` order and does not add sorting/filtering.
+- The frontend does not recalculate quality, fit, role, stack, location, seniority, or score semantics.
+- Candidate rows do not show `unknown` as the primary visible candidate label when a better safe fallback exists.
+- Scheme-less `item.normalized_url` values are converted to canonical `https://...` href candidates before strict URL validation.
+- `result.url` is used only as validated fallback/display data when `item.normalized_url` cannot produce a valid safe profile href.
+- `result.url` fallback never changes candidate identity.
+- Profile links are clickable only after strict `URL()`-based safe LinkedIn profile URL validation.
+- Failed profile URL validation affects only link clickability/display and must not filter out the candidate row.
+- Lookalike hostnames such as `linkedin.com.evil.com` are rejected.
+- External links use `target="_blank"` and `rel="noopener noreferrer"`.
+- Candidate text, snippets, query strings, dynamic labels, and dynamic HTML attributes such as `title` or `aria-label` are escaped.
+- Dynamic CSS classes are generated only from local allowlist/map helpers, not raw backend/public data.
+- Expandable details remain keyboard-accessible, profile URLs remain normal links, and rows are not implemented as clickable `div`s.
+- Read-only score/fit/evidence/query source details remain inspectable.
+- No sorting/filtering interaction is added.
+- No shortlist, notes, or editable statuses are added.
+- No candidate-level AI explanations are added.
+- No export is added.
+- Implementation is limited to mapper, workspace run state, recruiter-facing table/list, and read-only candidate details; later Phase 8 behavior may be prepared structurally but remains inert.
+- No backend/API/search/scoring/filter/dedupe/location/runtime behavior changes are made.
+- Mandatory no-network helper smoke coverage is added to `scripts/check_all.ps1` using the existing `$node` variable and covers mapper, helper loadability, helper syntax check, index load order, scheme-less normalized URL href creation, URL validation including lookalike hosts, failed URL validation preserving candidate rows, class allowlists, run id uniqueness, order preservation, render-only fallback id behavior, display index behavior, candidate-label fallback, and workspace clear/reset behavior where practical.
+- `scripts/check_all.ps1` uses the existing `$node` resolver for both the helper syntax check and the helper smoke script; it must not hardcode a different Node executable path.
+- Desktop and narrow/mobile layouts remain readable without visible overlap.
+
+### Verification Plan
+
+- Run `node --check app/static/app.js`.
+- Run `node --check app/static/candidate_workspace.js` or the equivalent required helper file.
+- Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+- Add a required no-network helper smoke script and wire it into `scripts/check_all.ps1` through the existing `$node` variable.
+- Confirm `scripts/check_all.ps1` runs both the helper syntax check and `scripts/smoke_p8_candidate_workspace_helpers.js`.
+- Confirm helper smoke checks load order in `app/static/index.html` and pure helper behavior without loading `app/static/app.js`.
+- Run a local browser sanity check for the existing approved Java/Ukraine flow if the server is available or after starting it.
+- Confirm there are no direct Tavily, LinkedIn, persistence, or backend changes beyond the existing approved runtime flow.
+
+---
+
+## Task: P8-003 Add sorting and filtering by quality signals
+
+### Status
+
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented as frontend-only workspace view controls over `workspaceCandidates`:
+
+- added `workspaceViewState` and derived `visibleWorkspaceCandidates`;
+- added sort modes: original order, quality high-to-low, quality low-to-high, and name A-Z;
+- added view filters for quality thresholds `80+`, `70+`, `60+`, stack evidence, review flags, and location signal;
+- preserved backend order as default/reset and as sort tie-breaker;
+- kept sorting/filtering local to already returned candidates with no backend/search/runtime calls;
+- added helper smoke coverage for safe normalization, thresholds, filters, sorting, unsafe severities, and no candidate mutation.
+
+### Context
+
+`P8-002 Build recruiter-facing candidate table` is completed as the conservative frontend-only foundation for explicit workspace run state, `workspaceCandidates`, a recruiter-facing table/list, and read-only candidate details.
+
+After that table exists, the recruiter needs lightweight controls to scan already returned candidates faster. These controls are workspace view controls, not backend search filters. They should operate only on the current browser in-memory workspace candidates. They must not change search execution, backend Candidate Quality, result inclusion, dedupe, location filtering, or approval behavior.
+
+`P8-003` is the first sorting/filtering slice. It should stay intentionally conservative so it can be coded safely together with or immediately after `P8-002`.
+
+### Goal
+
+Add frontend-only sorting and workspace view filtering controls for the candidate workspace table/list, using only already returned workspace candidate data.
+
+The goal is to let the recruiter quickly change the visible candidate list without changing the underlying approved search result set.
+
+### Scope
+
+Included:
+
+- frontend-only sorting/filtering state;
+- DOM-free sort/filter helper logic in the same `app/static/candidate_workspace.js` helper introduced by `P8-002`, or an equivalent DOM-free workspace helper;
+- rendering a derived visible candidate list from `workspaceCandidates`;
+- preserving the original backend order as the default/reset state;
+- showing visible count vs total workspace candidate count;
+- showing a distinct empty-view state when the current view filters match no candidates;
+- no-network helper smoke coverage for sorting/filtering behavior.
+
+Not included:
+
+- backend changes;
+- API/schema changes;
+- persistence;
+- browser storage;
+- database;
+- saved searches;
+- shortlist controls;
+- notes;
+- editable statuses;
+- candidate-level AI explanations;
+- export;
+- changing `quality_score`, score breakdown, review flag taxonomy, fit values, location logic, dedupe, QueryPlan, Tavily execution, or runtime approval;
+- direct web-search bypass;
+- direct LinkedIn access/automation/login/scraping/restriction bypass;
+- autonomous execution;
+- outreach or account actions.
+
+Shortlist, notes, editable statuses, and filters based on review status/shortlist state belong to `P8-004`, because `P8-004` owns the first interactive recruiter review state.
+
+Candidate-level agent explanations belong to `P8-005`. Export belongs to `P8-006`.
+
+### Proposed Controls
+
+Sorting:
+
+- `Original order`;
+- `Quality: high to low`;
+- `Quality: low to high`;
+- `Name: A-Z`.
+
+Filtering:
+
+- `Quality score`: `All`, `80+`, `70+`, `60+`;
+- `Stack evidence`: `All`, `Confirmed`, `Query-source only`, `Not visible`;
+- `Review flags`: `All`, `No flags`, `Has flags`, `High/medium flags`;
+- `Location signal`: `All`, `Target/strong signal`, `Unknown/weak`.
+
+Do not add `quality_bucket` as a new source-of-truth field in this task. Current backend results expose `quality_score`; the first implementation should use explicit score thresholds instead of inventing a new quality-bucket semantics.
+
+Do not add review-status or shortlist filters in this task because review status does not exist until `P8-004`.
+
+### Proposed Steps
+
+1. Keep the underlying workspace data immutable from the control perspective.
+   - `workspaceCandidates` remains the full current candidate set from the latest successful approved search.
+   - Sorting/filtering produces a derived visible list such as `visibleWorkspaceCandidates`.
+   - Filtering must not delete candidates from `workspaceCandidates`.
+   - Sort/filter helpers must not mutate `workspaceCandidates` or candidate objects.
+   - Helpers should return a new visible candidate array.
+   - Reset returns to `Original order` and all filters set to `All`.
+
+2. Add explicit frontend sorting/filtering state.
+   - Add a small state object such as `workspaceViewState`.
+   - Store only local UI choices in memory.
+   - Do not use `localStorage`, `sessionStorage`, IndexedDB, backend persistence, logs, or snapshots.
+   - Clear/reset this state when workspace state is cleared by the same stale/reset/error boundaries from `P8-002`.
+   - A new successful approved workspace run should reset view state to `Original order` plus all filters set to `All`, so old view filters do not unexpectedly hide the new result set.
+
+3. Add DOM-free helper functions.
+   - Add helpers such as `applyWorkspaceView(candidates, viewState)`, `sortWorkspaceCandidates(candidates, sortMode)`, and `filterWorkspaceCandidates(candidates, filters)`.
+   - Keep helpers free of direct DOM access.
+   - Use allowlisted sort/filter values only.
+   - Unknown sort mode should safely fall back to `Original order`.
+   - Unknown filter value should fall back to `All` only for that specific filter dimension; other valid filter dimensions should continue to apply.
+   - Normalize sort/filter enum values as local allowlist strings and do not trust raw UI/backend values.
+   - Do not build dynamic CSS classes from raw candidate/backend/public data.
+
+4. Preserve original/backend order.
+   - Default sort is original backend order.
+   - All non-original sort modes use original order as a deterministic tie-breaker.
+   - Use `source_index` / `display_index` from the `P8-002` mapper as order metadata.
+   - Do not use `source_index` / `display_index` as candidate identity.
+
+5. Implement quality sorting.
+   - Sort by numeric `quality_score` after safe finite-number conversion.
+   - Missing/non-numeric `quality_score` should go to the end.
+   - Do not sort by the old neutral `score`.
+   - Do not recalculate or reinterpret quality score.
+
+6. Implement name sorting.
+   - Sort by safe candidate display label from the `P8-002` view model.
+   - Compare names case-insensitively.
+   - Missing/unknown labels go to the end.
+   - Use original order as tie-breaker.
+
+7. Implement quality score threshold filter.
+   - `All` keeps every candidate.
+   - `80+`, `70+`, and `60+` compare against numeric `quality_score` after safe finite-number conversion.
+   - Missing/non-numeric `quality_score` does not pass numeric thresholds.
+   - Do not derive or persist quality buckets.
+
+8. Implement stack evidence filter.
+   - `Confirmed` keeps candidates with `stack_fit = selected_stack_found`.
+   - `Query-source only` keeps candidates with `stack_fit = stack_query_source_only`.
+   - `Not visible` keeps candidates with `stack_fit = missing_selected_stack` or equivalent selected-stack-not-visible display state.
+   - `All` keeps every candidate.
+   - Do not change stack display semantics from `P3-010.2`.
+
+9. Implement review flag filter.
+   - `No flags` keeps candidates with no `review_flag_details` / no `review_flags`.
+   - `Has flags` keeps candidates with at least one flag.
+   - `High/medium flags` keeps candidates with at least one `severity = high` or `severity = medium` flag.
+   - `All` keeps every candidate.
+   - Do not change review flag taxonomy or severity.
+
+10. Implement location signal filter.
+    - `Target/strong signal` keeps candidates with candidate-level `location_signal_status` values `target_location`, `country_domain`, or `rescued_header_location`.
+    - `Unknown/weak` keeps candidates with candidate-level `location_signal_status` values `weak_history_only`, `unknown_non_country_domain`, `not_applied`, missing, or equivalent weak/unknown location status.
+    - `excluded_foreign_current_location` should normally not appear in displayed candidates after backend location filtering. If it does appear, the frontend view filter should not delete or mutate the underlying candidate; it should simply not count it as `Target/strong signal`.
+    - Do not use report/count field names such as `weak_location_history_only` or `unknown_non_country_domain_location` as candidate-level status values.
+    - `All` keeps every candidate.
+    - Do not change backend location filtering or location classification.
+
+11. Define filter composition semantics.
+    - Different filter dimensions combine with AND semantics.
+    - Example: `Quality score = 80+` plus `Stack evidence = Confirmed` should keep only candidates that satisfy both dimensions.
+    - Within one filter dimension, a selected option may map to an OR set of existing candidate values.
+    - Example: `Location signal = Target/strong signal` means `target_location` OR `country_domain` OR `rescued_header_location`.
+    - `All` for a dimension means that dimension does not constrain the visible list.
+    - Sorting applies after filtering to the derived visible list.
+
+12. Add UI controls in the candidate workspace area.
+    - Place controls near the candidate table/list, not in recruiter chat or search execution controls.
+    - Label or structure the controls as workspace view controls so they are not confused with backend execution filters such as `LinkedIn profiles only` or `Location filter`.
+    - Use compact controls consistent with the current dark AI Agent UI.
+    - Show visible count vs total count, for example `Showing 18 of 55 candidates`.
+    - Provide a clear reset control.
+    - Keep controls disabled or inert when there is no current workspace run.
+    - If a successful search has candidates but current view filters match none, show a distinct message such as `No candidates match current view filters. Reset filters.` rather than the approved-search empty-result message.
+
+13. Preserve execution boundaries.
+    - Sorting/filtering must not trigger Tavily.
+    - Sorting/filtering must not call `/api/agent/runtime/turn`.
+    - Sorting/filtering must not rebuild Search Brief, Agent Plan, QueryPlan, or runtime approval.
+    - Sorting/filtering must not alter `agent_response`, next-iteration options, or chat messages.
+    - Sorting/filtering must not auto-open/fetch candidate URLs.
+
+14. Add no-network helper smoke coverage.
+    - Extend `scripts/smoke_p8_candidate_workspace_helpers.js` or add a focused P8-003 helper smoke.
+    - Cover default original order.
+    - Cover quality high-to-low and low-to-high sorting.
+    - Cover missing/non-numeric quality score ordering.
+    - Cover quality score finite-number conversion.
+    - Cover name A-Z case-insensitive sorting with unknown names at the end.
+    - Cover quality threshold filters.
+    - Cover stack evidence filters.
+    - Cover review flag filters.
+    - Cover location signal filters.
+    - Cover current candidate-level location statuses: `target_location`, `country_domain`, `rescued_header_location`, `weak_history_only`, `unknown_non_country_domain`, `not_applied`, missing, and unexpected `excluded_foreign_current_location`.
+    - Cover AND semantics across different filter dimensions.
+    - Cover OR mapping within one filter dimension such as `Target/strong signal`.
+    - Cover combined filters plus sort.
+    - Cover no mutation of source `workspaceCandidates`.
+    - Cover empty visible list when filters match no candidates.
+    - Cover new successful workspace run resetting view state.
+    - Cover unknown review flag severity counting as `Has flags` but not as `High/medium flags`.
+    - Cover unknown sort mode falling back to original order.
+    - Cover unknown filter value falling back to `All` only for that dimension while other valid filters still apply.
+    - Cover reset state behavior if practical.
+
+15. Verify locally.
+    - Run `node --check app/static/app.js`.
+    - Run `node --check app/static/candidate_workspace.js` or the equivalent workspace helper file.
+    - Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+    - Browser sanity check after an approved search: controls update visible rows only, count updates correctly, reset restores original order/all candidates, and no search/runtime call happens.
+
+### Acceptance Criteria
+
+- Candidate sorting/workspace view filtering is frontend-only and operates only on current `workspaceCandidates`.
+- The full underlying `workspaceCandidates` list is preserved while controls change only the derived visible list.
+- Sort/filter helpers do not mutate `workspaceCandidates` or candidate objects.
+- Default/reset view preserves backend `deduped_results` order.
+- Original order remains available after using any sort/filter.
+- Sort/filter state is browser in-memory only and clears with workspace reset/stale/error boundaries.
+- New successful approved workspace runs reset sort/filter state to original order and all filters.
+- Sorting modes are allowlisted.
+- Filter modes are allowlisted.
+- Sort/filter enum values are normalized as local allowlist strings and raw UI/backend values are not trusted.
+- Unknown sort mode falls back to original order.
+- Unknown filter values fall back to `All` only for the affected filter dimension while other valid filters still apply.
+- Quality sort uses `quality_score`, not old neutral `score`.
+- Quality comparisons use safe finite-number conversion.
+- Missing/non-numeric quality scores are handled safely.
+- Name sort uses the safe display label from the workspace candidate view model.
+- Name sort is case-insensitive.
+- Quality threshold filters work for `80+`, `70+`, and `60+`.
+- Stack evidence filters use existing `stack_fit` semantics without changing stack display/scoring.
+- Review flag filters use existing `review_flags` / `review_flag_details` without changing taxonomy or severity.
+- Location signal filters use existing candidate-level `location_signal_status` values without changing backend location filtering.
+- Location signal filtering uses current candidate-level statuses, not report/count field names.
+- Different filter dimensions combine with AND semantics.
+- Multi-status filter options use explicit OR mapping within that one dimension.
+- Sorting applies after filtering to the derived visible list.
+- Visible count vs total workspace count is shown.
+- A distinct empty-view state is shown when candidates exist but no candidates match current view filters.
+- Reset returns to original order and all filters.
+- No review-status/shortlist filters are implemented in `P8-003`.
+- No shortlist, notes, editable statuses, candidate explanations, export, persistence, backend changes, search behavior changes, runtime approval changes, or Tavily calls are added.
+- No-network helper smoke coverage is added for sort/filter helpers and wired into `scripts/check_all.ps1`.
+- Desktop and narrow/mobile layouts remain readable without visible overlap.
+
+### Verification Plan
+
+- Run `node --check app/static/app.js`.
+- Run `node --check app/static/candidate_workspace.js` or the equivalent workspace helper file.
+- Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+- Browser sanity check the candidate workspace after a successful approved search.
+- Confirm no backend files, API contracts, Candidate Quality logic, Tavily execution, QueryPlan generation, dedupe, location filtering, runtime approval, or chat/Agent Plan logic changed.
+
+---
+
+## Task: P8-004 Add shortlist, notes, and statuses
+
+### Status
+
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented as frontend-only review state for the current workspace run:
+
+- added local `workspaceReviewStateByCandidateId`;
+- kept `review_status` as source of truth with `new`, `reviewing`, `shortlisted`, and `not_a_fit`;
+- made shortlist derived from `review_status === "shortlisted"`;
+- enabling shortlist sets status to `shortlisted`; disabling shortlist sets status to `reviewing`;
+- added escaped plain-text notes with a 1000-character helper/UI limit;
+- added review-status and shortlist view filters;
+- kept review state browser in-memory only with no persistence/backend/API/search/runtime changes.
+
+### Context
+
+`P8-001 Define candidate workspace contract` is completed. `P8-002` created the explicit frontend workspace run state, `workspaceCandidates`, recruiter-facing table/list, and read-only candidate details. `P8-003` added frontend-only workspace view sorting/filtering over already returned candidates.
+
+After the recruiter can scan and filter candidates, the next workspace step is to let the recruiter record lightweight review decisions during the current browser session.
+
+This task should add the first interactive recruiter review state for the current candidate workspace. It must remain local/session-only and must not introduce persistence, backend schemas, database behavior, saved candidates, memory, export, candidate messaging, or autonomous actions.
+
+Implementation dependency: `P8-004` should be coded only after `P8-002` and `P8-003` are implemented, or as the last slice in the same implementation batch after their workspace state, helper contracts, and derived visible-list behavior already exist.
+
+### Goal
+
+Add frontend-only shortlist, notes, and review status controls for candidates in the current workspace run.
+
+The goal is to let the recruiter work through already returned candidates without changing candidate facts, backend scoring, search execution, approval behavior, or source data.
+
+### Scope
+
+Included:
+
+- frontend-only review state for the latest successful approved workspace run;
+- review status controls using the approved v0 status set;
+- shortlist interaction derived from `review_status`;
+- candidate notes as escaped plain text;
+- workspace view filters for review status / shortlisted candidates;
+- DOM-free helper logic in `app/static/candidate_workspace.js` or the equivalent workspace helper introduced by `P8-002`;
+- no-network helper smoke coverage for review-state helpers.
+
+Not included:
+
+- backend changes;
+- API/schema changes;
+- persistence;
+- browser storage;
+- database;
+- saved searches;
+- saved candidates;
+- carrying review state across approved runs;
+- restoring review state after page reload;
+- candidate-level AI explanations;
+- export;
+- changing quality score, score breakdown, review flag taxonomy, fit values, location logic, dedupe, QueryPlan, Tavily execution, runtime approval, or Agent Response;
+- direct web-search bypass;
+- direct LinkedIn access/automation/login/scraping/restriction bypass;
+- autonomous execution;
+- outreach or account actions.
+
+Candidate-level agent explanations belong to `P8-005`. Export belongs to `P8-006`. Persistence/memory/saved searches belong to Phase 9.
+
+### Review State Contract
+
+Use `review_status` as the source of truth for candidate review workflow state.
+
+Allowed v0 statuses:
+
+- `new`;
+- `reviewing`;
+- `shortlisted`;
+- `not_a_fit`.
+
+Derived display:
+
+- `shortlisted = review_status === "shortlisted"`;
+- do not store or mutate `shortlisted` as an independent source-of-truth field when `review_status` is available.
+
+Shortlist toggle behavior:
+
+- enabling shortlist sets `review_status = shortlisted`;
+- disabling shortlist sets `review_status = reviewing`;
+- do not silently return a candidate from `shortlisted` to `new`, because toggling shortlist off means the recruiter has still touched/reviewed the candidate.
+- manual status selector may still set `review_status = new` when the recruiter explicitly chooses `New`.
+
+Notes:
+
+- notes are recruiter-entered plain text;
+- notes are browser in-memory/session-local only;
+- notes must be escaped on render;
+- notes must not be rendered as raw HTML;
+- notes must not change candidate facts, evidence, score, flags, fit values, or search metadata.
+
+### Proposed Controls
+
+Candidate row/detail controls:
+
+- status selector: `New`, `Reviewing`, `Shortlisted`, `Not a fit`;
+- shortlist toggle/button derived from status;
+- notes textarea or compact notes field in the candidate detail area.
+
+Workspace view filters added by this task:
+
+- `Review status`: `All`, `New`, `Reviewing`, `Shortlisted`, `Not a fit`;
+- `Shortlist`: `All`, `Shortlisted only`, `Not shortlisted`.
+
+These filters are required for `P8-004` and are frontend workspace view filters only. They must not change backend search filters, Tavily queries, Candidate Quality, scoring, dedupe, location filtering, or result inclusion.
+
+### Proposed Steps
+
+1. Keep backend and execution behavior unchanged.
+   - Do not change FastAPI endpoints.
+   - Do not change runtime approval.
+   - Do not change Tavily execution.
+   - Do not change planner, scoring, filters, dedupe, location logic, Candidate Quality, or Agent Response.
+
+2. Add explicit frontend review-state storage.
+   - Add a local in-memory review state map such as `workspaceReviewStateByCandidateId`.
+   - Key review state by stable `candidate_id` from the `P8-002` workspace mapper.
+   - Do not use `source_index`, `display_index`, row number, or render-only fallback id as stable review identity for future carryover.
+   - If a candidate has only a render-only fallback id because `normalized_url` is missing, allow local UI state only as a current-workspace-run UI key, ideally scoped with `workspace_run_id`.
+   - A render-only fallback id may survive sort/filter re-render inside the current workspace run, but it must not imply persistence, future carryover, saved-candidate identity, or backend/profile identity.
+   - Keep review state separate from backend candidate facts and from the original `workspaceCandidates` objects.
+   - Do not mutate candidate evidence, score, flags, fit fields, query sources, location signals, or source metadata.
+
+3. Initialize review state for a new workspace run.
+   - New candidates start with `review_status = new` and `notes = ""`.
+   - A new successful approved search replaces workspace review state by default.
+   - Page reload may clear all review state in Phase 8 v0.
+   - Search Brief stale changes, safety/refusal turns, chat reset, search start, search failure, and workspace clear/reset paths should clear review state together with workspace state.
+   - Do not add `localStorage`, `sessionStorage`, IndexedDB, backend save, logs, snapshots, or hidden persistence.
+
+4. Add DOM-free review-state helpers.
+   - Add helpers such as `normalizeReviewStatus(status)`, `createInitialReviewState(candidate)`, `setWorkspaceReviewStatus(state, candidateId, status)`, `setWorkspaceCandidateNote(state, candidateId, note)`, and `isWorkspaceCandidateShortlisted(reviewState)`.
+   - Keep helpers free of direct DOM access.
+   - Use allowlisted status values only.
+   - Missing/unknown status values during initialization should normalize to `new`.
+   - Unknown status update attempts should be a no-op and preserve the previous valid status.
+   - Helper functions should return new state objects or otherwise make mutation behavior explicit and localized.
+
+5. Add shortlist behavior from `review_status`.
+   - Render shortlist as a control/state derived from `review_status`.
+   - Enabling shortlist sets status to `shortlisted`.
+   - Disabling shortlist sets status to `reviewing`.
+   - Manual status selector can still set status to `new` if the recruiter explicitly chooses `New`.
+   - Do not store a separate independent `shortlisted` source-of-truth field.
+
+6. Add notes behavior.
+   - Notes are plain text only.
+   - Escape notes wherever displayed.
+   - Do not support markdown/HTML rendering.
+   - Add a conservative maximum note length of `1000` characters to avoid layout/performance issues.
+   - The notes textarea should use `maxlength="1000"` or an equivalent visible input constraint.
+   - The helper should also truncate pasted/programmatic values to 1000 characters so the limit does not depend only on DOM behavior.
+   - Notes changes should not trigger Tavily, runtime calls, Build Plan, Agent Plan, Agent Response, or any backend request.
+
+7. Add status controls in the candidate workspace area.
+   - Put controls on candidate row/detail surfaces, not in recruiter chat or search execution controls.
+   - Keep controls compact and consistent with the dark AI Agent workspace UI.
+   - Make controls usable with keyboard and visible labels.
+   - Status labels and CSS classes must come from local allowlist/map helpers.
+   - Do not build status labels, status classes, or dynamic class names directly from raw status values.
+   - Unknown status values must not appear in dynamic CSS class names.
+   - Avoid making an entire row clickable.
+   - Avoid layout jumps when notes/statuses change.
+
+8. Add review-status and shortlist view filters after the review state exists.
+   - Integrate these filters with the `P8-003` derived visible list.
+   - Different filter dimensions still combine with AND semantics.
+   - `Review status` filter uses `review_status`.
+   - `Shortlist` filter uses derived `shortlisted`.
+   - Do not add backend filters or change search behavior.
+
+9. Preserve sort/filter composition.
+   - Existing P8-003 sorting/filtering should continue to operate on the derived workspace view.
+   - Updating notes should not change candidate ordering.
+   - Updating status/shortlist should only affect visible list if an active review-status/shortlist filter depends on it.
+   - `workspaceReviewStateByCandidateId` or equivalent JS state is the source of truth for notes/status/shortlist.
+   - DOM inputs/selects only render current state and submit changes back into JS state.
+   - Re-rendering after sort/filter must restore note/status/shortlist values from JS state.
+   - Do not read the DOM as the source of truth when recomputing the visible workspace list.
+   - If `Shortlisted only` is active and the recruiter disables shortlist, the candidate may disappear from the current visible list after state is saved and the view is recomputed.
+   - If a review-status filter is active and the recruiter changes a candidate to a non-matching status, the candidate may disappear from the current visible list after state is saved and the view is recomputed.
+   - This disappearing-row behavior is acceptable only because the underlying workspace candidate and review state remain in memory.
+   - Reset view filters should not erase notes/statuses unless it is a full workspace reset.
+   - `Reset filters` must not erase notes/statuses/shortlist.
+   - Full workspace reset, new successful approved search, stale/error clearing, or page reload may clear notes/statuses/shortlist.
+
+10. Preserve security and display boundaries.
+    - Treat notes as untrusted user input.
+    - Escape notes in visible text and dynamic attributes.
+    - Do not render raw HTML from notes.
+    - Do not build CSS class names directly from notes or raw candidate data.
+    - Do not auto-open, fetch, scrape, or automate candidate profile URLs.
+
+11. Add no-network helper smoke coverage.
+    - Extend `scripts/smoke_p8_candidate_workspace_helpers.js` or add a focused P8-004 helper smoke.
+    - Cover allowed status normalization.
+    - Cover missing/unknown initialization status normalizing to `new`.
+    - Cover unknown status update preserving the previous valid status.
+    - Cover initial review state.
+    - Cover status update.
+    - Cover status label/class allowlist behavior.
+    - Cover unknown status not entering a dynamic CSS class.
+    - Cover shortlist enable/disable transitions.
+    - Cover manual status selector returning a candidate to `new`.
+    - Cover derived `shortlisted` state.
+    - Cover notes update.
+    - Cover notes length behavior at exactly 1000 characters and over 1000 characters.
+    - Cover helper-level truncation for pasted/programmatic note values.
+    - Cover review state reset for a new workspace run.
+    - Cover required review-status and shortlist filters.
+    - Cover notes/status/shortlist surviving sort/filter re-render in the same workspace run.
+    - Cover DOM re-render restoring notes/status/shortlist from JS state, not DOM-derived state, where practical.
+    - Cover `Reset filters` preserving notes/status/shortlist.
+    - Cover full workspace reset clearing notes/status/shortlist.
+    - Cover active review filter recomputation after status/shortlist changes.
+    - Cover no mutation of candidate facts and source `workspaceCandidates`.
+
+12. Verify locally.
+    - Run `node --check app/static/app.js`.
+    - Run `node --check app/static/candidate_workspace.js` or the equivalent workspace helper file.
+    - Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+    - Browser sanity check after a successful approved search: status changes, shortlist toggle, notes editing, review filters, reset boundaries, and no backend/search/runtime calls from review interactions.
+
+### Acceptance Criteria
+
+- Shortlist, notes, and review statuses are frontend-only local/session UI state.
+- No backend/API/schema/persistence/browser-storage/database changes are added.
+- `review_status` is the source of truth.
+- `shortlisted` is derived from `review_status === "shortlisted"`.
+- Allowed statuses are exactly `new`, `reviewing`, `shortlisted`, and `not_a_fit`.
+- Enabling shortlist sets `review_status = shortlisted`.
+- Disabling shortlist sets `review_status = reviewing`.
+- Manual status selector can explicitly return a candidate to `new`.
+- Notes are plain text and escaped wherever displayed.
+- Notes do not render markdown or HTML.
+- Notes have a conservative length boundary.
+- Notes are limited to 1000 characters at both UI input and helper/state-update level.
+- Review state is kept separate from candidate facts.
+- Review state JS data is the source of truth; DOM controls are not used as source data when recomputing the visible list.
+- Review interactions do not mutate score, evidence, flags, fit values, query sources, location signals, or backend-owned fields.
+- Notes/status/shortlist survive sort/filter re-render inside the same workspace run.
+- New successful approved searches reset notes/status/shortlist state by default.
+- Workspace stale/reset/error paths clear review state together with workspace state.
+- Page reload may clear review state.
+- Review-status/shortlist filters are implemented and operate only on already returned workspace candidates.
+- Review filters compose with existing workspace filters using AND semantics.
+- Updating notes does not change sorting/order.
+- Updating status/shortlist affects the visible list only when a relevant review filter is active.
+- If an active review filter causes a changed candidate to disappear from the visible list, the underlying workspace candidate and review state remain in memory.
+- `Reset filters` does not erase notes/status/shortlist.
+- Full workspace reset/new successful approved search/stale/error clearing may erase notes/status/shortlist.
+- No Tavily, runtime, Build Plan, Agent Plan, QueryPlan, Agent Response, LinkedIn, export, persistence, or account action is triggered by review interactions.
+- Status labels/classes are allowlisted, and unknown status values never become raw dynamic CSS classes.
+- Missing/unknown initialization status normalizes to `new`; unknown status update attempts preserve the previous valid status.
+- No-network helper smoke coverage is added and wired into `scripts/check_all.ps1`.
+- Desktop and narrow/mobile layouts remain readable without visible overlap.
+
+### Verification Plan
+
+- Run `node --check app/static/app.js`.
+- Run `node --check app/static/candidate_workspace.js` or the equivalent workspace helper file.
+- Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+- Browser sanity check the candidate workspace after a successful approved search.
+- Confirm no backend files, API contracts, Candidate Quality logic, Tavily execution, QueryPlan generation, dedupe, location filtering, runtime approval, Agent Response, or chat/Agent Plan logic changed.
+
+---
+
+## Task: P8-001 Define candidate workspace contract
+
+### Status
+
+Approved and completed as a docs-only contract task.
+
+### Context
+
+Phase 7.5 closed with the decision `ready after approved fixes completed`, which means the narrow `Backend Developer + Java + Ukraine` Agent v0 flow is ready enough to start Phase 8 contract work.
+
+Phase 8 should turn approved search results into a recruiter working artifact. Before coding the table, shortlist, notes, statuses, explanations, or export, the project needs a clear contract for:
+
+- which candidate facts come from the approved backend search result;
+- which state belongs to the workspace UI;
+- what stays session-only in Phase 8;
+- what remains deferred to Phase 9;
+- which product boundaries remain absolute.
+
+### Goal
+
+Define Candidate Workspace v0 as a session/local UI workspace built from already returned approved search results.
+
+The contract must make `P8-002 Build recruiter-facing candidate table` safe to implement without redesigning data ownership.
+
+### Implementation Result
+
+Created `docs/phase-8-candidate-workspace-contract.md`.
+
+The contract defines:
+
+- approved search results as the workspace source of truth;
+- current candidate data fields available from `deduped_results`;
+- workspace candidate view-model guidance;
+- workspace run context as frontend/session-only state for the latest approved search, with a per-run component beyond QueryPlan fingerprint;
+- browser in-memory frontend/session-only workspace state;
+- v0 review statuses: `new`, `reviewing`, `shortlisted`, `not_a_fit`;
+- `review_status` as the workflow source of truth and `shortlisted` as derived convenience state;
+- shortlist/notes/statuses as in-memory local/session state until Phase 9, reset by default on a fresh approved search or page reload;
+- candidate table/list, responsive hybrid layout, detail drawer, shortlist view, notes/status controls, query/wave source details, and later export boundaries;
+- sorting/filtering boundaries;
+- candidate-level agent explanation boundaries;
+- export boundaries;
+- security/display rules for escaping untrusted candidate/notes text and keeping profile links manual-user-click only after safe LinkedIn URL validation;
+- initial conservative implementation handoff for `P8-002`; later superseded by the dedicated `P8-002 Build recruiter-facing candidate table` task above.
+
+### Key Decision
+
+Shortlist, notes, and statuses in Phase 8 are browser in-memory session/local UI state only.
+
+No database, browser storage, persistence, saved searches, saved candidates, memory, cross-session continuation, authentication, or user accounts are added in `P8-001`. Persistent memory and saved searches remain Phase 9.
+
+`review_status` is the source of truth for candidate review workflow state. `shortlisted` is derived from `review_status == "shortlisted"` and must not become independent state.
+
+Each approved search creates a new local workspace run by default. `workspace_run_id` needs a per-run component, because QueryPlan fingerprint alone does not distinguish two approved runs of the same plan. Carrying notes/status/shortlist across runs belongs to Phase 9 unless a later reviewed Phase 8 task defines a narrow local-only exception.
+
+Visible public profile URLs may remain manual user-click links only after safe `http`/`https` LinkedIn profile URL validation. The agent/app must not automatically open LinkedIn, log in, automate, scrape, bypass restrictions, or perform account actions.
+
+### Proposed Handoff To P8-002
+
+This section is intentionally superseded by the dedicated `P8-002 Build recruiter-facing candidate table` task above and by `docs/phase-8-candidate-workspace-contract.md`.
+
+Do not use this older P8-001 handoff as the implementation checklist. The current source of truth for P8-002 is the full P8-002 task definition above, including the required DOM-free `candidate_workspace.js` helper, workspace clearing rules, safe-link behavior, render-only fallback id rules, `$node`-based helper smoke coverage, and the explicit frontend-only product behavior boundary.
+
+If a backend workspace schema or endpoint becomes necessary, it still requires a separate reviewed task.
+
+### Boundaries
+
+- No backend code was changed.
+- No frontend code was changed.
+- No Tavily execution was added or run.
+- No search/planner/scoring/filter/dedupe/location behavior changed.
+- No database, persistence, saved searches, memory, authentication, user accounts, or new search source was added.
+- No direct web-search bypass, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging, outreach, account action, or autonomous execution was added.
+
+### Verification Result
+
+Docs-only review completed against current Phase 8 strategy, Phase 7.5 closeout, current `deduped_results` shape, Candidate Quality fields, query/wave source metadata, location signal fields, and frontend `renderResults`.
+
+No local code checks were required because this task changed only documentation.
+
+### Acceptance Criteria
+
+- `docs/phase-8-candidate-workspace-contract.md` exists.
+- Candidate facts and recruiter UI workspace state are separated.
+- Shortlist, notes, and statuses are explicitly session/local UI state until Phase 9.
+- Session/local UI state is in-memory in Phase 8 v0; browser/backend persistence is out of scope.
+- `workspace_run_id` requires a per-run component and cannot rely only on QueryPlan fingerprint.
+- `review_status` source-of-truth and derived `shortlisted` semantics are documented.
+- `P8-002` handoff requires explicit frontend workspace state and forbids using parsed DOM as a data source.
+- `P8-002` is scoped to a read-only candidate table/list foundation; sorting/filtering, shortlist, notes, editable statuses, explanations, export, backend changes, and persistence remain later tasks.
+- `P8-002` creates/replaces workspace run state only after successful approved runtime search results.
+- Workspace run lifecycle/reset behavior is documented.
+- Manual profile-link navigation vs prohibited app/agent LinkedIn automation is documented.
+- Safe LinkedIn profile URL validation before clickable links is documented.
+- Scheme-less backend `normalized_url` href generation is documented.
+- Security/display escaping expectations are documented.
+- Candidate table/list, detail view, shortlist, notes/statuses, sorting/filtering, explanations, and export boundaries are defined.
+- `P8-002`, `P8-003`, and `P8-004` are completed as the first candidate-workspace implementation batch, with `P8-004` implemented after `P8-002`/`P8-003` workspace state.
 
 ---
 
@@ -10984,7 +11922,7 @@ The LLM may improve only the human-facing wording. It must not decide Search Bri
 - This task should move the product toward a real AI Agent experience, but only at the wording layer.
 - Backend remains source of truth. LLM is not allowed to infer or mutate product state.
 - The task must not reopen Phase 7.5 or weaken the Phase 8 handoff.
-- `P8-001 Define candidate workspace contract` remains the contract-first Phase 8 task. This task is a separate chat-quality improvement that can be reviewed and implemented independently.
+- `P8-001 Define candidate workspace contract` is completed as the contract-first Phase 8 task. This task is a separate chat-quality improvement that can be reviewed and implemented independently.
 - The scope should stay narrow: onboarding/greeting only. Clarification, brief summary, planner explanation, result analysis, and candidate workspace wording require separate reviewed tasks.
 
 ### Acceptance Criteria

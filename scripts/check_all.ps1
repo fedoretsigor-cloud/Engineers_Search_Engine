@@ -36,6 +36,7 @@ Invoke-Check "Python compileall" {
 }
 
 Invoke-Check "Frontend JavaScript syntax" {
+    & $node --check app/static/candidate_workspace.js
     & $node --check app/static/app.js
 }
 
@@ -85,6 +86,10 @@ Invoke-Check "P7 Golden Conversations smoke" {
 
 Invoke-Check "P7.5 Current Flow Regressions smoke" {
     & $python scripts/smoke_p75_current_flow_regressions.py
+}
+
+Invoke-Check "P8 Candidate Workspace helper smoke" {
+    & $node scripts/smoke_p8_candidate_workspace_helpers.js
 }
 
 Write-Host ""

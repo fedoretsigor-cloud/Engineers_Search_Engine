@@ -1095,6 +1095,177 @@ summary {
   font-weight: 700;
 }
 
+.candidate-workspace-toolbar {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(12, 24, 42, 0.72);
+}
+
+.candidate-workspace-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.candidate-workspace-meta div {
+  display: grid;
+  gap: 4px;
+}
+
+.candidate-workspace-meta span,
+.candidate-workspace-controls label,
+.workspace-review-strip label,
+.workspace-note {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.candidate-workspace-meta strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.candidate-workspace-meta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.candidate-workspace-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.candidate-workspace-controls label,
+.workspace-review-strip label,
+.workspace-note {
+  display: grid;
+  gap: 6px;
+}
+
+.candidate-workspace-controls select,
+.workspace-review-strip select,
+.workspace-note textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+}
+
+.candidate-workspace-controls select,
+.workspace-review-strip select {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.workspace-reset-button {
+  min-height: 42px;
+}
+
+.candidate-workspace-list {
+  display: grid;
+  gap: 14px;
+}
+
+.workspace-candidate-row {
+  border-color: rgba(32, 201, 183, 0.22);
+}
+
+.workspace-candidate-header {
+  align-items: start;
+}
+
+.workspace-profile-url,
+.workspace-subtle-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.workspace-review-strip {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(20, 37, 62, 0.64);
+}
+
+.workspace-review-strip span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.workspace-review-strip.review-status-shortlisted span {
+  background: rgba(32, 201, 183, 0.14);
+  color: var(--accent-strong);
+}
+
+.workspace-review-strip.review-status-not-a-fit span {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+}
+
+.workspace-checkbox {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  min-height: 42px;
+}
+
+.workspace-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.workspace-note textarea {
+  min-height: 90px;
+  padding: 12px;
+  resize: vertical;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.workspace-note span {
+  justify-self: end;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.workspace-empty-state {
+  display: grid;
+  min-height: 140px;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: rgba(12, 24, 42, 0.54);
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}
+
 @media (max-width: 1040px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -1129,5 +1300,11 @@ summary {
 
   .agent-action-context div {
     grid-template-columns: 1fr;
+  }
+
+  .candidate-workspace-meta,
+  .workspace-review-strip {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 }

@@ -19,6 +19,7 @@ const reportGrid = document.querySelector("#report-grid");
 const contributionList = document.querySelector("#contribution-list");
 const resultsStatus = document.querySelector("#results-status");
 const resultsList = document.querySelector("#results-list");
+const candidateWorkspace = window.CandidateWorkspace;
 
 const PRIMARY_BUILD_PLAN_MODE = "rule_based";
 const AGENT_PLAN_ENDPOINT = "/api/agent/plan";
@@ -152,6 +153,12 @@ let latestAgentResponse = null;
 let currentRuntimePendingApproval = null;
 let currentRuntimeToolCall = null;
 let runtimeApprovalVersion = 0;
+let workspaceRunCounter = 0;
+let latestWorkspaceRun = null;
+let workspaceCandidates = [];
+let visibleWorkspaceCandidates = [];
+let workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
+let workspaceReviewStateByCandidateId = {};
 let chatRequestInFlight = false;
 let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
@@ -228,6 +235,331 @@ function clearRuntimeApproval() {
   currentRuntimePendingApproval = null;
   currentRuntimeToolCall = null;
   runtimePrepareRequestInFlight = false;
+}
+
+function clearWorkspaceState() {
+  latestWorkspaceRun = null;
+  workspaceCandidates = [];
+  visibleWorkspaceCandidates = [];
+  workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
+  workspaceReviewStateByCandidateId = {};
+}
+
+function captureWorkspaceRunContext(searchData = {}) {
+  workspaceRunCounter += 1;
+  return {
+    run_counter: workspaceRunCounter,
+    idempotency_key: currentRuntimePendingApproval?.idempotency_key,
+    tool_call_id:
+      currentRuntimePendingApproval?.tool_call_id ||
+      currentRuntimeToolCall?.id ||
+      currentRuntimeToolCall?.tool_call_id,
+    tool_name: currentRunSearchAction(),
+    execution_mode: currentRunSearchExecutionMode(),
+    context_fingerprint: currentRuntimePendingApproval?.context_fingerprint,
+    tool_input_fingerprint: currentRuntimePendingApproval?.tool_input_fingerprint,
+    plan_fingerprint:
+      latestPlanFingerprint ||
+      searchData.query_plan?.plan_fingerprint ||
+      latestQueryPlan?.plan_fingerprint,
+    query_count:
+      searchData.query_plan?.queries?.length ||
+      latestQueryPlan?.queries?.length ||
+      0,
+    created_at: new Date().toISOString(),
+  };
+}
+
+function replaceWorkspaceRun(dedupedResults = [], report = null, runContext = {}) {
+  const candidates = candidateWorkspace.mapDedupedResultsToWorkspaceCandidates(
+    dedupedResults
+  );
+  const workspaceRunId = candidateWorkspace.createWorkspaceRunId(runContext);
+
+  latestWorkspaceRun = {
+    workspace_run_id: workspaceRunId,
+    created_at: runContext.created_at || new Date().toISOString(),
+    run_context: runContext,
+    report,
+    total_candidates: candidates.length,
+  };
+  workspaceCandidates = candidates;
+  visibleWorkspaceCandidates = candidates;
+  workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
+  workspaceReviewStateByCandidateId =
+    candidateWorkspace.createReviewStateForCandidates(candidates);
+}
+
+function renderWorkspaceOption(value, label, currentValue) {
+  return `<option value="${escapeHtml(value)}" ${
+    currentValue === value ? "selected" : ""
+  }>${escapeHtml(label)}</option>`;
+}
+
+function renderWorkspaceToolbar() {
+  if (!latestWorkspaceRun) {
+    return "";
+  }
+
+  const state = candidateWorkspace.normalizeWorkspaceViewState(workspaceViewState);
+  const runLabel = latestWorkspaceRun.run_context?.execution_mode || "search";
+  const queryCount = latestWorkspaceRun.run_context?.query_count || 0;
+
+  return `
+    <section class="candidate-workspace-toolbar" aria-label="Candidate workspace controls">
+      <div class="candidate-workspace-meta">
+        <div>
+          <span>Candidate Workspace</span>
+          <strong>${escapeHtml(latestWorkspaceRun.total_candidates)} ${escapeHtml(
+            pluralize(latestWorkspaceRun.total_candidates, "candidate", "candidates")
+          )}</strong>
+        </div>
+        <p>${escapeHtml(displayValue(runLabel))}, ${escapeHtml(queryCount)} ${escapeHtml(
+          pluralize(queryCount, "query", "queries")
+        )}</p>
+      </div>
+      <div class="candidate-workspace-controls">
+        <label>
+          Sort
+          <select data-workspace-control="sort_mode">
+            ${renderWorkspaceOption("original", "Original order", state.sort_mode)}
+            ${renderWorkspaceOption("quality_desc", "Quality high to low", state.sort_mode)}
+            ${renderWorkspaceOption("quality_asc", "Quality low to high", state.sort_mode)}
+            ${renderWorkspaceOption("name_asc", "Name A to Z", state.sort_mode)}
+          </select>
+        </label>
+        <label>
+          Quality
+          <select data-workspace-control="quality_filter">
+            ${renderWorkspaceOption("all", "All", state.quality_filter)}
+            ${renderWorkspaceOption("80_plus", "80+", state.quality_filter)}
+            ${renderWorkspaceOption("70_plus", "70+", state.quality_filter)}
+            ${renderWorkspaceOption("60_plus", "60+", state.quality_filter)}
+          </select>
+        </label>
+        <label>
+          Stack
+          <select data-workspace-control="stack_filter">
+            ${renderWorkspaceOption("all", "All", state.stack_filter)}
+            ${renderWorkspaceOption("confirmed", "Confirmed", state.stack_filter)}
+            ${renderWorkspaceOption("query_source_only", "Query-source only", state.stack_filter)}
+            ${renderWorkspaceOption("not_visible", "Not visible", state.stack_filter)}
+          </select>
+        </label>
+        <label>
+          Flags
+          <select data-workspace-control="review_flag_filter">
+            ${renderWorkspaceOption("all", "All", state.review_flag_filter)}
+            ${renderWorkspaceOption("has_flags", "Has flags", state.review_flag_filter)}
+            ${renderWorkspaceOption("no_flags", "No flags", state.review_flag_filter)}
+            ${renderWorkspaceOption("high_medium", "High/medium flags", state.review_flag_filter)}
+          </select>
+        </label>
+        <label>
+          Location
+          <select data-workspace-control="location_filter">
+            ${renderWorkspaceOption("all", "All", state.location_filter)}
+            ${renderWorkspaceOption("target", "Target", state.location_filter)}
+            ${renderWorkspaceOption("unknown_weak", "Unknown/weak", state.location_filter)}
+          </select>
+        </label>
+        <label>
+          Review
+          <select data-workspace-control="review_status_filter">
+            ${renderWorkspaceOption("all", "All", state.review_status_filter)}
+            ${renderWorkspaceOption("new", "New", state.review_status_filter)}
+            ${renderWorkspaceOption("reviewing", "Reviewing", state.review_status_filter)}
+            ${renderWorkspaceOption("shortlisted", "Shortlisted", state.review_status_filter)}
+            ${renderWorkspaceOption("not_a_fit", "Not a fit", state.review_status_filter)}
+          </select>
+        </label>
+        <label>
+          Shortlist
+          <select data-workspace-control="shortlist_filter">
+            ${renderWorkspaceOption("all", "All", state.shortlist_filter)}
+            ${renderWorkspaceOption("shortlisted", "Shortlisted", state.shortlist_filter)}
+            ${renderWorkspaceOption("not_shortlisted", "Not shortlisted", state.shortlist_filter)}
+          </select>
+        </label>
+        <button type="button" class="secondary-button workspace-reset-button" data-workspace-action="reset-filters">
+          Reset filters
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function renderWorkspaceProfileLink(candidate = {}) {
+  if (!candidate.profile_href) {
+    return candidate.profile_url
+      ? `<p class="workspace-profile-url">${escapeHtml(candidate.profile_url)}</p>`
+      : "";
+  }
+
+  return `
+    <a href="${escapeHtml(candidate.profile_href)}" target="_blank" rel="noreferrer">
+      ${escapeHtml(candidate.profile_url || candidate.profile_href)}
+    </a>
+  `;
+}
+
+function renderWorkspaceReviewStatusOptions(currentStatus) {
+  return [
+    ["new", "New"],
+    ["reviewing", "Reviewing"],
+    ["shortlisted", "Shortlisted"],
+    ["not_a_fit", "Not a fit"],
+  ]
+    .map(([value, label]) => renderWorkspaceOption(value, label, currentStatus))
+    .join("");
+}
+
+function renderWorkspaceCandidate(candidate) {
+  const reviewState =
+    workspaceReviewStateByCandidateId[candidate.candidate_id] ||
+    { status: "new", note: "" };
+  const isShortlisted = candidateWorkspace.isWorkspaceCandidateShortlisted(reviewState);
+  const sourceBadges = candidate.query_sources
+    .map(
+      (source) =>
+        `<span title="${escapeHtml(source.role_phrase || source.query || source.category)}">${escapeHtml(
+          source.id || source.category || "query"
+        )}</span>`
+    )
+    .join("");
+  const selectedStack = candidate.selected_stack_terms_found.length
+    ? candidate.selected_stack_terms_found.join(", ")
+    : displayValue(candidate.stack_fit);
+  const missingStack = candidate.missing_selected_stack_terms.length
+    ? candidate.missing_selected_stack_terms.join(", ")
+    : "";
+  const qualityDisplay = candidate.has_quality_score ? candidate.quality_score : "n/a";
+
+  return `
+    <article class="result-item candidate-card workspace-candidate-row" data-candidate-id="${escapeHtml(
+      candidate.candidate_id
+    )}">
+      <div class="candidate-header workspace-candidate-header">
+        <div class="candidate-identity">
+          <h3>${escapeHtml(candidate.display_name)}</h3>
+          <p>${escapeHtml(candidate.headline || candidate.raw_title || "No headline returned.")}</p>
+        </div>
+        <div class="candidate-score" aria-label="Quality score">
+          <span>Quality</span>
+          <strong>${escapeHtml(qualityDisplay)}</strong>
+        </div>
+      </div>
+      ${renderWorkspaceProfileLink(candidate)}
+      <div class="quality-grid">
+        ${renderQualityField("Location", candidate.location_status)}
+        ${renderQualityField("Role", candidate.raw?.result?.role_display)}
+        ${renderQualityField("Tech", candidate.raw?.result?.technology_display)}
+        ${renderQualityField("Stack", selectedStack)}
+        ${renderQualityField("Seniority", candidate.seniority_level)}
+        ${renderQualityField("Source", candidate.source)}
+      </div>
+      ${
+        missingStack
+          ? `<p class="workspace-subtle-note">Missing selected stack: ${escapeHtml(missingStack)}</p>`
+          : ""
+      }
+      <div class="flag-badges" aria-label="Review flags">
+        ${renderFlagBadges(candidate.review_flags)}
+      </div>
+      <div class="workspace-review-strip ${escapeHtml(
+        candidateWorkspace.reviewStatusClassName(reviewState.status)
+      )}">
+        <label>
+          Status
+          <select data-workspace-action="status">
+            ${renderWorkspaceReviewStatusOptions(reviewState.status)}
+          </select>
+        </label>
+        <label class="workspace-checkbox">
+          <input type="checkbox" data-workspace-action="shortlist" ${
+            isShortlisted ? "checked" : ""
+          } />
+          Shortlist
+        </label>
+        <span>${escapeHtml(candidateWorkspace.reviewStatusLabel(reviewState.status))}</span>
+      </div>
+      <details>
+        <summary>Candidate details</summary>
+        <div class="score-details">
+          ${renderQualityField("Stack fit", candidate.stack_fit)}
+          ${renderQualityField("Quality bucket", candidate.quality_bucket)}
+          ${renderQualityField("Location group", candidate.location_group)}
+          ${renderQualityField("Stable identity", candidate.identity.is_stable_identity ? "yes" : "fallback")}
+        </div>
+        <p class="result-snippet">${escapeHtml(candidate.snippet || "No snippet returned.")}</p>
+      </details>
+      <details>
+        <summary>Quality details</summary>
+        ${renderScoreBreakdown(candidate.raw?.result || {})}
+      </details>
+      <details>
+        <summary>Query sources</summary>
+        <div class="source-badges" aria-label="Query sources">
+          ${sourceBadges || "<span>No query sources</span>"}
+        </div>
+        ${renderQuerySourceDetails(candidate.query_sources)}
+      </details>
+      <label class="workspace-note">
+        Notes
+        <textarea
+          data-workspace-action="note"
+          maxlength="${escapeHtml(candidateWorkspace.NOTE_MAX_LENGTH)}"
+          placeholder="Private recruiter note for this run"
+        >${escapeHtml(reviewState.note)}</textarea>
+        <span data-workspace-note-count>${escapeHtml(reviewState.note.length)} / ${escapeHtml(
+          candidateWorkspace.NOTE_MAX_LENGTH
+        )}</span>
+      </label>
+    </article>
+  `;
+}
+
+function renderWorkspaceResults(report = null) {
+  if (!latestWorkspaceRun) {
+    resultsList.innerHTML = "";
+    resultsStatus.textContent = "Run a search to see deduped candidates.";
+    return;
+  }
+
+  visibleWorkspaceCandidates = candidateWorkspace.applyWorkspaceView(
+    workspaceCandidates,
+    workspaceViewState,
+    workspaceReviewStateByCandidateId
+  );
+
+  if (!workspaceCandidates.length) {
+    resultsStatus.textContent = report?.raw_total
+      ? `${report.raw_total} raw ${pluralize(
+          report.raw_total,
+          "result",
+          "results"
+        )} returned, no unique candidates after filters and dedupe.`
+      : "No candidates returned.";
+    resultsList.innerHTML = renderWorkspaceToolbar();
+    return;
+  }
+
+  resultsStatus.textContent = `Showing ${visibleWorkspaceCandidates.length} of ${workspaceCandidates.length} ${pluralize(
+    workspaceCandidates.length,
+    "candidate",
+    "candidates"
+  )}.`;
+
+  resultsList.innerHTML = `
+    ${renderWorkspaceToolbar()}
+    ${
+      visibleWorkspaceCandidates.length
+        ? `<section class="candidate-workspace-list">${visibleWorkspaceCandidates
+            .map(renderWorkspaceCandidate)
+            .join("")}</section>`
+        : `<div class="workspace-empty-state">No candidates match current view filters. Reset filters to show all candidates.</div>`
+    }
+  `;
 }
 
 function clearAgentActionDisplayState(actionIds = null) {
@@ -396,6 +728,7 @@ function clearAgentPlanData() {
 function clearSearchResultsData() {
   latestAgentResponse = null;
   messages = messages.filter((message) => message.kind !== "agent_response");
+  clearWorkspaceState();
   reportStatus.textContent = "Run a search to see counts.";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
@@ -1644,6 +1977,7 @@ function resetChat() {
   clearAgentActionDisplayState();
   clearPlannerData();
   clearAgentPlanData();
+  clearWorkspaceState();
   chatInput.value = "";
   chatStatusElement.textContent = "Describe the search in Russian or English.";
   planStatus.textContent = "Build a plan from the chat brief.";
@@ -1761,7 +2095,7 @@ function renderFlagBadges(flagDetails = []) {
     .map(
       (flag) => `
         <span
-          class="flag-badge severity-${escapeHtml(flag.severity || "info")}"
+          class="flag-badge ${escapeHtml(candidateWorkspace.severityClassName(flag.severity))}"
           title="${escapeHtml(flag.description || flag.code)}"
         >
           ${escapeHtml(flag.label || flag.code)}
@@ -1824,90 +2158,9 @@ function renderQuerySourceDetails(sources = []) {
     .join("");
 }
 
-function renderResults(dedupedResults, report) {
-  if (!dedupedResults.length) {
-    resultsList.innerHTML = "";
-    resultsStatus.textContent = report?.raw_total
-      ? `${report.raw_total} raw ${pluralize(
-          report.raw_total,
-          "result",
-          "results"
-        )} returned, no unique candidates after filters and dedupe.`
-      : "No candidates returned.";
-    return;
-  }
-
-  resultsStatus.textContent = `Showing ${dedupedResults.length} unique ${pluralize(
-    dedupedResults.length,
-    "candidate",
-    "candidates"
-  )}.`;
-
-  resultsList.innerHTML = dedupedResults
-    .map((item) => {
-      const result = item.result || {};
-      const title = result.title || "Untitled result";
-      const url = result.url || item.normalized_url || "";
-      const content = result.snippet || result.content || "No snippet returned.";
-      const name = result.name || "unknown";
-      const headline = result.headline || title;
-      const qualityScore = result.quality_score ?? "n/a";
-      const locationDisplay =
-        result.current_location_line ||
-        item.current_location_line ||
-        result.location_signal_status ||
-        item.location_signal_status ||
-        "n/a";
-      const flagDetails = result.review_flag_details || [];
-      const sources = item.query_sources || [];
-      const sourceBadges = sources
-        .map((source) => `<span title="${escapeHtml(source.role_phrase || source.query)}">${escapeHtml(source.id)}</span>`)
-        .join("");
-
-      return `
-        <article class="result-item candidate-card">
-          <div class="candidate-header">
-            <div class="candidate-identity">
-              <h3>${escapeHtml(name)}</h3>
-              <p>${escapeHtml(headline)}</p>
-            </div>
-            <div class="candidate-score" aria-label="Quality score">
-              <span>Quality</span>
-              <strong>${escapeHtml(qualityScore)}</strong>
-            </div>
-          </div>
-          ${
-            url
-              ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`
-              : ""
-          }
-          <div class="quality-grid">
-            ${renderQualityField("Location", locationDisplay)}
-            ${renderQualityField("Role", result.role_display)}
-            ${renderQualityField("Tech", result.technology_display)}
-            ${renderQualityField("Stack", stackDisplayValue(result))}
-            ${renderQualityField("Seniority", result.seniority_display)}
-            ${renderQualityField("Source", result.source || "unknown")}
-          </div>
-          <div class="flag-badges" aria-label="Review flags">
-            ${renderFlagBadges(flagDetails)}
-          </div>
-          <div class="source-badges" aria-label="Query sources">
-            ${sourceBadges}
-          </div>
-          <details>
-            <summary>Quality details</summary>
-            ${renderScoreBreakdown(result)}
-            <p class="result-snippet">${escapeHtml(content)}</p>
-          </details>
-          <details>
-            <summary>Query sources</summary>
-            ${renderQuerySourceDetails(sources)}
-          </details>
-        </article>
-      `;
-    })
-    .join("");
+function renderResults(dedupedResults, report, options = {}) {
+  replaceWorkspaceRun(dedupedResults, report, options.runContext || {});
+  renderWorkspaceResults(report);
 }
 
 async function runStructuredSearch() {
@@ -1933,6 +2186,7 @@ async function runStructuredSearch() {
   updateActionState();
   resultsStatus.textContent = "Preparing approval for the visible QueryPlan...";
   reportStatus.textContent = "Validating current plan before Tavily execution...";
+  clearWorkspaceState();
   resultsList.innerHTML = "";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
@@ -1995,13 +2249,16 @@ async function runStructuredSearch() {
     if (!searchData.query_plan || !searchData.report) {
       throw new Error("Agent runtime returned an incomplete search result.");
     }
+    const workspaceRunContext = captureWorkspaceRunContext(searchData);
 
     renderQueryPlan(searchData.query_plan, {
       planner_mode: "rule_based",
       normalized_brief: normalizedBrief,
     });
     renderReport(searchData.report);
-    renderResults(searchData.deduped_results || [], searchData.report);
+    renderResults(searchData.deduped_results || [], searchData.report, {
+      runContext: workspaceRunContext,
+    });
     clearRuntimeApproval();
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_RUN_SEARCH,
@@ -2025,6 +2282,7 @@ async function runStructuredSearch() {
     );
     resultsStatus.textContent = error.message;
     reportStatus.textContent = error.message;
+    clearWorkspaceState();
     resultsList.innerHTML = "";
     reportGrid.innerHTML = "";
     contributionList.innerHTML = "";
@@ -2034,6 +2292,87 @@ async function runStructuredSearch() {
       updateActionState();
     }
   }
+}
+
+function candidateIdFromWorkspaceEvent(event) {
+  const row = event.target.closest("[data-candidate-id]");
+  return row ? row.getAttribute("data-candidate-id") : "";
+}
+
+function handleWorkspaceChange(event) {
+  if (!latestWorkspaceRun) {
+    return;
+  }
+
+  const controlName = event.target.dataset.workspaceControl;
+  if (controlName) {
+    workspaceViewState = candidateWorkspace.normalizeWorkspaceViewState({
+      ...workspaceViewState,
+      [controlName]: event.target.value,
+    });
+    renderWorkspaceResults(latestWorkspaceRun.report);
+    return;
+  }
+
+  const action = event.target.dataset.workspaceAction;
+  const candidateId = candidateIdFromWorkspaceEvent(event);
+  if (!candidateId) {
+    return;
+  }
+
+  if (action === "status") {
+    workspaceReviewStateByCandidateId = candidateWorkspace.setWorkspaceReviewStatus(
+      workspaceReviewStateByCandidateId,
+      candidateId,
+      event.target.value
+    );
+    renderWorkspaceResults(latestWorkspaceRun.report);
+    return;
+  }
+
+  if (action === "shortlist") {
+    workspaceReviewStateByCandidateId = candidateWorkspace.toggleWorkspaceShortlist(
+      workspaceReviewStateByCandidateId,
+      candidateId,
+      event.target.checked
+    );
+    renderWorkspaceResults(latestWorkspaceRun.report);
+  }
+}
+
+function handleWorkspaceInput(event) {
+  if (!latestWorkspaceRun || event.target.dataset.workspaceAction !== "note") {
+    return;
+  }
+
+  const candidateId = candidateIdFromWorkspaceEvent(event);
+  if (!candidateId) {
+    return;
+  }
+
+  workspaceReviewStateByCandidateId = candidateWorkspace.setWorkspaceCandidateNote(
+    workspaceReviewStateByCandidateId,
+    candidateId,
+    event.target.value
+  );
+  const currentState = workspaceReviewStateByCandidateId[candidateId];
+  const countElement = event.target
+    .closest(".workspace-note")
+    ?.querySelector("[data-workspace-note-count]");
+  if (countElement) {
+    countElement.textContent = `${currentState.note.length} / ${candidateWorkspace.NOTE_MAX_LENGTH}`;
+  }
+}
+
+function handleWorkspaceClick(event) {
+  const action = event.target.dataset.workspaceAction;
+  if (action !== "reset-filters" || !latestWorkspaceRun) {
+    return;
+  }
+
+  event.preventDefault();
+  workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
+  renderWorkspaceResults(latestWorkspaceRun.report);
 }
 
 if (statusElement) {
@@ -2053,6 +2392,9 @@ chatForm.addEventListener("submit", (event) => {
 resetChatButton.addEventListener("click", resetChat);
 buildPlanButton.addEventListener("click", buildPlanFromChat);
 searchButton.addEventListener("click", runStructuredSearch);
+resultsList.addEventListener("change", handleWorkspaceChange);
+resultsList.addEventListener("input", handleWorkspaceInput);
+resultsList.addEventListener("click", handleWorkspaceClick);
 multiWaveInput.addEventListener("change", () => {
   clearRuntimeApproval();
   clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
