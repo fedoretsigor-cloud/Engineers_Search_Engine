@@ -414,6 +414,50 @@ function renderWorkspaceReviewStatusOptions(currentStatus) {
     .join("");
 }
 
+function renderExplanationReasonList(items = [], emptyText = "") {
+  if (!items.length) {
+    return emptyText ? `<p>${escapeHtml(emptyText)}</p>` : "";
+  }
+
+  return `
+    <ul>
+      ${items.map((item) => `<li>${escapeHtml(item.label || item.code)}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function renderCandidateExplanation(candidate) {
+  if (!candidateWorkspace.buildCandidateExplanation) {
+    return "";
+  }
+
+  const explanation = candidateWorkspace.buildCandidateExplanation(candidate);
+  if (!explanation || explanation.source !== "deterministic_workspace_facts") {
+    return "";
+  }
+
+  return `
+    <section class="candidate-explanation" aria-label="Candidate explanation">
+      <h4>Candidate explanation</h4>
+      <p>${escapeHtml(explanation.summary || "Review returned candidate details manually.")}</p>
+      <div class="candidate-explanation-grid">
+        <div>
+          <span>Positive signals</span>
+          ${renderExplanationReasonList(explanation.positive_signals || [], "No strong positive signal selected.")}
+        </div>
+        <div>
+          <span>Cautions</span>
+          ${renderExplanationReasonList(explanation.cautions || [], "No caution selected.")}
+        </div>
+        <div>
+          <span>Evidence</span>
+          ${renderExplanationReasonList(explanation.evidence_items || [], "No extra evidence returned.")}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkspaceCandidate(candidate) {
   const reviewState =
     workspaceReviewStateByCandidateId[candidate.candidate_id] ||
@@ -491,6 +535,7 @@ function renderWorkspaceCandidate(candidate) {
           ${renderQualityField("Location group", candidate.location_group)}
           ${renderQualityField("Stable identity", candidate.identity.is_stable_identity ? "yes" : "fallback")}
         </div>
+        ${renderCandidateExplanation(candidate)}
         <p class="result-snippet">${escapeHtml(candidate.snippet || "No snippet returned.")}</p>
       </details>
       <details>

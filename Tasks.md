@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, the `P7.5-010` closeout, `P8-001 Define candidate workspace contract`, and the first Phase 8 frontend-only Candidate Workspace implementation batch: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, the `P7.5-010` closeout, `P8-001 Define candidate workspace contract`, and Phase 8 frontend-only Candidate Workspace implementation slices: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, and `P8-007A Implement export model and serializers`.
 
 ---
 
@@ -9224,7 +9224,7 @@ Final closeout artifact: `docs/phase-7-5-closeout.md`.
 
 Next active phase: Phase 8 `Candidate Workspace/Table + Shortlist`.
 
-`P8-001 Define candidate workspace contract` is completed. Current approved Phase 8 candidate-workspace implementation batch: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`.
+`P8-001 Define candidate workspace contract` is completed. Current approved Phase 8 candidate-workspace implementation slices: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, and `P8-007A Implement export model and serializers`.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
 
@@ -9377,7 +9377,7 @@ Reason: Phase 7.5 found real blockers, the approved fixes were implemented and v
 - The final Docker/Kubernetes stack-grounding hotfix is included in the evidence.
 - The decision explains why Phase 8 can start and what remains out of scope.
 - All absolute product boundaries remain explicit.
-- At Phase 7.5 closeout time, Phase 8 starts with `P8-001 Define candidate workspace contract`, not implementation. Later status: `P8-001`, `P8-002`, `P8-003`, and `P8-004` are completed as the first conservative frontend-only Candidate Workspace slice.
+- At Phase 7.5 closeout time, Phase 8 starts with `P8-001 Define candidate workspace contract`, not implementation. Later status: `P8-001`, `P8-002`, `P8-003`, `P8-004`, and `P8-005` are completed as conservative frontend-only Candidate Workspace slices.
 - Docs do not imply broader country/technology support than the code has.
 - Docs do not imply AI-generated QueryPlans are executable.
 - Docs do not imply autonomous execution or LinkedIn/account behavior is allowed.
@@ -10888,16 +10888,18 @@ Implemented focused hardening:
 
 ### Backlog
 
-- [ ] P8-005 Add candidate-level agent explanations
-- [ ] P8-006 Prepare export workflow
-- [ ] P8-007 Add bounded LLM onboarding wording overlay
-- [ ] P8-008 Add off-topic and unclear input guardrails before Search Brief extraction
-- [ ] P8-009 Define conservative off-topic and unclear/noise classification policy
-- [ ] P8-010 Apply Russian answers to pending clarification fields
-- [ ] P8-011 Localize next iteration options in Agent Response
-- [ ] P8-012 Add chat-confirmed Build Plan action
-- [ ] P8-013 Add Enter-to-send chat input behavior
-- [ ] P8-014 Normalize chat assistant speaker title
+- [ ] P8-006 Define bounded candidate explanation wording contract
+- [ ] P8-006.1 Implement explicit selected-candidate wording overlay
+- [ ] P8-007 Prepare export workflow umbrella
+- [ ] P8-007B Add export UI and download workflow
+- [ ] P8-008 Add bounded LLM onboarding wording overlay
+- [ ] P8-009 Add off-topic and unclear input guardrails before Search Brief extraction
+- [ ] P8-010 Define conservative off-topic and unclear/noise classification policy
+- [ ] P8-011 Apply Russian answers to pending clarification fields
+- [ ] P8-012 Localize next iteration options in Agent Response
+- [ ] P8-013 Add chat-confirmed Build Plan action
+- [ ] P8-014 Add Enter-to-send chat input behavior
+- [ ] P8-015 Normalize chat assistant speaker title
 
 ### In Progress
 
@@ -10907,6 +10909,8 @@ Implemented focused hardening:
 - [x] P8-002 Build recruiter-facing candidate table
 - [x] P8-003 Add sorting and filtering by quality signals
 - [x] P8-004 Add shortlist, notes, and statuses
+- [x] P8-005 Add candidate-level agent explanations
+- [x] P8-007A Implement export model and serializers
 
 ### Current Phase 8 strategy note
 
@@ -10919,6 +10923,10 @@ The first candidate-workspace implementation batch is completed: `P8-002 Build r
 Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without changing search execution boundaries. These tasks must keep `Build Plan` separate from Tavily execution and keep `Approve & Search` as the explicit approval gate before real search.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
+
+Candidate explanation order: `P8-005` implemented deterministic candidate-level explanations grounded only in returned workspace facts. `P8-006` is contract-first: define the bounded candidate explanation wording payload, output validation, fallback, routing, and no-fact-mutation rules before any implementation. `P8-006.1` may later implement an explicit-action selected-candidate wording overlay only after `P8-006` is approved. Do not mix LLM wording into the deterministic explanation helper.
+
+Export order: `P8-007A` is completed as the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage. `P8-007B` remains the later explicit UI/download slice and must not start without separate approval.
 
 ---
 
@@ -10999,7 +11007,7 @@ Not included:
 - autonomous execution;
 - outreach or account actions.
 
-Sorting/filtering belongs to `P8-003`. Shortlist, notes, and editable statuses belong to `P8-004`. Candidate-level agent explanations belong to `P8-005`. Export belongs to `P8-006`.
+Sorting/filtering belongs to `P8-003`. Shortlist, notes, and editable statuses belong to `P8-004`. Candidate-level agent explanations belong to `P8-005`. Bounded LLM wording contract/implementation for candidate explanations belongs to `P8-006`/`P8-006.1`. Export belongs to `P8-007`.
 
 Layout boundary: `P8-002` may change the results area (`#results-list`), candidate rendering, and related result/candidate CSS. It should not redesign or structurally change recruiter chat, Search Brief, QueryPlan, Report, Agent Actions, approval controls, or the overall workspace shell except for minimal compatibility with the new results rendering.
 
@@ -11289,7 +11297,7 @@ Not included:
 
 Shortlist, notes, editable statuses, and filters based on review status/shortlist state belong to `P8-004`, because `P8-004` owns the first interactive recruiter review state.
 
-Candidate-level agent explanations belong to `P8-005`. Export belongs to `P8-006`.
+Candidate-level agent explanations belong to `P8-005`. Bounded LLM wording contract/implementation for candidate explanations belongs to `P8-006`/`P8-006.1`. Export belongs to `P8-007`.
 
 ### Proposed Controls
 
@@ -11546,7 +11554,7 @@ Not included:
 - autonomous execution;
 - outreach or account actions.
 
-Candidate-level agent explanations belong to `P8-005`. Export belongs to `P8-006`. Persistence/memory/saved searches belong to Phase 9.
+Candidate-level agent explanations belong to `P8-005`. Bounded LLM wording contract/implementation for candidate explanations belongs to `P8-006`/`P8-006.1`. Export belongs to `P8-007`. Persistence/memory/saved searches belong to Phase 9.
 
 ### Review State Contract
 
@@ -11856,7 +11864,1769 @@ No local code checks were required because this task changed only documentation.
 
 ---
 
-## Task: P8-007 Add bounded LLM onboarding wording overlay
+## Task: P8-005 Add candidate-level agent explanations
+
+### Status
+
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented as a frontend-only deterministic explanation layer:
+
+- added `buildCandidateExplanation(candidate)` in `app/static/candidate_workspace.js`;
+- exported explanation version, allowlisted reason codes, and helper through `window.CandidateWorkspace`;
+- rendered `Candidate explanation` inside existing candidate details in `app/static/app.js`;
+- added candidate-workspace scoped CSS only;
+- extended `scripts/smoke_p8_candidate_workspace_helpers.js` with no-network coverage for reason codes, stack uncertainty, location uncertainty, quality buckets, review flags, profile-link safety, bounded facts, no mutation, and no Java/Ukraine hardcode;
+- did not change backend/API/search/runtime/Tavily/LLM behavior.
+
+### Context
+
+`P8-002`, `P8-003`, and `P8-004` are completed. The frontend now has an explicit Candidate Workspace built from approved runtime search results:
+
+- `latestWorkspaceRun`;
+- `workspaceCandidates`;
+- derived `visibleWorkspaceCandidates`;
+- workspace sorting/filtering;
+- local review status;
+- derived shortlist;
+- escaped plain-text notes.
+
+The recruiter can now scan, filter, shortlist, and annotate candidates. The next workspace improvement is to explain candidate-level fit in a compact, grounded way.
+
+This task should add deterministic candidate explanations. It must not add LLM/OpenAI calls. The goal is factual clarity, not natural-language polish. Bounded LLM wording for these explanations is intentionally deferred to `P8-006` after the deterministic explanation object is stable.
+
+### Goal
+
+Add a deterministic candidate-level explanation surface to the Candidate Workspace.
+
+The explanation should help the recruiter quickly understand:
+
+- why the candidate appears relevant;
+- which signals are strong;
+- which signals are weak, missing, or only query-source-based;
+- which review flags deserve caution;
+- which query sources contributed to the candidate.
+
+### Scope
+
+Included:
+
+- frontend-only deterministic candidate explanation helper logic;
+- DOM-free helper functions in `app/static/candidate_workspace.js`;
+- structured explanation objects, not HTML strings;
+- rendering explanation in the existing candidate details area in `app/static/app.js`;
+- English UI copy consistent with the current Candidate Workspace labels;
+- CSS limited to candidate workspace/results area if needed;
+- no-network helper smoke coverage;
+- Playwright browser sanity after implementation.
+
+Not included:
+
+- backend changes;
+- API/schema changes;
+- LLM/OpenAI call;
+- bounded LLM wording overlay;
+- changing candidate score/scoring logic;
+- changing ranking, sorting, filtering, dedupe, location filtering, or result inclusion;
+- changing Tavily execution;
+- changing Agent Response;
+- persistence or browser storage;
+- export;
+- RU/EN localization for candidate explanations;
+- LinkedIn access/automation/login/scraping/restriction bypass;
+- automatic profile opening;
+- candidate messaging/outreach;
+- autonomous actions.
+
+### Explanation Contract
+
+Add a structured explanation object, for example:
+
+```js
+{
+  "version": "candidate_explanation_v1",
+  "summary": "Relevant candidate. Stack evidence is not confirmed in the returned public data.",
+  "positive_signals": [
+    {
+      "code": "quality_score_high",
+      "label": "Quality score is high"
+    },
+    {
+      "code": "target_location",
+      "label": "Target location signal is present"
+    },
+    {
+      "code": "role_or_technology_visible",
+      "label": "Role or technology evidence is visible"
+    }
+  ],
+  "cautions": [
+    {
+      "code": "stack_query_source_only",
+      "label": "Selected stack is query-source only and is not confirmed in returned candidate text"
+    },
+    {
+      "code": "seniority_unknown",
+      "label": "Seniority is unknown"
+    }
+  ],
+  "evidence_items": [
+    {
+      "code": "query_source",
+      "label": "Matched query source Q01"
+    },
+    {
+      "code": "stack_confirmed",
+      "label": "Visible stack terms: Spring",
+      "facts": {
+        "terms": ["Spring"],
+        "source": "candidate_text"
+      }
+    }
+  ],
+  "source": "deterministic_workspace_facts"
+}
+```
+
+The exact strings can be adjusted during implementation, but the explanation object must stay structured, concise, deterministic, and grounded. `positive_signals`, `cautions`, and `evidence_items` should be arrays of reason objects with stable `code` values, escaped render-time `label` values, and optional bounded `facts` objects, not just raw strings. This keeps future `P8-006` LLM wording overlay bounded: the LLM may later rewrite labels, but not invent, remove, or change reason codes/facts.
+
+Initial display limits should be conservative: prefer up to 3 positive signals, up to 3 cautions, and up to 4 evidence/provenance items. If more facts exist, choose them by fixed priority order rather than by current DOM order or ad hoc string order.
+
+Initial reason code allowlist:
+
+- `quality_score_high`;
+- `quality_score_medium`;
+- `quality_score_missing`;
+- `target_location`;
+- `location_unknown_or_weak`;
+- `location_foreign_or_mismatch`;
+- `stack_confirmed`;
+- `stack_query_source_only`;
+- `stack_not_visible`;
+- `role_or_technology_visible`;
+- `seniority_unknown`;
+- `stable_profile_identity`;
+- `profile_href_missing_or_unsafe`;
+- `review_flags_present`;
+- `query_source`;
+- `quality_component`;
+- `quality_penalty`.
+
+### Allowed Source Facts
+
+The helper may use only facts already present in the current workspace candidate view model or the original returned candidate payload:
+
+- `candidate.display_name`;
+- `candidate.headline`;
+- `candidate.raw_title`;
+- `candidate.quality_score`;
+- `candidate.has_quality_score`;
+- `candidate.quality_bucket`;
+- `candidate.raw.result.role_display`;
+- `candidate.raw.result.role_fit`;
+- `candidate.raw.result.role_evidence`;
+- `candidate.raw.result.technology_display`;
+- `candidate.raw.result.technology_fit`;
+- `candidate.raw.result.technology_evidence`;
+- `candidate.raw.result.stack_display`;
+- `candidate.raw.result.stack_fit`;
+- `candidate.raw.result.stack_evidence`;
+- `candidate.raw.result.seniority_display`;
+- `candidate.raw.result.seniority_fit`;
+- `candidate.raw.result.seniority_evidence`;
+- `candidate.stack_fit`;
+- `candidate.selected_stack_terms_found`;
+- `candidate.missing_selected_stack_terms`;
+- `candidate.location_status`;
+- `candidate.location_group`;
+- `candidate.raw.location_signal_terms`;
+- `candidate.raw.header_location_text`;
+- `candidate.raw.current_location_line`;
+- `candidate.raw.current_location_lines`;
+- `candidate.raw.current_location_classifications`;
+- `candidate.raw.result.location_signal_terms`;
+- `candidate.raw.result.header_location_text`;
+- `candidate.raw.result.current_location_line`;
+- `candidate.raw.result.current_location_lines`;
+- `candidate.raw.result.current_location_classifications`;
+- `candidate.seniority_level`;
+- `candidate.review_flags`;
+- `candidate.query_sources`;
+- `candidate.snippet`;
+- `candidate.identity.is_stable_identity`;
+- `candidate.identity.safe_profile_href`;
+- `candidate.raw.result.quality_score_breakdown`;
+- `candidate.raw.result.quality_score_penalties`;
+- `candidate.raw.result.review_flag_details`.
+
+The helper must not infer facts from outside the returned approved search data.
+
+The helper must not use recruiter workflow state as candidate evidence. `review_status`, derived `shortlisted`, and recruiter `notes` are recruiter-owned review state, not facts about the candidate. They may coexist with the explanation in the UI, but must not change explanation content.
+
+The helper must not hardcode `Java`, `Ukraine`, `Backend Developer`, or any other current-flow-specific value into explanation logic. Role, technology, stack, location, and seniority wording must come from returned candidate facts, query/source metadata, or safe generic labels.
+
+`quality_bucket` may be used only as a display convenience. Numeric `quality_score` remains the stronger source for quality wording; the explanation must not introduce new bucket semantics or new scoring thresholds beyond the approved workspace logic.
+
+Quality reason codes must follow the existing workspace `qualityBucket(score)` semantics:
+
+- `quality_score_high` when the current helper classifies quality as high (`score >= 70`);
+- `quality_score_medium` when the current helper classifies quality as medium (`score >= 40` and `< 70`);
+- `quality_score_missing` only when `has_quality_score === false`;
+- low quality (`score < 40`) should not become a caution by itself unless an existing returned review flag, score penalty, or other allowed fact supports a caution.
+
+Location evidence should prefer structured/capped fields: `current_location_line`, `current_location_lines`, and `location_signal_terms`. Raw `header_location_text` or long snippets may be used only as escaped, capped fallback context and must not become the primary location proof when structured fields are present.
+
+### Claim Rules
+
+The explanation must be conservative:
+
+- confirmed stack terms may be described as visible/confirmed only when `selected_stack_terms_found` or equivalent direct returned evidence exists;
+- `stack_confirmed` may be emitted only from direct candidate evidence. It must not be emitted from `stack_evidence` entries where `source = query_source` or `evidence_type = stack_query_group`;
+- `stack_query_source_only` must be described as not confirmed, not as direct candidate skill evidence;
+- `missing_selected_stack` / `not_visible` must be described as not visible in returned public data, not as the candidate lacking the stack;
+- target location may be described as present only when candidate-level location status/group supports it;
+- weak/unknown location must be explicitly described as needing manual review;
+- foreign or mismatched current location must use `location_foreign_or_mismatch` as a caution when `candidate.location_group === "foreign"` or the location status is explicitly `foreign_current_location` / `excluded_foreign_current_location`. Do not collapse it into `location_unknown_or_weak`;
+- seniority must not be claimed when it is missing/unknown;
+- review flags must be treated as cautions, not as final rejection;
+- query sources may explain discovery provenance, not candidate skill confirmation by themselves;
+- snippets/headlines may be quoted or summarized only as returned public text and must be escaped on render.
+- reason `code` values must come from local allowlists or deterministic helper constants, not from raw candidate text.
+- summary text should be derived from the selected reason objects and their priorities, not from an independent logic path that could contradict positive signals or cautions.
+
+### Proposed Steps
+
+1. Add deterministic explanation helper.
+   - Add `buildCandidateExplanation(candidate)` or equivalent in `app/static/candidate_workspace.js`.
+   - Keep it DOM-free.
+   - Export it through `window.CandidateWorkspace` with the other workspace helpers.
+   - Return a structured explanation object.
+   - Include `version = candidate_explanation_v1`.
+   - Return reason objects with stable `code`, display `label`, and optional bounded `facts` fields for positive signals, cautions, and evidence items.
+   - Use the initial reason code allowlist unless a new code is explicitly added in this task.
+   - Do not return raw HTML.
+   - Handle missing optional fields without throwing.
+   - Do not mutate the candidate object.
+   - Do not hardcode Java/Ukraine/backend-specific wording in helper logic.
+
+2. Add summary rules.
+   - Build the summary after positive signals, cautions, and evidence reason objects are selected.
+   - Derive summary wording from those reason objects and priorities.
+   - Strong/high-quality candidate with target location and confirmed stack -> strong grounded summary.
+   - Relevant candidate with query-source-only stack -> relevant, but stack not confirmed.
+   - Relevant candidate with missing selected stack -> relevant, but selected stack not visible in returned public data.
+   - Unknown/weak location -> location needs manual review.
+   - Foreign/mismatched current location -> caution, not unknown.
+   - Review flags present -> summary should mention cautions exist.
+   - No useful evidence -> neutral summary, not a negative or invented conclusion.
+
+3. Add positive signal rules.
+   - High or medium quality score.
+   - Target location signal.
+   - Confirmed visible stack terms.
+   - Stable LinkedIn profile identity.
+   - Useful role/technology/headline/title evidence when already present.
+   - Returned role/technology evidence may produce `role_or_technology_visible` only when the returned fit/evidence is not missing, ambiguous, or related-only.
+   - Stack positive signal must be emitted only through `stack_confirmed` from direct candidate evidence.
+   - Seniority evidence may be shown as evidence/provenance, but must not become a positive signal unless a later reviewed task adds a dedicated allowlisted seniority reason code.
+   - Query-source coverage as discovery provenance.
+
+4. Add caution rules.
+   - Missing selected stack.
+   - Query-source-only stack.
+   - Unknown/weak location.
+   - Foreign/mismatched current location if it appears in workspace results.
+   - Missing/unknown seniority.
+   - Review flags.
+   - Missing/unsafe clickable profile href.
+   - Missing quality score.
+
+5. Add evidence/provenance rules.
+   - Include query source ids/categories where available.
+   - Include visible selected stack terms where available.
+   - Include returned role/technology/stack/seniority evidence where available.
+   - Include location signal terms/current-location line where available, preserving uncertainty.
+   - Do not display long raw `header_location_text` as primary evidence; prefer capped structured location fields.
+   - Include top quality breakdown reasons where available.
+   - Represent quality breakdown components with `quality_component` as evidence/provenance only, not as a positive signal.
+   - For `quality_component`, keep bounded facts such as `{ component, points, max_points, fit }`; do not expose or render the full raw breakdown object.
+   - Include quality penalties where available.
+   - Include review flags as caution evidence.
+   - Use fixed priority ordering for evidence items.
+   - Cap visible evidence lists so the details panel stays scannable.
+   - Avoid duplicate reasons across positive signals, cautions, and evidence items where practical.
+   - Avoid free-form reinterpretation of long snippets; snippets can remain separately visible in existing details.
+
+6. Render explanation in candidate details.
+   - Add a compact `Candidate explanation` / `Why this candidate` section inside the existing candidate details area.
+   - Render summary, positive signals, cautions, and evidence items.
+   - Keep labels/copy in English for this task to match the current Candidate Workspace UI.
+   - Escape all dynamic text.
+   - Do not build CSS class names from raw candidate data.
+   - Do not add row click behavior.
+   - Do not auto-open/fetch candidate profile URLs.
+
+7. Preserve all existing workspace behavior.
+   - Sorting/filtering still operate on `workspaceCandidates`.
+   - Review status, shortlist, and notes stay unchanged.
+   - Review status, shortlist, and notes must not feed candidate explanation facts.
+   - Explanation rendering must not change candidate order, visible filters, score, status, notes, shortlist, or report counts.
+   - New successful approved search should rebuild explanations from the new candidate data only.
+   - Stale/reset/error workspace clearing remains unchanged.
+
+8. Add no-network helper smoke coverage.
+   - Extend `scripts/smoke_p8_candidate_workspace_helpers.js` or add a focused P8-005 smoke.
+   - Cover strong candidate explanation.
+   - Cover query-source-only stack wording.
+   - Cover missing selected stack wording.
+   - Cover target location vs unknown/weak location wording.
+   - Cover foreign/mismatched location wording separately from unknown/weak location.
+   - Cover quality score reason thresholds following existing `qualityBucket` behavior.
+   - Cover `quality_component` used only as capped evidence/provenance, not as a positive signal.
+   - Cover role/technology positive signal not emitted for missing, ambiguous, or related-only fit.
+   - Cover seniority evidence staying evidence/provenance, not a positive signal.
+   - Cover review flags as cautions.
+   - Cover missing seniority caution.
+   - Cover unsafe/missing profile href caution.
+   - Cover missing optional fields without crash.
+   - Cover no mutation of candidate facts.
+   - Cover deterministic ordering and display limits.
+   - Cover review status/shortlist/notes not changing explanation content.
+   - Cover helper export through `window.CandidateWorkspace`.
+   - Cover reason object shape, `version`, stable codes, and string labels.
+   - Cover optional reason `facts` preserving factual values separately from labels.
+   - Cover reason codes staying inside the initial allowlist.
+   - Cover `stack_confirmed` not being emitted for query-source stack evidence.
+   - Cover summary derived from reason objects without contradicting cautions.
+   - Cover explanation object source equals `deterministic_workspace_facts`.
+   - Cover no Java/Ukraine/backend hardcode by using a non-Java/non-Ukraine sample candidate.
+   - Cover helper output remaining plain data/reason objects, not raw HTML.
+
+9. Verify locally.
+   - Run `node --check app/static/candidate_workspace.js`.
+   - Run `node --check app/static/app.js`.
+   - Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+   - Run Playwright browser sanity on local workspace: render sample candidates, open details, verify explanation appears, verify filters/status/notes still work.
+   - In browser sanity or a frontend render smoke, include malicious candidate text in headline/snippet/review flag/query source labels and verify it renders as escaped text, not HTML.
+
+### Acceptance Criteria
+
+- Candidate Workspace shows a candidate-level deterministic explanation.
+- Explanation is built only from current workspace candidate facts.
+- Explanation object is structured and DOM-free before rendering.
+- Explanation object uses `version = candidate_explanation_v1` and stable reason codes.
+- Reason objects may include bounded `facts` so factual values are not stored only inside wording labels.
+- Reason codes stay inside the initial allowlist unless the task explicitly extends it.
+- Summary is derived from selected reason objects and does not contradict cautions.
+- Explanation helper is exported through the existing `CandidateWorkspace` helper namespace.
+- Explanation does not introduce facts not present in returned approved search data.
+- Stack uncertainty is explicit: confirmed, query-source-only/not confirmed, or not visible.
+- Role/technology positive signals are emitted only for non-missing, non-ambiguous, non-related-only fit.
+- Seniority evidence does not become a positive signal without a dedicated approved reason code.
+- Location uncertainty is explicit.
+- Foreign/mismatched location is a distinct caution from unknown/weak location.
+- Quality reason codes follow existing workspace quality bucket semantics and do not create a new scoring system.
+- Review flags appear as cautions.
+- Query source provenance is visible.
+- Quality breakdown components are represented only as capped evidence/provenance via `quality_component`.
+- Explanation lists are concise and deterministic.
+- Review status, shortlist, and notes do not influence explanation facts.
+- Explanation logic does not hardcode Java/Ukraine/backend-specific values.
+- Missing optional fields do not crash rendering.
+- Dynamic text is escaped.
+- No backend/API/search/runtime/Tavily behavior changes.
+- No LLM/OpenAI calls.
+- No persistence/browser storage/database.
+- No candidate explanation localization work.
+- No LinkedIn automation/opening/scraping.
+- No candidate messaging/outreach/autonomous action.
+- Regression checks and browser sanity pass.
+
+### Critical Review Notes
+
+- The UI label should avoid implying that the agent has inspected LinkedIn profiles. Prefer `Candidate explanation` or `Why this candidate` over a phrase that sounds like external verification.
+- The explanation should not become a second scoring system. It explains already returned facts; it does not rank or filter.
+- Query source metadata is useful provenance, but it is weaker evidence than direct candidate text/evidence.
+- Structured evidence does not automatically mean positive signal. Fit semantics decide whether it can be positive, caution, or provenance-only.
+- Snippets are public returned text and may be incomplete; wording must preserve uncertainty.
+- Raw location header text can be noisy; prefer structured location lines/terms, and cap raw fallback text.
+- Recruiter review state and candidate evidence must stay separate: a manually shortlisted or rejected candidate should not become a better/worse candidate explanation because of that UI state.
+- This task intentionally creates the deterministic fact object needed before any later `P8-006` LLM wording overlay.
+
+### Non-Goals
+
+- Do not add bounded LLM wording; that belongs to `P8-006`.
+- Do not change `agent_response`.
+- Do not change Candidate Quality.
+- Do not add export; that belongs to `P8-007`.
+- Do not add RU/EN localization for candidate explanations.
+- Do not add saved searches, memory, persistence, or database behavior.
+- Do not expand supported countries, technologies, roles, or search sources.
+
+### Before Coding
+
+Codex must critically review this task against current `app/static/candidate_workspace.js`, `app/static/app.js`, `docs/phase-8-candidate-workspace-contract.md`, Phase 7 message facts/wording contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-006 Define bounded candidate explanation wording contract
+
+### Status
+
+Draft / reviewed direction / not approved for coding / not implemented.
+
+This task is contract-first. It should not add code, OpenAI calls, backend endpoints, frontend controls, or candidate wording behavior until the contract is separately approved and a follow-up implementation task is reviewed.
+
+### Context
+
+`P8-005` added deterministic candidate-level explanations as structured frontend data:
+
+- `version`;
+- `summary`;
+- `positive_signals`;
+- `cautions`;
+- `evidence_items`;
+- `source = deterministic_workspace_facts`;
+- allowlisted reason `code` values;
+- optional bounded `facts`.
+
+The next natural idea is better wording. That is valid, but it is risky if implemented directly. Candidate explanations are built from public-search result data and must not become a place where the model invents candidate facts, implies direct LinkedIn inspection, rewrites reason codes, changes scoring, changes sorting/filtering, or sends too much candidate data to OpenAI.
+
+Therefore `P8-006` should define the bounded wording contract first. The actual implementation should be a separate `P8-006.1` task.
+
+Important architecture boundary: `P8-005` currently builds deterministic candidate explanations in frontend workspace state. A future `P8-006.1` backend-owned endpoint must not receive raw candidates or raw search results. It may receive only a bounded frontend-to-backend request payload prepared from the deterministic explanation object. The backend must validate request payload shape, source, version, reason codes, reason keys, backend-derived allowed numbers from user-visible wording fields, and a recomputed request-level explanation fingerprint before attempting wording. Only after validation may the backend construct a separate backend-to-OpenAI model payload.
+
+Important facts boundary: `P8-006.1` must not blindly forward all `facts` from the deterministic `P8-005` explanation. It should introduce a wording-safe facts mapper by reason code. The mapper may include only explicitly allowlisted recruiter-visible scalar or shallow bounded values that are safe for wording, such as score/bucket, stack terms, fit/status enums, coarse location status/group, query-source ids, and bounded reason-code-specific values. It must exclude raw candidate text fields such as headline/raw title/current location line unless a later reviewed task explicitly approves a normalized safe variant, and it must always exclude snippets/content, profile URLs, URL-derived identifiers, raw query text, recruiter notes, review state, arbitrary nested facts, unknown fact keys, and unbounded arrays/strings.
+
+This does not make the backend the source of truth for candidate facts in `P8-006.1`. In this slice, candidate fact truth remains the deterministic frontend workspace explanation from `P8-005`. The backend owns the wording call, payload contract validation, output validation, fallback, and provenance. The request-level explanation fingerprint is a bounded request-payload fingerprint for request integrity and UI stale-correlation only; it is not backend stale/latest-run proof. The frontend pending key is only for duplicate in-flight prevention before backend response, and the backend wording cache key is a separate backend-owned key for validated overlay reuse/cache behavior. Neither proves that the payload matches a real candidate from the latest search, and `workspace_run_id` validation is not latest-run proof until backend workspace persistence exists. Backend-owned candidate fact truth would require a separate reviewed task, such as moving/rebuilding the candidate explanation producer on the backend or adding workspace-run persistence.
+
+### Goal
+
+Define the contract for a future bounded LLM wording overlay for candidate explanations.
+
+The contract should let an LLM improve wording quality later while preserving the deterministic explanation as source of truth.
+
+### Scope
+
+Included:
+
+- docs-only contract for candidate explanation wording;
+- frontend-to-backend request payload shape;
+- backend-to-OpenAI model payload shape;
+- allowed input fields;
+- forbidden input fields;
+- allowed output shape;
+- validation rules;
+- fallback rules;
+- routing/no-call rules;
+- frontend-to-backend boundary for future implementation;
+- provenance expectations;
+- implementation handoff to `P8-006.1`;
+- alignment with Phase 7 bounded wording contracts and Phase 8 workspace boundaries.
+
+Not included:
+
+- code changes;
+- backend endpoint;
+- OpenAI/LLM call;
+- frontend UI changes;
+- selected-candidate wording button/control;
+- automatic wording for all candidates;
+- candidate score/ranking/filter/sort changes;
+- candidate facts/reason code/facts mutation;
+- persistence/browser storage/database;
+- export;
+- LinkedIn access/automation/login/scraping/restriction bypass;
+- candidate messaging/outreach;
+- autonomous actions.
+
+### Contract Direction
+
+The deterministic explanation object from `P8-005` remains authoritative.
+
+The future LLM overlay may only rewrite display wording:
+
+- `summary`;
+- reason `label` text for existing reasons.
+
+The future LLM overlay must be stored separately from the deterministic `P8-005` explanation, for example as a current-run `wording_overlay` / `display_overlay`. It must not overwrite or mutate the deterministic explanation object, workspace candidate facts, review state, notes, shortlist state, filters, or exported data.
+
+The future LLM overlay must not:
+
+- add, remove, reorder, or change reason objects;
+- change reason `code`;
+- change `facts`;
+- change `source`;
+- change `version`;
+- change quality score, fit, ranking, filters, status, notes, shortlist, or export;
+- introduce new candidate facts;
+- claim profile verification or direct LinkedIn inspection;
+- create executable next steps.
+- turn a caution into a positive claim through wording;
+- weaken uncertainty language for query-source-only, unknown location, missing stack, review flags, or unsafe profile-link cautions.
+
+### Frontend-To-Backend Request Payload Rules
+
+The future frontend-to-backend request payload should include only bounded fields from the deterministic explanation:
+
+- `wording_use_case = candidate_explanation`;
+- `request_payload_contract_version = candidate_explanation_wording_request_v1`;
+- language target, initially `en` only unless a later localization task approves more;
+- `workspace_run_id`;
+- `wording_target_key`, an opaque current-run key that is not a URL, profile href, normalized URL, or stable cross-run identifier;
+- `request_explanation_fingerprint` supplied only as a request-integrity/UI correlation value, not as trusted proof;
+- deterministic explanation `version`;
+- deterministic explanation `source = deterministic_workspace_facts`;
+- deterministic `summary`;
+- reason arrays with stable `reason_key`, `section`, `code`, current `label`, and wording-safe bounded `facts`;
+- no frontend-supplied prompt rules, hard boundaries, or `allowed_numbers`.
+
+Hard boundaries are backend-owned prompt/policy text. The frontend must not send policy instructions that could weaken the LLM boundary. `allowed_numbers` must also be backend-derived before prompting and output validation, but only from user-visible wording fields: deterministic `summary`, current reason `label` values, and wording-safe allowlisted bounded `facts` values that can be shown to the recruiter. `allowed_numbers` must not be derived from `reason_key`, `section`, `code`, request/model/prompt/validator versions, fingerprints, cache keys, provenance, workspace/run ids, or other technical metadata. The frontend request must not include OpenAI/provider execution controls such as `model`, `temperature`, `max_tokens`, `max_completion_tokens`, system prompt, user prompt, tool names, provider name, API key references, or model routing/config fields. If the request contains frontend-supplied `hard_boundaries`, `allowed_numbers`, prompt text, OpenAI/provider execution controls, or equivalent policy/numeric allowlist fields, the backend should reject them as unexpected contract fields rather than trust them.
+
+Prompt/data separation is a hard backend boundary. All submitted `summary`, current reason `label` values, wording-safe `facts`, selected stack/location terms, query-source ids/categories, and any other candidate/user-derived values are data, not instructions. The backend-to-OpenAI model payload must serialize or delimit these values as data and must include backend-owned instructions telling the model not to follow, execute, or treat as policy any instruction-like text contained inside data fields. If bounded data contains text such as "ignore previous instructions", "change the score", "verify this profile", or similar prompt-injection content, the model must still only rewrite `summary` and existing reason `label` text within the approved schema and semantic guardrails. Future smoke coverage should include instruction-like strings inside allowed data fields and verify they do not alter policy, output shape, reason keys, reason codes, facts, scores, provenance, or execution behavior.
+
+Candidate explanation wording v1 should support only `en`. If the request language is unsupported, the backend must not call OpenAI and should return deterministic fallback/no-call metadata with nested `wording_provenance.no_call_reason = unsupported_language`.
+
+`reason_key` must be generated by the bounded payload builder before sending the payload. Reason keys must be generated only after the deterministic explanation has been fully built, capped, and ordered for rendering. In other words, reason keys represent the final renderable explanation, not intermediate candidate evidence that may be trimmed by P8-005 limits. Each key should identify both the original section and final item position, for example:
+
+- `positive_signals[0]:quality_score_high`;
+- `cautions[1]:stack_not_visible`;
+- `evidence_items[0]:query_source`.
+
+The LLM must not invent or choose `reason_key` values. They are bounded-payload contract keys used only for validation and mapping. In `P8-006.1`, these keys may be generated by the frontend payload builder or a future shared builder; they do not imply backend ownership of candidate facts.
+
+The payload must not include:
+
+- raw candidate records;
+- raw Tavily payloads;
+- raw snippets/content;
+- raw query text;
+- profile URLs or LinkedIn URLs;
+- current `candidate_id` when it contains or is derived from `normalized_url` / profile URL;
+- any profile-identifying URL-derived string;
+- recruiter notes;
+- review status / shortlisted state;
+- browser storage state;
+- full quality breakdown objects beyond the wording-safe facts explicitly selected by the `P8-006.1` mapper;
+- frontend-supplied prompt rules, hard boundaries, `allowed_numbers`, or policy overrides;
+- frontend-supplied OpenAI/provider execution controls such as `model`, `temperature`, `max_tokens`, `max_completion_tokens`, prompts, tool names, provider config, or API key references;
+- account/action instructions.
+
+The wording request payload must use a wording-safe facts mapper instead of copying deterministic `P8-005` facts wholesale. The mapper must be explicit by reason code and should have conservative allowed fact keys. It may preserve compact, recruiter-visible values that support wording, but it must strip any raw text that could be equivalent to raw candidate/search data. Examples of values that should be excluded from the wording payload unless separately approved: `headline`, `raw_title`, `current_location_line`, raw snippets/content, profile URLs, normalized URLs, profile hrefs, raw query text, recruiter notes, review state, arbitrary nested objects, unknown fact keys, and unbounded arrays/strings.
+
+### Reason-Code Wording Semantics Snapshot
+
+`P8-006.1` should treat the current `EXPLANATION_REASON_CODES` set as an explicit wording-semantics snapshot. The mapper, prompt, validator, and smoke tests should use the same snapshot so no reason code is interpreted ad hoc during implementation.
+
+| Reason code | Allowed wording meaning | Forbidden wording meaning | Allowed wording-safe fact keys |
+| --- | --- | --- | --- |
+| `quality_score_high` | Returned quality score is high under existing workspace `qualityBucket` semantics. | Best candidate, guaranteed fit, independent ranking, changed score, or LinkedIn/profile verification. | `score`, `bucket` |
+| `quality_score_medium` | Returned quality score is medium under existing workspace `qualityBucket` semantics. | High/low quality claim, guaranteed fit, independent ranking, or changed score. | `score`, `bucket` |
+| `quality_score_missing` | No usable quality score is present in the returned workspace facts. | Poor quality, weak candidate, or failed screening claim. | none |
+| `target_location` | Returned location classification contains a target-location signal. | Verified current residence, work authorization, relocation, availability, or direct profile inspection. | `status`, `group`, `terms` |
+| `location_unknown_or_weak` | Location evidence is missing, weak, or needs recruiter review. | Target-location confirmation, foreign-location confirmation, or verified current location. | `status`, `group`, `terms` |
+| `location_foreign_or_mismatch` | Returned current-location classification appears outside or mismatched with target location. | Permanent exclusion, legal/work authorization claim, direct profile verification, or target-location confirmation. | `status`, `group`, `terms` |
+| `stack_confirmed` | Selected stack terms are visible in returned direct candidate evidence. | Seniority/expertise depth, all selected stack confirmed, or experience duration. | `terms`, `source` |
+| `stack_query_source_only` | Stack signal came only from query/source context and is not confirmed in returned candidate text. | Confirmed stack, direct candidate evidence, or strong stack fit. | none |
+| `stack_not_visible` | Selected stack is not visible in returned public candidate data. | Candidate lacks the skill, failed screening, or technology mismatch beyond returned data. | `missing_terms` |
+| `role_or_technology_visible` | Returned structured role or technology fit is visible and not missing/ambiguous/related-only. | Confirmed job readiness, current employment truth, full role match, or direct profile inspection. | `role_fit`, `technology`, `technology_fit`; explicitly not `role` |
+| `seniority_unknown` | Seniority is unknown or not visible in returned data. | Junior/senior classification, experience duration, or seniority downgrade. | none |
+| `stable_profile_identity` | A safe/stable LinkedIn profile identity was derived for manual recruiter click-through. | Identity verification, account ownership, direct LinkedIn access, or profile inspection. | `profile_href_present` |
+| `profile_href_missing_or_unsafe` | Safe profile link is missing or failed validation. | Candidate invalid/fake, no LinkedIn profile exists, or profile is inaccessible. | none |
+| `review_flags_present` | Returned review flags need recruiter attention. | Automatic rejection, risk conclusion beyond flags, or new review reason. | `codes` |
+| `query_source` | Candidate was found through returned query source identifiers/categories. | Candidate quality, stack confirmation, or profile fact proof. | `ids`, `categories` |
+| `quality_component` | Quality breakdown components are available as scoring provenance. | New score computation, candidate ranking change, or standalone positive signal. | top-level `components` array; nested `component`, `points`, `max_points`, `fit` |
+| `quality_penalty` | Quality penalties are present in returned scoring provenance. | Automatic rejection, negative character judgment, or non-returned risk claim. | top-level `penalties` array; nested `points`, `reason` |
+
+The wording-safe facts mapper should reject any fact key outside the allowed list for that reason code. If a needed fact is not in this table, the implementation should omit it or create a reviewed contract update before using it.
+
+For nested facts, the top-level container must also be explicitly allowed. For example, `quality_component` may carry only a `components` array whose items contain allowed nested keys, and `quality_penalty` may carry only a `penalties` array whose items contain allowed nested keys. Unknown nested keys, unknown item shapes, and arbitrary nested objects must be omitted or rejected before fingerprinting and before building the backend-to-OpenAI model payload.
+
+The `role` fact currently present in deterministic `P8-005` `role_or_technology_visible` facts must be stripped by the wording-safe mapper. It can come from headline/raw-title fallback and is therefore too close to raw candidate text for the first wording payload. Future wording may use normalized role text only through a later reviewed safe variant.
+
+Allowed wording-safe string values should be controlled or normalized values, not arbitrary candidate/search text. Examples: known review flag codes, known quality component names, known quality penalty reasons, query source ids/categories, selected stack/location terms already shown to the recruiter, and fit/status enum values. Unknown strings, arbitrary labels, raw headline/title/location/snippet text, raw query text, and unexpected object-derived strings should be omitted or rejected.
+
+The future backend endpoint must treat the frontend-submitted wording payload as bounded contract input, not as trusted candidate truth. The backend should validate contract shape and integrity:
+
+- known `request_payload_contract_version`;
+- `source = deterministic_workspace_facts`;
+- known explanation `version`;
+- known `code` values from the approved reason-code allowlist;
+- stable `reason_key` format and uniqueness;
+- valid `workspace_run_id`, `wording_target_key`, and `request_explanation_fingerprint` fields;
+- `wording_target_key` is opaque, current-run scoped, non-URL, and non-profile-identifying;
+- frontend-supplied `hard_boundaries`, `allowed_numbers`, prompt text, or policy overrides are rejected;
+- frontend-supplied OpenAI/provider execution controls are rejected;
+- backend recomputes `allowed_numbers` from sanitized user-visible wording fields only;
+- backend recomputes the request-level explanation fingerprint from sanitized request-bounded fields and compares it to the submitted `request_explanation_fingerprint` before wording;
+- no raw candidate/search fields;
+- no URLs or profile links;
+- no recruiter notes/review state;
+- no unexpected top-level keys.
+
+The request-level explanation fingerprint should cover only the bounded frontend-to-backend request content used for wording request validation: wording use case, target language, `request_payload_contract_version`, deterministic explanation version/source, summary, final renderable reason arrays, `reason_key`, `section`, `code`, `label`, and wording-safe bounded `facts`. It must not include backend-only model/prompt/validator versions, URLs, URL-derived ids, `candidate_id`, review state, notes, shortlist state, sorting/filter state, runtime state, browser storage state, cache keys, or provenance fields.
+
+The backend wording cache key is a separate backend-owned key. If current-run cache is implemented, the backend cache key may include the recomputed request-level explanation fingerprint plus backend-owned version fields such as `model_payload_contract_version`, `prompt_contract_version`, `prompt_version`, `validator_version`, `deterministic_builder_version`, `reason_semantics_version`, and `canonicalizer_version`. The frontend must not be required to know or submit backend-only model/prompt/validator version fields.
+
+Canonical fingerprinting should use deterministic JSON canonicalization with a concrete hash format. The canonicalized value should be UTF-8 JSON with sorted object keys, reason arrays kept in final render order, strings normalized to the same trimmed/plain-text form used for the model payload, finite numbers consistently serialized, and missing optional values represented consistently so `undefined`, omitted fields, and `null` cannot produce accidental mismatches. The fingerprint should be emitted as `sha256:<hex>`. `P8-006.1` should include JS/Python fixture coverage so frontend request construction and backend recomputation produce the same fingerprint for the same wording-safe bounded payload. The fingerprint must change when any source wording field changes: summary, reason order, reason key, section, code, label, or wording-safe bounded facts.
+
+Wording-safe `facts` must be shallow, allowlisted, controlled, and bounded before they enter either the request-level explanation fingerprint or backend-to-OpenAI payload. Allowed values are strings, finite numbers, booleans, arrays of strings, arrays of finite numbers, or explicitly allowed shallow objects. Wording-safe `facts` must not contain raw snippets/content, URLs, profile identifiers, arbitrary nested objects, executable/action text, or unbounded arrays/strings. Each reason code in the future code-semantics guardrail map should define allowed fact keys, controlled string sources, and basic value limits; unknown fact keys should be rejected unless explicitly allowed by that reason code.
+
+The backend validation above must not be described as candidate-fact verification. It only gates whether the payload is safe enough to send to the wording model. Until a later backend-owned candidate workspace/persistence task exists, the backend cannot independently reconstruct the candidate explanation by `candidate_id`, prove that the facts match the latest search result, or prove that `workspace_run_id` is the latest successful workspace run. In `P8-006.1`, `workspace_run_id` validation is contract/format/consistency validation only, and the request-level explanation fingerprint is not backend stale/latest-run proof.
+
+The current workspace `candidate_id` must not be blindly reused in the future wording payload, because the current implementation may use `normalized_url` as `candidate_id`. `P8-006.1` should introduce a separate `wording_target_key` for request/response correlation. This key is a current-run UI correlation value only; it must not be a LinkedIn URL, profile href, normalized URL, email, external id, or stable cross-run candidate identity. It must be stable for the same candidate within one workspace run across re-render, sort, filter, details open/close, and repeated wording clicks, but it must reset on new search, workspace clear, page reload, or stale workspace reset. It should be generated once when the workspace candidate view-model is created, kept in memory only, and not derived from URL/profile fields or persisted in browser storage. The LLM payload must not contain `candidate_id`, `normalized_url`, `profile_href`, profile URL, or URL-derived profile-identifying strings.
+
+### Backend-To-OpenAI Model Payload Rules
+
+After the frontend-to-backend request payload passes backend validation, the backend may construct a separate bounded model payload. The model payload should contain only:
+
+- `wording_use_case = candidate_explanation`;
+- `model_payload_contract_version = candidate_explanation_wording_model_v1`;
+- target language;
+- deterministic explanation `version`;
+- deterministic explanation `source = deterministic_workspace_facts`;
+- deterministic `summary`;
+- final renderable reason arrays with `reason_key`, `section`, `code`, current `label`, and wording-safe bounded `facts`;
+- backend-owned prompt boundaries;
+- backend-derived `allowed_numbers` from user-visible wording fields only.
+
+Before calling OpenAI, the backend must build and validate its own backend-to-OpenAI model payload, including known `model_payload_contract_version = candidate_explanation_wording_model_v1`. Missing or unknown model payload contract version is an internal backend model-payload-build failure and must stop before OpenAI. The frontend request must not provide or control this model payload contract version.
+
+The backend-to-OpenAI model payload must keep policy/instructions structurally separate from data. Backend-owned prompt boundaries and schema instructions are the only instructions. Candidate/user-derived values from the bounded request must be placed in data fields or clearly delimited data sections and must never be concatenated into the instruction text in a way that lets those values redefine task, policy, schema, allowed numbers, provenance, or execution boundaries.
+
+The backend-to-OpenAI payload must not contain:
+
+- `workspace_run_id`;
+- `wording_target_key`;
+- submitted or recomputed request-level explanation fingerprint;
+- cache keys;
+- `candidate_id`;
+- `normalized_url`;
+- profile hrefs, profile URLs, LinkedIn URLs, or URL-derived identifiers;
+- recruiter notes;
+- review status / shortlisted state;
+- sorting/filter state;
+- runtime/tool-call identifiers;
+- browser storage state;
+- provenance/fallback/no-call metadata;
+- frontend-supplied model/provider execution controls.
+
+These technical fields are useful for backend request validation, correlation, duplicate-call protection, and cache behavior. They are not useful for wording and should not be sent to OpenAI.
+
+### Output Rules
+
+Future LLM output should be strict JSON only. `P8-006.1` should prefer provider-supported structured output / JSON schema when available, because the allowed output shape is small and fixed. Local backend validation remains mandatory even when structured output is used; schema output reduces malformed responses but does not replace reason-key/code/number/semantic validation.
+
+Allowed output shape:
+
+```json
+{
+  "summary": "rewritten summary",
+  "reasons": [
+    {
+      "reason_key": "existing_reason_key",
+      "code": "existing_reason_code",
+      "label": "rewritten label"
+    }
+  ]
+}
+```
+
+Validation must require:
+
+- output has exactly the top-level keys `summary` and `reasons`;
+- every output reason object has exactly `reason_key`, `code`, and `label`;
+- every output `reason_key` exists in the input;
+- output includes exactly the same renderable `reason_key` set as the input;
+- output reason count exactly equals the input renderable reason count;
+- every output `code` matches the input code for that `reason_key`;
+- no new reason code appears;
+- no input reason code that is rendered by the UI is lost;
+- no `facts` are returned or changed by the LLM;
+- output cannot return or change `source`;
+- output cannot return or change `version`;
+- output should be English-oriented plain text for v1 `en` requests; validation should reject obvious unsupported-language/script mismatch, but should not fail just because bounded wording contains technology tokens, product names, locations, query ids, or common abbreviations such as `Java`, `AWS`, `Kafka`, `Kyiv`, `Q01`, `C#`, or `.NET`;
+- output numbers are a subset of backend-derived allowed numbers;
+- `summary` is non-empty plain text and no longer than 320 characters;
+- each reason `label` is non-empty plain text and no longer than 160 characters;
+- output contains no HTML, Markdown links, bullet/list-as-structure formatting, or control characters;
+- output contains no URLs, direct LinkedIn claims, scraping/login/outreach/account/autonomous execution wording, or unverifiable claims;
+- output remains concise enough for candidate details UI.
+- code-specific semantics are preserved. For example, `stack_query_source_only` must still mean not confirmed, `stack_not_visible` must still mean not visible in returned public data, `location_unknown_or_weak` must still require manual review, and `location_foreign_or_mismatch` must remain a caution.
+- LLM output must not include `warnings`; backend-owned internal/debug/provenance warnings may exist separately as `llm_warnings`, but they must not become candidate facts or be rendered as candidate evidence in the first implementation.
+
+If validation fails, the UI must use the deterministic P8-005 explanation.
+
+The current Phase 7 wording validator cannot be reused directly for this task because it validates `message` / `warnings` / `limitations`. `P8-006.1` should add a candidate-explanation-specific validator or a strictly separated use-case branch for `candidate_explanation` with the `summary` / `reasons` output shape.
+
+`P8-006.1` should define a code-semantics guardrail map for all current `EXPLANATION_REASON_CODES`, not only for stack/location examples. Each reason code should have explicit allowed wording meaning and forbidden wording meaning. The validator does not need to understand language like a full judge, but the prompt, validation tests, and rejection cases must protect the current semantic boundaries for every code.
+
+The backend response envelope for `P8-006.1` should be backend-owned and should not rely on the LLM to provide provenance. Expected metadata should include:
+
+- `wording_mode`;
+- `fallback_reason`, when fallback happened after an attempted call or validation failure;
+- `wording_provenance`;
+- `surface = candidate_workspace`;
+- `source_owner = candidate_workspace`;
+- `source_object = candidate_explanation`;
+- `wording_use_case = candidate_explanation`;
+- `request_payload_contract_version`;
+- `model_payload_contract_version`;
+- `reason_semantics_version`;
+- `canonicalizer_version`;
+- `prompt_contract_version`;
+- `prompt_version`;
+- `validator_version`;
+- `deterministic_builder_version`;
+- `llm_warnings`, if present, as internal/debug metadata only and not candidate evidence;
+- `model`, only when an OpenAI call was actually attempted and the configured model is known.
+
+To stay aligned with Phase 7, `no_call_reason` should live only inside nested `wording_provenance` when OpenAI was intentionally not called, not as a new top-level response field. `fallback_reason` may be top-level only if the new endpoint intentionally mirrors the existing Phase 7 compatibility pattern; it should also be copied into nested `wording_provenance` for fallback cases.
+
+For candidate explanation wording, avoid ambiguous generic `payload_contract_version` metadata. The response should explicitly record request/model payload contract versions, reason semantics version, canonicalizer version, prompt contract/version, validator version, and deterministic builder version. These fields support cache/provenance/debugging; they must not be supplied by the LLM.
+
+The LLM output itself must not be trusted to set provenance, source, model, fallback, no-call, warning, or validation metadata.
+
+### Routing Rules
+
+Do not auto-call OpenAI for every candidate in a result set.
+
+The implementation task should choose a conservative route:
+
+- no call by default;
+- wording only after an explicit user action, such as a dedicated wording button/control;
+- opening candidate details or selecting a candidate must not call OpenAI by itself;
+- backend-owned OpenAI call only;
+- browser in-memory current-run cache may be considered, but no persistence;
+- stale workspace/search result should clear overlay state.
+- pending request state should prevent duplicate calls for the same candidate/explanation/language while a request is in flight;
+- after a validated overlay exists, repeated clicks for the same backend wording cache key should reuse that current-run overlay when available instead of creating duplicate calls;
+- timeout, network failure, missing OpenAI configuration, invalid output, or validation failure should fall back to the deterministic P8-005 explanation.
+
+Frontend pending state and backend cache state must be separate. The frontend may use `frontend_pending_key = workspace_run_id + wording_target_key + request_explanation_fingerprint + language` only to prevent duplicate in-flight submissions before the backend responds. The frontend pending key must not be treated as a validated backend cache identity. After the backend responds, validated overlay reuse should be keyed by the backend-owned `backend_wording_cache_key`, which may include backend-only version fields that the frontend did not submit.
+
+Frontend response binding must be explicit. When a wording response arrives, the frontend must apply the overlay only if the current workspace still matches the response target: same `workspace_run_id`, same `wording_target_key`, same `request_explanation_fingerprint`, same language, and no intervening new search, workspace clear, page reload, stale workspace reset, or candidate identity reset. If any binding check fails, the response must be discarded and the deterministic `P8-005` explanation remains visible. Sorting, filtering, and opening/closing details should not break the binding as long as the same current-run candidate view-model and target key remain valid.
+
+If `P8-006.1` adds a current-run cache, its key should include:
+
+- `workspace_run_id`;
+- opaque `wording_target_key`;
+- recomputed request-level explanation fingerprint;
+- `request_payload_contract_version`;
+- `model_payload_contract_version`;
+- `prompt_contract_version`;
+- `prompt_version`;
+- `validator_version`;
+- `deterministic_builder_version`;
+- `reason_semantics_version`;
+- `canonicalizer_version`;
+- deterministic explanation `version`;
+- language.
+
+The cache must clear on new search, reset, stale workspace state, search failure, or page reload. It must not use `localStorage`, `sessionStorage`, IndexedDB, backend persistence, or hidden memory.
+
+The wording request payload, model payload, and model response must not be written to persistent logs, snapshots, search-run logs, browser storage, backend persistence, or database storage. Current-run memory cache and redacted operational metadata/counters are acceptable, but raw wording payloads and model responses should stay ephemeral.
+
+Backend error responses and frontend status/error UI must not expose raw wording request payloads, backend-to-OpenAI model payloads, or raw model responses. Error/status surfaces should use bounded status, fallback, and provenance codes only, with a safe short user-facing message that keeps the deterministic explanation visible.
+
+The future UI control should avoid verification language. Preferred labels should imply wording polish only, such as `Improve wording` or `Polish explanation`. Avoid labels like `Verify with AI`, `Check profile`, or anything that implies LinkedIn inspection, candidate verification, or new fact discovery.
+
+### Proposed Steps
+
+1. Define the candidate explanation wording contract in `Tasks.md`.
+   - Keep it docs-only.
+   - Explicitly mark implementation as `P8-006.1`.
+   - Add stable `reason_key` requirements.
+   - Add the rule that `source = deterministic_workspace_facts` is locked.
+   - Add the frontend-to-backend bounded payload boundary.
+   - State clearly that backend wording validation does not prove candidate fact truth in P8-006.1.
+   - Replace `candidate_id` in the future wording payload with opaque non-URL `wording_target_key`.
+   - State that frontend cannot send hard boundaries, prompt rules, or trusted `allowed_numbers`.
+   - State that backend recomputes allowed numbers from user-visible wording fields only and recomputes a request-level explanation fingerprint from sanitized request-bounded fields.
+   - Separate frontend-to-backend request payload from backend-to-OpenAI model payload.
+   - State that request correlation/cache fields must not be sent to OpenAI.
+   - Add request/model payload contract versions, with request version validated at the frontend-to-backend request boundary and model version validated at the backend model-payload-build boundary.
+   - Add request-level explanation fingerprinting rules.
+   - Add wording-safe allowlisted bounded facts mapper rules.
+   - State that frontend cannot control OpenAI/provider execution parameters.
+   - State that unsupported languages no-call before OpenAI.
+   - State that wording overlay is separate and must not mutate the deterministic P8-005 explanation.
+   - State that wording payloads/responses are not persisted or written to logs/storage.
+
+2. Update `docs/phase-8-candidate-workspace-contract.md`.
+   - Add a bounded wording subsection after the deterministic explanation boundary.
+   - State deterministic explanation remains source of truth.
+   - State LLM can only rewrite summary/labels.
+   - State no auto-call for every candidate.
+   - State details-open does not trigger OpenAI.
+   - State backend-owned `llm_warnings` are internal/provenance only.
+   - State frontend sends only bounded explanation request payload and backend validates it before wording.
+   - State the request-level fingerprint is for request integrity and UI stale-correlation only, not backend stale/latest-run proof or proof of candidate truth.
+   - State backend must recompute the request-level fingerprint before using it for request validation.
+   - State `workspace_run_id` validation is not latest-run proof until backend workspace persistence exists.
+   - State current workspace `candidate_id` may be URL-derived and must not be sent to LLM wording.
+   - State OpenAI receives only the model payload, not `workspace_run_id`, `wording_target_key`, fingerprints, cache keys, or runtime identifiers.
+   - State facts are shallow allowlisted controlled values only, with reason-code-specific allowed keys.
+   - State `role` from deterministic `role_or_technology_visible` facts is stripped from the first wording payload because it may come from raw headline/title fallback.
+   - State nested fact containers such as `components` and `penalties` must have explicit top-level and nested allowlists.
+   - State future implementation should prefer structured output / JSON schema when available, while still running local validation.
+   - State the LLM overlay is stored separately from the deterministic explanation and clears on new search/reset/stale/search failure.
+   - State unsupported language returns no-call deterministic fallback before OpenAI.
+   - State wording payloads/model responses must not be persisted or written to logs/storage.
+
+3. Align with Phase 7 wording guardrails.
+   - Reuse the same principles: deterministic source first, bounded payload, validation, deterministic fallback, provenance.
+   - Do not reuse Phase 7 `agent_plan` / `agent_response` payloads directly without a candidate-specific contract.
+   - Do not reuse the existing Phase 7 validator directly unless a separate candidate-explanation branch enforces the different output shape.
+   - Add backend-owned provenance/fallback/no-call metadata expectations.
+   - Align provenance fields with the established Phase 7 pattern where applicable: `surface = candidate_workspace`, `source_owner = candidate_workspace`, `source_object = candidate_explanation`, `wording_use_case = candidate_explanation`, request/model payload contract versions, prompt/validator/deterministic builder versions, model on attempted calls, and internal `llm_warnings`.
+   - Use explicit request/model payload contract version metadata, plus reason semantics and canonicalizer versions.
+   - Keep `no_call_reason` nested under `wording_provenance` only.
+   - Keep LLM output shape to `summary` and `reasons` only; do not allow model-returned `warnings` in the first implementation.
+
+4. Define implementation handoff for `P8-006.1`.
+   - Backend-only OpenAI call.
+   - Explicit user action only.
+   - Opening candidate details must not call OpenAI.
+   - Neutral UI wording only, such as `Improve wording` / `Polish explanation`.
+   - No mutation of candidate facts.
+   - No mutation or overwrite of the deterministic explanation object; accepted wording is a separate current-run overlay.
+   - No persistence.
+   - Current-run backend cache key should include workspace run, opaque wording target key, recomputed request-level explanation fingerprint, request/model payload contract versions, prompt contract/version, validator version, deterministic builder version, reason semantics version, canonicalizer version, explanation version, and language.
+   - Future wording payload should use `wording_target_key`, not current workspace `candidate_id`, because current `candidate_id` may contain a profile URL.
+   - Future backend should reject frontend-supplied `hard_boundaries`, prompt text, policy overrides, and `allowed_numbers`.
+   - Future backend should reject frontend-supplied OpenAI/provider execution controls.
+   - Future backend should recompute `allowed_numbers` from user-visible wording fields only and recompute the request-level explanation fingerprint from sanitized request-bounded fields.
+   - Future backend should construct a separate backend-to-OpenAI model payload after request validation.
+   - Future backend-to-OpenAI payload should exclude request correlation/cache/internal fields.
+   - Future frontend should use a separate `frontend_pending_key` only to prevent duplicate in-flight submissions before backend response.
+   - Future backend should use `backend_wording_cache_key` for validated overlay reuse after response.
+   - Pending state prevents duplicate same-candidate calls while a request is in flight.
+   - Frontend applies returned overlay only after response binding confirms the same workspace run, wording target key, request explanation fingerprint, language, and non-stale workspace state.
+   - Reason keys are created after the final capped renderable explanation is built.
+   - Reason keys are generated by the bounded payload builder, not by the LLM, and do not imply backend fact ownership.
+   - Semantic guardrails cover every current reason code.
+   - Every current reason code has explicit allowed meaning, forbidden meaning, and allowed wording-safe fact keys.
+   - Backend-owned candidate facts are explicitly deferred to a later task.
+   - Unsupported languages no-call before OpenAI.
+   - Wording request/model payloads and model responses are not persisted or logged.
+   - Raw wording request payloads, backend-to-OpenAI model payloads, and raw model responses are not returned in backend errors or shown in frontend status/error UI.
+
+5. Update project status/roadmap references.
+   - Replace broad `P8-006 Add bounded LLM wording overlay` wording with contract-first wording.
+   - Preserve `P8-006.1` as future implementation.
+
+6. Define required `P8-006.1` smoke coverage.
+   - Valid rewrite accepted.
+   - Changed reason code rejected.
+   - Missing reason rejected.
+   - Extra reason rejected.
+   - Reason key mismatch rejected.
+   - Facts mutation rejected.
+   - LLM-returned `warnings` rejected as an unexpected output field.
+   - Every current reason code has explicit allowed meaning, forbidden meaning, and allowed wording-safe fact keys in the semantics snapshot.
+   - Obvious unsupported-language/script mismatch rejected, while mixed technology/location/query tokens such as `Java`, `AWS`, `Kyiv`, `Q01`, `C#`, or `.NET` do not cause false language failures.
+   - URL/direct LinkedIn/profile-inspection claim rejected.
+   - Disallowed number rejected.
+   - Frontend-supplied `allowed_numbers`, `hard_boundaries`, prompt text, or policy overrides rejected.
+   - Frontend-supplied `model`, `temperature`, `max_tokens`, `max_completion_tokens`, prompts, tool names, provider config, or API key references rejected.
+   - Missing/unknown request payload contract version rejected.
+   - Missing/unknown model payload contract version rejected at backend model-payload-build boundary before any OpenAI call.
+   - Unsupported language returns no-call deterministic fallback before OpenAI.
+   - Request-level explanation fingerprint recomputation mismatch rejected.
+   - Backend-to-OpenAI payload excludes `workspace_run_id`, `wording_target_key`, request-level explanation fingerprint, backend cache keys, `candidate_id`, URL-derived identifiers, runtime identifiers, and provenance metadata.
+   - Request-level explanation fingerprint changes when summary, reason label, reason key, code, section, or wording-safe bounded facts change.
+   - Request-level explanation fingerprint uses UTF-8 canonical JSON with sorted object keys, final render-order reason arrays, normalized strings, finite numbers, consistent missing/null representation, and `sha256:<hex>` output.
+   - JS/Python fingerprint fixture coverage proves frontend request construction and backend recomputation match.
+   - Request-level explanation fingerprint does not include backend-only model/prompt/validator versions, URL-derived ids, profile URLs, `candidate_id`, review state, notes, shortlist, sort/filter, runtime, browser storage state, cache keys, or provenance fields.
+   - Wording-safe facts mapper excludes raw candidate/search text and only passes reason-code-allowlisted facts.
+   - Facts with raw headline/raw title/current location line, snippets/content, URLs, unknown fact keys, unknown nested fact keys, arbitrary nested objects, uncontrolled strings, or unbounded strings/arrays are rejected.
+   - `role` from deterministic `role_or_technology_visible` facts is stripped and is not sent to OpenAI in the first wording payload.
+   - Nested `quality_component.components` and `quality_penalty.penalties` containers accept only explicitly allowlisted nested keys.
+   - Prompt/data separation is tested: instruction-like text inside bounded `summary`, `label`, or allowed `facts` is treated as data and cannot change policy, schema, reason keys/codes, facts, scores, provenance, or execution behavior.
+   - Backend model payload construction keeps backend-owned instructions separate from candidate/user-derived data fields.
+   - Structured output / JSON schema path is used when available, with the same local validation still applied.
+   - Unexpected top-level LLM output field rejected.
+   - Unexpected reason output field rejected.
+   - Blank summary or blank reason label rejected.
+   - Summary over 320 characters rejected.
+   - Reason label over 160 characters rejected.
+   - HTML, Markdown links, bullet/list-as-structure formatting, or control characters rejected.
+   - Semantic contradiction rejected, such as `stack_query_source_only` rewritten as confirmed stack.
+   - Every current reason code has at least one semantic guardrail test or explicit documented allowed/forbidden meaning.
+   - No OpenAI config falls back to deterministic explanation.
+   - Timeout/network failure falls back to deterministic explanation.
+   - Stale cache clears.
+   - Opening details does not trigger OpenAI.
+   - No call is made for all candidates automatically.
+   - Duplicate click while pending does not issue duplicate calls.
+   - `frontend_pending_key` prevents duplicate in-flight submissions before backend response and is not treated as a validated backend cache identity.
+   - Validated current-run overlay is reused for the same `backend_wording_cache_key`.
+   - Late wording response is discarded when workspace run, target key, explanation fingerprint, language, or workspace state no longer matches.
+   - Late wording response is still accepted after sort/filter/details rerender when the same current-run target key and fingerprint remain valid.
+   - Backend cache key includes recomputed request-level explanation fingerprint, request/model payload contract versions, prompt contract/version, validator version, deterministic builder version, reason semantics version, canonicalizer version, explanation version, target key, workspace run, and language.
+   - Accepted wording overlay does not mutate the deterministic P8-005 explanation object.
+   - Overlay clears on reset, new search, stale workspace state, or search failure.
+   - Backend rejects payloads with raw candidate/search fields, URLs, URL-derived candidate ids, recruiter notes, review state, unknown reason codes, duplicate reason keys, bad source, bad version, or fingerprint mismatch.
+   - Backend recomputes allowed numbers from user-visible wording fields only and recomputes request-level explanation fingerprint rather than trusting frontend-supplied values.
+   - `no_call_reason` is nested under `wording_provenance` only.
+   - Backend-owned provenance/fallback/no-call metadata is present and not LLM-owned.
+   - Tests/documentation assert that payload fingerprint mismatch blocks wording but successful fingerprint validation is not presented as proof of candidate fact truth.
+   - Backend error responses and frontend status/error UI do not include raw wording request payloads, backend-to-OpenAI model payloads, or raw model responses.
+
+7. Verify docs.
+   - Run `git diff --check`.
+
+### Acceptance Criteria
+
+- `P8-006` is documented as a contract-first task.
+- `P8-006.1` exists as the later implementation task title/handoff.
+- The contract states deterministic P8-005 explanation remains source of truth.
+- The contract states the LLM may only rewrite `summary` and existing reason `label` text.
+- The contract states the LLM overlay must be stored separately and must not overwrite or mutate the deterministic P8-005 explanation object.
+- The contract requires stable `reason_key` values for validation and mapping.
+- The contract says `reason_key` values are generated after the final capped renderable explanation is built.
+- The contract says `reason_key` values are generated by the bounded payload builder and do not imply backend candidate fact ownership.
+- The contract locks deterministic explanation `source = deterministic_workspace_facts`.
+- The contract defines the frontend-to-backend boundary for future implementation: bounded explanation payload only, backend validation before wording, no raw candidate/search data.
+- The contract separates frontend-to-backend request payload from backend-to-OpenAI model payload.
+- The contract defines explicit request/model payload contract versions, with unknown or missing request version rejected at the frontend-to-backend request boundary and unknown or missing model version rejected at backend model-payload-build boundary before OpenAI.
+- The contract forbids sending request correlation/cache/internal fields such as `workspace_run_id`, `wording_target_key`, request-level explanation fingerprint, backend cache keys, runtime identifiers, or provenance metadata to OpenAI.
+- The contract forbids frontend-supplied prompt rules, hard boundaries, policy overrides, or trusted `allowed_numbers`.
+- The contract forbids frontend-supplied OpenAI/provider execution controls such as model, temperature, max tokens, max completion tokens, prompts, tools, provider config, or API key references.
+- The contract defines prompt/data separation: candidate/user-derived `summary`, labels, facts, stack/location terms, and query-source values are data, not instructions, and must not be allowed to weaken backend-owned policy or schema boundaries.
+- The contract requires backend-to-OpenAI model payload construction to keep backend-owned instructions separate from bounded data fields.
+- The contract requires backend to recompute `allowed_numbers` from user-visible wording fields only: deterministic summary, reason labels, and wording-safe allowlisted bounded facts that may be shown to the recruiter.
+- The contract requires backend to recompute the request-level explanation fingerprint from sanitized request-bounded fields before using it for request validation.
+- The contract requires a wording-safe facts mapper and forbids blindly forwarding all deterministic P8-005 facts.
+- The contract defines an explicit reason-code wording semantics snapshot for every current explanation reason code.
+- The contract requires controlled or normalized fact values and rejects arbitrary candidate/search strings in wording-safe facts.
+- The contract strips deterministic `role_or_technology_visible.role` from the first wording payload because it may come from raw headline/title fallback.
+- The contract explicitly allows nested `components` and `penalties` containers only with reason-code-specific nested keys.
+- The contract requires explicit reason semantics and canonicalizer version metadata for provenance/cache behavior.
+- The contract defines deterministic JSON canonicalization rules and `sha256:<hex>` output for the request-level explanation fingerprint, with JS/Python fixture coverage expected for P8-006.1.
+- The contract defines the request-level explanation fingerprint scope and excludes backend-only model/prompt/validator versions, URLs, URL-derived ids, `candidate_id`, review state, notes, shortlist, filters, runtime state, browser storage, backend cache keys, and provenance.
+- The contract constrains wording-safe `facts` to shallow allowlisted bounded values and requires reason-code-specific allowed fact keys.
+- The contract forbids sending current workspace `candidate_id` to LLM wording when it may contain or derive from `normalized_url` / profile URL.
+- The contract defines `wording_target_key` as an opaque, current-run, non-URL correlation key for P8-006.1.
+- The contract requires `wording_target_key` to remain stable within one workspace run across re-render/sort/filter/details interactions and to reset on new search, workspace clear, page reload, or stale workspace reset.
+- The contract states candidate fact truth remains the frontend deterministic P8-005 explanation in this slice.
+- The contract states backend validates payload contract/integrity for wording safety, not candidate fact truth.
+- The contract states request-level explanation fingerprint is for request integrity and UI stale-correlation only, not backend stale/latest-run proof; frontend pending key is only duplicate in-flight prevention; backend cache key is separate validated overlay reuse/cache behavior; none of them proves candidate truth.
+- The contract states `workspace_run_id` validation is contract/format/consistency validation only until backend workspace persistence exists.
+- The contract forbids changing reason codes, facts, scores, ranking, filters, review state, notes, shortlist, export, search, or runtime behavior.
+- The contract forbids raw snippets, raw Tavily payloads, raw query text, profile URLs, recruiter notes, and review state in the payload.
+- The contract requires strict validation and deterministic fallback.
+- The contract limits output to strict JSON with exactly `summary` and `reasons`, exact reason count, exact reason keys/codes, no extra fields, non-empty plain text, summary capped at 320 characters, labels capped at 160 characters, and no HTML/Markdown links/control characters.
+- The contract says future implementation should prefer provider-supported structured output / JSON schema when available, while still running local backend validation.
+- The contract uses conservative language validation for v1 English output: obvious unsupported-language/script mismatch is rejected, but technology/location/query tokens must not create false failures.
+- The contract says unsupported languages no-call before OpenAI and use deterministic fallback/no-call metadata.
+- The contract forbids persistent logging/storage of wording request payloads, model payloads, and model responses.
+- The contract requires backend-owned provenance/fallback/no-call metadata.
+- The contract aligns future P8-006.1 provenance with Phase 7-style fields and exact candidate values: `surface = candidate_workspace`, `source_owner = candidate_workspace`, `source_object = candidate_explanation`, `wording_use_case = candidate_explanation`, explicit request/model payload contract versions, reason semantics version, canonicalizer version, prompt contract/version, validator version, deterministic builder version, model on attempted calls, and internal `llm_warnings`.
+- The contract keeps `no_call_reason` nested under `wording_provenance` only.
+- The contract forbids model-returned `warnings` in the first implementation; backend-owned `llm_warnings` remain provenance/debug metadata only.
+- The contract forbids automatic OpenAI calls for every candidate.
+- The contract says opening candidate details or selecting a candidate must not call OpenAI by itself.
+- The implementation handoff says explicit user action only.
+- The implementation handoff requires neutral UI wording that does not imply verification or LinkedIn inspection.
+- The contract says the existing Phase 7 validator cannot be reused directly without a candidate-explanation-specific branch.
+- The contract requires a semantic guardrail map for all current explanation reason codes.
+- The contract requires pending/duplicate-call protection for the same candidate/explanation/language.
+- The contract separates frontend pending duplicate prevention from backend validated overlay cache reuse.
+- The contract requires frontend response binding before applying an overlay, and stale/mismatched late responses are discarded.
+- The contract defines current-run cache key and clearing rules if caching is implemented later.
+- The contract requires the current-run backend cache key to include recomputed request-level explanation fingerprint, request/model payload contract versions, prompt contract/version, validator version, deterministic builder version, reason semantics version, canonicalizer version, explanation version, target key, workspace run, and language.
+- The contract treats backend-owned `llm_warnings` as internal/debug/provenance only, not candidate evidence.
+- The contract includes required smoke coverage for `P8-006.1`.
+- No code behavior changes are made by this task.
+
+### Non-Goals
+
+- Do not implement the LLM overlay.
+- Do not add OpenAI calls.
+- Do not add backend endpoints.
+- Do not add frontend controls.
+- Do not change P8-005 deterministic explanation logic.
+- Do not localize candidate explanations.
+- Do not add persistence/export/search/runtime changes.
+
+---
+
+## Task: P8-006.1 Implement explicit selected-candidate wording overlay
+
+### Status
+
+Backlog / not reviewed / not approved / not implemented.
+
+This is the future implementation task after `P8-006` is approved. It should implement a bounded LLM wording overlay for candidate explanations only after an explicit user action, using the `P8-006` contract. It must remain backend-owned, validated, deterministic-fallback-safe, current-run scoped, and non-persistent.
+
+Implementation direction after `P8-006` approval:
+
+- explicit user action only, not details-open auto-call;
+- backend-owned OpenAI call only;
+- frontend sends only bounded deterministic explanation wording payload, not raw candidate/search data;
+- backend separates frontend-to-backend request payload from backend-to-OpenAI model payload;
+- backend validates payload shape, source, version, reason keys, reason codes, opaque `wording_target_key`, request-level explanation fingerprint, backend-derived allowed numbers from user-visible wording fields, and forbidden fields before any OpenAI call;
+- backend rejects frontend-supplied `hard_boundaries`, prompt text, policy overrides, and `allowed_numbers`;
+- backend rejects frontend-supplied OpenAI/provider execution controls;
+- backend treats all candidate/user-derived `summary`, labels, facts, stack/location terms, and query-source values as data rather than instructions;
+- backend-to-OpenAI payload construction keeps backend-owned instructions separate from bounded data fields and includes a guardrail against following instruction-like text inside those data fields;
+- backend rejects missing or unknown request payload contract version at the frontend-to-backend request boundary and missing or unknown model payload contract version at backend model-payload-build boundary;
+- unsupported languages no-call before OpenAI;
+- backend recomputes allowed numbers from user-visible wording fields only and recomputes request-level explanation fingerprint from sanitized request-bounded fields before any OpenAI call;
+- backend-to-OpenAI payload excludes `workspace_run_id`, `wording_target_key`, request-level explanation fingerprint, backend cache keys, `candidate_id`, URL-derived identifiers, runtime identifiers, and provenance metadata;
+- backend validates wording-safe allowlisted bounded facts before fingerprinting and prompting;
+- backend/frontend implementation uses an explicit wording-safe facts mapper by reason code and does not forward all deterministic P8-005 facts wholesale;
+- wording-safe facts use controlled or normalized values only; arbitrary candidate/search strings are omitted or rejected;
+- `role` from deterministic `role_or_technology_visible` facts is stripped from the first wording payload because it may come from raw headline/title fallback;
+- nested fact containers such as `quality_component.components` and `quality_penalty.penalties` use explicit top-level and nested allowlists;
+- do not send current workspace `candidate_id`, `normalized_url`, profile href, LinkedIn URL, or URL-derived candidate identity to the LLM wording payload;
+- candidate-explanation-specific payload, prompt, validator, fallback, and provenance;
+- stable `reason_key` validation;
+- reason keys generated after final capped renderable explanation order;
+- `wording_target_key` is stable only within the current workspace run across re-render/sort/filter/details interactions and resets on new search, workspace clear, page reload, or stale workspace reset;
+- request-level explanation fingerprint uses UTF-8 canonical JSON and `sha256:<hex>` output with JS/Python fixture coverage for frontend/backend parity;
+- semantic guardrail map for every current explanation reason code;
+- explicit allowed meaning, forbidden meaning, and allowed wording-safe fact keys for every current explanation reason code;
+- deterministic explanation `source` / `version` locked;
+- backend-owned `wording_mode`, `fallback_reason`, nested-only `no_call_reason`, `wording_provenance`, `surface = candidate_workspace`, `source_owner = candidate_workspace`, `source_object = candidate_explanation`, `wording_use_case = candidate_explanation`, `request_payload_contract_version`, `model_payload_contract_version`, `reason_semantics_version`, `canonicalizer_version`, `prompt_contract_version`, `prompt_version`, `validator_version`, `deterministic_builder_version`, internal `llm_warnings`, and attempted-call `model` metadata;
+- backend owns wording call/validation/fallback/provenance, but not candidate fact truth in this slice;
+- request-level explanation fingerprint protects request integrity and UI stale-correlation only, frontend pending key only prevents duplicate in-flight submissions before backend response, and backend cache key protects validated overlay reuse/cache behavior; none of them must be presented as proof of candidate truth;
+- backend-owned candidate fact truth requires a later separate task, such as backend explanation producer or workspace-run persistence;
+- neutral UI label such as `Improve wording` or `Polish explanation`, not verification/profile-inspection language;
+- pending state and duplicate-call protection for same candidate/explanation/language;
+- frontend applies returned overlay only when response binding still matches current workspace run, wording target key, request explanation fingerprint, language, and non-stale workspace state;
+- current-run cache only if keyed by `workspace_run_id`, opaque `wording_target_key`, recomputed request-level explanation fingerprint, request/model payload contract versions, prompt contract/version, validator version, deterministic builder version, reason semantics version, canonicalizer version, explanation version, and language;
+- accepted wording must be a separate current-run overlay and must not overwrite or mutate the deterministic P8-005 explanation object;
+- output validation rejects unexpected fields, blank text, overlong summary/labels, HTML, Markdown links, bullets-as-structure, and control characters;
+- use provider-supported structured output / JSON schema when available, while still running local backend validation;
+- output language validation rejects obvious unsupported-language/script mismatch but tolerates technology, location, query id, and abbreviation tokens inside otherwise English v1 wording;
+- no persistent logs, snapshots, browser storage, backend persistence, or database storage for raw wording request payloads, model payloads, or model responses;
+- backend errors and frontend status/error UI do not expose raw wording request payloads, backend-to-OpenAI model payloads, or raw model responses;
+- no mutation of facts, reason codes, score, filters, review state, notes, shortlist, export, search, or runtime behavior;
+- no persistence.
+
+---
+
+## Task: P8-007 Prepare export workflow
+
+### Status
+
+Partially implemented. `P8-007A` is completed; `P8-007B` remains not implemented and requires separate explicit approval.
+
+The umbrella export workflow is not complete until `P8-007B` adds the explicit UI/download layer.
+
+### Context
+
+`P8-001` defined the Candidate Workspace contract. `P8-002`, `P8-003`, `P8-004`, and `P8-005` built the current frontend-only workspace: approved search results map into explicit workspace state, view controls sort/filter `workspaceCandidates`, review status/derived shortlist/notes stay browser in-memory, and deterministic candidate explanations are built from returned workspace facts.
+
+Recruiters now need a way to take the current working artifact out of the UI for review or handoff. This should be a local export workflow from the current Candidate Workspace state, not persistence, saved searches, CRM sync, candidate messaging, or a backend reporting feature.
+
+### Goal
+
+Add a local, explicit, browser-triggered export workflow for the current Candidate Workspace.
+
+The export should let the recruiter download the current workspace as:
+
+- CSV;
+- Markdown summary.
+
+Default format should be CSV, because the primary consumer is Excel on Windows. Markdown must remain available as an explicit selectable format.
+
+The export should support these explicit scopes:
+
+- `visible`: current filtered/sorted workspace view recomputed at export-click time from `workspaceCandidates`, `workspaceViewState`, and `workspaceReviewStateByCandidateId`;
+- `shortlisted`: all candidates from `workspaceCandidates` whose browser in-memory review state derives to shortlisted, ignoring current view filters and preserving original approved-result order;
+- `all`: full current `workspaceCandidates` set in original approved-result order.
+
+Default scope should be `visible`, because it matches the current recruiter view on screen. `shortlisted` and `all` must be explicit selections.
+
+### Scope
+
+Included:
+
+- frontend-only export controls in the existing Candidate Workspace results area;
+- DOM-free export helpers in `app/static/candidate_workspace.js`;
+- browser UI glue in `app/static/app.js`;
+- minimal CSS for the export controls if needed;
+- no-network helper smoke coverage in `scripts/smoke_p8_candidate_workspace_helpers.js`;
+- local browser download through a user-triggered `Blob`/object URL flow;
+- export source data from explicit frontend state only.
+
+Not included:
+
+- backend changes;
+- API/schema changes;
+- database, persistence, saved searches, saved candidates, browser storage, or memory;
+- CRM/email/share integrations;
+- candidate messaging or outreach;
+- account actions;
+- OpenAI/LLM calls;
+- Tavily calls;
+- runtime/search endpoint calls;
+- LinkedIn opening, fetching, scraping, login, automation, or restriction bypass;
+- changing sorting, filtering, scoring, Candidate Quality, location logic, or runtime approval behavior;
+- implementing the `P8-006.1` bounded LLM wording overlay.
+
+### Export Data Contract
+
+Export must build an allowlisted model and must not serialize raw candidate objects.
+
+Allowed candidate fields:
+
+- local row/display index;
+- candidate display name/headline/title when already in the workspace view model;
+- stable profile identity flag;
+- validated `profile_href` / safe LinkedIn profile URL when available, otherwise an empty `profile_url` export field;
+- quality score and quality bucket;
+- role/technology/stack/seniority/location display and fit fields already present in the workspace view model;
+- source display field when already present in the workspace view model;
+- location status/group;
+- selected stack terms found;
+- missing selected stack terms;
+- review flags;
+- deterministic candidate explanation summary and reason codes when already available;
+- query source ids/categories when already present and bounded;
+- bounded snippet/evidence text.
+
+Exported `profile_url` must be derived only from `candidate.profile_href` after applying the same safe LinkedIn profile href validation used by the workspace helpers at export-model build time. Do not use `candidate.profile_url` as an export URL source, because it may contain unsafe display fallback text. If `candidate.profile_href` is empty or fails export-time validation, export `profile_url` as an empty string. Export-time revalidation must not silently change existing Candidate Workspace profile-link rendering or validation behavior; use an export-specific wrapper/helper if stricter export behavior is needed.
+
+When `profile_url` is emitted, it must be canonicalized for the exported file: force `https`, keep only a validated LinkedIn host and a path that starts with `/in/`, and strip query string, hash, and tracking parameters. A valid `http://...linkedin.../in/...` value may normalize to `https://...`; unsafe hosts, non-profile paths, username/password credentials, or malformed values must export as an empty `profile_url`. Do not silently strip credentials and keep the URL, because credential-bearing URLs are not trusted export profile links.
+
+Export-specific profile URL canonicalization should be stricter than the current workspace link-rendering helper. After URL parsing, require `linkedin.com` or a `.linkedin.com` host, no username/password credentials, path segment `in`, and a non-empty profile slug segment after `/in/`. The `/in` path segment may be matched case-insensitively, but the exported canonical path must use lowercase `/in/{slug}`. The exported canonical URL should use `https`, a lowercase host, and only the profile root path `/in/{slug}`; strip query, hash, trailing slash, and any extra path segments such as `/details/...`. Preserve the profile slug as parsed by `URL` path segmentation: do not manually decode it, do not lowercase it, and reject empty slug, `.` / `..`, or values with encoded slash/backslash ambiguity such as `%2F` or `%5C`. If the URL cannot be reduced to that canonical profile root, export an empty `profile_url`.
+
+Required canonicalization examples for helper tests:
+
+- `https://www.linkedin.com/in/foo/details/experience` -> `https://www.linkedin.com/in/foo`;
+- `https://linkedin.com/in/foo?trk=x#about` -> `https://linkedin.com/in/foo`;
+- `http://ua.linkedin.com/in/foo/` -> `https://ua.linkedin.com/in/foo`;
+- `https://linkedin.com/in/` -> empty `profile_url`;
+- `https://linkedin.com.evil/in/foo` -> empty `profile_url`;
+- `https://user:pass@linkedin.com/in/foo` -> empty `profile_url`;
+- `javascript:alert(1)` -> empty `profile_url`.
+
+Export candidate rows should be normalized after the export scope is selected. `display_index` is a 1-based row number within the selected export order, not the candidate's original `display_index` when the current scope is sorted or filtered. `identity_stable` and `shortlisted` should serialize as `yes` / `no`. `quality_score` should serialize as an empty string when `candidate.has_quality_score` is false, and `quality_bucket` should also be empty in that case instead of exporting a misleading derived low bucket.
+
+Current workspace `candidate_id` may be used only inside export helpers as an internal review-state lookup key. It must not be included in export model candidate rows and must not be serialized in CSV or Markdown v1, because current workspace candidate ids may contain or derive from normalized profile URLs or fallback identity values.
+
+`identity_stable` must be exported as `yes` only when the candidate has an explicit stable identity signal and the export-time profile href validation succeeds. It must be `no` for display-only URLs, fallback candidate ids, `candidate.profile_url`-only values, unsafe or missing profile hrefs, or any value derived only from unvalidated URL text.
+
+When `quality_score` is present, serialize it as an invariant base-10 numeric string without locale formatting, thousands separators, percent signs, or display words. When `candidate.has_quality_score` is false, serialize both `quality_score` and `quality_bucket` as empty strings. When a finite score is present, derive `quality_bucket` from that numeric score using the current approved workspace `qualityBucket` semantics; do not trust `candidate.quality_bucket` as a source of truth.
+
+Scope ordering must be deterministic inside `buildWorkspaceExportModel`: `visible` preserves the order of the passed `visibleCandidates`; `all` uses the full `allCandidates` set sorted by `candidate.order_index` with stable input-order fallback; `shortlisted` filters from `allCandidates` by derived review status and then uses the same original-order sort. Non-finite, missing, or malformed `order_index` falls back to the candidate's input index in the `allCandidates` array, and duplicate `order_index` ties are broken by that same input index. This keeps `all` and `shortlisted` tied to approved-result order even if the caller passes malformed, duplicate, mutated, or previously sorted data.
+
+Display-field fallback order should be deterministic:
+
+- `candidate_name`: `candidate.display_name`;
+- `headline`: `candidate.headline`, then `candidate.raw_title`;
+- `role`: `candidate.raw.result.role_display`;
+- `role_fit`: `candidate.raw.result.role_fit`;
+- `technology`: `candidate.raw.result.technology_display`;
+- `technology_fit`: `candidate.raw.result.technology_fit`;
+- `seniority`: `candidate.seniority_level`, then `candidate.raw.result.seniority_display`, then `candidate.raw.result.seniority_level`;
+- `location`: `candidate.raw.current_location_line`, then `candidate.raw.result.current_location_line`, then the first useful value from `candidate.raw.current_location_lines`, then the first useful value from `candidate.raw.result.current_location_lines`;
+- `location_status`: `candidate.location_status`;
+- `source`: `candidate.source`;
+- `stack_fit`: `candidate.stack_fit`.
+
+The export model may read only allowlisted raw paths needed to construct those fields, such as `candidate.raw.result.role_display`, `candidate.raw.result.role_fit`, `candidate.raw.result.technology_display`, `candidate.raw.result.technology_fit`, `candidate.raw.result.seniority_display`, `candidate.raw.result.seniority_level`, `candidate.raw.result.seniority_fit`, `candidate.raw.current_location_line`, `candidate.raw.current_location_lines`, `candidate.raw.result.current_location_line`, `candidate.raw.result.current_location_lines`, and `candidate.raw.result.review_flag_details`. It must never include raw objects or blindly serialize `candidate.raw`. Location display should prefer structured current-location fields such as `current_location_line` or the first useful `current_location_lines` value; do not export long noisy `header_location_text` as the location display field.
+
+Allowed recruiter workflow fields:
+
+- review status;
+- derived shortlisted value;
+- recruiter notes, after existing note normalization and export sanitization.
+
+If `reviewStateByCandidateId[candidate_id]` is missing for an exported candidate, the export helper must use the same deterministic fallback as the workspace UI: `review_status = new`, `shortlisted = no`, and `notes = ""`. If `candidate_id` itself is missing, non-string, or empty after normalization, do not attempt review-state lookup; use the same fallback values.
+
+Exported `review_status` should use the normalized v0 enum value in both CSV and Markdown: `new`, `reviewing`, `shortlisted`, or `not_a_fit`. UI display labels are render-only and should not become the export serialization contract.
+
+Allowed internal export model metadata:
+
+- `workspace_run_id`;
+- export timestamp;
+- candidate count;
+- scope and format;
+- execution mode;
+- query count.
+
+`candidate_count` means the number of rows in the selected export scope after scope selection, not `latestWorkspaceRun.total_candidates` or the full workspace candidate count.
+
+`workspace_run_id` may stay in the internal export model for helper assertions and current-run correlation, but CSV and Markdown v1 must not serialize it. The current `workspace_run_id` can include internal runtime/planner-derived values through the existing run context, so it is not a recruiter-facing export field. If a visible run label is needed later, add a separate sanitized public run label in a reviewed task.
+
+Markdown summary metadata must be normalized before serialization. `execution_mode` should be emitted only from a small allowlist such as `single_wave`, `multi_wave`, or `search`; unknown or unsafe values should serialize as `search`. `query_count` should serialize only as a finite non-negative integer, defaulting to `0`. `exported_at` should be the ISO timestamp from the export-click `Date` value used by the export model, not a value copied from `workspaceRun` or rendered DOM.
+
+Explicitly excluded:
+
+- `candidate.raw`;
+- raw Tavily/result payloads;
+- raw query text in CSV or Markdown v1;
+- unbounded raw content;
+- unvalidated URLs as clickable/trusted links;
+- unsafe or unvalidated URLs in the exported `profile_url` field;
+- `candidate_id` in export model candidate rows, CSV, or Markdown;
+- `explanation_version` in CSV or Markdown v1;
+- runtime/tool-call/query-plan fingerprints in v1 recruiter-facing exports;
+- private/contact details inferred from snippets or URLs;
+- contact-specific export fields, contact extraction, contact enrichment, or contact inference;
+- hidden DOM text;
+- internal helper objects;
+- frontend event/state objects.
+
+The export must not create email, phone, contact, or outreach fields. To avoid turning returned public snippets into a contact export, obvious email-like and phone-like substrings in returned candidate text fields such as candidate names, headlines, snippets, explanation labels, and query-source labels should be masked as `[contact omitted]` before CSV or Markdown serialization. Do not apply this contact-like masking to recruiter notes in v1: notes are user-authored workflow text exported only by explicit user action, and they still pass through normal text normalization, formula guarding, Markdown neutralization, and length caps.
+
+Contact-like masking must be conservative and deterministic. It should mask obvious email-like strings with an `@` and plausible domain, and obvious phone-like strings only when there is enough digit density plus phone-specific separators, grouping, or leading `+` / parentheses to plausibly be contact data. If a phone-like match is ambiguous, preserve the text rather than masking it. It must not mask common recruiting/technical evidence such as years, scores, query ids, versions, or technology names, including `Java 17`, `Spring 6`, `Node.js 20`, `.NET 6`, `C#`, `2024`, `Q01`, `5+ years`, `10 years`, `+5 quality points`, `C++`, or similar non-contact tokens.
+
+Export text normalization should follow one deterministic pipeline per field type: coerce null/undefined to empty text; normalize control characters and whitespace according to whether the field is single-line or line-preserving; apply contact-like masking only for returned candidate text fields; cap to the v1 field limit; then apply format-specific handling such as CSV formula guarding/quote escaping or Markdown neutralization/autolink breaking; finally serialize. Recruiter notes follow the same pipeline except they skip contact-like masking. URL-like text neutralization should be shared across CSV and Markdown for untrusted fields, with validated `profile_url` / Markdown `Profile` as the only plain-URL exception.
+
+For CSV v1, every dynamic data cell should serialize as a single-line cell. Embedded `\r`, `\n`, or `\r\n` inside candidate text, snippets, explanation text, query-source labels, review-flag labels, and recruiter notes must be normalized to safe spaces before CSV quote escaping. CSV CRLF must be used only as the row separator emitted by the serializer, never as preserved content inside a quoted data cell. Formula-guard detection must still account for values that originally started with tab, carriage return, or newline before line-break normalization.
+
+### CSV Contract
+
+The primary CSV consumer is Excel on Windows. The CSV output should be Excel-friendly, not a generic machine-ingestion export:
+
+- UTF-8 with BOM;
+- CRLF row endings;
+- deterministic delimiter behavior for Excel;
+- for v1, the serialized CSV string must start exactly with `\ufeffsep=,\r\n` followed by a comma-delimited header row;
+- stable column names and stable column order.
+
+CSV v1 should be a candidate table only after the `sep=,` directive: no metadata rows, no repeated metadata columns, and no internal fingerprint/debug rows. Export metadata is available in the export model for Markdown summary, filenames, and internal helper assertions, not as CSV table content.
+
+CSV framing must be deterministic for tests and Excel: the serialized string should be `BOM + sep=,` line, one bare header row, then exactly `candidate_count` data rows. Every row must end with CRLF, including the final data row. Dynamic data cells must not contain embedded CR or LF after CSV normalization, so row-count assertions can treat CRLF as serializer-owned row delimiters. If the serializer is called with zero candidates, it should still produce the `sep=,` line and header row with final CRLF; the browser UI still must not download an intentionally empty selected-scope export.
+
+If a strict machine-ingestion CSV is needed later, add it as a separate reviewed format instead of weakening this Excel-oriented export.
+
+Internal format values are exactly `csv` and `markdown`. UI labels should be `CSV` and `Markdown`. Filename extensions are `.csv` for `csv` and `.md` for `markdown`.
+
+CSV header names should be emitted as the stable bare column names below. Every data cell must be CSV-quoted after text normalization, formula guarding, and quote escaping, even when the cell does not strictly require quotes. This keeps Excel behavior and smoke assertions deterministic.
+
+CSV column order:
+
+1. `display_index`
+2. `candidate_name`
+3. `headline`
+4. `profile_url`
+5. `identity_stable`
+6. `quality_score`
+7. `quality_bucket`
+8. `role`
+9. `role_fit`
+10. `technology`
+11. `technology_fit`
+12. `seniority`
+13. `location`
+14. `location_status`
+15. `source`
+16. `stack_fit`
+17. `selected_stack_terms`
+18. `missing_stack_terms`
+19. `review_flags`
+20. `review_status`
+21. `shortlisted`
+22. `notes`
+23. `explanation_summary`
+24. `explanation_codes`
+25. `query_source_ids`
+26. `snippet`
+
+Array-valued export fields should serialize deterministically with `; ` as the join separator. Preserve meaningful deterministic source order when present, especially for explanation codes and query source ids; only sort arrays whose source order is not meaningful.
+
+Array-valued export fields must normalize each item independently through allowlisted scalar extraction before joining. Only non-empty normalized strings or explicitly allowed finite numbers may enter joined export text. Known object-array fields such as review flags, query sources, and explanation reasons may be read only through their field-specific scalar extractors, for example `code`, `label`, `id`, or `category`. Unknown objects, nested arrays, `null`/`undefined`, unknown shapes, and unsupported values must be skipped, not stringified. Export must never emit `[object Object]`, JSON blobs, raw nested structures, or raw array/object debug text in CSV or Markdown.
+
+`review_flags` should serialize as `code: label` joined by `; ` in the normalized review flag order. If a label is missing, serialize the code only. `explanation_codes` should serialize reason codes in deterministic rendered explanation order: positive signals first, then cautions, then evidence items.
+
+`query_source_ids` should serialize `source.id`, falling back to `source.category` only when `id` is missing. If neither `id` nor `category` exists, skip that source. De-duplicate query source ids while preserving first occurrence order. Do not export raw query text, placeholder `unknown`, or raw source objects in CSV or Markdown v1.
+
+If `candidateWorkspace.buildCandidateExplanation` is available and returns `source = deterministic_workspace_facts`, export must include `explanation_summary` and `explanation_codes`. The explanation version may be checked internally to reject incompatible helper output, but CSV and Markdown v1 must not serialize `explanation_version`. If the helper is unavailable or returns an invalid object/source/version, export those fields as empty strings.
+
+V1 text caps:
+
+- `candidate_name`: 160 characters;
+- `headline`: 240 characters;
+- compact display/fit/status/source fields: 160 characters each;
+- joined array fields such as `selected_stack_terms`, `missing_stack_terms`, `review_flags`, `explanation_codes`, and `query_source_ids`: 600 characters each;
+- `notes`: existing `NOTE_MAX_LENGTH`;
+- `explanation_summary`: 400 characters;
+- `snippet`: 600 characters.
+
+### Markdown Contract
+
+Markdown is required in the first export version.
+
+Markdown output should be deterministic and simple:
+
+- title;
+- run summary;
+- scope/format/export timestamp/candidate count/execution mode/query count;
+- one candidate section per exported candidate in the selected scope and order;
+- safe validated profile URL as plain text when present, otherwise an empty profile field;
+- notes as neutralized plain text;
+- deterministic explanation summary/reason codes when available.
+
+Markdown structure:
+
+```md
+# Candidate Workspace Export
+
+Exported at: ...
+Scope: visible
+Format: markdown
+Candidates: 12
+Execution mode: single_wave
+Queries: 10
+
+## 1. Candidate Name
+
+- Headline: ...
+- Profile: ...
+- Quality: 86 high
+- Role: ...
+- Role fit: ...
+- Technology: ...
+- Technology fit: ...
+- Seniority: ...
+- Location: ...
+- Location status: ...
+- Source: ...
+- Stack fit: ...
+- Review flags: ...
+- Review status: ...
+- Shortlisted: yes
+- Notes: ...
+- Explanation: ...
+- Explanation codes: ...
+- Query sources: ...
+- Snippet: ...
+```
+
+Markdown must not preserve arbitrary Markdown or HTML from candidate data, snippets, query labels, explanation labels, or recruiter notes. Candidate-provided text must serialize as neutralized plain text and must not be able to create headings, links, autolinks, HTML blocks, tables, or list structure. Candidate names used in `## N. Candidate Name` headings must be normalized to single-line neutralized plain text. For Markdown v1, all candidate fields, including notes and snippets, should serialize as single-line normalized values; normalize line breaks to spaces before Markdown emission rather than preserving multiline candidate content. Only the validated `Profile` field may contain a plain URL; URL-like text in candidate names, headlines, notes, snippets, explanation text, query labels, and other untrusted fields must be neutralized so Markdown renderers cannot auto-link it.
+
+Markdown neutralization should be implemented as a deterministic helper, not ad hoc field-by-field string replacement. The helper should normalize control characters, normalize line breaks to safe spaces for v1, cap text before emission, escape or neutralize Markdown control characters that can create headings/lists/tables/links/code/HTML, and break URL-like text in untrusted fields so common Markdown renderers do not auto-link it. For example, untrusted `https://...` can be emitted as `https: //...` and untrusted `www.` can be emitted as `www .`; the validated `Profile` field is the only exception.
+
+Serialized Markdown should use LF (`\n`) line endings and end with a final LF. CSV remains the only export format that uses CRLF.
+
+### Safety Rules
+
+- Export must read from `latestWorkspaceRun`, `workspaceCandidates`, `workspaceViewState`, and `workspaceReviewStateByCandidateId`, not from parsed rendered DOM. `visibleWorkspaceCandidates` is a render cache only and must not be trusted as the source of truth for export; recompute the visible candidate list at export-click time from the explicit workspace state.
+- Export must not mutate workspace candidates, review state, visible filters, sorting, notes, shortlist, report counts, runtime approval, or search state.
+- Unsafe, missing, or unvalidated profile URLs must not remove the candidate from export, but the exported `profile_url` value must be empty. Do not export unsafe profile URLs even as escaped plain text, because Excel and Markdown renderers may still make plain URLs clickable.
+- If `candidate_id` is a render-only fallback because `normalized_url` is missing, export may include the row but must not imply stable identity.
+- Candidate text and recruiter notes are untrusted.
+- CSV cells must escape quotes, normalize embedded line breaks to spaces, normalize control characters, cap excessive text, and guard against formula injection with a deterministic algorithm: coerce null/undefined to empty text; normalize control characters and cap text while preserving enough leading content to detect formula risk; if the original or normalized value starts with tab, carriage return, or newline, or if the first non-whitespace character of the normalized value is one of `=`, `+`, `-`, or `@`, prefix the cell value with a single apostrophe (`'`) before CSV quote escaping. CSV v1 must not preserve embedded CR/LF inside quoted cells.
+- CSV cells must also neutralize URL-like text in every dynamic field except the validated `profile_url` column, because Excel may turn plain URL-like text into clickable links. This applies to candidate names, headlines, snippets, recruiter notes, explanation text/codes/labels, review flag labels, query-source ids/categories/labels, and any other untrusted CSV text. Use the same deterministic URL-like breaking behavior as Markdown where possible, for example `https://` -> `https: //`, `http://` -> `http: //`, `www.` -> `www .`, and bare `linkedin.com/in/...` / `*.linkedin.com/in/...` text must not remain clickable-looking outside the validated `profile_url` column.
+- Markdown export must escape or neutralize raw HTML/Markdown syntax from candidate text and notes.
+- Export filenames should be generic and safe, for example based on product name, scope, and timestamp; do not include candidate names or recruiter notes in filenames.
+- Export filename pattern should be `engineers-search-candidates-{scope}-{YYYYMMDD-HHmmss}.{csv|md}`.
+- Filename generation must normalize scope and format before building the file name. Timestamp components use local date/time getters from the export-click `Date` object and must be zero-padded to `YYYYMMDD-HHmmss`.
+- `exportedAt` must be created at the moment the recruiter clicks Export, not when the toolbar renders. The click handler should create one `Date` object and pass that same object/value through the export flow. Export model metadata should use `exportedAt.toISOString()`, while filename generation should use local date/time getters from the same `Date` object. Helper tests may pass a fixed `Date` object to avoid timestamp flakiness.
+- Object URLs created for downloads must be revoked after use. The temporary download anchor should be removed after the click is dispatched, and object URL revocation should be deferred, for example with `setTimeout(..., 0)`, so browser download handling is not interrupted.
+- If there is no current workspace run, export controls should be hidden or disabled.
+- If the selected export scope has zero candidates, do not download an empty misleading file; show an inline export status instead, using a dedicated UI target such as `data-workspace-export-status`.
+- A successful run with zero candidates must not crash export UI or helpers.
+
+### Proposed Steps
+
+Implement in this order and keep each step verifiable before moving to the next: DOM-free model/normalization helpers, CSV/Markdown serializers, UI state/rendering, browser download glue, then browser sanity. Required execution split:
+
+- `P8-007A`: DOM-free export model, normalization/sanitization helpers, CSV serializer, Markdown serializer, filename/MIME helpers, and no-network helper smoke coverage. This slice must not add UI controls, Blob download glue, browser download side effects, backend/API/search/runtime calls, persistence, or external services.
+- `P8-007B`: export UI controls, current-run `workspaceExportState`, click-time visible recomputation, explicit local Blob download glue, bounded inline status, cleanup, CSS, and browser/frontend sanity checks. This slice depends on `P8-007A` helper/serializer tests passing.
+
+Do not wire the download action before helper serialization tests pass. If implementation pressure adds materially more behavior than these slices describe, split again instead of expanding P8-007 further.
+
+1. Add DOM-free export helpers in `app/static/candidate_workspace.js`.
+   - Add helpers such as `normalizeExportScope`, `normalizeExportFormat`, `buildWorkspaceExportModel`, `serializeWorkspaceExportCsv`, `serializeWorkspaceExportMarkdown`, `normalizeExportText`, `sanitizeCsvCell`, `escapeMarkdownText`, `neutralizeExportUrlLikeText`, `buildWorkspaceExportFilename`, and `workspaceExportMimeType`.
+   - Export them through `window.CandidateWorkspace`.
+   - Keep helpers free of `document` access and direct browser download side effects.
+   - Unknown export scope should normalize to `visible`; unknown export format should normalize to `csv`.
+   - Use an allowlist field model; do not serialize raw candidate payloads.
+   - `buildWorkspaceExportModel` should accept one object argument:
+
+```js
+{
+  workspaceRun,
+  allCandidates,
+  visibleCandidates,
+  reviewStateByCandidateId,
+  scope,
+  format,
+  exportedAt
+}
+```
+
+   - `buildWorkspaceExportModel` should return plain data:
+
+```js
+{
+  metadata: {
+    workspace_run_id,
+    exported_at,
+    scope,
+    format,
+    candidate_count,
+    execution_mode,
+    query_count
+  },
+  candidates: [...]
+}
+```
+
+   - Plain data means JSON-serializable scalars, arrays, and shallow export row objects only: no `Date` objects, DOM nodes, functions, raw candidate object references, mutable frontend state objects, raw nested candidate payloads, runtime/tool-call objects, or query-plan objects.
+   - The export model must not include raw runtime/tool-call/query-plan fingerprints in v1.
+   - CSV and Markdown serializers must not emit `workspace_run_id`, because the current value can include internal runtime/planner-derived identifiers.
+   - DOM-free helpers should be tolerant of malformed frontend inputs. `buildWorkspaceExportModel` and serializers should normalize null arrays, missing `workspaceRun`, missing review state, missing candidate fields, and malformed candidate objects to defaults/empty strings where safe instead of throwing. Throwing should be reserved for genuinely unexpected serializer/runtime failures in the browser download path, which the UI catches and reports through bounded inline status.
+
+2. Add export UI in the Candidate Workspace results area.
+   - Add a compact, visually distinct export control block near the workspace toolbar, for example `candidate-workspace-export`.
+   - Do not simply append export controls into the existing filter/sort grid; keep export controls grouped so the toolbar remains scannable, especially on mobile.
+   - Provide scope selector: visible, shortlisted, all.
+   - Default the scope selector to visible.
+   - Provide format selector: CSV, Markdown.
+   - Default the format selector to CSV.
+   - Provide a single user-clicked export/download action.
+   - Maintain a small current-run `workspaceExportState` in `app/static/app.js` for selected scope, selected format, and inline status so toolbar rerenders do not silently reset the recruiter's export selections.
+   - Store `workspaceExportState.scope` and `workspaceExportState.format` only after normalization through `CandidateWorkspace.normalizeExportScope` and `CandidateWorkspace.normalizeExportFormat`.
+   - Reset `workspaceExportState` on new workspace run and workspace clear only; do not persist it in browser storage.
+   - Clear stale export inline status when scope/format changes, view filters/sort change, review status changes, shortlist changes, notes change, filters reset, a new workspace run starts, or workspace state is cleared.
+   - Clearing stale export status on note input must not rerender the full workspace or replace the active textarea; update only export state/status target so recruiter typing, cursor position, and note focus are preserved.
+   - Export scope/format selectors must use export-specific attributes such as `data-workspace-export-control`, not `data-workspace-control`, so they cannot be handled by the existing sort/filter control path.
+   - Export buttons/actions must use export-specific attributes such as `data-workspace-export-action`, not `data-workspace-action`, so they cannot conflict with status/shortlist/note/reset behavior.
+   - Handle no-run, no-candidate, and no-shortlisted states without throwing.
+   - If the selected export scope has zero candidates, do not create a `Blob`, object URL, or temporary anchor click. Show a bounded inline status such as `No candidates to export for selected scope.` instead.
+   - Render inline export feedback through a dedicated target such as `data-workspace-export-status`; do not use `alert()`.
+   - The inline export feedback target should use `role="status"` and `aria-live="polite"`.
+   - After a successful export, render a bounded inline status such as `Exported 12 candidates as CSV`; do not include file paths, candidate names, profile URLs, or recruiter notes in status text.
+   - Keep UI labels/copy in English to match the current Candidate Workspace UI.
+
+3. Add browser download glue in `app/static/app.js`.
+   - Read export inputs from state/control values.
+   - Create `exportedAt` only inside the export click handler.
+   - Recompute the current visible candidate list at export-click time from `workspaceCandidates`, `workspaceViewState`, and `workspaceReviewStateByCandidateId`, then pass that fresh list into the export model instead of trusting a potentially stale `visibleWorkspaceCandidates` cache.
+   - Build the export model through `CandidateWorkspace`.
+   - Serialize using the selected format.
+   - Create a local `Blob`, trigger a user-initiated download, and revoke the object URL.
+   - If the export model has zero selected candidates, stop before serialization/download and show bounded inline feedback instead of downloading a misleading empty file.
+   - Wrap export model building, serialization, Blob creation, object URL creation, temporary anchor click, and cleanup in a bounded `try`/`catch`/`finally` path.
+   - If export fails, show a bounded inline error such as `Export failed. Try again.`; do not throw into the page, do not use `alert()`, and do not include raw exception details, candidate names, profile URLs, notes, file paths, or payload data in the user-visible status.
+   - Ensure temporary anchors and object URLs are cleaned up even when serialization or download dispatch fails.
+   - Use `CandidateWorkspace.workspaceExportMimeType(format)` for MIME type selection.
+   - Use `CandidateWorkspace.buildWorkspaceExportFilename(exportedAt, scope, format)` for the filename pattern `engineers-search-candidates-{scope}-{YYYYMMDD-HHmmss}.{csv|md}`.
+   - Use the same export-click `exportedAt` value for both export model metadata and filename.
+   - Remove any temporary download anchor after dispatching the click and revoke the object URL after a short deferral.
+   - Do not call backend endpoints or external services.
+   - Use `event.target.closest("[data-workspace-export-control]")` and `event.target.closest("[data-workspace-export-action]")` for export event delegation rather than reading only `event.target.dataset`, so clicks/changes on nested button content or future icons still route correctly.
+
+4. Preserve existing workspace behavior.
+   - `visible` export must match current filters/sort order.
+   - `all` export must preserve original approved-result order.
+   - `shortlisted` export must derive from current browser in-memory review state, ignore current view filters, and preserve original approved-result order.
+   - If a recruiter needs a filtered shortlist export, they can apply filters and use the `visible` scope.
+   - Notes input updates must be reflected through `workspaceReviewStateByCandidateId`, not by scraping textarea DOM.
+   - Reset/stale/search-start/search-failure clearing remains unchanged.
+
+5. Add no-network helper smoke coverage and frontend/browser sanity coverage.
+   - Keep pure helper smoke focused on `app/static/candidate_workspace.js` loaded through the existing VM pattern; it should not depend on `app/static/app.js` or rendered DOM.
+   - Put app/UI behavior checks in browser sanity or a focused frontend-static check, because `workspaceExportState`, delegated export events, inline status rendering, and download click behavior live in `app/static/app.js`.
+   - Cover export helper availability through `window.CandidateWorkspace`.
+   - Cover all/visible/shortlisted scopes and ordering.
+   - Cover `visible` preserves passed visible order, while `all` and `shortlisted` derive original approved-result order from `candidate.order_index` with stable input-index fallback.
+   - Cover non-finite, missing, malformed, and duplicate `order_index` values fall back to or tie-break by input index.
+   - Cover `display_index` is recomputed as `1..N` within the selected export scope/order.
+   - Cover shortlisted scope ignoring current view filters while preserving original approved-result order.
+   - Cover empty run and zero-shortlisted cases.
+   - Cover default scope equals visible.
+   - Cover default format equals CSV.
+   - Cover unknown export format normalizes to CSV.
+   - Cover `workspaceExportState.scope` and `workspaceExportState.format` store normalized values only.
+   - Cover stable CSV header/column order.
+   - Cover serialized CSV starts with `\ufeffsep=,\r\n`, and assert the first character code is `0xFEFF`.
+   - Cover CSV contains candidate table rows only after the separator directive and header row, with no metadata/debug/fingerprint rows.
+   - Cover `candidate_count` equals the selected export row count.
+   - Cover `workspace_run_id` is available only in the export model metadata and is not emitted in CSV or Markdown.
+   - Cover `candidate_id` is used only for internal review-state lookup and is not present in export model candidate rows, CSV, or Markdown.
+   - Cover `identity_stable` and `shortlisted` serialize as `yes` / `no`.
+   - Cover `identity_stable` is `yes` only when an explicit stable identity signal is paired with an export-time validated safe profile href.
+   - Cover missing review state exports `review_status = new`, `shortlisted = no`, and empty `notes`.
+   - Cover missing, non-string, or empty `candidate_id` skips review-state lookup and exports fallback review values.
+   - Cover `review_status` serializes normalized enum values, not UI labels.
+   - Cover missing quality score exports empty `quality_score` and `quality_bucket` values.
+   - Cover present `quality_score` serializes as an invariant base-10 numeric string without locale formatting, percent signs, or display words.
+   - Cover `quality_bucket` is derived from finite numeric `quality_score` using current workspace bucket semantics, not trusted from `candidate.quality_bucket`.
+   - Cover CSV header row uses stable bare column names and every data row cell is quoted.
+   - Cover CSV framing exactly: BOM plus `sep=,` line, one header row, exactly `candidate_count` data rows, CRLF line endings, final CRLF, and no embedded CR/LF inside quoted data cells.
+   - Cover array-valued export fields joined with `; `.
+   - Cover malformed array values are skipped, valid scalar items preserve order, known object-array shapes are handled only through field-specific scalar extractors, and unknown object/array/null/undefined items do not become `[object Object]`, JSON blobs, or raw nested structures.
+   - Cover `role`, `technology`, `location`, and `source` display fields.
+   - Cover deterministic display-field fallback order for headline, role, technology, seniority, location, source, and stack fields.
+   - Cover `review_flags` as `code: label` joined in stable order.
+   - Cover `explanation_codes` ordered as positive signals, cautions, then evidence items.
+   - Cover `query_source_ids` using ids/categories only, de-duplicating while preserving first occurrence order, and excluding raw query text.
+   - Cover text caps for candidate name, headline, notes, explanation summary, snippet, and joined array fields.
+   - Cover obvious email-like and phone-like substrings are masked as `[contact omitted]` in returned candidate text fields such as headline/snippet/query labels, while recruiter notes are not contact-masked beyond normal export sanitization.
+   - Cover contact-like masking does not mask false positives such as `Java 17`, `Spring 6`, `Node.js 20`, `.NET 6`, `C#`, `2024`, `Q01`, `5+ years`, `10 years`, `+5 quality points`, or `C++`.
+   - Cover ambiguous phone-like text is preserved rather than masked.
+   - Cover the text normalization pipeline order: coerce, normalize controls/whitespace, contact-mask returned candidate text when applicable, cap, format-specific escaping/neutralization, serialize.
+   - Cover helper tolerance for null/missing arrays, missing `workspaceRun`, missing review state, missing candidate fields, and malformed candidate objects.
+   - Cover `buildWorkspaceExportModel` returns plain JSON-serializable export data without `Date` objects, DOM nodes, functions, raw candidate references, mutable frontend state, or raw nested candidate/runtime/query-plan objects.
+   - Cover internal format values `csv` / `markdown`, UI labels `CSV` / `Markdown`, and filename extensions `.csv` / `.md`.
+   - Cover filename helper pattern and MIME helper selection.
+   - Cover fixed `Date` input produces deterministic ISO metadata and local-time filename formatting from the same timestamp.
+   - Cover filename helper normalizes scope/format and zero-pads local timestamp components to `YYYYMMDD-HHmmss`.
+   - Cover CSV escaping for quotes, commas, formula-prefix values, tab/newline-leading values, and whitespace-before-formula values using the specified apostrophe-prefix algorithm, while embedded newlines in dynamic data cells are normalized to spaces rather than preserved.
+   - Cover CSV neutralizes URL-like text in every dynamic field except validated `profile_url`, including `https://`, `http://`, `www.`, and bare LinkedIn profile-looking text.
+   - Cover recruiter notes sanitization and max-length behavior.
+   - Cover unsafe profile URL exports an empty `profile_url` field.
+   - Cover exported `profile_url` is derived only from export-time revalidated `candidate.profile_href`, not unsafe `candidate.profile_url` display fallback.
+   - Cover exported `profile_url` is canonical HTTPS LinkedIn profile URL with query string, hash, and tracking parameters stripped, while username/password credential-bearing URLs are rejected to an empty `profile_url`.
+   - Cover the required profile URL canonicalization examples listed in this task.
+   - Cover export-time profile href revalidation does not change existing Candidate Workspace profile-link rendering or validation behavior.
+   - Cover query sources without `id` or `category` are skipped.
+   - Cover explanation summary/codes are exported when `buildCandidateExplanation` returns compatible deterministic workspace facts, and empty when the helper/source/version is invalid.
+   - Cover `explanation_version` is not emitted in CSV or Markdown v1.
+   - Cover Markdown escaping/neutralization for candidate text, candidate headings, notes, snippets, Markdown control characters, URL-like autolink text, and v1 single-line normalization for all candidate fields.
+   - Cover Markdown serializer uses LF line endings and a final LF.
+   - Cover deterministic Markdown template, section order, and no raw HTML emission.
+   - Cover unsafe profile URL not exported as a trusted href.
+   - Cover only the validated Profile field can remain a plain URL in Markdown.
+   - Cover raw payload not serialized.
+   - Cover raw nested objects and arrays are not stringified in CSV or Markdown.
+   - Cover deterministic candidate explanation summary/reason codes included when present.
+   - Cover no mutation of candidates, review state, and view state.
+   - Cover app/browser behavior separately: export UI state survives workspace toolbar rerender after filter/status changes and resets only on new run/clear.
+   - Cover app/browser behavior separately: stale success or error export inline status clears on scope/format changes, filters/sort changes, review status changes, shortlist changes, notes changes, reset filters, new run, and workspace clear.
+   - Cover app/browser behavior separately: export controls render inside a distinct grouped export block and remain usable on mobile.
+   - Cover app/browser behavior separately: export status target has `role="status"` and `aria-live="polite"`.
+   - Cover app/browser behavior separately: export controls use `data-workspace-export-control` / `data-workspace-export-action` and event delegation with `closest(...)`, not the existing workspace filter/status attributes.
+   - Cover app/browser behavior separately: `exportedAt` is created on export click and reused for filename/model metadata.
+   - Cover app/browser behavior separately: visible-scope export recomputes the current visible list at click time.
+   - Cover app/browser behavior separately: successful export status is bounded and excludes file paths, candidate names, profile URLs, and notes.
+   - Cover app/browser behavior separately: note-input export status clearing does not rerender the full workspace or replace the active textarea.
+   - Cover app/browser behavior separately: zero-candidate selected exports stop before Blob/object URL/anchor click and show bounded inline feedback.
+   - Cover app/browser behavior separately: serializer/download errors are caught, user-visible error text is bounded, and temporary anchors/object URLs are cleaned up.
+   - Cover app/browser behavior separately: download flow is verified with a Playwright download event where available, or with controlled monkeypatches for `URL.createObjectURL`, anchor click, and `URL.revokeObjectURL`.
+
+6. Verify locally.
+   - Run `node --check app/static/candidate_workspace.js`.
+   - Run `node --check app/static/app.js`.
+   - Run `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`.
+   - Run browser sanity if UI code is implemented: successful workspace, export visible CSV, export shortlisted Markdown, export all scope, empty/zero-shortlist states, and mobile layout check.
+
+### Acceptance Criteria
+
+- Candidate Workspace has a visible local export workflow.
+- Export is triggered only by explicit user click.
+- CSV and Markdown formats are available.
+- CSV is Excel-friendly for Windows: UTF-8 with BOM, `sep=,\r\n`, comma-delimited data rows, CRLF row endings, and stable column order.
+- CSV v1 uses CRLF only as serializer-owned row delimiters; dynamic data cells do not preserve embedded CR/LF.
+- CSV v1 contains candidate table rows only after the separator directive and header row; run metadata is not emitted as CSV rows or columns.
+- Markdown follows the defined run-summary-plus-candidate-sections template and escapes or neutralizes untrusted text.
+- CSV and Markdown include recruiter-facing role, technology, location, and source display fields where available.
+- Review flags and explanation codes are serialized with deterministic order and bounded length.
+- Exported text fields follow the defined v1 caps.
+- Browser downloads use the defined filename pattern and MIME types.
+- Visible, shortlisted, and all scopes are supported and deterministic.
+- Visible preserves the current visible order; all and shortlisted use original approved-result order from `candidate.order_index`.
+- Missing/malformed/duplicate `order_index` values fall back to or tie-break by input index.
+- Visible is the default scope.
+- CSV is the default format.
+- Unknown export format falls back to CSV.
+- Internal format values are `csv` and `markdown`, with UI labels `CSV` / `Markdown` and filename extensions `.csv` / `.md`.
+- Shortlisted scope ignores current view filters and preserves original approved-result order.
+- `display_index` is scoped to the selected export order.
+- Export UI state does not reset on ordinary workspace rerenders and is reset on new workspace run/clear.
+- Export inline success/error status is cleared when export inputs or workspace review/view state change.
+- Export controls are grouped in a distinct export block, not mixed into the existing filter/sort control grid.
+- Export status uses an accessible live status target.
+- Export controls use export-specific data attributes and event delegation via `closest(...)`.
+- Export state scope/format values are stored normalized.
+- Visible-scope export recomputes the current visible list at click time.
+- Export model is built from explicit frontend state, not DOM parsing.
+- Export metadata `candidate_count` is the selected export row count.
+- Export uses allowlisted fields only.
+- Export may read only allowlisted raw paths to build fields and must not include raw objects.
+- Array/object export inputs are normalized through allowlisted scalar extraction; known object-array shapes use only field-specific scalar extractors, and unknown objects are never stringified as `[object Object]`, JSON blobs, or raw nested structures.
+- `candidate_id` is not included in export model candidate rows and is not emitted in CSV or Markdown.
+- Display fields use the defined deterministic fallback order.
+- Raw candidate payloads are not serialized.
+- Validated profile href is used for trusted URL fields.
+- Exported `profile_url` is derived only from export-time revalidated `candidate.profile_href`.
+- Exported `profile_url` is canonical HTTPS LinkedIn profile URL with query string, hash, and tracking parameters stripped; username/password credential-bearing URLs export as empty `profile_url`.
+- Export-specific profile href validation does not change existing workspace profile-link rendering or validation behavior.
+- Unsafe/missing/unvalidated profile URLs do not remove candidates from export and produce an empty `profile_url` export field.
+- `workspace_run_id` is not emitted in CSV or Markdown v1.
+- Runtime/tool-call/query-plan fingerprints are not included in v1 recruiter-facing exports.
+- Boolean fields serialize as `yes` / `no`; missing quality score does not serialize as `0` or a derived low bucket.
+- `identity_stable` serializes as `yes` only when stable identity is paired with a validated safe profile href.
+- Present `quality_score` serializes as an invariant numeric string without locale/display formatting.
+- `quality_bucket` is derived from finite numeric `quality_score`, not trusted from `candidate.quality_bucket`.
+- Missing review state serializes as `new`, `no`, and empty notes.
+- Missing, non-string, or empty `candidate_id` skips review-state lookup and exports fallback review values.
+- `review_status` serializes as normalized enum values, not UI labels.
+- Review status, derived shortlist, and notes are included for the current session only.
+- Deterministic candidate explanation summary/reason codes may be included when already available.
+- Deterministic candidate explanation summary/reason codes are included when the existing helper returns `source = deterministic_workspace_facts`; otherwise the export fields remain empty.
+- `explanation_version` may be checked internally but is not emitted in CSV or Markdown v1.
+- Export does not depend on `P8-006`/`P8-006.1` implementation and does not call LLM/OpenAI.
+- CSV output is protected against formula injection and malformed cells.
+- CSV output neutralizes URL-like text in untrusted fields outside the validated `profile_url` column.
+- Markdown output neutralizes raw HTML/Markdown/autolink injection from untrusted text through a deterministic helper and prevents candidate-provided text from creating headings, links, HTML blocks, tables, or list structure.
+- Markdown v1 serializes candidate fields, including notes and snippets, as single-line normalized values.
+- Markdown output uses LF line endings and a final LF.
+- Only the validated Profile field may remain a plain URL in Markdown output.
+- Export text normalization follows the defined field-type pipeline.
+- DOM-free export helpers tolerate missing/malformed frontend input by normalizing to defaults where safe.
+- Successful export status text is bounded and does not include file paths, candidate names, profile URLs, or recruiter notes.
+- Download/serialization failures are caught and reported through bounded inline status while cleanup still runs.
+- Obvious contact-like substrings in returned candidate text fields are masked, no contact-specific export fields are created, and recruiter notes are not contact-masked beyond normal export sanitization.
+- Contact-like masking avoids known non-contact false positives such as technology versions, years, query ids, score deltas, and `C++`.
+- CSV and Markdown v1 do not export raw query text.
+- No current run / zero-candidate selected scope is handled without creating a Blob/object URL/anchor click or downloading a misleading empty file.
+- Browser download uses local file creation only and revokes object URLs.
+- Filenames use normalized scope/format and zero-padded local timestamp components.
+- No backend/API/search/runtime/Tavily/LinkedIn behavior changes.
+- No persistence/browser storage/database/saved search behavior.
+- No CRM/email/share/outreach/account actions.
+- Regression checks pass.
+
+### Critical Review Notes
+
+- This task should not turn export into Phase 9 persistence. The durable artifact is the local file the recruiter explicitly downloads.
+- Export source semantics must be clear before coding: `visible` means current view state, `all` means original approved-result order, and `shortlisted` means derived current in-memory review state over all workspace candidates in original order, ignoring current filters.
+- Export must not be a blind data dump. Use an explicit field allowlist.
+- Candidate text, query text, snippets, and recruiter notes remain untrusted even though they are local.
+- The Markdown format is not automatically safer than CSV; it still needs escaping because recruiters may open it in renderers that process links or HTML.
+- Exporting recruiter notes is acceptable only because it is an explicit user action; it must not imply app persistence or carryover to future runs.
+- `P8-006.1` may later add bounded LLM wording for explanations, but `P8-007` should export deterministic explanation data unless a later reviewed task explicitly changes that.
+- Final critical review found no remaining blockers after the CSV newline/export framing clarification.
+- Implementation is split into two slices: helper/serializer first (`P8-007A`), then UI/download (`P8-007B`). `P8-007A` is completed; `P8-007B` must still be separately approved before coding.
+
+### Non-Goals
+
+- Do not implement `P8-006` or `P8-006.1`.
+- Do not add saved searches, database, memory, auth, accounts, or persistence.
+- Do not add email, CRM, ATS, spreadsheet API, cloud upload, or sharing.
+- Do not add candidate messaging or outreach.
+- Do not add LinkedIn automation, profile fetching, scraping, login, browser control, or restriction bypass.
+- Do not add new countries, technologies, roles, or search sources.
+- Do not change Candidate Quality, planner, QueryPlan, runtime approval, Tavily execution, dedupe, scoring, or filters.
+
+### Before Coding
+
+Codex must critically review this task against current `app/static/candidate_workspace.js`, `app/static/app.js`, `app/static/styles.css`, `scripts/smoke_p8_candidate_workspace_helpers.js`, `docs/phase-8-candidate-workspace-contract.md`, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-007A Implement export model and serializers
+
+### Status
+
+Implemented / completed.
+
+Completed as the DOM-free helper/serializer slice. No export UI, Blob/object URL download glue, CSS, backend/API/search/runtime changes, persistence, or external-service behavior was added.
+
+### Implementation Notes
+
+Implemented in `app/static/candidate_workspace.js` and covered in `scripts/smoke_p8_candidate_workspace_helpers.js`:
+
+- exported `normalizeExportScope`, `normalizeExportFormat`, `buildWorkspaceExportModel`, CSV/Markdown serializers, filename/MIME helpers, CSV cell sanitization, Markdown escaping, and shared URL-like neutralization;
+- added allowlisted export rows and metadata only, with no `candidate_id`, raw candidate objects, raw query text, `workspace_run_id` serialization, explanation version serialization, or runtime/tool/query-plan fingerprints in CSV/Markdown;
+- added stricter export-time LinkedIn profile URL canonicalization from `candidate.profile_href` only, including the required valid/invalid URL examples;
+- added deterministic `visible`/`shortlisted`/`all` scope ordering, review-state fallback, quality-score/bucket handling, derived `shortlisted`, and stable `display_index`;
+- added Excel-on-Windows CSV framing with BOM, `sep=,`, CRLF row endings, stable columns, quoted data cells, formula guard, no embedded CR/LF cells, and URL-like neutralization outside the validated `profile_url`;
+- added deterministic Markdown summary/candidate sections with LF endings, Markdown/HTML/autolink neutralization, single-line candidate fields, and only validated Profile as a plain URL;
+- added conservative contact-like masking for returned candidate text while leaving recruiter notes unmasked beyond export sanitization;
+- added no-mutation/no-network helper smoke coverage for malformed inputs, profile URL canonicalization, row order, Markdown/CSV safety, filename/MIME, and raw payload exclusion.
+
+### Goal
+
+Implement only the DOM-free export foundation for `P8-007`: export model building, normalization/sanitization helpers, CSV serializer, Markdown serializer, filename/MIME helpers, and helper smoke coverage.
+
+### Scope
+
+Included:
+
+- helpers in `app/static/candidate_workspace.js`;
+- no-network coverage in `scripts/smoke_p8_candidate_workspace_helpers.js`;
+- all export model, CSV, Markdown, profile URL canonicalization, text normalization, formula guard, URL-like neutralization, contact-like masking, metadata normalization, ordering, and filename/MIME behavior defined in `P8-007`;
+- no browser download side effects.
+
+Not included:
+
+- export UI controls;
+- `workspaceExportState`;
+- `Blob`, object URL, temporary anchor, or browser download dispatch;
+- CSS;
+- backend/API/search/runtime/Tavily/OpenAI/LinkedIn calls;
+- persistence or browser storage.
+
+### Acceptance Criteria
+
+- `CandidateWorkspace` exports the DOM-free helpers required by `P8-007`.
+- Helper smoke covers the `P8-007` CSV/Markdown/model contracts, including the required profile URL canonicalization examples.
+- `node --check app/static/candidate_workspace.js` passes.
+- `scripts/smoke_p8_candidate_workspace_helpers.js` passes.
+- No UI, download, backend, API, search, runtime, persistence, or external-service behavior changes.
+
+### Before Coding
+
+Review `P8-007` and `docs/phase-8-candidate-workspace-contract.md` first. Do not start `P8-007B` until this slice passes helper checks.
+
+---
+
+## Task: P8-007B Add export UI and download workflow
+
+### Status
+
+Reviewed / blocked on completed `P8-007A` and explicit user approval / not implemented.
+
+This slice is not approved for coding until the user explicitly asks to implement it after `P8-007A` is complete.
+
+### Goal
+
+Add the visible local export workflow on top of the tested `P8-007A` helpers.
+
+### Scope
+
+Included:
+
+- export controls in the existing Candidate Workspace results area;
+- current-run `workspaceExportState` in `app/static/app.js`;
+- export-specific event delegation and status rendering;
+- click-time visible-scope recomputation from explicit workspace state;
+- explicit user-clicked local `Blob` download flow;
+- temporary anchor cleanup and deferred object URL revocation;
+- minimal CSS for the export control block;
+- browser/frontend sanity coverage defined in `P8-007`.
+
+Not included:
+
+- changing helper contracts already covered by `P8-007A` except for defects found during integration;
+- backend/API/search/runtime/Tavily/OpenAI/LinkedIn calls;
+- persistence, browser storage, saved searches, CRM/email/share integrations, outreach, or account actions.
+
+If `P8-007B` uncovers a helper defect, the fix must update the relevant `P8-007A` helper smoke coverage and the implementation summary must explicitly call out the helper change. Do not silently expand or weaken the tested helper contract inside the UI/download slice.
+
+### Acceptance Criteria
+
+- UI uses only the tested `P8-007A` helpers for export model, serialization, filename, and MIME behavior.
+- Export remains explicit user-click local download only.
+- Zero-candidate selected scope stops before `Blob`/object URL/anchor click and shows bounded inline status.
+- Success/error statuses are bounded and do not include candidate names, profile URLs, notes, file paths, raw errors, or payloads.
+- Export status clearing does not rerender or replace the active notes textarea.
+- `node --check app/static/app.js` passes.
+- Browser/frontend sanity covers visible CSV, shortlisted Markdown, all scope export, zero-candidate selected scope, stale status clearing, object URL cleanup, and mobile layout.
+- No backend, API, search, runtime, persistence, or external-service behavior changes.
+
+### Before Coding
+
+Confirm `P8-007A` is completed and helper checks pass. Re-review current `app/static/app.js`, `app/static/styles.css`, `docs/phase-8-candidate-workspace-contract.md`, and absolute product boundaries before implementation.
+
+---
+
+## Task: P8-008 Add bounded LLM onboarding wording overlay
 
 ### Status
 
@@ -11952,7 +13722,7 @@ Codex must critically review this task against the Phase 7 message facts/wording
 
 ---
 
-## Task: P8-008 Add off-topic and unclear input guardrails before Search Brief extraction
+## Task: P8-009 Add off-topic and unclear input guardrails before Search Brief extraction
 
 ### Status
 
@@ -12079,7 +13849,7 @@ Codex must critically review this task against current recruiter chat routing, P
 
 ---
 
-## Task: P8-009 Define conservative off-topic and unclear/noise classification policy
+## Task: P8-010 Define conservative off-topic and unclear/noise classification policy
 
 ### Status
 
@@ -12240,7 +14010,7 @@ Must not classify as off-topic solely by keyword:
 - The policy protects valid incomplete sourcing requests from being rejected as noise.
 - The policy protects recruiter-context questions from being rejected as off-topic by keyword alone.
 - The policy explicitly forbids LLM-based classification for off-topic/noise detection.
-- `P8-008` can implement the guardrail against this policy after separate coding approval.
+- `P8-009` can implement the guardrail against this policy after separate coding approval.
 
 ### Non-Goals
 
@@ -12254,7 +14024,7 @@ Codex must critically review this policy against current recruiter chat routing,
 
 ---
 
-## Task: P8-010 Apply Russian answers to pending clarification fields
+## Task: P8-011 Apply Russian answers to pending clarification fields
 
 ### Status
 
@@ -12364,7 +14134,7 @@ Codex must critically review this task against current Search Brief validation, 
 
 ---
 
-## Task: P8-011 Localize next iteration options in Agent Response
+## Task: P8-012 Localize next iteration options in Agent Response
 
 ### Status
 
@@ -12457,7 +14227,7 @@ Codex must critically review this task against `app/agent_response.py`, `app/age
 
 ---
 
-## Task: P8-012 Add chat-confirmed Build Plan action
+## Task: P8-013 Add chat-confirmed Build Plan action
 
 ### Status
 
@@ -12566,7 +14336,7 @@ Codex must critically review this task against current frontend chat state, `Bui
 
 ---
 
-## Task: P8-013 Add Enter-to-send chat input behavior
+## Task: P8-014 Add Enter-to-send chat input behavior
 
 ### Status
 
@@ -12643,7 +14413,7 @@ Make `Enter` submit recruiter chat messages while preserving `Shift+Enter` for m
 
 - Do not remove the `Send` button.
 - Do not change chat message wording.
-- Do not add chat-confirmed Build Plan behavior; that belongs to `P8-012`.
+- Do not add chat-confirmed Build Plan behavior; that belongs to `P8-013`.
 - Do not auto-run `Build Plan`.
 - Do not auto-run `Approve & Search`.
 - Do not add database, persistence, saved searches, or memory.
@@ -12654,7 +14424,7 @@ Codex must critically review this task against current `app/static/app.js` chat 
 
 ---
 
-## Task: P8-014 Normalize chat assistant speaker title
+## Task: P8-015 Normalize chat assistant speaker title
 
 ### Status
 
