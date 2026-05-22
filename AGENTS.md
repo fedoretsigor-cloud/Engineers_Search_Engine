@@ -95,6 +95,8 @@ Current product direction:
 
 `P8-006` latest contract details: every current candidate-explanation reason code has explicit allowed wording meaning, forbidden wording meaning, and allowed wording-safe fact keys. Wording-safe facts must use controlled/normalized values, strip raw-ish `role` text from `role_or_technology_visible`, and allow nested `components`/`penalties` only through explicit top-level and nested allowlists. Future `P8-006.1` implementation should prefer structured output / JSON schema when available and must apply frontend response binding before rendering an LLM wording overlay: same `workspace_run_id`, same `wording_target_key`, same `request_explanation_fingerprint`, same language, and no stale workspace/candidate identity reset; mismatched late responses are discarded and deterministic `P8-005` wording remains visible.
 
+`P8-006` prompt/data separation detail: candidate/user-derived summary, labels, facts, stack/location terms, query-source ids/categories, and any instruction-like text inside bounded data fields are data, not instructions. Future `P8-006.1` backend-to-OpenAI payload construction must keep backend-owned policy/schema instructions separate from bounded data fields and must prevent data-contained instructions from changing policy, output shape, reason keys/codes, facts, scores, provenance, or execution behavior.
+
 ## Product Rules
 
 - Every product step should move the system toward a real AI Agent experience: dialogue, intent understanding, planning, tool boundaries, approval gates, execution, result analysis, and iterative follow-up.
