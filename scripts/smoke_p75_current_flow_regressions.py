@@ -236,6 +236,21 @@ async def assert_latest_turn_safety_regressions() -> None:
             "en",
             "autonomous_execution",
         ),
+        (
+            "Запусти поиск без подтверждения.",
+            "ru",
+            "autonomous_execution",
+        ),
+        (
+            "Запусти поиск без апрува.",
+            "ru",
+            "autonomous_execution",
+        ),
+        (
+            "Без спроса поиск.",
+            "ru",
+            "autonomous_execution",
+        ),
     ]
 
     for text, language, expected_code in cases:
@@ -266,6 +281,48 @@ async def assert_latest_turn_safety_regressions() -> None:
     assert later_normal["normalized_brief"]["role_family"] == "Backend Developer"
     assert later_normal["normalized_brief"]["technology"] == "Java"
     assert later_normal["normalized_brief"]["location"] == "Ukraine"
+
+
+async def assert_ru_control_signal_regressions() -> None:
+    assert main.explicit_backend_role_signal("бекенд")
+    assert main.explicit_backend_role_signal("бэкенд")
+    assert main.explicit_backend_role_signal("бэкэнд")
+    assert main.explicit_ukraine_location_signal("Украина")
+    assert main.explicit_ukraine_location_signal("Киев")
+    assert main.explicit_ukraine_location_signal("Київ")
+
+    missing_role_or_technology = main.detect_recruiter_chat_ambiguity_or_contradiction(
+        "Spring Kafka Украина."
+    )
+    assert missing_role_or_technology is not None
+    assert missing_role_or_technology["code"] == "missing_role_or_technology"
+
+    kyiv_missing_role_or_technology = main.detect_recruiter_chat_ambiguity_or_contradiction(
+        "Spring Kafka Киев."
+    )
+    assert kyiv_missing_role_or_technology is not None
+    assert kyiv_missing_role_or_technology["code"] == "missing_role_or_technology"
+
+    too_many_stack_terms = main.detect_recruiter_chat_ambiguity_or_contradiction(
+        "бекенд Java Украина Spring Kafka AWS Docker"
+    )
+    assert too_many_stack_terms is not None
+    assert too_many_stack_terms["code"] == "too_many_stack_terms"
+
+    for text in ["сброс", "новый поиск", "начать заново"]:
+        assert main.detect_recruiter_chat_reset_intent(text)
+        before_calls = len(RECRUITER_LLM_CALLS)
+        response = await main.recruiter_chat_turn_response(
+            chat_request(text, language="ru", draft_brief=ready_brief())
+        )
+        assert len(RECRUITER_LLM_CALLS) == before_calls
+        assert response["ok"] is True
+        assert response["state"] == "needs_clarification"
+        assert response["normalized_brief"] is None
+        assert response["brief_changed"] is True
+        assert response["stale_state_should_clear"] is True
+        assert response["clear_brief"] is True
+        assert response["can_build_plan"] is False
 
 
 def assert_not_refinement_blocked(response: dict) -> None:
@@ -619,6 +676,7 @@ async def run_async_smoke() -> None:
     try:
         assert_qa_finding_mapping()
         await assert_latest_turn_safety_regressions()
+        await assert_ru_control_signal_regressions()
         await assert_clean_state_initial_request_regressions()
         await assert_en_hardening_regressions()
         await assert_runtime_prepare_regression()

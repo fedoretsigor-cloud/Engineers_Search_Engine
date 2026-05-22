@@ -379,8 +379,8 @@ RECRUITER_CHAT_PROHIBITED_RULES = [
             r"\bwithout approval\b",
             r"\bautonomously\b",
             r"\bautomatic.{0,30}search\b",
-            r"Ð·Ð°Ð¿ÑƒÑÑ‚.{0,40}Ð¿Ð¾Ð¸ÑÐº.{0,40}Ð±ÐµÐ·.{0,20}(Ð°Ð¿Ñ€ÑƒÐ²|Ð¿Ð¾Ð´Ñ‚Ð²ÐµÑ€Ð¶|ÑÐ¿Ñ€Ð¾Ñ)",
-            r"Ð±ÐµÐ·.{0,20}(Ð°Ð¿Ñ€ÑƒÐ²|Ð¿Ð¾Ð´Ñ‚Ð²ÐµÑ€Ð¶|ÑÐ¿Ñ€Ð¾Ñ).{0,40}Ð¿Ð¾Ð¸ÑÐº",
+            r"запуст.{0,40}поиск.{0,40}без.{0,20}(апрув|одобр|подтверж|спрос)",
+            r"без.{0,20}(апрув|одобр|подтверж|спрос).{0,40}поиск",
         ],
     },
     {
@@ -1442,7 +1442,7 @@ def explicit_backend_role_signal(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     return bool(
         re.search(
-            r"\bbackend\b|Ð±ÐµÐºÐµÐ½Ð´|Ð±ÑÐºÐµÐ½Ð´",
+            r"\bbackend\b|бекенд|бэкенд|бэкэнд",
             normalized_text,
             flags=re.IGNORECASE,
         )
@@ -1461,7 +1461,7 @@ def explicit_ukraine_location_signal(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     return bool(
         re.search(
-            r"\bukraine\b|ÑƒÐºÑ€Ð°Ð¸Ð½|ÑƒÐºÑ€Ð°Ñ—Ð½|ÐºÐ¸Ñ—Ð²|ÐºÐ¸ÐµÐ²|\bkyiv\b|\bkiev\b|ukrane|ukraien|ukrain\b",
+            r"\bukraine\b|украин|україн|київ|киев|\bkyiv\b|\bkiev\b|ukrane|ukraien|ukrain\b",
             normalized_text,
             flags=re.IGNORECASE,
         )
@@ -1478,9 +1478,9 @@ def detect_recruiter_chat_reset_intent(text: str) -> bool:
         "new search",
         "start new search",
         "restart",
-        "Ð½Ð°Ñ‡Ð°Ñ‚ÑŒ Ð·Ð°Ð½Ð¾Ð²Ð¾",
-        "ÑÐ±Ñ€Ð¾Ñ",
-        "Ð½Ð¾Ð²Ñ‹Ð¹ Ð¿Ð¾Ð¸ÑÐº",
+        "начать заново",
+        "сброс",
+        "новый поиск",
     }
 
 

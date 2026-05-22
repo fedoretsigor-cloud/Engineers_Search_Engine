@@ -75,11 +75,18 @@
           </section>
 
           <section class="plan-panel" aria-live="polite">
-            <div class="panel-header">
-              <h2>Generated QueryPlan</h2>
-              <p id="plan-status">Building plan...</p>
-            </div>
-            <div class="query-list" id="query-list"></div>
+            <details class="collapsible-panel query-plan-collapsible">
+              <summary class="collapsible-summary">
+                <div class="panel-header">
+                  <h2>Generated QueryPlan</h2>
+                  <p id="plan-status">Building plan...</p>
+                </div>
+                <span class="collapse-indicator" aria-hidden="true"></span>
+              </summary>
+              <div class="collapsible-content">
+                <div class="query-list" id="query-list"></div>
+              </div>
+            </details>
           </section>
         </section>
 

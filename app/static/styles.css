@@ -375,6 +375,61 @@ textarea:focus {
   display: none;
 }
 
+.collapsible-panel,
+.collapsible-section {
+  min-width: 0;
+}
+
+.collapsible-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-summary .panel-header {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.collapsible-content {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.collapse-indicator {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #0a1220;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.collapse-indicator::after {
+  content: "Expand";
+}
+
+details[open] > .collapsible-summary .collapse-indicator::after {
+  content: "Collapse";
+}
+
+.query-plan-collapsible {
+  display: block;
+}
+
 .agent-action-queue {
   display: grid;
   gap: 10px;
@@ -385,14 +440,12 @@ textarea:focus {
 }
 
 .agent-action-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .agent-action-header h3 {
   margin: 0;
+  margin-right: auto;
   color: var(--text-strong);
   font-size: 14px;
   line-height: 1.25;
@@ -640,6 +693,10 @@ button:disabled {
   background: var(--panel-soft);
 }
 
+.planner-section.collapsible-section {
+  display: block;
+}
+
 .planner-section h3 {
   margin: 0;
   font-size: 14px;
@@ -686,11 +743,11 @@ button:disabled {
 }
 
 .brief-heading {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+}
+
+.brief-heading h3 {
+  margin-right: auto;
 }
 
 .brief-heading span {

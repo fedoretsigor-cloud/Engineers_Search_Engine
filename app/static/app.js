@@ -715,34 +715,37 @@ function renderBriefSummaryCard(brief = normalizedBrief, state = chatState) {
   ];
 
   const markup = `
-    <div class="planner-section">
-      <div class="brief-heading">
+    <details class="planner-section collapsible-section brief-collapsible">
+      <summary class="collapsible-summary brief-heading">
         <h3>Search Brief</h3>
         <span>${escapeHtml(plannerLabel(state))}</span>
+        <span class="collapse-indicator" aria-hidden="true"></span>
+      </summary>
+      <div class="collapsible-content">
+        <div class="brief-grid">
+          ${fields
+            .map(
+              ([label, value]) => `
+                <div>
+                  <span>${escapeHtml(label)}</span>
+                  <strong>${escapeHtml(displayValue(value))}</strong>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+        ${
+          brief.assumptions?.length
+            ? `<p class="planner-note">Assumptions: ${escapeHtml(brief.assumptions.join(", "))}</p>`
+            : ""
+        }
+        ${
+          brief.missing_fields?.length
+            ? `<p class="planner-note">Missing: ${escapeHtml(brief.missing_fields.join(", "))}</p>`
+            : ""
+        }
       </div>
-      <div class="brief-grid">
-        ${fields
-          .map(
-            ([label, value]) => `
-              <div>
-                <span>${escapeHtml(label)}</span>
-                <strong>${escapeHtml(displayValue(value))}</strong>
-              </div>
-            `
-          )
-          .join("")}
-      </div>
-      ${
-        brief.assumptions?.length
-          ? `<p class="planner-note">Assumptions: ${escapeHtml(brief.assumptions.join(", "))}</p>`
-          : ""
-      }
-      ${
-        brief.missing_fields?.length
-          ? `<p class="planner-note">Missing: ${escapeHtml(brief.missing_fields.join(", "))}</p>`
-          : ""
-      }
-    </div>
+    </details>
   `;
 
   briefSummaryPanel.hidden = false;
@@ -898,51 +901,60 @@ function renderAgentActionQueue() {
 
   const items = agentActionQueueItems();
   const header = `
-    <div class="agent-action-header">
+    <summary class="collapsible-summary agent-action-header">
       <h3>Agent Actions</h3>
       <span>${escapeHtml(items.length ? `${items.length} active` : "idle")}</span>
-    </div>
+      <span class="collapse-indicator" aria-hidden="true"></span>
+    </summary>
   `;
 
   if (!items.length) {
     agentActionQueueElement.innerHTML = `
-      ${header}
-      <p class="agent-action-empty">No agent action is ready yet.</p>
+      <details class="collapsible-section agent-action-collapsible">
+        ${header}
+        <div class="collapsible-content">
+          <p class="agent-action-empty">No agent action is ready yet.</p>
+        </div>
+      </details>
     `;
     return;
   }
 
   agentActionQueueElement.innerHTML = `
-    ${header}
-    <div class="agent-action-list">
-      ${items
-        .map((item) => {
-          const statusClass = `status-${item.status.replaceAll("_", "-")}`;
-          return `
-            <article class="agent-action-item">
-              <div class="agent-action-title">
-                <strong>${escapeHtml(item.title)}</strong>
-                <span class="agent-action-status ${escapeHtml(statusClass)}">${escapeHtml(
-                  actionStatusLabel(item.status)
-                )}</span>
-              </div>
-              <p class="agent-action-detail">${escapeHtml(item.detail)}</p>
-              <div class="agent-action-context">
-                <div>
-                  <span>Tool</span>
-                  <strong>${escapeHtml(item.action)}</strong>
-                </div>
-                <div>
-                  <span>Approval</span>
-                  <strong>${item.requiresApproval ? "Required" : "Not required"}</strong>
-                </div>
-                ${renderAgentActionContext(item.context)}
-              </div>
-            </article>
-          `;
-        })
-        .join("")}
-    </div>
+    <details class="collapsible-section agent-action-collapsible">
+      ${header}
+      <div class="collapsible-content">
+        <div class="agent-action-list">
+          ${items
+            .map((item) => {
+              const statusClass = `status-${item.status.replaceAll("_", "-")}`;
+              return `
+                <article class="agent-action-item">
+                  <div class="agent-action-title">
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <span class="agent-action-status ${escapeHtml(statusClass)}">${escapeHtml(
+                      actionStatusLabel(item.status)
+                    )}</span>
+                  </div>
+                  <p class="agent-action-detail">${escapeHtml(item.detail)}</p>
+                  <div class="agent-action-context">
+                    <div>
+                      <span>Tool</span>
+                      <strong>${escapeHtml(item.action)}</strong>
+                    </div>
+                    <div>
+                      <span>Approval</span>
+                      <strong>${item.requiresApproval ? "Required" : "Not required"}</strong>
+                    </div>
+                    ${renderAgentActionContext(item.context)}
+                  </div>
+                </article>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    </details>
   `;
 }
 

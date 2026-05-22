@@ -9204,6 +9204,7 @@ None.
 - [x] P7.5-009 Add regression coverage for fixed issues
 - [x] P7.5-011 Implement immediate EN/mixed hardening fixes
 - [x] P7.5-010 Close Phase 7.5 with Phase 8 readiness decision
+- [x] P7.5-012 Backfill RU regression hardening for chat control signals
 
 ### Final Phase 7.5 closeout note
 
@@ -9217,7 +9218,7 @@ OpenAI live calls were allowed where the current product already used them, if c
 
 QA covered both Russian and English recruiter communication. Findings were documented first, then approved fixes were implemented in `P7.5-008` and `P7.5-011`, with regression coverage in `P7.5-009` and the extended P7.5 smoke.
 
-P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. P7.5-011 implemented immediate fixes for the EN/mixed findings `P75-QA-008` through `P75-QA-014` and extended the no-network P7.5 regression smoke. A later targeted browser retest found two additional hardening issues in the same closeout area: LLM/brief stack fact contamination for Docker/Kubernetes and stale ready-flow status after stack explanation. Commit `6e3df0c` fixed those issues and passed local regression checks, targeted browser retest, CI, and no-LinkedIn/no-Tavily-boundary checks.
+P7.5-004 completed the RU browser QA pass and P7.5-006 consolidated the first RU findings early because the RU pass found product-blocking issues before EN/mixed QA. P7.5-008/P7.5-009 fixed and covered the approved-search/safety/classification blockers. P7.5-005 then completed the EN/mixed browser QA pass in `docs/phase-7-5-en-browser-qa-results.md`: 57/57 scenarios run, 37 pass, 20 fail, 0 blocked, and 1 approved live Tavily execution through visible `Approve & Search` for `CORE-EN-001`. P7.5-011 implemented immediate fixes for the EN/mixed findings `P75-QA-008` through `P75-QA-014` and extended the no-network P7.5 regression smoke. A later targeted browser retest found two additional hardening issues in the same closeout area: LLM/brief stack fact contamination for Docker/Kubernetes and stale ready-flow status after stack explanation. Commit `6e3df0c` fixed those issues and passed local regression checks, targeted browser retest, CI, and no-LinkedIn/no-Tavily-boundary checks. P7.5-012 later backfilled RU regression hardening for chat control signals without reopening Phase 7.5 or changing the Phase 8 handoff.
 
 Final closeout artifact: `docs/phase-7-5-closeout.md`.
 
@@ -10826,6 +10827,60 @@ Run `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision` after reviewing w
 
 ---
 
+## Task: P7.5-012 Backfill RU regression hardening for chat control signals
+
+### Status
+
+Approved and implemented as post-closeout regression hardening.
+
+This task does not reopen Phase 7.5. It formalizes a focused RU control-signal repair discovered after Phase 7.5 closeout while keeping Phase 8 as the active phase.
+
+### Context
+
+After Phase 7.5 was closed, additional RU branch checks showed that several Russian control-signal patterns were stored as mojibake text in `app/main.py`. That made the code harder to read and created risk around Russian recruiter-chat guardrails.
+
+The affected areas were:
+
+- RU autonomous-search-without-approval safety detection;
+- RU backend role signal detection;
+- RU Ukraine/Kyiv location signal detection;
+- RU reset intent detection.
+
+### Goal
+
+Make Russian recruiter-chat control-signal handling explicit, readable, and covered by no-network regression tests.
+
+This should strengthen the existing Phase 7.5 guardrails without changing product scope, supported flow, search execution, Candidate Quality, Tavily behavior, planner behavior, or Phase 8 candidate workspace scope.
+
+### Implementation Result
+
+Implemented focused hardening:
+
+- replaced mojibake RU regex/control strings in `app/main.py` with readable Russian patterns;
+- covered `Запусти поиск без подтверждения`, `Запусти поиск без апрува`, and `Без спроса поиск` as autonomous-execution refusal cases;
+- covered `бекенд`, `бэкенд`, and `бэкэнд` as explicit backend role signals;
+- covered `Украина`, `Киев`, and `Київ` as explicit target-location signals;
+- covered `сброс`, `новый поиск`, and `начать заново` as reset intents;
+- extended `scripts/smoke_p75_current_flow_regressions.py` with the new RU control-signal checks.
+
+### Boundaries
+
+- No Tavily execution was added or run for this task.
+- No OpenAI behavior was changed.
+- No direct web-search bypass was added.
+- No LinkedIn login, scraping, profile opening, restriction bypass, outreach, candidate messaging, or account action was added.
+- No autonomous execution was added.
+- No planner, QueryPlan, Candidate Quality, scoring, filtering, dedupe, location filtering, search result, snapshot, or runtime approval behavior was changed beyond the explicit RU guardrail/readability repair.
+- No Phase 8 Candidate Workspace/Table, shortlist, notes/statuses, export, persistence, saved searches, memory, new countries, new roles, or new search sources were added.
+
+### Verification Result
+
+- Targeted RU behavior checks passed.
+- `.venv\Scripts\python.exe scripts\smoke_p75_current_flow_regressions.py` passed.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passed.
+
+---
+
 ## Phase 8 - Candidate Workspace/Table + Shortlist
 
 ### Approved
@@ -10843,6 +10898,9 @@ Run `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision` after reviewing w
 - [ ] P8-009 Define conservative off-topic and unclear/noise classification policy
 - [ ] P8-010 Apply Russian answers to pending clarification fields
 - [ ] P8-011 Localize next iteration options in Agent Response
+- [ ] P8-012 Add chat-confirmed Build Plan action
+- [ ] P8-013 Add Enter-to-send chat input behavior
+- [ ] P8-014 Normalize chat assistant speaker title
 
 ### In Progress
 
@@ -10853,6 +10911,8 @@ Run `P7.5-010 Close Phase 7.5 with Phase 8 readiness decision` after reviewing w
 Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`.
 
 Phase 8 should start with `P8-001 Define candidate workspace contract`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
+
+Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without changing search execution boundaries. These tasks must keep `Build Plan` separate from Tavily execution and keep `Approve & Search` as the explicit approval gate before real search.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Candidate workspace/table implementation should not start until its contract task is reviewed and approved.
 
@@ -11456,6 +11516,287 @@ This is a deterministic localization task. It must not make `next_iteration_opti
 ### Before Coding
 
 Codex must critically review this task against `app/agent_response.py`, `app/agent_messages.py`, `app/static/app.js`, Phase 7 message facts/wording contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-012 Add chat-confirmed Build Plan action
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Current ready Search Brief chat message tells the recruiter to review the summary and click `Build Plan`.
+
+Observed wording:
+
+`Search Brief is ready. Review the summary and click Build Plan.`
+
+This is functional, but it still feels like a form workflow. The desired AI Agent direction is more conversational: when the Search Brief becomes ready, the agent should ask whether to build the Search Plan, and a recruiter answer like `yes` / `да` should trigger the existing Build Plan flow.
+
+The important boundary: this must not run Tavily. Building a Search Plan is still only planner preview / plan preparation. Real search remains behind explicit `Approve & Search`.
+
+### Goal
+
+Allow the recruiter to confirm `Build Plan` from chat after a ready Search Brief.
+
+Instead of only saying `click Build Plan`, the agent should ask whether to build the Search Plan. If the recruiter answers yes to the current pending action, the frontend should run the existing Build Plan flow and then show the normal Agent Plan / Search Plan UI.
+
+### Proposed Steps
+
+1. Keep the existing backend meaning and approval model:
+   - ready Search Brief still comes from `/api/recruiter-chat/turn`;
+   - Agent Plan still comes from `/api/agent/plan`;
+   - Search Plan still comes from `/api/agent/query-plan`;
+   - Tavily execution still requires explicit `Approve & Search` through Agent Runtime.
+
+2. Introduce a frontend/session-only pending chat action:
+   - action type: `build_search_plan`;
+   - source: current ready Search Brief / current supported Agent Plan;
+   - bind it to the current Search Brief fingerprint or equivalent current brief identity;
+   - clear it when Search Brief changes, Agent Plan changes, planner state changes, refusal/reset happens, or search results replace the planning state.
+
+3. Update ready Search Brief chat copy:
+   - replace `click Build Plan` wording with a question like `Build the Search Plan now?`;
+   - RU wording should ask the same clearly, for example `Построить Search Plan?`;
+   - keep the existing button as a visible fallback unless a separate reviewed task removes it.
+
+4. Detect yes/no replies only in the right context:
+   - accept short confirmations such as `yes`, `yep`, `build it`, `да`, `давай`, `построй`, `строим`;
+   - accept refusals such as `no`, `not now`, `нет`, `пока нет`;
+   - only interpret these replies when the latest pending action is `build_search_plan`;
+   - if there is no matching pending action, do not treat `да` as a command.
+
+5. Run the existing Build Plan flow on valid confirmation:
+   - use the same frontend function/path as the current `Build Plan` button;
+   - do not create a second backend endpoint for this task unless the review finds it necessary;
+   - do not bypass Agent Plan action/fingerprint validation;
+   - do not auto-run `Approve & Search`.
+
+6. Render clear chat feedback:
+   - after confirmation, show that the agent is building the Search Plan;
+   - after success, show the existing Agent Plan / Search Plan surfaces normally;
+   - if the plan is stale or unsupported, ask the recruiter to rebuild/clarify instead of silently doing nothing.
+
+7. Add regression coverage:
+   - ready Search Brief creates a pending `build_search_plan` chat action;
+   - `да` / `yes` with matching pending action triggers Build Plan path;
+   - `да` without pending action does not trigger Build Plan;
+   - stale Search Brief / stale pending action does not trigger Build Plan;
+   - refusal `нет` clears or dismisses the pending chat action without clearing the Search Brief;
+   - Tavily/runtime execute path is not called by chat confirmation.
+
+8. Add browser sanity check after coding:
+   - create a ready Java/Ukraine Search Brief;
+   - confirm in chat with `да` or `yes`;
+   - verify Search Plan is built;
+   - verify `Approve & Search` still requires explicit click and no search runs from the yes reply.
+
+### Critical Review Notes
+
+- This is a conversational UX improvement, not a new execution capability.
+- The pending action must be scoped and stale-safe. A naked `да` must never trigger Build Plan unless the current agent state explicitly asked for that confirmation.
+- This task should keep the button fallback for safety and accessibility unless a later reviewed task removes it.
+- The task must not weaken `/api/agent/query-plan` backend validation. Frontend convenience cannot become authority.
+- This should not add persistence, database state, saved sessions, or long-term memory.
+
+### Acceptance Criteria
+
+- Ready Search Brief chat asks whether to build the Search Plan instead of only telling the recruiter to click `Build Plan`.
+- A short RU/EN yes answer triggers the existing Build Plan path only when a fresh matching pending `build_search_plan` action exists.
+- A short yes answer without matching pending action does not trigger Build Plan.
+- A stale pending action does not trigger Build Plan.
+- A no/not-now answer dismisses the pending action without clearing the Search Brief.
+- The existing `Build Plan` button remains available as fallback.
+- Tavily search is not executed by the chat confirmation.
+- `Approve & Search` remains the separate explicit approval before real search.
+- No direct web search, LinkedIn access, account action, autonomous execution, persistence, memory, candidate workspace behavior, scoring/filter/dedupe/location changes, or new search source is added.
+
+### Non-Goals
+
+- Do not remove the `Build Plan` button in this task.
+- Do not auto-run `Approve & Search`.
+- Do not change Tavily execution, Agent Runtime execution, approval rules, QueryPlan semantics, planner logic, scoring, filters, dedupe, location logic, Candidate Quality, snapshots, or results.
+- Do not add candidate workspace/table behavior.
+- Do not add database, persistence, saved searches, or memory.
+- Do not make AI-generated QueryPlans executable.
+
+### Before Coding
+
+Codex must critically review this task against current frontend chat state, `Build Plan` flow, Agent Plan action/fingerprint validation, Agent Runtime approval boundaries, Phase 7 message facts/wording contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-013 Add Enter-to-send chat input behavior
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Current recruiter chat uses a multiline textarea and a visible `Send` button. This is safe, but slower than normal chat behavior.
+
+Expected chat UX:
+
+- `Enter` sends the current message;
+- `Shift+Enter` inserts a new line;
+- the visible `Send` button remains available.
+
+This should be a frontend-only input ergonomics task. It must not change backend chat semantics, Search Brief extraction, Agent Plan, Build Plan, approval, runtime, Tavily, results, or candidate workspace behavior.
+
+### Goal
+
+Make `Enter` submit recruiter chat messages while preserving `Shift+Enter` for multiline messages.
+
+### Proposed Steps
+
+1. Add keyboard handling on `textarea#chat-input`:
+   - listen for `keydown`;
+   - if key is `Enter` and `Shift` is not pressed, prevent the default newline and submit the current chat form;
+   - if key is `Enter` with `Shift`, allow the normal newline behavior.
+
+2. Reuse the existing send path:
+   - call the same form submit / send flow used by the `Send` button;
+   - do not duplicate chat request logic;
+   - do not add a new backend endpoint.
+
+3. Respect current disabled/busy state:
+   - do not submit if the message is empty or whitespace-only;
+   - do not submit if `sendChatButton.disabled` is true;
+   - do not submit while the current chat request is in flight;
+   - preserve current validation/error handling.
+
+4. Preserve multiline input:
+   - `Shift+Enter` should insert a line break;
+   - multiline text should still be sent normally when the recruiter later presses `Enter` without `Shift` or clicks `Send`.
+
+5. Add frontend/static regression coverage:
+   - verify an Enter handler exists for `chatInput`;
+   - verify it checks `event.key === "Enter"`;
+   - verify it checks `!event.shiftKey`;
+   - verify it calls `preventDefault()`;
+   - verify it reuses the existing send/form path rather than creating a second API call path.
+
+6. Add browser sanity check after coding:
+   - type a short message and press `Enter`; verify it appears in chat as sent;
+   - type `line 1`, press `Shift+Enter`, type `line 2`; verify the textarea keeps the newline;
+   - verify no search runs from sending a message unless the normal approved flow later reaches `Approve & Search`.
+
+### Critical Review Notes
+
+- This is frontend chat ergonomics only.
+- Do not change backend behavior.
+- Do not treat Enter as approval for search or Build Plan.
+- Do not trigger `Build Plan`, Agent Runtime, Tavily, or any external action from this keyboard shortcut.
+- Keep the `Send` button as an accessible fallback.
+
+### Acceptance Criteria
+
+- Pressing `Enter` in the recruiter chat textarea sends the message through the existing chat send flow.
+- Pressing `Shift+Enter` inserts a newline and does not send.
+- Empty/whitespace-only input is not sent.
+- Disabled/busy send state is respected.
+- The existing `Send` button still works.
+- No backend API contract, Search Brief semantics, Agent Plan, Build Plan, approval, runtime execution, Tavily, results, scoring, filters, dedupe, location logic, candidate workspace, persistence, memory, or search source behavior changes.
+
+### Non-Goals
+
+- Do not remove the `Send` button.
+- Do not change chat message wording.
+- Do not add chat-confirmed Build Plan behavior; that belongs to `P8-012`.
+- Do not auto-run `Build Plan`.
+- Do not auto-run `Approve & Search`.
+- Do not add database, persistence, saved searches, or memory.
+
+### Before Coding
+
+Codex must critically review this task against current `app/static/app.js` chat submit flow, disabled/busy state handling, frontend smoke coverage, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+
+---
+
+## Task: P8-014 Normalize chat assistant speaker title
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Current typed chat messages expose different speaker/title labels in the UI, for example:
+
+- `AI - Onboarding`
+- `AI - Search Brief`
+- `AI Agent - Agent Plan`
+
+Internally these message types are useful, but visually they make the chat feel like several different systems are answering the recruiter. For the user, it should feel like one assistant/agent speaking through different message types.
+
+Desired direction:
+
+- show one consistent assistant speaker title, for example `AI Assistant`;
+- keep internal `message_type`, `kind`, payload, styling classes, and backend message facts unchanged.
+
+### Goal
+
+Normalize the visible speaker/title for assistant and agent chat messages to one universal label.
+
+### Proposed Steps
+
+1. Keep internal message classification unchanged:
+   - do not rename `AGENT_MESSAGE_TYPES`;
+   - do not change backend message types;
+   - do not change message payloads, facts, provenance, or state logic.
+
+2. Update frontend display label:
+   - typed assistant/agent messages should render the same visible speaker title: `AI Assistant`;
+   - user messages should continue to render as `You`;
+   - system error/safety/tool messages may still use the same `AI Assistant` speaker while preserving their visual severity styling.
+
+3. Preserve visual differentiation by style, not by speaker name:
+   - keep existing typed message CSS classes such as onboarding, brief summary, agent plan, safety, validation, agent response;
+   - do not flatten all message styling into one look;
+   - only normalize the visible title/speaker string.
+
+4. Add static/frontend regression coverage:
+   - verify typed assistant messages use the unified visible speaker label;
+   - verify internal `messageType` labels/classes still exist for rendering and styling;
+   - verify user message title remains `You`;
+   - verify no backend API contract changes are needed.
+
+5. Add browser sanity check after coding:
+   - trigger onboarding/clarification;
+   - create a Search Brief;
+   - produce Agent Plan;
+   - verify all assistant/agent chat message headers show `AI Assistant` consistently.
+
+### Critical Review Notes
+
+- This is UI consistency only.
+- Do not change the message taxonomy contract from Phase 7.
+- Do not remove internal message labels/classes used for styling or tests.
+- Do not change assistant wording, Search Brief extraction, Agent Plan, Build Plan, approval, runtime, Tavily, results, scoring, filters, dedupe, location logic, or candidate workspace behavior.
+
+### Acceptance Criteria
+
+- All assistant/agent typed messages show a single visible speaker/title, e.g. `AI Assistant`.
+- User messages still show `You`.
+- Internal message types and CSS classes remain available for logic/styling.
+- Existing visual severity/type styling is preserved.
+- No backend API contract, Search Brief semantics, Agent Plan, Build Plan, approval, runtime execution, Tavily, results, scoring, filters, dedupe, location logic, candidate workspace, persistence, memory, or search source behavior changes.
+
+### Non-Goals
+
+- Do not rename backend message types.
+- Do not change message taxonomy or facts contracts.
+- Do not rewrite chat wording.
+- Do not add LLM wording behavior.
+- Do not change execution or approval behavior.
+- Do not add candidate workspace/table behavior.
+
+### Before Coding
+
+Codex must critically review this task against `AGENT_MESSAGE_TYPE_META`, `renderTypedChatMessage`, Phase 7 message taxonomy/facts contracts, frontend smoke coverage, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
 
 ---
 
