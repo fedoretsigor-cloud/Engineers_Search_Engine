@@ -16,6 +16,7 @@ AGENT_WORDING_FALLBACK_NOT_CONFIGURED = "openai_not_configured"
 AGENT_WORDING_TIMEOUT_SECONDS = 8.0
 AGENT_WORDING_USE_CASE_AGENT_PLAN = "agent_plan"
 AGENT_WORDING_USE_CASE_AGENT_RESPONSE = "agent_response"
+AGENT_WORDING_USE_CASE_RECRUITER_CHAT_ONBOARDING = "recruiter_chat_onboarding"
 AGENT_WORDING_TAXONOMY_VERSION = "phase_7_agent_message_taxonomy_v0"
 AGENT_WORDING_FACTS_CONTRACT_VERSION = "phase_7_message_facts_contract_v0"
 AGENT_WORDING_STYLE_POLICY_VERSION = "phase_7_agent_wording_style_policy_v0"
@@ -45,7 +46,7 @@ def agent_wording_system_prompt() -> str:
     return (
         "You are a bounded wording helper for a human-approved recruiting agent. "
         "Return one valid JSON object only. Your only job is to make the provided "
-        "deterministic Agent Plan or Agent Response text clearer and more natural. "
+        "deterministic Agent Plan, Agent Response, or onboarding text clearer and more natural. "
         "You must not browse, search, call tools, access LinkedIn, log in, scrape, "
         "message candidates, act on accounts, change facts, change counts, change "
         "actions, change approval rules, or create executable next steps."

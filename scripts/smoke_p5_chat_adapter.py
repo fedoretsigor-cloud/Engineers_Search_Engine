@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -101,8 +102,14 @@ async def fake_recruiter_chat_llm(
 
 
 async def run_smoke() -> None:
+    original_env = {
+        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+        "OPENAI_MODEL": os.environ.get("OPENAI_MODEL"),
+    }
     original_llm = main.run_openai_json_recruiter_chat
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_llm
+    os.environ.pop("OPENAI_API_KEY", None)
+    os.environ.pop("OPENAI_MODEL", None)
 
     try:
         assert any(
@@ -333,6 +340,11 @@ async def run_smoke() -> None:
 
     finally:
         main.run_openai_json_recruiter_chat = original_llm
+        for key, value in original_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 if __name__ == "__main__":

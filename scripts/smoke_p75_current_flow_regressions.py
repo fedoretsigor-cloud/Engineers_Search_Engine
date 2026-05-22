@@ -434,23 +434,23 @@ async def assert_en_hardening_regressions() -> None:
         ),
         (
             "What's the weather in Kyiv?",
-            "sourcing flow",
+            "sourcing",
         ),
         (
             "How are you?",
-            "sourcing flow",
+            "sourcing",
         ),
         (
             "Write me a poem.",
-            "sourcing flow",
+            "sourcing",
         ),
         (
             "Recommend a restaurant in Kyiv.",
-            "sourcing flow",
+            "sourcing",
         ),
         (
             "Who is the US president?",
-            "sourcing flow",
+            "sourcing",
         ),
     ]
 
@@ -641,7 +641,7 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert 'else if (chatState !== "refused")' in update_chat_body
     assert "chatStatusElement.textContent = readyBriefChatStatus();" in update_chat_body
     assert "hasSupportedAgentAction()" in ready_status_body
-    assert "Agent Plan ready. Build Plan is available." in ready_status_body
+    assert "Agent Plan ready. Build the Search Plan from chat or the button." in ready_status_body
     refusal_branch_start = update_chat_body.index('if (chatState === "refused")')
     assert "clearExecutableStateAfterRefusal();" in update_chat_body[refusal_branch_start:]
 

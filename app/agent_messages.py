@@ -377,11 +377,11 @@ def ready_for_planning_source_message(language: str) -> str:
     if language == "ru":
         return (
             "Search Brief \u0441\u043e\u0431\u0440\u0430\u043d. "
-            "\u041f\u0440\u043e\u0432\u0435\u0440\u044c summary \u0438 "
-            "\u043d\u0430\u0436\u043c\u0438 Build Plan."
+            "\u041f\u0440\u043e\u0432\u0435\u0440\u044c summary. "
+            "\u041f\u043e\u0441\u0442\u0440\u043e\u0438\u0442\u044c Search Plan?"
         )
 
-    return "Search Brief is ready. Review the summary and click Build Plan."
+    return "Search Brief is ready. Review the summary. Build the Search Plan now?"
 
 
 def validation_error_source_message(
@@ -838,7 +838,17 @@ def agent_response_suggested_next_actions_source_messages(
 
 def next_iteration_review_high_quality_candidates_source_copy(
     strong_count: int,
+    language: str = "en",
 ) -> tuple[str, str]:
+    if language == "ru":
+        return (
+            "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c strong candidates",
+            (
+                f"{strong_count} \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u0432 strong quality bucket. "
+                "\u042d\u0442\u043e \u0442\u043e\u043b\u044c\u043a\u043e review-focus \u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u0435; "
+                "\u043e\u043d\u043e \u043d\u0435 \u043c\u0435\u043d\u044f\u0435\u0442 Search Brief."
+            ),
+        )
     return (
         "Review high-quality candidates first",
         (
@@ -851,7 +861,17 @@ def next_iteration_review_high_quality_candidates_source_copy(
 def next_iteration_narrow_visible_stack_source_copy(
     visible_selected_stack: list[str],
     missing_selected_stack: list[str],
+    language: str = "en",
 ) -> tuple[str, str]:
+    if language == "ru":
+        return (
+            "\u0421\u0443\u0437\u0438\u0442\u044c stack \u0434\u043e \u0432\u0438\u0434\u0438\u043c\u044b\u0445 selected terms",
+            (
+                "\u0412 \u0442\u0435\u043a\u0443\u0449\u0438\u0445 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u0430\u0445 \u043f\u0440\u044f\u043c\u043e \u0432\u0438\u0434\u043d\u044b "
+                f"{', '.join(visible_selected_stack)}, \u0430 "
+                f"{', '.join(missing_selected_stack)} \u043d\u0435 \u0432\u0438\u0434\u043d\u044b \u0432 returned snippets."
+            ),
+        )
     return (
         "Narrow stack to visible selected terms",
         (
@@ -865,7 +885,16 @@ def next_iteration_narrow_visible_stack_source_copy(
 def next_iteration_broaden_observed_stack_source_copy(
     term: str,
     count: int,
+    language: str = "en",
 ) -> tuple[str, str]:
+    if language == "ru":
+        return (
+            f"\u0420\u0430\u0441\u0448\u0438\u0440\u0438\u0442\u044c stack \u0447\u0435\u0440\u0435\u0437 {term}",
+            (
+                f"{term} \u0432\u0438\u0434\u0435\u043d \u0443 {count} returned candidates, "
+                "\u043d\u043e \u0435\u0433\u043e \u043d\u0435\u0442 \u0432 selected stack."
+            ),
+        )
     return (
         f"Broaden stack with {term}",
         (
@@ -875,7 +904,16 @@ def next_iteration_broaden_observed_stack_source_copy(
     )
 
 
-def next_iteration_clarify_stack_source_copy() -> tuple[str, str]:
+def next_iteration_clarify_stack_source_copy(language: str = "en") -> tuple[str, str]:
+    if language == "ru":
+        return (
+            "\u0423\u0442\u043e\u0447\u043d\u0438\u0442\u044c stack preference",
+            (
+                "Selected stack \u043d\u0435 \u0432\u0438\u0434\u0435\u043d \u0432 returned public snippets. "
+                "\u0421\u0430\u043c\u044b\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 next step - \u0443\u0442\u043e\u0447\u043d\u0438\u0442\u044c, "
+                "\u043e\u0441\u0442\u0430\u0432\u0438\u0442\u044c \u0438\u043b\u0438 \u0437\u0430\u043c\u0435\u043d\u0438\u0442\u044c \u044d\u0442\u043e\u0442 stack."
+            ),
+        )
     return (
         "Clarify stack preference",
         (
@@ -885,7 +923,16 @@ def next_iteration_clarify_stack_source_copy() -> tuple[str, str]:
     )
 
 
-def next_iteration_deep_search_source_copy() -> tuple[str, str]:
+def next_iteration_deep_search_source_copy(language: str = "en") -> tuple[str, str]:
+    if language == "ru":
+        return (
+            "\u041f\u043e\u043f\u0440\u043e\u0431\u043e\u0432\u0430\u0442\u044c deep search depth",
+            (
+                "\u0422\u0435\u043a\u0443\u0449\u0438\u0439 Search Brief \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0435\u0442 standard depth. "
+                "Deep depth - \u044d\u0442\u043e brief-level change, \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0432\u0441\u0435 \u0435\u0449\u0435 "
+                "\u0442\u0440\u0435\u0431\u0443\u0435\u0442 Build Plan \u0438 approval."
+            ),
+        )
     return (
         "Try deep search depth",
         (

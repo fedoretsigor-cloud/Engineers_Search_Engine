@@ -154,6 +154,7 @@ from app.agent_wording import (
     AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
     AGENT_WORDING_MODE_LLM_ASSISTED,
     AGENT_WORDING_TIMEOUT_SECONDS,
+    AGENT_WORDING_USE_CASE_RECRUITER_CHAT_ONBOARDING,
     OPENAI_AGENT_WORDING_MAX_COMPLETION_TOKENS,
     agent_plan_wording_payload,
     agent_response_wording_payload,
@@ -167,6 +168,7 @@ from app.agent_wording import (
     agent_wording_system_prompt,
     agent_wording_text_values,
     agent_wording_user_prompt,
+    build_agent_wording_provenance,
     apply_llm_wording_to_agent_plan as _apply_llm_wording_to_agent_plan,
     apply_llm_wording_to_agent_response as _apply_llm_wording_to_agent_response,
     normalize_agent_wording_limitations,
@@ -181,6 +183,7 @@ from app.brief_patch import (
     BRIEF_PATCH_RECONFIRM_FIELD,
     BRIEF_PATCH_REMOVE_STACK,
     BRIEF_PATCH_REPLACE_STACK,
+    BRIEF_PATCH_SET_LOCATION,
     BRIEF_PATCH_SET_SEARCH_DEPTH,
     BRIEF_PATCH_SET_SENIORITY,
     BRIEF_PATCH_UNSUPPORTED,
@@ -1446,7 +1449,7 @@ def explicit_backend_role_signal(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     return bool(
         re.search(
-            r"\bbackend\b|бекенд|бэкенд|бэкэнд",
+            r"\bbackend\b|\bdeveloper\b|\bengineer\b|бекенд|бэкенд|бэкэнд|разработчик|программист",
             normalized_text,
             flags=re.IGNORECASE,
         )
@@ -1456,7 +1459,10 @@ def explicit_backend_role_signal(text: str) -> bool:
 def explicit_java_technology_signal(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     return bool(
-        re.search(r"(?<![a-z0-9])java(?![a-z0-9])", normalized_text)
+        (
+            re.search(r"(?<![a-z0-9])java(?![a-z0-9])", normalized_text)
+            or re.search(r"джава|джав[аы]", normalized_text, flags=re.IGNORECASE)
+        )
         and not re.search(r"(?<![a-z0-9])javascript(?![a-z0-9])", normalized_text)
     )
 
@@ -1500,19 +1506,68 @@ def detect_recruiter_chat_off_topic_intent(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     if not normalized_text:
         return False
+    if has_sourcing_or_recruiter_context_signal_for_off_topic(normalized_text):
+        return False
 
     off_topic_patterns = [
         r"\bweather\b",
         r"\bhow are you\b",
         r"\bwrite.{0,20}poem\b",
         r"\bpoem\b",
+        r"\bcurrency\b|\bexchange rate\b|\bdollar rate\b",
         r"\brecommend.{0,30}restaurant\b",
         r"\brestaurant\b",
         r"\bwho is.{0,30}(president|prime minister)\b",
         r"\bus president\b",
         r"\bcurrent affairs\b",
+        r"погод",
+        r"курс.{0,20}(доллар|долар|usd)|доллар.{0,20}курс|долар.{0,20}курс",
+        r"новост|ресторан|стих|анекдот",
     ]
     return text_matches_any_pattern(normalized_text, off_topic_patterns)
+
+
+def detect_recruiter_chat_unclear_request(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+    if has_sourcing_or_recruiter_context_signal(normalized_text):
+        return False
+    if is_greeting_only_chat_message(normalized_text):
+        return False
+    if detect_recruiter_chat_off_topic_intent(normalized_text):
+        return False
+
+    compact_text = re.sub(r"\s+", "", normalized_text)
+    if len(compact_text) < 6:
+        return False
+
+    if re.search(r"([a-zа-яіїєґ]{1,3})\1{2,}", compact_text, flags=re.IGNORECASE):
+        return True
+    if re.search(r"([a-zа-яіїєґ])([a-zа-яіїєґ])\1\2\1\2", compact_text, flags=re.IGNORECASE):
+        return True
+
+    tokens = re.findall(r"[a-zа-яіїєґ]+", normalized_text, flags=re.IGNORECASE)
+    if not tokens:
+        return True
+    if len(tokens) == 1 and len(tokens[0]) >= 10:
+        vowels = re.findall(r"[aeiouyаеёиоуыэюяіїє]", tokens[0], flags=re.IGNORECASE)
+        return len(vowels) / max(len(tokens[0]), 1) < 0.25
+
+    known_short_words = {
+        "what",
+        "which",
+        "who",
+        "how",
+        "why",
+        "какая",
+        "какой",
+        "что",
+        "кто",
+        "как",
+        "почему",
+    }
+    return len(tokens) <= 2 and all(token not in known_short_words for token in tokens)
 
 
 def detect_recruiter_chat_ambiguity_or_contradiction(text: str) -> dict | None:
@@ -1979,10 +2034,13 @@ def deterministic_chat_brief_hints(source_text: str) -> dict:
         "profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
     }
 
-    if re.search(r"\bbackend\b|бекенд|бэкенд", lowered_text):
+    if re.search(r"\bbackend\b|бекенд|бэкенд|бэкэнд|разработчик|программист", lowered_text):
         hints["role_family"] = "Backend Developer"
 
-    if re.search(r"\bjava\b", lowered_text) and not re.search(r"\bjavascript\b", lowered_text):
+    if (
+        re.search(r"\bjava\b|джава|джав[аы]", lowered_text)
+        and not re.search(r"\bjavascript\b", lowered_text)
+    ):
         hints["technology"] = "Java"
         hints["must_have"] = ["Java"]
 
@@ -2288,6 +2346,195 @@ async def run_openai_json_recruiter_chat(
     return parsed_content, []
 
 
+def recruiter_chat_greeting_count(messages: list[RecruiterChatMessage]) -> int:
+    return sum(
+        1
+        for message in messages
+        if (normalize_text_value(message.role) or "").lower() in {"user", "recruiter"}
+        and is_greeting_only_chat_message(message.content)
+    )
+
+
+def has_sourcing_or_recruiter_context_signal(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+
+    if (
+        explicit_backend_role_signal(normalized_text)
+        or explicit_java_technology_signal(normalized_text)
+        or explicit_ukraine_location_signal(normalized_text)
+        or bool(java_stack_terms_in_text(normalized_text))
+    ):
+        return True
+
+    recruiter_context_patterns = [
+        r"\b(find|search|source|sourcing|hire|hiring|recruit|recruiter|candidate|candidates|vacancy|job)\b",
+        r"найд|ищем|поиск|сорсинг|рекрут|кандидат|ваканси|зарплат|компенсац|релокац|найм",
+    ]
+    return text_matches_any_pattern(normalized_text, recruiter_context_patterns)
+
+
+def has_sourcing_or_recruiter_context_signal_for_off_topic(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+
+    if (
+        explicit_backend_role_signal(normalized_text)
+        or explicit_java_technology_signal(normalized_text)
+        or bool(java_stack_terms_in_text(normalized_text))
+    ):
+        return True
+
+    recruiter_context_patterns = [
+        r"\b(find|search|source|sourcing|hire|hiring|recruit|recruiter|candidate|candidates|vacancy|job)\b",
+        r"найд|ищем|поиск|сорсинг|рекрут|кандидат|ваканси|зарплат|компенсац|релокац|найм",
+    ]
+    return text_matches_any_pattern(normalized_text, recruiter_context_patterns)
+
+
+def recruiter_chat_onboarding_wording_payload(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    deterministic_message: str,
+) -> dict:
+    context = current_brief_validation_context(request.draft_brief)
+    normalized_brief = context.get("normalized_brief") or {}
+    has_draft = bool(request.draft_brief)
+
+    return {
+        "wording_use_case": AGENT_WORDING_USE_CASE_RECRUITER_CHAT_ONBOARDING,
+        "message_type": "onboarding",
+        "language": language,
+        "deterministic_message": deterministic_message,
+        "greeting_count": recruiter_chat_greeting_count(request.messages),
+        "has_current_or_draft_search_brief": has_draft,
+        "current_brief_status": normalized_brief.get("brief_status") if has_draft else None,
+        "required_inputs": [
+            "role",
+            "main technology",
+            "location",
+            "1-3 stack signals",
+        ],
+        "allowed_meaning": (
+            "Greet or re-greet the recruiter and ask for role, main technology, "
+            "location, and 1-3 stack signals. If a draft brief exists, say it is "
+            "preserved without changing its values."
+        ),
+        "forbidden_claims": [
+            "search started",
+            "results exist",
+            "LinkedIn opened or inspected",
+            "candidate messaging",
+            "approval bypass",
+            "autonomous execution",
+        ],
+        "allowed_numbers": ["1", "3"],
+    }
+
+
+def onboarding_wording_provenance(
+    language: str,
+    wording_mode: str,
+    fallback_reason: str | None = None,
+    no_call_reason: str | None = None,
+    model: str | None = None,
+) -> dict[str, str]:
+    return build_agent_wording_provenance(
+        message_type=AGENT_WORDING_USE_CASE_RECRUITER_CHAT_ONBOARDING,
+        language=language,
+        wording_mode=wording_mode,
+        fallback_reason=fallback_reason,
+        no_call_reason=no_call_reason,
+        model=model,
+    )
+
+
+def validate_onboarding_wording_output(
+    llm_output: dict,
+    language: str,
+) -> tuple[str | None, list[str], str | None]:
+    validated_output, error = validate_agent_wording_output(
+        llm_output,
+        language=language,
+        allowed_numbers={"1", "3"},
+        wording_use_case=AGENT_WORDING_USE_CASE_RECRUITER_CHAT_ONBOARDING,
+        existing_limitation_kinds=set(),
+    )
+    if error:
+        return None, [], error
+
+    message = validated_output["message"]
+    if len(message) > 360:
+        return None, [], "llm_output_too_long"
+    if re.search(r"<[^>]+>", message):
+        return None, [], "llm_output_html_not_allowed"
+
+    return message, validated_output.get("warnings") or [], None
+
+
+async def apply_llm_wording_to_recruiter_chat_onboarding(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    deterministic_message: str,
+) -> tuple[str, dict[str, str], list[str]]:
+    if not agent_wording_has_openai_config():
+        return (
+            deterministic_message,
+            onboarding_wording_provenance(
+                language,
+                AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+                fallback_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+                no_call_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+            ),
+            [],
+        )
+
+    payload = recruiter_chat_onboarding_wording_payload(
+        request,
+        language,
+        deterministic_message,
+    )
+    llm_output, error = await run_openai_json_agent_wording(payload)
+    if error or llm_output is None:
+        return (
+            deterministic_message,
+            onboarding_wording_provenance(
+                language,
+                AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+                fallback_reason=error or "openai_onboarding_wording_failed",
+            ),
+            [],
+        )
+
+    message, warnings, validation_error = validate_onboarding_wording_output(
+        llm_output,
+        language,
+    )
+    if validation_error or not message:
+        return (
+            deterministic_message,
+            onboarding_wording_provenance(
+                language,
+                AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+                fallback_reason=validation_error or "llm_output_invalid",
+                model=os.getenv("OPENAI_MODEL"),
+            ),
+            [],
+        )
+
+    return (
+        message,
+        onboarding_wording_provenance(
+            language,
+            AGENT_WORDING_MODE_LLM_ASSISTED,
+            model=os.getenv("OPENAI_MODEL"),
+        ),
+        warnings,
+    )
+
+
 def build_recruiter_chat_response(
     *,
     ok: bool,
@@ -2302,6 +2549,8 @@ def build_recruiter_chat_response(
     brief_changed: bool = False,
     stale_state_should_clear: bool = False,
     clear_brief: bool = False,
+    wording_provenance: dict | None = None,
+    llm_warnings: list[str] | None = None,
 ) -> dict:
     normalized_brief = normalized_brief or {}
     validation_errors = validation_errors or []
@@ -2346,6 +2595,8 @@ def build_recruiter_chat_response(
         "brief_changed": brief_changed,
         "stale_state_should_clear": stale_state_should_clear,
         "clear_brief": clear_brief,
+        "wording_provenance": wording_provenance,
+        "llm_warnings": llm_warnings or [],
     }
 
 
@@ -2376,6 +2627,8 @@ def build_recruiter_chat_onboarding_response(
     language: str,
     planner_mode: str,
     assistant_message: str,
+    wording_provenance: dict | None = None,
+    llm_warnings: list[str] | None = None,
 ) -> dict:
     if not request.draft_brief:
         return build_recruiter_chat_response(
@@ -2384,6 +2637,8 @@ def build_recruiter_chat_onboarding_response(
             language=language,
             assistant_message=assistant_message,
             planner_mode=planner_mode,
+            wording_provenance=wording_provenance,
+            llm_warnings=llm_warnings,
         )
 
     brief_response = search_brief_validation_response(request.draft_brief)
@@ -2409,6 +2664,8 @@ def build_recruiter_chat_onboarding_response(
             language,
             assistant_message,
         ),
+        wording_provenance=wording_provenance,
+        llm_warnings=llm_warnings,
     )
 
 
@@ -2436,12 +2693,24 @@ def build_recruiter_chat_preserve_current_brief_response(
 def recruiter_chat_off_topic_message(language: str) -> str:
     if language == "ru":
         return (
-            "Я могу помочь с sourcing flow. Напиши роль, основную технологию, "
-            "локацию и 1-3 stack signals для поиска кандидатов."
+            "Похоже, это не про поиск кандидатов. Я могу помочь с sourcing: "
+            "напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека."
         )
     return (
-        "I can help with the sourcing flow. Tell me the role, main technology, "
-        "location, and 1-3 stack signals for the candidate search."
+        "This does not look like candidate search. I can help with sourcing: "
+        "tell me the role, main technology, location, and 1-3 stack signals."
+    )
+
+
+def recruiter_chat_unclear_request_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Не понял запрос. Я могу помочь с поиском кандидатов: напиши, "
+            "кого ищем, основную технологию, локацию и 1-3 сигнала стека."
+        )
+    return (
+        "I did not understand the request. I can help with candidate search: "
+        "tell me the role, main technology, location, and 1-3 stack signals."
     )
 
 
@@ -2539,14 +2808,41 @@ def last_stack_item_message(language: str) -> str:
     return last_stack_item_source_message(language)
 
 
+def brief_patch_operation_label(operation_name: str, language: str) -> str:
+    labels = {
+        "ru": {
+            BRIEF_PATCH_ADD_STACK: "добавил stack",
+            BRIEF_PATCH_REMOVE_STACK: "удалил stack",
+            BRIEF_PATCH_REPLACE_STACK: "обновил stack",
+            BRIEF_PATCH_SET_SENIORITY: "обновил seniority",
+            BRIEF_PATCH_SET_SEARCH_DEPTH: "обновил глубину поиска",
+            BRIEF_PATCH_SET_LOCATION: "обновил локацию",
+        },
+        "en": {
+            BRIEF_PATCH_ADD_STACK: "added stack",
+            BRIEF_PATCH_REMOVE_STACK: "removed stack",
+            BRIEF_PATCH_REPLACE_STACK: "updated stack",
+            BRIEF_PATCH_SET_SENIORITY: "updated seniority",
+            BRIEF_PATCH_SET_SEARCH_DEPTH: "updated search depth",
+            BRIEF_PATCH_SET_LOCATION: "updated location",
+        },
+    }
+    return labels.get(language, labels["en"]).get(
+        operation_name,
+        operation_name.replace("_", " "),
+    )
+
+
 def patch_success_message(patch: dict, language: str, changed: bool) -> str:
     operations = patch.get("operations") or []
     operation_labels = [
-        operation.get("operation", "update").replace("_", " ")
+        brief_patch_operation_label(operation.get("operation", "update"), language)
         for operation in operations
         if operation.get("operation") not in {BRIEF_PATCH_NOOP, BRIEF_PATCH_RECONFIRM_FIELD}
     ]
-    action_summary = ", ".join(operation_labels) if operation_labels else "updated"
+    action_summary = ", ".join(operation_labels) if operation_labels else (
+        "обновил" if language == "ru" else "updated"
+    )
 
     return brief_refinement_source_message(language, changed, action_summary)
 
@@ -2649,6 +2945,15 @@ def apply_brief_patch_to_draft(
                 normalize_text_value(candidate.get("search_depth")) or SEARCH_DEPTH_STANDARD
             ):
                 candidate["search_depth"] = search_depth
+                changed = True
+            continue
+
+        if operation_name == BRIEF_PATCH_SET_LOCATION:
+            location = normalize_location_value(operation.get("value"))
+            if location and location_filter_config_for(location) and location != normalize_location_value(
+                candidate.get("location")
+            ):
+                candidate["location"] = location
                 changed = True
             continue
 
@@ -2789,6 +3094,125 @@ def build_recruiter_chat_refinement_response(
     )
 
 
+def pending_stack_clarification_patch_from_message(
+    request: RecruiterChatTurnRequest,
+    text: str,
+) -> dict | None:
+    if not request.draft_brief:
+        return None
+
+    context = current_brief_context_for_language(request.draft_brief, "en")
+    normalized_brief = context.get("normalized_brief") or {}
+    missing_fields = normalized_brief.get("missing_fields") or []
+    if not missing_fields or missing_fields[0] != "stack":
+        return None
+
+    stack_terms = java_stack_terms_in_text(text)
+    if not stack_terms:
+        return None
+
+    return build_brief_patch(
+        source_message=text,
+        operations=[
+            {
+                "operation": BRIEF_PATCH_REPLACE_STACK,
+                "field": "stack",
+                "values": stack_terms[:3],
+            }
+        ],
+        requires_clarification=False,
+    )
+
+
+def pending_location_clarification_patch_from_message(
+    request: RecruiterChatTurnRequest,
+    text: str,
+) -> dict | None:
+    if not request.draft_brief:
+        return None
+
+    context = current_brief_context_for_language(request.draft_brief, "en")
+    normalized_brief = context.get("normalized_brief") or {}
+    missing_fields = normalized_brief.get("missing_fields") or []
+    if not missing_fields or missing_fields[0] != "location":
+        return None
+
+    location = deterministic_chat_brief_hints(text).get("location")
+    if not location:
+        return None
+
+    return build_brief_patch(
+        source_message=text,
+        operations=[
+            {
+                "operation": BRIEF_PATCH_SET_LOCATION,
+                "field": "location",
+                "value": location,
+            }
+        ],
+        requires_clarification=False,
+    )
+
+
+def pending_clarification_unrecognized_answer_field(
+    request: RecruiterChatTurnRequest,
+    text: str,
+    language: str,
+) -> str | None:
+    if not request.draft_brief:
+        return None
+
+    context = current_brief_context_for_language(request.draft_brief, language)
+    normalized_brief = context.get("normalized_brief") or {}
+    missing_fields = normalized_brief.get("missing_fields") or []
+    if not missing_fields:
+        return None
+
+    field = missing_fields[0]
+    if field not in {"location", "stack"}:
+        return None
+
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return None
+
+    if field == "location" and deterministic_chat_brief_hints(normalized_text).get("location"):
+        return None
+    if field == "stack" and java_stack_terms_in_text(normalized_text):
+        return None
+
+    if deterministic_brief_patch_from_message(text, language) is not None:
+        return None
+
+    return field
+
+
+def pending_clarification_unrecognized_answer_message(field: str, language: str) -> str:
+    if field == "location":
+        if language == "ru":
+            return (
+                "Не распознал локацию. Для текущего baseline укажи Украину "
+                "или город в Украине, например Киев."
+            )
+        return (
+            "I did not recognize the location. For the current baseline, use "
+            "Ukraine or a Ukrainian city, for example Kyiv."
+        )
+
+    if field == "stack":
+        if language == "ru":
+            return (
+                "Не распознал поддерживаемый Java stack. Укажи 1-3 сигнала, "
+                "например Spring, Kafka, AWS или Hibernate."
+            )
+        return (
+            "I did not recognize a supported Java stack signal. Use 1-3 signals, "
+            "for example Spring, Kafka, AWS, or Hibernate."
+        )
+
+    return recruiter_chat_unclear_request_message(language)
+
+
 async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dict:
     language = recruiter_chat_language(request)
     planner_mode = request.planner_mode or RECRUITER_CHAT_DEFAULT_PLANNER_MODE
@@ -2844,19 +3268,37 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         )
 
     if is_greeting_only_chat_message(latest_user_text):
+        onboarding_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_onboarding(
+                request,
+                language,
+                recruiter_chat_onboarding_message(language),
+            )
+        )
         return build_recruiter_chat_onboarding_response(
             request,
             language,
             planner_mode,
-            recruiter_chat_onboarding_message(language),
+            onboarding_message,
+            wording_provenance,
+            llm_warnings,
         )
 
     if is_near_empty_chat_message(latest_user_text):
+        onboarding_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_onboarding(
+                request,
+                language,
+                recruiter_chat_near_empty_message(language),
+            )
+        )
         return build_recruiter_chat_onboarding_response(
             request,
             language,
             planner_mode,
-            recruiter_chat_near_empty_message(language),
+            onboarding_message,
+            wording_provenance,
+            llm_warnings,
         )
 
     if detect_recruiter_chat_explanation_intent(latest_user_text):
@@ -2875,6 +3317,16 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             recruiter_chat_off_topic_message(language),
         )
 
+    if detect_recruiter_chat_unclear_request(latest_user_text) and not (
+        request.draft_brief and is_refinement_like_chat_message(latest_user_text)
+    ):
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            recruiter_chat_unclear_request_message(language),
+        )
+
     ambiguity = detect_recruiter_chat_ambiguity_or_contradiction(latest_user_text)
     if ambiguity:
         return build_recruiter_chat_preserve_current_brief_response(
@@ -2885,6 +3337,32 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         )
 
     if request.draft_brief:
+        pending_stack_patch = pending_stack_clarification_patch_from_message(
+            request,
+            latest_user_text,
+        )
+        if pending_stack_patch is not None:
+            return build_recruiter_chat_refinement_response(
+                request,
+                language,
+                planner_mode,
+                pending_stack_patch,
+                chat_text,
+            )
+
+        pending_location_patch = pending_location_clarification_patch_from_message(
+            request,
+            latest_user_text,
+        )
+        if pending_location_patch is not None:
+            return build_recruiter_chat_refinement_response(
+                request,
+                language,
+                planner_mode,
+                pending_location_patch,
+                chat_text,
+            )
+
         brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
         if brief_patch is not None:
             return build_recruiter_chat_refinement_response(
@@ -2893,6 +3371,22 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
                 planner_mode,
                 brief_patch,
                 chat_text,
+            )
+
+        unrecognized_field = pending_clarification_unrecognized_answer_field(
+            request,
+            latest_user_text,
+            language,
+        )
+        if unrecognized_field:
+            return build_recruiter_chat_preserve_current_brief_response(
+                request,
+                language,
+                planner_mode,
+                pending_clarification_unrecognized_answer_message(
+                    unrecognized_field,
+                    language,
+                ),
             )
 
     ai_output, ai_errors = await run_openai_json_recruiter_chat(request)

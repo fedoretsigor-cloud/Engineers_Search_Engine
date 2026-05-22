@@ -10885,18 +10885,32 @@ Implemented focused hardening:
 
 ### Approved
 
-- [x] P8-006 Define bounded candidate explanation wording contract
+None.
 
 ### Backlog
 
-- [ ] P8-008 Add bounded LLM onboarding wording overlay
-- [ ] P8-009 Add off-topic and unclear input guardrails before Search Brief extraction
-- [ ] P8-010 Define conservative off-topic and unclear/noise classification policy
-- [ ] P8-011 Apply Russian answers to pending clarification fields
-- [ ] P8-012 Localize next iteration options in Agent Response
-- [ ] P8-013 Add chat-confirmed Build Plan action
-- [ ] P8-014 Add Enter-to-send chat input behavior
-- [ ] P8-015 Normalize chat assistant speaker title
+#### Independent backlog tasks
+
+- [ ] P8-016 Harden pending clarification answer routing
+- [ ] P8-022 Make multi-wave the default approved search mode
+
+#### Parent umbrella task
+
+- [ ] P8-032 Define recruiter-facing AI conversation and workspace presentation policy
+  - [ ] P8-017 Handle social small talk without harsh off-topic redirect (child issue)
+  - [ ] P8-018 Make greeting onboarding wording more polite (child issue)
+  - [ ] P8-019 Make unclear/noise response more polite (child issue)
+  - [ ] P8-020 Remove redundant Recruiter Chat helper subtitle (child issue)
+  - [ ] P8-021 Make initial chat helper prompt warmer (child issue)
+  - [ ] P8-023 Ask next missing clarification after successful brief patch (child issue)
+  - [ ] P8-024 Replace technical plan UX with conversational search confirmation (child issue)
+  - [ ] P8-025 Shorten post-search Agent Response summary (child issue)
+  - [ ] P8-026 Hide Next Iteration Options block from recruiter chat (child issue)
+  - [ ] P8-027 Hide query contribution diagnostics from recruiter UI (child issue)
+  - [ ] P8-028 Collapse report metrics behind unique-candidate summary (child issue)
+  - [ ] P8-029 Remove frontend-ready status badge from recruiter UI (child issue)
+  - [ ] P8-030 Rebalance desktop layout toward candidate workspace (child issue)
+  - [ ] P8-031 Make candidate table the primary post-search surface (child issue)
 
 ### In Progress
 
@@ -10907,10 +10921,19 @@ Implemented focused hardening:
 - [x] P8-003 Add sorting and filtering by quality signals
 - [x] P8-004 Add shortlist, notes, and statuses
 - [x] P8-005 Add candidate-level agent explanations
+- [x] P8-006 Define bounded candidate explanation wording contract
 - [x] P8-006.1 Implement explicit selected-candidate wording overlay
 - [x] P8-007 Prepare export workflow umbrella
 - [x] P8-007A Implement export model and serializers
 - [x] P8-007B Add export UI and download workflow
+- [x] P8-008 Add bounded LLM onboarding wording overlay
+- [x] P8-009 Add off-topic and unclear input guardrails before Search Brief extraction
+- [x] P8-010 Define conservative off-topic and unclear/noise classification policy
+- [x] P8-011 Apply Russian answers to pending clarification fields
+- [x] P8-012 Localize next iteration options in Agent Response
+- [x] P8-013 Add chat-confirmed Build Plan action
+- [x] P8-014 Add Enter-to-send chat input behavior
+- [x] P8-015 Normalize chat assistant speaker title
 
 ### Current Phase 8 strategy note
 
@@ -10927,6 +10950,10 @@ Phase 8 must preserve the human-approved runtime boundary and absolute product r
 Candidate explanation order: `P8-005` implemented deterministic candidate-level explanations grounded only in returned workspace facts. `P8-006` completed the contract-first bounded candidate explanation wording payload, output validation, fallback, routing, and no-fact-mutation rules before code. `P8-006.1` implemented the explicit-action selected-candidate wording overlay. Do not mix LLM wording into the deterministic explanation helper.
 
 Export order: `P8-007` is completed as a local frontend-only export workflow. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage, and `P8-007B` completed the explicit UI/download slice with current-run export state, grouped export controls, local `Blob` download glue, bounded inline statuses, CSS, and no-network frontend wiring smoke coverage.
+
+Chat-quality batch: `P8-008` through `P8-015` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, and unified visible `AI Assistant` speaker labels. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit `Approve & Search`.
+
+Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. Do not implement them as independent hardcoded phrase fixes. Review and implement them through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` stays separate because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
 ---
 
@@ -13914,7 +13941,11 @@ If `P8-007B` uncovers a helper defect, the fix must update the relevant `P8-007A
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented optional bounded LLM wording for recruiter-chat onboarding/greeting turns through the existing wording runner, with deterministic fallback, bounded payload, output validation, provenance metadata, and no state/action mutation.
 
 ### Context
 
@@ -13943,6 +13974,8 @@ The LLM may improve only the human-facing wording. It must not decide Search Bri
    - session-only greeting count derived from current chat messages;
    - whether a current/draft Search Brief exists;
    - backend-selected required fields: role, technology, location, and 1-3 stack signals;
+   - no raw full chat transcript and no unrelated recruiter messages;
+   - no Search Brief values unless the backend already decided they are preserved current state;
    - allowed meaning: greet or re-greet the recruiter and ask for the required search inputs;
    - forbidden claims: no search started, no results exist, no LinkedIn opening, no candidate messaging, no autonomous execution, no approval bypass.
 
@@ -13952,6 +13985,7 @@ The LLM may improve only the human-facing wording. It must not decide Search Bri
 
 4. Add deterministic fallback:
    - if OpenAI config is missing, the call fails, JSON is invalid, validation fails, or the wording crosses boundaries, return the current deterministic onboarding text;
+   - accepted output must be plain text, language-matched, bounded in length, and free of Markdown links/HTML/tool/action claims;
    - fallback must preserve existing behavior and not create a blocker for recruiter chat.
 
 5. Keep the state session-only:
@@ -13978,6 +14012,29 @@ The LLM may improve only the human-facing wording. It must not decide Search Bri
 - The task must not reopen Phase 7.5 or weaken the Phase 8 handoff.
 - `P8-001 Define candidate workspace contract` is completed as the contract-first Phase 8 task. This task is a separate chat-quality improvement that can be reviewed and implemented independently.
 - The scope should stay narrow: onboarding/greeting only. Clarification, brief summary, planner explanation, result analysis, and candidate workspace wording require separate reviewed tasks.
+- Final iterative review result: approved as a narrow wording-overlay task only. The important guard is that the deterministic onboarding classifier and Search Brief state stay source of truth, while the LLM may replace only greeting text plus wording provenance.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- LLM output accidentally becomes classifier, state owner, or Search Brief editor instead of wording overlay.
+- Raw full chat transcript or unrelated recruiter messages are sent to OpenAI.
+- Greeting overlay claims plan/search/results/approval/LinkedIn/account actions.
+- Repeated-greeting variation quietly introduces persistence, memory, or personalization outside current session/request.
+
+Mandatory checks before implementation is considered done:
+
+- Deterministic safety/prohibited/reset/greeting routing runs before any onboarding LLM wording call.
+- LLM request payload contains only bounded fields: message type, language, greeting count, required input names, and backend-approved current draft-state presence.
+- Accepted model output can replace only assistant onboarding text plus wording provenance metadata.
+- Invalid output, missing config, network/model failure, or boundary violation falls back to deterministic onboarding text.
+- No LLM call is made for safety/prohibited, off-topic, unclear/noise, result, candidate, or clarification messages in this task.
+
+Stop and re-review if:
+
+- Coding touches clarification/result/candidate wording, Search Brief extraction, Agent Plan, QueryPlan, approval, runtime, Tavily, or candidate workspace behavior.
+- The design needs persistent memory, backend session storage, localStorage, or raw transcript payloads.
 
 ### Acceptance Criteria
 
@@ -14002,7 +14059,7 @@ The LLM may improve only the human-facing wording. It must not decide Search Bri
 
 ### Before Coding
 
-Codex must critically review this task against the Phase 7 message facts/wording contracts, current `app/recruiter_chat.py`, `app/agent_wording.py`, frontend chat rendering, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against the Phase 7 message facts/wording contracts, current chat routing, `app/agent_wording.py`, frontend chat rendering, and absolute product boundaries, with explicit user coding approval.
 
 ---
 
@@ -14010,7 +14067,11 @@ Codex must critically review this task against the Phase 7 message facts/wording
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented deterministic pre-extraction off-topic and unclear/noise guardrails. Noise and clearly non-sourcing turns now receive bounded sourcing redirects without creating or mutating Search Brief, Agent Plan, QueryPlan, approval, results, or workspace state.
 
 ### Context
 
@@ -14049,6 +14110,7 @@ The agent should distinguish:
 ### Proposed Steps
 
 1. Define the unclear/noise category:
+   - use the approved `P8-010` policy as the source of truth before coding this guardrail;
    - meaningless repeated characters;
    - keyboard mash / random letters;
    - no recognizable recruiter intent;
@@ -14061,6 +14123,7 @@ The agent should distinguish:
    - greeting/near-empty handling remains separate;
    - clearly non-sourcing natural-language input should be redirected softly before Search Brief extraction;
    - unclear/noise detection should run before Search Brief extraction so the backend does not ask a fake missing-field question.
+   - if `P8-010` policy and implementation behavior conflict, stop and update the policy/task before coding instead of improvising a broader classifier.
 
 3. Return bounded responses:
    - for `unclear_request`, say the request was not understood and ask for the sourcing task;
@@ -14105,6 +14168,29 @@ The agent should distinguish:
 - Do not classify by a single keyword when there is recruiter context. For example, `какой курс доллара учитывать для зарплаты кандидата?` is not the same as `какой курс доллара?`.
 - Do not make the classifier too aggressive: real recruiter typos and noisy job descriptions should still be handled by existing typo/noisy-input logic.
 - The goal is to prevent fake confidence, not to reject incomplete but meaningful sourcing requests.
+- Final iterative review result: approved as a deterministic pre-extraction guardrail. The approved implementation must follow `P8-010`, preserve higher-priority safety/greeting/reset routes, and never route off-topic/noise through LLM extraction first.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- Classifier becomes too aggressive and rejects meaningful sourcing requests with typos, mixed language, or partial role/tech/stack/location signals.
+- Keyword-only off-topic routing rejects recruiter-context questions about salary, compensation, relocation, currency, or hiring process.
+- Guardrail runs after Search Brief extraction or after LLM wording, allowing fake missing-field confidence to appear first.
+- Noise/off-topic turns mutate existing Search Brief, Agent Plan, QueryPlan, approval, results, or workspace state.
+
+Mandatory checks before implementation is considered done:
+
+- Implementation follows `P8-010` as source of truth; policy conflict stops coding until docs/task are updated.
+- Routing order is preserved: safety/prohibited -> reset/meta -> greeting/near-empty -> sourcing/recruiter-context signal check -> off-topic redirect only when sourcing context is absent -> unclear/noise.
+- Off-topic/noise responses do not create or mutate Search Brief, Agent Plan, QueryPlan, approval, search, result, or candidate state.
+- No LLM call runs before deterministic off-topic/noise classification.
+- Regression coverage includes RU/EN gibberish, RU/EN weather/currency off-topic, recruiter-context currency/salary/relocation not rejected by keyword alone, valid incomplete sourcing, greeting, and safety priority.
+
+Stop and re-review if:
+
+- The classifier requires broad semantic LLM classification.
+- A useful incomplete sourcing request is routed to off-topic/noise by a single keyword or weak heuristic.
 
 ### Acceptance Criteria
 
@@ -14129,7 +14215,7 @@ The agent should distinguish:
 
 ### Before Coding
 
-Codex must critically review this task against current recruiter chat routing, Phase 7 message taxonomy/facts contracts, P7.5 QA findings, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against current recruiter chat routing, approved `P8-010` policy, Phase 7 message taxonomy/facts contracts, P7.5 QA findings, and absolute product boundaries, with explicit user coding approval.
 
 ---
 
@@ -14137,7 +14223,11 @@ Codex must critically review this task against current recruiter chat routing, P
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented the approved conservative policy in deterministic routing and regression coverage: safety/reset/greeting priorities are preserved, off-topic/noise classification is source/context-aware, and LLM classification is not used.
 
 ### Context
 
@@ -14256,6 +14346,31 @@ Forbidden shape:
 
 Reason: off-topic and unclear/noise input are exactly where LLM over-inference is risky. The safe behavior is to redirect softly or admit uncertainty and ask the recruiter to restate the sourcing task.
 
+### Iterative Review Result
+
+Approved as the policy source of truth for `P8-009`. The policy is intentionally conservative: it requires absence of sourcing/recruiter-context signals before off-topic/noise routing, keeps safety/greeting/reset priority above this classifier, and forbids LLM-based classification. No remaining review blockers were found after checking it against Phase 7 message facts, P7.5 QA findings, and the current product boundaries.
+
+### Deep Review Guardrails
+
+Policy risks:
+
+- Future implementation drifts from this policy and silently invents extra categories or looser matching rules.
+- Ambiguous recruiter-context questions are treated as off-topic because they contain weather/currency/news words.
+- Safety/prohibited handling loses priority over off-topic/noise redirect.
+- The policy becomes a hidden product expansion into general Q&A instead of a sourcing-chat guardrail.
+
+Mandatory checks before implementation is considered done:
+
+- `P8-009` coding must reference this policy as the source of truth and cover the listed examples in no-network tests.
+- Tests must prove valid incomplete sourcing requests are still extracted or clarified, not redirected.
+- Tests must prove prohibited requests still route to safety refusal before off-topic/noise.
+- Any new category, wording type, or routing priority change must update this policy before code is merged.
+
+Stop and re-review if:
+
+- Implementation needs LLM-based classification.
+- A new unsupported-general-question category appears necessary; that should be a separate reviewed task or explicit policy update.
+
 ### Test Matrix
 
 Must classify as `unclear_request`:
@@ -14294,17 +14409,17 @@ Must not classify as off-topic solely by keyword:
 - The policy protects valid incomplete sourcing requests from being rejected as noise.
 - The policy protects recruiter-context questions from being rejected as off-topic by keyword alone.
 - The policy explicitly forbids LLM-based classification for off-topic/noise detection.
-- `P8-009` can implement the guardrail against this policy after separate coding approval.
+- `P8-009` implements the guardrail against this policy after separate coding approval.
 
 ### Non-Goals
 
-- Do not implement code in this task.
-- Do not add LLM wording overlay in this task.
+- Do not add LLM-based off-topic/noise classification.
+- Do not add LLM wording overlay through this policy.
 - Do not change Search Brief extraction, planner, approval, runtime, Tavily, scoring, filters, dedupe, location logic, Candidate Quality, snapshots, results, persistence, memory, or candidate workspace behavior.
 
 ### Before Implementation
 
-Codex must critically review this policy against current recruiter chat routing, Phase 7 message taxonomy/facts contracts, P7.5 QA findings, and absolute product boundaries. The user must approve the policy before it is used for coding.
+Completed after critical review against current recruiter chat routing, Phase 7 message taxonomy/facts contracts, P7.5 QA findings, and absolute product boundaries, with explicit user coding approval for the implementation batch.
 
 ---
 
@@ -14312,7 +14427,11 @@ Codex must critically review this policy against current recruiter chat routing,
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented pending stack clarification handling for supported Russian/translit Java stack answers such as `Спринг`, `кафка`, `докер`, and `кубер`, while clean-state stack-only input still cannot create a fake ready Search Brief.
 
 ### Context
 
@@ -14345,9 +14464,11 @@ This is dialogue-state routing, not free-form LLM guessing. It should use the cu
 1. Detect pending clarification context:
    - identify when the current backend state is waiting for a specific missing field;
    - first scope: missing `stack` for the current Java/Ukraine flow;
-   - derive this from current request/chat state, not database or persistent memory.
+   - derive this from current request/chat state and backend-selected missing field, not rendered UI text, database, or persistent memory.
 
 2. Add Russian stack answer normalization for pending stack clarification:
+   - prefer existing stack/domain normalization config where available instead of creating an unrelated alias table;
+   - allow only existing supported Java stack values in this task;
    - `спринг` -> `Spring`;
    - `спринг бут` / `spring boot` -> `Spring` or `Spring Boot` according to current allowed stack normalization;
    - `кафка` -> `Kafka`;
@@ -14360,6 +14481,7 @@ This is dialogue-state routing, not free-form LLM guessing. It should use the cu
 3. Apply the answer only when context supports it:
    - if the agent just asked for stack and the recruiter answers `Спринг`, apply it as stack;
    - if the agent just asked for stack and the recruiter answers `кафка`, apply it as stack;
+   - if multiple stack terms are provided, normalize only recognized supported terms and keep existing stack-count/validation rules;
    - do not build a complete Search Brief from a single stack word when there is no current/pending clarification context.
 
 4. Preserve safe behavior without pending context:
@@ -14393,6 +14515,29 @@ This is dialogue-state routing, not free-form LLM guessing. It should use the cu
 - Keep the first implementation narrow to Java stack aliases in Russian/English/translit.
 - Do not broaden supported roles/countries/search sources.
 - Do not add persistence or long-term memory.
+- Final iterative review result: approved as a narrow dialogue-state routing fix. The critical guard is pending-field context: short Russian stack answers are meaningful only when the backend is currently waiting for stack.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- A one-word stack answer in a clean state creates a fake ready Search Brief.
+- Implementation reads rendered UI question text instead of backend-selected missing-field state.
+- Alias handling forks away from approved domain/stack config and expands support accidentally.
+- Pending clarification context stays stale after Search Brief reset/refinement/safety turn and applies a stack answer to the wrong brief.
+
+Mandatory checks before implementation is considered done:
+
+- Pending field comes from backend/current chat state and is bound to current Search Brief context, not DOM text or persistent memory.
+- Only existing supported Java stack values can be normalized by this task.
+- Recognized multiple stack answers are normalized only through supported values and existing validation/count rules.
+- Clean-state `Kafka` / `Spring` / Russian stack-only input does not create a ready brief without role, technology, and location.
+- Regression coverage includes Russian Spring, Russian Kafka, Russian Docker, Russian Kubernetes, invalid pending-stack answer, stale pending context, clean-state stack-only input, and safety priority.
+
+Stop and re-review if:
+
+- Coding starts to implement broad multilingual NLU, new roles, new countries, new technologies, or LLM-owned field extraction.
+- Pending clarification cannot be represented safely without adding backend session/persistence.
 
 ### Acceptance Criteria
 
@@ -14414,7 +14559,7 @@ This is dialogue-state routing, not free-form LLM guessing. It should use the cu
 
 ### Before Coding
 
-Codex must critically review this task against current Search Brief validation, recruiter chat routing, stack normalization config, Phase 7 message facts contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against current Search Brief validation, recruiter chat routing, stack normalization config, Phase 7 message facts contracts, and absolute product boundaries, with explicit user coding approval.
 
 ---
 
@@ -14422,7 +14567,11 @@ Codex must critically review this task against current Search Brief validation, 
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented deterministic RU/EN localization for `agent_response.next_iteration_options` labels/reasons and frontend wrapper text, preserving option ids, patches, executable flags, ordering, and inert behavior.
 
 ### Context
 
@@ -14452,6 +14601,7 @@ This is a deterministic localization task. It must not make `next_iteration_opti
 1. Localize backend next-iteration option copy:
    - pass `language` into `agent_response_next_iteration_options`;
    - update helper copy functions in `app/agent_messages.py` or equivalent to return RU/EN labels and reasons;
+   - use backend `agent_response.language` / current response language as source of truth, not browser locale;
    - keep option IDs and `proposed_brief_patch` unchanged.
 
 2. Localize frontend wrapper text:
@@ -14467,6 +14617,7 @@ This is a deterministic localization task. It must not make `next_iteration_opti
 
 4. Preserve LLM boundary:
    - `next_iteration_options` remain deterministic-only;
+   - do not send option objects to LLM for translation in this task;
    - LLM wording overlay must not add, remove, reorder, select, mutate, or translate options unless a later reviewed task changes that contract.
 
 5. Add regression coverage:
@@ -14486,6 +14637,29 @@ This is a deterministic localization task. It must not make `next_iteration_opti
 - This should not change the semantics of `next_iteration_options`.
 - The current Phase 7 contracts say `next_iteration_options` are deterministic-only and inert; this task must preserve that.
 - The task should not change candidate counts, quality logic, ranking, filters, dedupe, location logic, search execution, or approval.
+- Final iterative review result: approved as deterministic localization only. The critical guard is that labels/reasons and wrapper text may change by language, while IDs, patches, executable flags, ordering, and inert behavior must remain unchanged.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- Translation mutates option IDs, proposed patches, executable flags, ordering, or approval requirements.
+- LLM is used to translate or regenerate options and changes semantics.
+- Frontend browser locale overrides backend response language and creates mixed-language/stale rendering.
+- Localized options accidentally gain Apply buttons or action behavior.
+
+Mandatory checks before implementation is considered done:
+
+- Backend deterministic RU/EN copy is keyed by `agent_response.language` or current backend response language.
+- Option IDs, `proposed_brief_patch`, `is_executable_now`, `requires_approval_before_execution`, and ordering are byte/structure-equivalent except for copy fields.
+- Frontend wrapper text follows response language with English fallback for missing/unsupported language.
+- No option object is sent to LLM in this task.
+- Regression coverage proves options remain inert and non-executable in RU and EN.
+
+Stop and re-review if:
+
+- A localized option needs different semantics, different patch payload, executable behavior, or action buttons.
+- The implementation tries to solve broader chat localization outside the Agent Response options block.
 
 ### Acceptance Criteria
 
@@ -14507,7 +14681,7 @@ This is a deterministic localization task. It must not make `next_iteration_opti
 
 ### Before Coding
 
-Codex must critically review this task against `app/agent_response.py`, `app/agent_messages.py`, `app/static/app.js`, Phase 7 message facts/wording contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against `app/agent_response.py`, `app/agent_messages.py`, `app/static/app.js`, Phase 7 message facts/wording contracts, and absolute product boundaries, with explicit user coding approval.
 
 ---
 
@@ -14515,7 +14689,11 @@ Codex must critically review this task against `app/agent_response.py`, `app/age
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented frontend/session-only chat confirmation for the current supported Build Plan action. A scoped `yes` / `да` can trigger the existing Build Plan path, while `Approve & Search` remains a separate explicit approval before Tavily execution.
 
 ### Context
 
@@ -14545,9 +14723,10 @@ Instead of only saying `click Build Plan`, the agent should ask whether to build
 
 2. Introduce a frontend/session-only pending chat action:
    - action type: `build_search_plan`;
-   - source: current ready Search Brief / current supported Agent Plan;
-   - bind it to the current Search Brief fingerprint or equivalent current brief identity;
+   - source: current ready Search Brief and current supported Agent Plan;
+   - bind it to the current Search Brief fingerprint, current `agent_plan.brief_fingerprint`, supported `agent_plan.proposed_action`, planner mode, and any frontend action identity already required by the existing Build Plan path;
    - clear it when Search Brief changes, Agent Plan changes, planner state changes, refusal/reset happens, or search results replace the planning state.
+   - keep it frontend/session-only; do not add backend session storage, database state, localStorage, or persistent memory.
 
 3. Update ready Search Brief chat copy:
    - replace `click Build Plan` wording with a question like `Build the Search Plan now?`;
@@ -14564,6 +14743,7 @@ Instead of only saying `click Build Plan`, the agent should ask whether to build
    - use the same frontend function/path as the current `Build Plan` button;
    - do not create a second backend endpoint for this task unless the review finds it necessary;
    - do not bypass Agent Plan action/fingerprint validation;
+   - do not run when the current Agent Plan is unsupported, stale, missing, or has no supported proposed action;
    - do not auto-run `Approve & Search`.
 
 6. Render clear chat feedback:
@@ -14592,6 +14772,31 @@ Instead of only saying `click Build Plan`, the agent should ask whether to build
 - This task should keep the button fallback for safety and accessibility unless a later reviewed task removes it.
 - The task must not weaken `/api/agent/query-plan` backend validation. Frontend convenience cannot become authority.
 - This should not add persistence, database state, saved sessions, or long-term memory.
+- Final iterative review result: approved as a frontend/session-only conversational trigger for the existing Build Plan path. The critical guard is that the pending chat action is not decorative: it must be bound to the current supported Agent Plan/proposed action and must never become an execution approval.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- A naked `yes` / `да` becomes a command without a current pending `build_search_plan` action.
+- Confirmation bypasses Agent Plan, proposed action, planner mode, or fingerprint validation.
+- Chat confirmation triggers Tavily/runtime execution or weakens the separate `Approve & Search` approval.
+- Stale pending action survives Search Brief changes, reset/refusal, new Agent Plan, results, or workspace changes.
+- Pending action is stored in backend session, database, localStorage, or long-term memory.
+
+Mandatory checks before implementation is considered done:
+
+- Pending action is frontend/session-only current-run state and is cleared on every stale/reset/refusal/results boundary that invalidates planning.
+- Confirmation is accepted only when current ready brief, current supported Agent Plan, `agent_plan.proposed_action`, brief fingerprint, planner mode, and existing Build Plan action identity all match.
+- Confirmation reuses the exact existing Build Plan function/path and backend `/api/agent/query-plan` validation.
+- A consumed confirmation must not also fall through as normal recruiter-chat extraction/refinement input; if the UI renders the user's `yes`/`да`, the action handling still owns that turn.
+- Tests prove no pending action means no Build Plan; stale pending action means no Build Plan; `no` dismisses without clearing Search Brief; chat confirmation never calls runtime/Tavily.
+- Browser sanity proves `Approve & Search` remains a separate explicit click after the Search Plan is built.
+
+Stop and re-review if:
+
+- A new backend session endpoint, database field, localStorage entry, or direct runtime/Tavily call is introduced for this task.
+- The chat confirmation starts acting as execution approval rather than planner preview confirmation.
 
 ### Acceptance Criteria
 
@@ -14616,7 +14821,7 @@ Instead of only saying `click Build Plan`, the agent should ask whether to build
 
 ### Before Coding
 
-Codex must critically review this task against current frontend chat state, `Build Plan` flow, Agent Plan action/fingerprint validation, Agent Runtime approval boundaries, Phase 7 message facts/wording contracts, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against current frontend chat state, `Build Plan` flow, Agent Plan action/fingerprint validation, Agent Runtime approval boundaries, Phase 7 message facts/wording contracts, and absolute product boundaries, with explicit user coding approval.
 
 ---
 
@@ -14624,7 +14829,11 @@ Codex must critically review this task against current frontend chat state, `Bui
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented frontend-only Enter-to-send behavior on the recruiter chat textarea. `Enter` reuses the existing submit path, `Shift+Enter` preserves multiline input, IME composition is guarded, and no planning/search/approval shortcut was added.
 
 ### Context
 
@@ -14648,6 +14857,8 @@ Make `Enter` submit recruiter chat messages while preserving `Shift+Enter` for m
    - listen for `keydown`;
    - if key is `Enter` and `Shift` is not pressed, prevent the default newline and submit the current chat form;
    - if key is `Enter` with `Shift`, allow the normal newline behavior.
+   - do not submit while `event.isComposing` is true or during IME composition;
+   - do not treat `Ctrl+Enter`, `Meta+Enter`, or `Alt+Enter` as a separate command in this task unless the existing browser behavior already maps to plain submit.
 
 2. Reuse the existing send path:
    - call the same form submit / send flow used by the `Send` button;
@@ -14668,6 +14879,7 @@ Make `Enter` submit recruiter chat messages while preserving `Shift+Enter` for m
    - verify an Enter handler exists for `chatInput`;
    - verify it checks `event.key === "Enter"`;
    - verify it checks `!event.shiftKey`;
+   - verify it guards IME composition;
    - verify it calls `preventDefault()`;
    - verify it reuses the existing send/form path rather than creating a second API call path.
 
@@ -14683,6 +14895,28 @@ Make `Enter` submit recruiter chat messages while preserving `Shift+Enter` for m
 - Do not treat Enter as approval for search or Build Plan.
 - Do not trigger `Build Plan`, Agent Runtime, Tavily, or any external action from this keyboard shortcut.
 - Keep the `Send` button as an accessible fallback.
+- Final iterative review result: approved as frontend input ergonomics only. The critical guard is that Enter sends the same chat message path as the button, not Build Plan, approval, runtime, Tavily, or any separate API path.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- Enter submits twice while a chat request is already in flight.
+- IME composition for Russian/other input sends prematurely.
+- `Shift+Enter` multiline entry breaks.
+- Keyboard shortcut is accidentally wired to Build Plan, approval, runtime, or another action path.
+
+Mandatory checks before implementation is considered done:
+
+- Handler reuses the existing Send/form submit path and respects current disabled/busy/whitespace guards.
+- `event.isComposing` and composition state prevent submission during IME input.
+- `Shift+Enter` inserts newline; plain Enter sends exactly one message.
+- No new backend endpoint or separate chat API path is added.
+- Static/browser coverage checks Enter, Shift+Enter, whitespace, disabled/busy/no-duplicate, and no search/Build Plan/approval side effect.
+
+Stop and re-review if:
+
+- The implementation introduces a second send implementation or any keyboard shortcut for Build Plan, `Approve & Search`, runtime, Tavily, export, or external actions.
 
 ### Acceptance Criteria
 
@@ -14704,7 +14938,7 @@ Make `Enter` submit recruiter chat messages while preserving `Shift+Enter` for m
 
 ### Before Coding
 
-Codex must critically review this task against current `app/static/app.js` chat submit flow, disabled/busy state handling, frontend smoke coverage, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against current `app/static/app.js` chat submit flow, disabled/busy state handling, frontend smoke coverage, and absolute product boundaries, with explicit user coding approval.
 
 ---
 
@@ -14712,7 +14946,11 @@ Codex must critically review this task against current `app/static/app.js` chat 
 
 ### Status
 
-Draft / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Result
+
+Implemented a unified visible assistant speaker label, `AI Assistant`, while preserving internal message types, CSS classes, metadata, and typed rendering semantics.
 
 ### Context
 
@@ -14744,6 +14982,7 @@ Normalize the visible speaker/title for assistant and agent chat messages to one
    - typed assistant/agent messages should render the same visible speaker title: `AI Assistant`;
    - user messages should continue to render as `You`;
    - system error/safety/tool messages may still use the same `AI Assistant` speaker while preserving their visual severity styling.
+   - do not render the internal type label as part of the primary visible speaker header; keep it only as internal metadata, styling class, aria/detail text, or future debug surface if needed.
 
 3. Preserve visual differentiation by style, not by speaker name:
    - keep existing typed message CSS classes such as onboarding, brief summary, agent plan, safety, validation, agent response;
@@ -14753,6 +14992,7 @@ Normalize the visible speaker/title for assistant and agent chat messages to one
 4. Add static/frontend regression coverage:
    - verify typed assistant messages use the unified visible speaker label;
    - verify internal `messageType` labels/classes still exist for rendering and styling;
+   - verify the primary visible header no longer produces mixed titles such as `AI - Onboarding` and `AI Agent - Agent Response`;
    - verify user message title remains `You`;
    - verify no backend API contract changes are needed.
 
@@ -14768,6 +15008,29 @@ Normalize the visible speaker/title for assistant and agent chat messages to one
 - Do not change the message taxonomy contract from Phase 7.
 - Do not remove internal message labels/classes used for styling or tests.
 - Do not change assistant wording, Search Brief extraction, Agent Plan, Build Plan, approval, runtime, Tavily, results, scoring, filters, dedupe, location logic, or candidate workspace behavior.
+- Final iterative review result: approved as UI-label normalization only. The critical guard is that the visible speaker title becomes consistent while message taxonomy, payload facts, CSS classes, and typed rendering semantics stay intact.
+
+### Deep Review Guardrails
+
+Coding risks:
+
+- Internal message taxonomy, message types, CSS classes, or payload facts are renamed while changing only the visible title was intended.
+- Debuggability/accessibility gets worse because all type metadata disappears from DOM/state.
+- Backend message contract changes to support a frontend-only label change.
+- Visual severity/type styling is flattened and safety/errors become less clear.
+
+Mandatory checks before implementation is considered done:
+
+- Primary visible assistant/agent speaker title is unified, while user messages remain `You`.
+- Internal `message_type`, `kind`, CSS class hooks, aria/debug metadata, and typed rendering semantics remain available.
+- Static/frontend checks prove visible primary headers no longer show mixed labels such as `AI - Onboarding` or `AI Agent - Agent Response`.
+- Browser sanity covers onboarding/clarification, Search Brief, Agent Plan, and Agent Response titles.
+- No backend API, message facts, Search Brief, planning, runtime, results, or candidate workspace behavior changes.
+
+Stop and re-review if:
+
+- The implementation needs backend message-type renaming, taxonomy changes, or wording rewrites.
+- Safety/error/tool messages lose visible severity cues.
 
 ### Acceptance Criteria
 
@@ -14788,7 +15051,1261 @@ Normalize the visible speaker/title for assistant and agent chat messages to one
 
 ### Before Coding
 
-Codex must critically review this task against `AGENT_MESSAGE_TYPE_META`, `renderTypedChatMessage`, Phase 7 message taxonomy/facts contracts, frontend smoke coverage, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Completed after critical review against `AGENT_MESSAGE_TYPE_META`, `renderTypedChatMessage`, Phase 7 message taxonomy/facts contracts, frontend smoke coverage, and absolute product boundaries, with explicit user coding approval.
+
+---
+
+## Task: P8-016 Harden pending clarification answer routing
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed issue from browser review:
+
+1. Agent has an incomplete Search Brief and is waiting for `location`.
+2. Recruiter sends an unrelated word such as `сантехника`.
+3. Current UI can answer as if this were just another normal incomplete sourcing turn: `В какой локации ищем кандидатов?`
+
+This is misleading. The agent should not pretend the answer was normal when the user replied to a specific pending clarification with a value that does not match that field.
+
+### Goal
+
+Define and later implement a conservative pending-clarification router for short answers to a specific missing field.
+
+The router should distinguish:
+
+- valid answer to the pending field;
+- unsupported value for the pending field;
+- unrelated/noise answer;
+- off-topic question;
+- valid refinement that changes a different field.
+
+### Initial Proposed Steps
+
+1. Add field-specific pending answer checks before generic LLM extraction/refinement.
+
+2. For pending `location`:
+   - accept Ukraine and supported Ukrainian city aliases such as `Киев`, `Київ`, `Kyiv`, `Украина`, `Україна`, `Ukraine`;
+   - normalize accepted city/country answers to `location = Ukraine` for the current baseline;
+   - reject unrelated values such as `сантехника` with a specific message like `Не распознал локацию...`;
+   - treat unsupported countries such as `Польша` as unsupported for the current Java/Ukraine baseline, not as noise.
+
+3. For pending `stack`:
+   - keep the already implemented Russian stack answer behavior;
+   - return a specific unrecognized-stack message for unrelated answers instead of repeating the same stack question forever.
+
+4. Preserve state boundaries:
+   - preserve the current draft Search Brief on unrelated/noise answers;
+   - do not set `brief_changed`;
+   - do not clear Agent Plan/Search Plan unless a real accepted field value changes the brief;
+   - do not call Tavily, LinkedIn, direct web search, runtime execution, or account actions.
+
+5. Add no-network regression coverage:
+   - pending location + `Киев` -> ready brief with `location = Ukraine`;
+   - pending location + `сантехника` -> specific unrecognized-location message, draft preserved, no build plan;
+   - pending location + `какая погода?` -> off-topic redirect, draft preserved;
+   - pending location + `Польша` -> unsupported current-baseline response;
+   - pending stack + unsupported/unrelated answer -> specific unrecognized-stack message.
+
+### Notes
+
+There is a local draft patch from the browser finding, but it is not approved and must not be committed as completed work. Review this task first, update the steps if needed, then code only after explicit approval.
+
+### Non-Goals
+
+- Do not expand supported countries beyond Ukraine.
+- Do not add new search sources.
+- Do not add autonomous execution.
+- Do not change planner, Tavily execution, scoring, filters, dedupe, Candidate Quality, candidate workspace, persistence, memory, or export behavior.
+- Do not use LLM classification as the source of truth for pending-field acceptance.
+
+---
+
+## Task: P8-017 Handle social small talk without harsh off-topic redirect
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed issue from browser review:
+
+1. Recruiter sends social small talk such as `how are you?`.
+2. Current assistant response can be: `This does not look like candidate search. I can help with sourcing...`
+
+This is too harsh and unnatural. `how are you?` is not a sourcing request, but it is also not a bad/off-topic request that needs a corrective message. The assistant should answer briefly in a friendly way and then guide the recruiter back to the sourcing task.
+
+### Goal
+
+Create a narrow social-small-talk route for harmless conversational turns.
+
+The route should make the chat feel more natural without changing Search Brief state, planning, approval, execution, or results.
+
+### Initial Proposed Steps
+
+1. Define a conservative social-small-talk intent list:
+   - English: `how are you?`, `how's it going?`, `are you there?`, `thanks`, `thank you`;
+   - Russian: `как дела?`, `ты тут?`, `спасибо`;
+   - keep this separate from greeting/onboarding and from true off-topic questions.
+
+2. Add routing priority:
+   - safety/prohibited-intent still runs first;
+   - reset/control signals still keep their current priority;
+   - social small talk should be handled before generic off-topic redirect;
+   - valid sourcing/refinement messages must not be swallowed by small-talk detection.
+
+3. Response behavior:
+   - answer the social turn briefly;
+   - then ask the recruiter to continue with candidate search details or the current pending clarification;
+   - preserve any existing draft Search Brief;
+   - do not set `brief_changed`;
+   - do not clear Agent Plan/Search Plan/results unless a later approved rule says otherwise.
+
+4. Language behavior:
+   - answer in the active chat language when known;
+   - if the message is clearly English, English answer is acceptable;
+   - if the message is clearly Russian, Russian answer is expected.
+
+5. Add no-network regression coverage:
+   - clean-state `how are you?` -> friendly small-talk response, no Search Brief, no LLM extraction;
+   - clean-state `как дела?` -> friendly small-talk response, no Search Brief, no LLM extraction;
+   - with existing draft brief + `how are you?` -> draft preserved, no brief change;
+   - actual off-topic such as weather/currency remains handled by the off-topic route;
+   - valid sourcing request containing normal sourcing signals is not misclassified as small talk.
+
+### Notes
+
+This should be reviewed before coding. The likely implementation should be deterministic first; an LLM wording overlay can be considered later only if it stays bounded and cannot change facts/state/actions.
+
+### Non-Goals
+
+- Do not make the assistant a general-purpose chat bot.
+- Do not answer arbitrary non-sourcing factual questions.
+- Do not add web search, Tavily calls, LinkedIn behavior, candidate messaging, account actions, persistence, memory, or autonomous execution.
+- Do not change Search Brief extraction, planner, Agent Plan, Build Plan, approval, runtime, scoring, filters, dedupe, location logic, Candidate Quality, candidate workspace, or export behavior.
+
+---
+
+## Task: P8-018 Make greeting onboarding wording more polite
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed issue from browser review:
+
+1. Recruiter sends `hello`.
+2. Current assistant response can be: `Hi. Tell me who we should find: role, main technology, location, and 1-3 stack signals.`
+
+This is safe, but too abrupt. The user expects a more polite opening such as `Hello, how are you?` before the assistant moves into the sourcing prompt.
+
+### Goal
+
+Improve greeting/onboarding wording so the first assistant response feels more polite and natural while still guiding the recruiter toward the Search Brief.
+
+### Initial Proposed Steps
+
+1. Review current deterministic greeting/onboarding source messages and bounded LLM onboarding overlay behavior.
+
+2. Define target tone:
+   - English greeting should prefer `Hello` or similarly polite wording over bare `Hi`;
+   - Russian greeting should also be polite and natural, not robotic;
+   - the message should still ask for role, main technology, location, and 1-3 stack signals.
+
+3. Decide whether this belongs in deterministic source message, bounded LLM wording overlay prompt, or both:
+   - deterministic fallback must be acceptable on its own;
+   - LLM overlay may vary wording but must not change facts/state/actions.
+
+4. Preserve product boundaries:
+   - do not change Search Brief extraction;
+   - do not change missing-field logic;
+   - do not change Agent Plan, Build Plan, approval, runtime, Tavily, results, or candidate workspace.
+
+5. Add no-network regression coverage:
+   - clean-state `hello` returns a polite onboarding message;
+   - clean-state `привет` returns a polite Russian onboarding message;
+   - repeated greeting can vary only through approved bounded wording/fallback rules;
+   - no Search Brief is created from greeting-only input;
+   - no planner/runtime/Tavily behavior is triggered.
+
+### Notes
+
+This is a wording-quality task, not a behavior or execution task. Review wording examples before coding.
+
+### Non-Goals
+
+- Do not make greeting trigger planning/search.
+- Do not answer arbitrary general chat.
+- Do not add web search, Tavily calls, LinkedIn behavior, candidate messaging, account actions, persistence, memory, or autonomous execution.
+- Do not change Search Brief semantics, planner, approval, runtime, scoring, filters, dedupe, location logic, Candidate Quality, candidate workspace, or export behavior.
+
+---
+
+## Task: P8-019 Make unclear/noise response more polite
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed issue from browser review:
+
+1. Recruiter sends unclear/noise input such as `xsdfszdzsz`.
+2. Current assistant response can be: `I did not understand the request. I can help with candidate search...`
+
+This is correct structurally, but the wording is too blunt. Desired direction: a more polite response such as `Hello, I am sorry but I did not...` before guiding the recruiter back to candidate search.
+
+### Goal
+
+Improve unclear/noise response wording so it is polite, brief, and helpful while preserving the conservative guardrail behavior.
+
+### Initial Proposed Steps
+
+1. Review current unclear/noise deterministic source messages in RU/EN.
+
+2. Define target tone:
+   - English should use a polite apology, for example `Hello, I am sorry, but I did not understand the request...`;
+   - Russian should use a similarly polite equivalent;
+   - keep the response concise and action-oriented.
+
+3. Preserve semantic boundaries:
+   - response still means `unclear_request`;
+   - no Search Brief should be created;
+   - no LLM extraction should run for clear noise;
+   - no planner/runtime/Tavily/LinkedIn behavior should trigger.
+
+4. Decide deterministic vs LLM wording:
+   - deterministic fallback must be acceptable on its own;
+   - if LLM wording is considered later, it must be bounded and cannot change state, facts, actions, approval, or results.
+
+5. Add no-network regression coverage:
+   - English noise input returns polite unclear/noise wording;
+   - Russian noise input returns polite unclear/noise wording;
+   - no normalized Search Brief is created;
+   - no recruiter LLM extraction is called;
+   - valid incomplete sourcing input is not misclassified as noise.
+
+### Notes
+
+This is wording-quality hardening for an existing guardrail, not a routing expansion.
+
+### Non-Goals
+
+- Do not make the assistant answer arbitrary non-sourcing prompts.
+- Do not weaken unclear/noise detection.
+- Do not add web search, Tavily calls, LinkedIn behavior, candidate messaging, account actions, persistence, memory, or autonomous execution.
+- Do not change Search Brief extraction, planner, Agent Plan, Build Plan, approval, runtime, scoring, filters, dedupe, location logic, Candidate Quality, candidate workspace, or export behavior.
+
+---
+
+## Task: P8-020 Remove redundant Recruiter Chat helper subtitle
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The Recruiter Chat panel shows the subtitle:
+
+`Describe the search in Russian or English.`
+
+This text is redundant now. The chat itself and onboarding message already guide the recruiter, so the subtitle adds noise rather than useful instruction.
+
+### Goal
+
+Remove the redundant Recruiter Chat helper subtitle from the UI.
+
+### Initial Proposed Steps
+
+1. Find the static UI text in the Recruiter Chat header.
+
+2. Remove only the subtitle text:
+   - keep the `Recruiter Chat` title;
+   - keep chat layout, input, messages, statuses, and controls unchanged;
+   - avoid replacing it with another explanatory sentence unless separately approved.
+
+3. Check responsive layout:
+   - the header should not leave awkward empty spacing;
+   - desktop and narrow widths should still look clean.
+
+4. Add or update lightweight frontend/static coverage only if existing smoke coverage expects this text.
+
+### Non-Goals
+
+- Do not change chat behavior, Search Brief extraction, onboarding wording, LLM wording, Agent Plan, Build Plan, approval, runtime, Tavily, results, candidate workspace, persistence, memory, or export behavior.
+- Do not redesign the whole chat header.
+- Do not add new instructional text in place of the removed subtitle.
+
+---
+
+## Task: P8-021 Make initial chat helper prompt warmer
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The initial assistant helper card currently says:
+
+`Describe the search in natural language. I will collect a Search Brief before planning.`
+
+This sounds mechanical and product-internal. The recruiter does not need to hear implementation terms such as `Search Brief` before they start. The first prompt should feel more natural and invite the recruiter to describe who they need.
+
+Preferred direction:
+
+`Feel free to start the chat and describe who you are looking for. I will do my best to help you.`
+
+### Goal
+
+Replace the mechanical initial helper prompt with warmer recruiter-facing wording while keeping the same safe behavior boundaries.
+
+### Initial Proposed Steps
+
+1. Find the static initial helper prompt shown before the recruiter starts the chat.
+
+2. Replace only that visible wording:
+   - use a warm invitation close to `Feel free to start the chat and describe who you are looking for. I will do my best to help you.`;
+   - avoid product-internal terms such as `Search Brief`, planner, Agent Plan, query plan, or planning in this initial prompt;
+   - keep the wording short enough for the current chat card layout.
+
+3. Preserve behavior:
+   - no Search Brief extraction changes;
+   - no classifier changes;
+   - no LLM call just to render this static helper;
+   - no planning/search/runtime changes.
+
+4. Check UI fit:
+   - desktop and narrow widths should not overflow;
+   - the helper card should remain visually consistent with the existing chat design.
+
+5. Add or update lightweight frontend/static coverage only if existing smoke coverage expects the old text.
+
+### Non-Goals
+
+- Do not change onboarding chat responses after the user sends a message; `P8-018` owns greeting onboarding wording.
+- Do not change unclear/noise responses; `P8-019` owns that.
+- Do not change the Recruiter Chat subtitle; `P8-020` owns that.
+- Do not add LLM behavior, web search, Tavily calls, LinkedIn behavior, candidate messaging, account actions, persistence, memory, or autonomous execution.
+- Do not change Search Brief extraction, planner, Agent Plan, Build Plan, approval, runtime, scoring, filters, dedupe, location logic, Candidate Quality, candidate workspace, or export behavior.
+
+---
+
+## Task: P8-022 Make multi-wave the default approved search mode
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Earlier project decisions kept multi-wave as explicit/advanced behavior because `P3-012` found useful but modest incremental gain and recommended not making it the default at that time. The current product direction changes that: recruiter searches should use multi-wave by default.
+
+User expectation:
+
+`Multi-wave should be enabled by default. Search should default to multi-wave.`
+
+This should be implemented as a real execution-mode default, not only a visual toggle state.
+
+### Goal
+
+Make approved searches default to the existing multi-wave execution path while preserving the explicit human approval gate before Tavily execution.
+
+### Initial Proposed Steps
+
+1. Audit the current execution-mode flow:
+   - frontend multi-wave toggle/default state;
+   - Agent Plan/proposed action metadata;
+   - Build Plan/runtime prepare payload;
+   - `/api/agent/runtime/turn` approved execution path;
+   - direct compatibility endpoints `/api/structured-search` and `/api/structured-search/multi-wave`.
+
+2. Define the new default behavior:
+   - new searches start with multi-wave enabled by default;
+   - Build Plan and runtime approval should bind to multi-wave mode by default;
+   - visible UI should honestly show that the upcoming approved search is multi-wave;
+   - approval fingerprints/runtime context must still distinguish single-wave from multi-wave.
+
+3. Decide whether a user-visible opt-out remains:
+   - preferred first pass: keep the existing control if it already exists, but default it to multi-wave;
+   - if the control stays, changing it must clear/recompute pending approval exactly like today;
+   - if the product later wants “always multi-wave with no opt-out,” that should be separately reviewed before removing the control.
+
+4. Preserve safety and cost boundaries:
+   - do not run Tavily until explicit `Approve & Search`;
+   - do not add direct web-search bypass;
+   - do not add LinkedIn login/scraping;
+   - do not message candidates or perform account actions;
+   - do not add autonomous execution.
+
+5. Update documentation and status references that still say multi-wave is off by default:
+   - make clear this task intentionally supersedes the older default/off recommendation;
+   - preserve historical experiment notes where they describe past measurements;
+   - update current product behavior docs after implementation.
+
+6. Add regression coverage:
+   - default frontend/runtime mode is multi-wave;
+   - approval binds to multi-wave execution mode;
+   - single-wave approval cannot execute multi-wave and multi-wave approval cannot execute single-wave;
+   - toggling mode, if still available, clears/recomputes approval;
+   - no Tavily call happens before approval;
+   - multi-wave settings remain bound in runtime approval.
+
+7. Run the relevant no-network checks first, then only run live Tavily if a separate explicit test run is approved.
+
+### Non-Goals
+
+- Do not change query generation logic, role aliases, location filters, scoring, dedupe, Candidate Quality, candidate workspace, export, or LLM wording behavior.
+- Do not expand supported roles, countries, sources, or recruiter scenarios.
+- Do not change multi-wave wave-count/patience defaults unless the implementation review finds they must be updated for safety.
+- Do not bypass `Build Plan` or `Approve & Search`.
+- Do not add persistence, memory, autonomous execution, direct web search, LinkedIn behavior, candidate messaging, or account actions.
+
+---
+
+## Task: P8-023 Ask next missing clarification after successful brief patch
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+Recruiter writes:
+
+`I need Java`
+
+Assistant asks:
+
+`What target location should the search use?`
+
+Recruiter answers:
+
+`Ukraine`
+
+Assistant replies:
+
+`Updated the Search Brief (updated location). Build a new plan before search.`
+
+This is misleading when the Search Brief is still not complete. In this flow the backend can still have missing fields such as `stack` and sometimes `role_family`, but the assistant message does not surface the next required clarification.
+
+Technical reason:
+
+- `Search Brief` validation still requires `stack`.
+- The chat currently asks only one clarification at a time.
+- Missing-field order can make `location` the first visible question.
+- After a successful location patch, the patch success message is generic and does not append the next missing-field question.
+- The response may carry `next_question`, but the visible assistant message can still say “Build a new plan before search,” which implies readiness too early.
+
+### Goal
+
+When a patch updates one field but the Search Brief still has missing fields, the assistant must ask the next missing clarification instead of implying the plan can be built.
+
+### Initial Proposed Steps
+
+1. Review `build_recruiter_chat_refinement_response`, `apply_brief_patch_to_draft`, `patch_success_message`, and `one_clarifying_question`.
+
+2. Update patch response behavior:
+   - if patched brief is still `needs_clarification`, assistant message should acknowledge the update briefly and ask `next_question`;
+   - if patched brief is `ready_for_planning`, keep the ready/build-plan wording;
+   - never say “Build Plan” or “Build a new plan” while required fields remain missing.
+
+3. Preserve field validation:
+   - `stack` remains required for the supported Java/Ukraine flow;
+   - do not invent stack values;
+   - do not infer stack from `Java`;
+   - do not bypass `Search Brief` validation.
+
+4. Decide whether clarification priority should change:
+   - current behavior asks the first missing field from sorted `missing_fields`;
+   - review whether `role_family -> technology -> location -> stack` or another explicit product order would be clearer than alphabetical ordering;
+   - keep any priority change conservative and covered by tests.
+
+5. Add no-network regression coverage:
+   - `I need Java` -> asks for location or another approved first missing field;
+   - then `Ukraine` -> asks for remaining `stack` if role is already known;
+   - if role is also missing, asks the next remaining field without saying Build Plan;
+   - completed Java/Ukraine/stack brief still reaches `ready_for_planning`;
+   - Build Plan remains disabled until required fields are complete.
+
+### Non-Goals
+
+- Do not make stack optional.
+- Do not add default stack values.
+- Do not add LLM inference for missing stack.
+- Do not change planner, Agent Plan, Build Plan, approval, Tavily execution, multi-wave behavior, scoring, filters, dedupe, Candidate Quality, candidate workspace, export, persistence, memory, or autonomous execution.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8-024 Replace technical plan UX with conversational search confirmation
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The assistant currently exposes internal product mechanics to the recruiter:
+
+`I understand the task: to find Backend Developer profiles with Java expertise in Ukraine, specifically using the Spring framework. The next step is to create a plan through the approved backend planner. The search cannot proceed without prior approval.`
+
+Target recruiter-facing direction:
+
+`I understand the task: to find Backend Developer profiles with Java expertise in Ukraine, specifically using the Spring framework. If you confirm please just tell me.`
+
+The recruiter should not need to know about backend planners, Search Plan, Build Plan, buttons, approval fingerprints, or internal execution steps.
+
+Desired external flow:
+
+1. Assistant summarizes the understood search in natural language.
+2. Assistant asks for a simple confirmation.
+3. Recruiter can answer naturally, for example `yes`, `ok`, `go ahead`, `run it`, `start`, `да`, `ок`, `вперед`, `запускай`.
+4. If confirmed, the app performs the necessary internal safe steps and starts the approved search.
+5. If the recruiter says they want to refine, no search runs and the chat asks for updated parameters.
+
+### Goal
+
+Hide technical planning mechanics from the recruiter and make the chat confirmation the visible control for proceeding with search, while preserving the human-approved execution boundary internally.
+
+### Initial Proposed Steps
+
+1. Review current user-facing messages:
+   - Agent Plan supported message;
+   - ready Search Brief message;
+   - Build Plan confirmation message;
+   - chat-confirmed Build Plan flow;
+   - action queue/button copy that leaks internal planner language into the chat.
+
+2. Replace technical chat copy:
+   - remove recruiter-facing mentions of `backend planner`, `Search Plan`, `Build Plan`, `QueryPlan`, `approval`, `fingerprint`, and buttons from assistant chat messages;
+   - use a natural summary plus confirmation request;
+   - keep technical terms only in developer/internal payloads, logs, tests, and hidden state where needed.
+
+3. Define explicit conversational confirmation:
+   - supported confirmations: `yes`, `ok`, `go ahead`, `proceed`, `run it`, `start search`, `да`, `ок`, `вперед`, `запускай`, and close variants;
+   - supported refinement replies: `no`, `not yet`, `change`, `refine`, `уточнить`, `изменить`, `нет`, and close variants;
+   - ambiguous replies must ask a clarification and must not run search.
+
+4. Bind confirmation to current state:
+   - confirmation is valid only for the current Search Brief/Agent Plan/proposed action fingerprint;
+   - if the brief changes after the confirmation prompt, old confirmation is stale;
+   - if required fields are missing, confirmation cannot run search and the assistant asks the missing clarification.
+
+5. Convert the visible confirmation into internal approved execution safely:
+   - no Tavily call before recruiter confirmation;
+   - confirmation should internally trigger the existing build/prepare/execute path or an equivalent backend-owned safe path;
+   - the backend must still validate structured request, supported Java/Ukraine flow, execution mode, query count, fingerprints, and approval context;
+   - if `P8-022` is implemented first, default execution should be multi-wave; otherwise preserve current execution mode until that task is approved/implemented.
+
+6. Preserve refinement branch:
+   - if recruiter says they want to change parameters, do not build or run search;
+   - keep the current Search Brief as editable context;
+   - ask what they want to change;
+   - clear any stale proposed action/runtime approval.
+
+7. Update frontend UX:
+   - chat should be the primary visible path after a ready brief;
+   - the recruiter should not need to click `Build Plan` or `Approve & Search` for the main chat path after this task;
+   - if buttons remain for debugging/advanced fallback, they should not be the main recruiter instruction.
+
+8. Add no-network regression coverage:
+   - ready supported brief produces natural confirmation wording without internal planner terms;
+   - `yes/ok/go ahead/run it` proceeds only from a fresh supported confirmation prompt;
+   - stale confirmation is rejected;
+   - ambiguous confirmation does not run search;
+   - refinement reply does not run search and keeps the brief editable;
+   - no Tavily call happens before confirmation;
+   - prohibited requests remain refused.
+
+9. Add live-browser/manual verification only after the no-network checks pass:
+   - complete Java/Ukraine/stack brief;
+   - confirm naturally in chat;
+   - verify search starts only after confirmation;
+   - verify no internal planner language is required from the recruiter.
+
+### Non-Goals
+
+- Do not remove backend validation, fingerprints, runtime approval checks, or supported-flow enforcement.
+- Do not make the agent autonomous: recruiter confirmation is still required before real search.
+- Do not run Tavily before confirmation.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, or memory.
+- Do not expand supported roles, countries, technologies, sources, scoring, filters, dedupe, Candidate Quality, candidate workspace, or export behavior.
+- Do not make vague replies such as `maybe`, `later`, or unrelated text start search.
+
+---
+
+## Task: P8-025 Shorten post-search Agent Response summary
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+Post-search assistant response is too long and includes too much analysis:
+
+`Search completed: 47 unique candidates identified from 789 raw results, with all 40 queries successfully executed. Quality distribution: 19 strong, 23 in review, and 5 weak candidates. Key indicators: 43 candidates demonstrated exact Java skills, while 37 showed evidence relevant to the target role. Main limitations include: the selected technology stack was not visible in public profiles for 35 candidates, and seniority information was missing for 27 candidates. Suggested next step: prioritize reviewing the strongest candidates first, then consider a non-executable option for the next iteration if the brief needs adjustment.`
+
+Preferred direction:
+
+`Search completed: 47 unique candidates identified: 19 strong, 23 in review, and 5 weak candidates.`
+
+The recruiter should see a compact completion summary. Detailed analysis already belongs in the candidate table, filters, explanations, and review UI.
+
+### Goal
+
+Make the post-search chat response a single concise summary sentence with only candidate count and quality distribution.
+
+### Initial Proposed Steps
+
+1. Review deterministic and LLM-assisted `Agent Response` wording:
+   - backend deterministic message builder;
+   - bounded LLM overlay rules;
+   - frontend rendering of next-iteration options;
+   - RU/EN localization paths.
+
+2. Replace the default post-search assistant message shape:
+   - include total unique candidate count;
+   - include quality distribution counts: strong, review, weak;
+   - omit raw result count;
+   - omit query count/success count;
+   - omit key indicators;
+   - omit limitations;
+   - omit suggested next step;
+   - omit internal execution/planning language.
+
+3. Keep the message fact-grounded:
+   - counts must come only from backend report/summary facts;
+   - do not let LLM change counts or quality bucket labels;
+   - if a count is missing, use deterministic fallback rather than inventing.
+
+4. Decide what happens to existing next-iteration options UI:
+   - preferred first pass: do not include next-step wording in the chat sentence;
+   - if options remain visible elsewhere, keep them visually separate from the short completion sentence;
+   - do not show “non-executable option” language in the main chat response.
+
+5. Add no-network regression coverage:
+   - EN response matches the short format;
+   - RU response matches equivalent short format;
+   - response does not contain raw results, query success, key indicators, limitations, suggested next step, `non-executable`, `Build Plan`, or internal planner language;
+   - LLM overlay cannot expand the response beyond allowed fields/facts.
+
+### Non-Goals
+
+- Do not change search execution, Tavily, multi-wave behavior, query generation, scoring, filters, dedupe, Candidate Quality, candidate workspace, export, or candidate explanations.
+- Do not remove detailed data from the table/report; only shorten the chat summary.
+- Do not add new recommendations or executable next-action buttons.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, memory, or autonomous execution.
+
+---
+
+## Task: P8-026 Hide Next Iteration Options block from recruiter chat
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+After search, the chat shows a separate block:
+
+`NEXT ITERATION OPTIONS`
+
+with items such as:
+
+- `Review high-quality candidates first`
+- `Broaden stack with Spring Boot`
+- `Not executable. Write a follow-up in chat if you want to change the Search Brief.`
+
+This block is not useful for the recruiter in the main chat. It adds internal/action-design noise after the search is already complete.
+
+### Goal
+
+Remove the visible `Next Iteration Options` block from recruiter-facing chat messages.
+
+### Initial Proposed Steps
+
+1. Find where `next_iteration_options` are rendered in the chat UI.
+
+2. Stop rendering the `Next Iteration Options` block in recruiter chat:
+   - remove the visible section title;
+   - remove the numbered option list;
+   - remove `Not executable...` helper text;
+   - keep the short post-search summary message from `P8-025` as the only chat response after search.
+
+3. Preserve backend/internal data if still useful:
+   - backend may still compute `suggested_next_actions` or `next_iteration_options` internally;
+   - frontend may keep the data for future reviewed UI surfaces;
+   - do not show it in the main recruiter chat unless a later task explicitly reintroduces a better UX.
+
+4. Keep safe behavior:
+   - no option should become executable by hiding the block;
+   - hiding the block must not change search execution, approval, Tavily, or refinement behavior;
+   - follow-up messages can still be handled by normal chat logic.
+
+5. Add or update regression coverage:
+   - post-search chat does not contain `NEXT ITERATION OPTIONS`;
+   - post-search chat does not contain `Not executable`;
+   - post-search chat does not render option labels/descriptions;
+   - backend response shape can remain unchanged if needed, but UI hides the block.
+
+### Non-Goals
+
+- Do not remove candidate table filters, shortlist, notes, candidate explanations, export, or report data.
+- Do not add new recommendation UI.
+- Do not change Agent Response facts or search execution.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, memory, or autonomous execution.
+
+---
+
+## Task: P8-027 Hide query contribution diagnostics from recruiter UI
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The frontend shows query contribution diagnostic cards such as:
+
+`Q01 role_based`
+
+`raw 20, filtered 6, new 6, duplicates 0`
+
+and similar rows for `Q02`, `Q03`, `Q04`, etc.
+
+This is useful internal/debug information, but it is not useful for the recruiter-facing interface. It makes the UI look technical and distracts from the candidate workspace.
+
+### Goal
+
+Remove query contribution diagnostics from the recruiter-facing frontend.
+
+### Initial Proposed Steps
+
+1. Find where query contribution cards are rendered in the frontend.
+
+2. Hide/remove the recruiter-facing display of:
+   - query ids such as `Q01`, `Q02`, `Q03`;
+   - query categories such as `role_based`, `backend_role`, `stack_focused`;
+   - raw/filtered/new/duplicate contribution counts;
+   - the per-query contribution list container if it becomes empty.
+
+3. Preserve backend/report data:
+   - keep query contribution data in backend responses and logs/snapshots if existing tests or diagnostics need it;
+   - do not remove fields from API contracts in this task;
+   - only remove or hide the main UI surface.
+
+4. Check remaining report UI:
+   - keep high-level useful counts if they are still needed;
+   - avoid leaving empty sections, headers, or awkward spacing;
+   - candidate table/workspace remains the primary post-search surface.
+
+5. Add or update frontend/static coverage:
+   - UI no longer renders `Q01`/query contribution cards after search;
+   - UI no longer renders `raw X, filtered Y, new Z, duplicates N`;
+   - backend response shape can remain unchanged;
+   - candidate workspace still renders candidates.
+
+### Non-Goals
+
+- Do not change query generation, query ids, query source metadata, backend reports, snapshots, Tavily execution, multi-wave behavior, scoring, filters, dedupe, Candidate Quality, candidate workspace, export, or Agent Response facts.
+- Do not remove diagnostic data from backend unless a later reviewed task approves API/report cleanup.
+- Do not add new analytics UI.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, memory, or autonomous execution.
+
+---
+
+## Task: P8-028 Collapse report metrics behind unique-candidate summary
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The `Report` panel currently shows many diagnostic metrics by default:
+
+- raw;
+- normalized;
+- displayed;
+- unique;
+- duplicates;
+- profile filter;
+- location filter;
+- rescued;
+- foreign location;
+- weak location;
+- unknown location;
+- failed queries;
+- waves;
+- executed queries;
+- stop reason;
+- new per wave.
+
+This is too much for the recruiter-facing default view. The most useful top-level fact is simply how many unique candidates were found.
+
+Desired direction:
+
+- top of report shows a simple summary, for example `Found 47 unique candidates`;
+- all detailed metrics are collapsed by default;
+- user can expand details if needed.
+
+### Goal
+
+Make the report panel recruiter-first: show only the unique candidate count by default and collapse detailed metrics behind an explicit details control.
+
+### Initial Proposed Steps
+
+1. Review current `renderReport` and report panel markup/CSS.
+
+2. Change default report display:
+   - show a compact top summary such as `Found 47 unique candidates`;
+   - do not show raw/normalized/displayed/duplicates/filter/wave metrics by default;
+   - keep the summary visually aligned with the current dark UI.
+
+3. Add a collapsed details section:
+   - use an accessible disclosure/details control or existing collapsible pattern;
+   - details are collapsed by default after each search;
+   - expanded details can show the current diagnostic metric grid;
+   - no empty section should appear when report data is missing.
+
+4. Coordinate with `P8-027`:
+   - per-query contribution diagnostics should remain hidden from recruiter UI;
+   - this task only controls the high-level report metric grid;
+   - do not reintroduce query contribution cards inside the collapsed details unless a later task approves it.
+
+5. Preserve data and behavior:
+   - backend report payload remains unchanged;
+   - snapshots/logs remain unchanged;
+   - candidate workspace, filters, shortlist, notes, explanations, and export remain unchanged.
+
+6. Add frontend/static coverage:
+   - default report UI contains the unique-candidate summary;
+   - default report UI does not show raw/normalized/filter/wave metric cards before expanding details;
+   - details can expose the metric grid when expanded;
+   - empty/missing report states still render cleanly.
+
+### Non-Goals
+
+- Do not change report counts or backend report semantics.
+- Do not remove report fields from API responses, logs, or snapshots.
+- Do not change search execution, Tavily, multi-wave behavior, query generation, scoring, filters, dedupe, Candidate Quality, Agent Response, candidate workspace, export, or candidate explanations.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, memory, or autonomous execution.
+
+---
+
+## Task: P8-029 Remove frontend-ready status badge from recruiter UI
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The frontend shows a visible badge/button-like label:
+
+`Frontend ready`
+
+This is technical readiness/debug copy. It is not useful for the recruiter-facing interface and adds noise to the main product surface.
+
+### Goal
+
+Remove the visible `Frontend ready` badge/text from the recruiter-facing UI.
+
+### Initial Proposed Steps
+
+1. Find where `Frontend ready` is rendered in the frontend markup or JavaScript.
+
+2. Remove the visible UI element:
+   - remove the badge/text from the recruiter-facing layout;
+   - do not leave empty spacing or an orphan wrapper;
+   - keep surrounding layout aligned.
+
+3. Preserve internal behavior:
+   - do not remove any actual frontend initialization logic;
+   - do not remove tests/checks that verify the frontend loaded unless they depend only on this visible text;
+   - if a smoke test uses `Frontend ready` as a readiness marker, replace it with a non-user-facing selector or a better app-ready check.
+
+4. Add or update frontend/static coverage:
+   - UI no longer contains visible `Frontend ready`;
+   - app still initializes correctly;
+   - chat, Search Brief, results, and candidate workspace surfaces still render.
+
+### Non-Goals
+
+- Do not change chat behavior, Search Brief extraction, Agent Plan, Build Plan, approval, runtime, Tavily execution, report data, candidate workspace, export, or styling beyond removing this badge.
+- Do not add replacement debug text.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, memory, or autonomous execution.
+
+---
+
+## Task: P8-030 Rebalance desktop layout toward candidate workspace
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UI issue from browser review:
+
+The main workspace is too centered/wide on the left chat side. This leaves less room for the right-side candidate/report workspace, where recruiters need to review people.
+
+Desired direction:
+
+- move the left chat/workflow column closer to the left edge;
+- reduce wasted outer margins;
+- reserve more horizontal space for the right-side report/candidate workspace.
+
+### Goal
+
+Rebalance the desktop layout so the candidate/report workspace has more usable width, while keeping the chat usable and readable.
+
+### Initial Proposed Steps
+
+1. Review current page shell CSS:
+   - main container max-width;
+   - grid/flex layout;
+   - left/right column widths;
+   - outer margins/padding;
+   - desktop and tablet breakpoints.
+
+2. Adjust desktop layout:
+   - align the main workspace closer to the left viewport edge;
+   - reduce unnecessary left/right page gutters;
+   - set a practical fixed/minmax width for the chat column;
+   - let the right workspace take the remaining width.
+
+3. Preserve responsive behavior:
+   - on narrow screens, keep stacked/mobile layout readable;
+   - avoid horizontal overflow;
+   - chat input, buttons, report, and candidate table must remain usable.
+
+4. Coordinate with current Phase 8 cleanup tasks:
+   - `P8-025`/`P8-026` should reduce chat content height/noise;
+   - `P8-027`/`P8-028` should reduce report diagnostics;
+   - this task owns the layout balance only, not content changes.
+
+5. Add or update frontend/static/browser coverage:
+   - desktop screenshot or browser check confirms left column is aligned closer to the left edge;
+   - right candidate/report workspace has more width than before;
+   - no overlap/overflow at common desktop and narrow viewport widths.
+
+### Non-Goals
+
+- Do not redesign visual style, colors, typography, or component behavior beyond layout balance.
+- Do not change chat logic, Search Brief extraction, Agent Plan, Build Plan, approval, runtime, Tavily execution, report data, candidate workspace behavior, export, or candidate explanations.
+- Do not remove frontend content here; content cleanup belongs to the specific tasks above.
+- Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, memory, or autonomous execution.
+
+---
+
+## Task: P8-031 Make candidate table the primary post-search surface
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Observed UX issue from browser review:
+
+After search completes, the recruiter needs to immediately see who was found. The app already has a `Candidate Workspace` / candidate list implementation, but the visible experience is dominated by chat text, report metrics, query diagnostics, and technical panels.
+
+This makes the core workflow unclear:
+
+`Search completed -> where are the people?`
+
+The candidate table/list must become the main visible post-search surface.
+
+### Visual Reference
+
+Use the browser-review example as a direction for the search results surface:
+
+- title: `Candidate Results`;
+- compact meta line: `20 candidates - 10 queries - 16.55s` or equivalent current-run summary;
+- dense table/list columns such as `Score`, `Name`, `Role`, `Location`, `Stack`, `Source`, `Status`;
+- score shown as a compact pill, for example `99%`;
+- rows optimized for scanning and comparison, not large decorative cards;
+- role/location/stack/source/status visible in the main row when available;
+- dark workspace styling consistent with the current app;
+- candidate rows are the first thing the recruiter sees after search completion.
+
+This is a product/UX reference, not a strict pixel-perfect requirement. It should be adapted to the existing Candidate Workspace data model and responsive constraints.
+
+### Goal
+
+After search completion, make the found candidates immediately visible and obvious as the primary recruiter workspace.
+
+### Initial Proposed Steps
+
+1. Review current candidate workspace rendering:
+   - `renderResults`;
+   - `replaceWorkspaceRun`;
+   - `renderWorkspaceResults`;
+   - `#results-list`;
+   - right-side results/report layout.
+
+2. Make candidate results visually primary:
+   - show a clear heading such as `Found candidates` or `Candidates`;
+   - show count summary near the table/list;
+   - prefer a dense results table/list similar to the visual reference above;
+   - ensure candidate rows are visible without hunting through report/chat details;
+   - keep sort/filter/review controls close to the candidate list.
+
+3. Reduce competing surfaces:
+   - coordinate with `P8-025` to shorten chat response;
+   - coordinate with `P8-026` to hide next iteration options;
+   - coordinate with `P8-027` to hide query contribution diagnostics;
+   - coordinate with `P8-028` to collapse report details.
+
+4. Improve post-search focus:
+   - after successful search, the UI should guide attention to the candidate workspace;
+   - if needed, scroll/focus the results workspace instead of leaving the user inside chat;
+   - do not create disorienting jumps on narrow/mobile layouts.
+
+5. Keep candidate workspace behavior unchanged:
+   - shortlist, notes, review status, filters, explanations, and export still work;
+   - no backend/API/search behavior changes;
+   - candidate data remains grounded in returned search results.
+
+6. Add frontend/browser coverage:
+   - after mocked/approved search, candidate workspace is visible;
+   - candidate count is visible;
+   - at least one candidate row is visible when results exist;
+   - report/chat diagnostics do not obscure the candidate table;
+   - empty results still show a clear empty state.
+
+### Non-Goals
+
+- Do not remove the existing candidate workspace functionality.
+- Do not redesign candidate scoring, filters, review state, shortlist, notes, explanations, or export behavior.
+- Do not change search execution, Tavily, multi-wave behavior, query generation, scoring, filters, dedupe, Candidate Quality, Agent Response facts, backend reports, logs, or snapshots.
+- Do not add persistence, memory, direct web search, LinkedIn login/scraping, candidate messaging, account actions, or autonomous execution.
+
+---
+
+## Task: P8-032 Define recruiter-facing AI conversation and workspace presentation policy
+
+### Status
+
+Draft / backlog / not approved / not implemented.
+
+### Context
+
+Recent browser review found many recruiter-facing UX issues:
+
+- the chat exposes internal terms such as `backend planner`, `Build Plan`, `Search Plan`, `QueryPlan`, `approval`, and `non-executable`;
+- assistant wording can be too mechanical, too long, or too technical;
+- post-search chat can over-explain instead of giving a short completion summary;
+- debug/report/query details are too visible;
+- the candidate table/workspace is not clearly the primary post-search surface;
+- layout gives too much attention to chat/report mechanics and not enough to found candidates.
+
+These issues should not be fixed as many isolated hardcoded strings. They should be unified under one recruiter-facing policy so the AI Agent feels like a live assistant while backend facts and safety remain deterministic.
+
+### Parent / Child Model
+
+`P8-032` is the parent umbrella task.
+
+The listed child tasks are observed recruiter-facing issues and checklist items. They should not be coded one by one as separate hardcoded fixes. The expected flow is:
+
+1. Review and approve `P8-032`.
+2. Implement `P8-032` through reviewed slices.
+3. Mark child tasks as covered/closed only when the umbrella implementation demonstrably resolves their observed issue.
+
+Child tasks may be split out only if a later review explicitly decides that one item is a narrow standalone cleanup.
+
+### Goal
+
+Define and then implement a single recruiter-facing conversation and workspace presentation policy for the current supported Java/Ukraine Agent v0 flow.
+
+The policy should make the product feel like:
+
+`chat with recruiter -> confirm understood search -> safely run approved backend search -> show found candidates first`
+
+not:
+
+`technical planner UI -> internal reports -> debug diagnostics -> hidden candidate list`.
+
+### Covers / Consolidates
+
+This umbrella task defines the implementation approach for these observed issues:
+
+- `P8-017 Handle social small talk without harsh off-topic redirect`;
+- `P8-018 Make greeting onboarding wording more polite`;
+- `P8-019 Make unclear/noise response more polite`;
+- `P8-020 Remove redundant Recruiter Chat helper subtitle`;
+- `P8-021 Make initial chat helper prompt warmer`;
+- `P8-023 Ask next missing clarification after successful brief patch`;
+- `P8-024 Replace technical plan UX with conversational search confirmation`;
+- `P8-025 Shorten post-search Agent Response summary`;
+- `P8-026 Hide Next Iteration Options block from recruiter chat`;
+- `P8-027 Hide query contribution diagnostics from recruiter UI`;
+- `P8-028 Collapse report metrics behind unique-candidate summary`;
+- `P8-029 Remove frontend-ready status badge from recruiter UI`;
+- `P8-030 Rebalance desktop layout toward candidate workspace`;
+- `P8-031 Make candidate table the primary post-search surface`.
+
+`P8-022 Make multi-wave the default approved search mode` remains separate because it changes execution-mode default behavior.
+
+### Policy Direction
+
+1. LLM wording is allowed for recruiter-facing language:
+   - greetings;
+   - unclear/off-topic-but-safe replies;
+   - search understanding summary;
+   - confirmation request;
+   - concise post-search completion summary;
+   - polite clarification prompts.
+
+2. LLM wording must be bounded:
+   - it may rewrite tone and wording;
+   - it must not change facts, counts, filters, scoring, dedupe, location logic, approval state, fingerprints, execution mode, candidate data, or results;
+   - it must not invent candidates, sources, numbers, or constraints;
+   - it must fall back to deterministic safe wording on validation failure, timeout, missing config, or unsafe output.
+
+3. Deterministic backend remains source of truth for:
+   - Search Brief fields;
+   - supported flow validation;
+   - required clarifications;
+   - query planning;
+   - runtime approval;
+   - Tavily execution boundary;
+   - result counts;
+   - Candidate Quality;
+   - dedupe;
+   - location filtering;
+   - candidate workspace facts.
+
+4. Recruiter-facing chat should avoid internal product terms:
+   - no `backend planner`;
+   - no `Build Plan`;
+   - no `Search Plan`;
+   - no `QueryPlan`;
+   - no `approval fingerprint`;
+   - no `non-executable`;
+   - no debug/query/report jargon in normal chat.
+
+5. Confirmation should be conversational:
+   - assistant summarizes the understood search;
+   - assistant asks the recruiter to confirm naturally;
+   - recruiter can answer `yes`, `ok`, `go ahead`, `run it`, `start`, `да`, `ок`, `вперед`, `запускай`, or close variants;
+   - recruiter can say they want to refine instead;
+   - ambiguous replies ask a clarification and must not start search.
+
+6. Post-search presentation should be candidates-first:
+   - chat shows only a short completion summary;
+   - candidate table/list becomes the primary visible surface;
+   - report details are collapsed;
+   - query contribution diagnostics are hidden from recruiter UI;
+   - debug/readiness badges are removed from the recruiter-facing surface.
+
+### Initial Proposed Steps
+
+1. Audit current recruiter-facing surfaces:
+   - chat onboarding;
+   - assistant clarification replies;
+   - Agent Plan supported message;
+   - ready brief message;
+   - chat-confirmed Build Plan flow;
+   - post-search Agent Response;
+   - Next Iteration Options block;
+   - Report panel;
+   - query contribution list;
+   - Candidate Workspace;
+   - layout shell and right-side results area.
+
+2. Define one conversation policy document or task section:
+   - allowed tone;
+   - forbidden internal terms;
+   - short response shapes;
+   - confirmation/refinement behavior;
+   - language rules for RU/EN;
+   - fallback behavior.
+
+3. Define LLM overlay boundaries for this policy:
+   - which messages may use LLM wording;
+   - exact fields LLM may rewrite;
+   - fields LLM must not touch;
+   - validator rules;
+   - deterministic fallback rules;
+   - no raw candidate/search payload exposure beyond bounded facts.
+
+4. Define frontend presentation rules:
+   - candidate workspace is primary after search;
+   - chat is compact after search;
+   - report details are collapsed;
+   - query contribution diagnostics are hidden;
+   - technical readiness/debug badges are removed;
+   - desktop layout favors candidate review space.
+
+5. Implement in slices after review:
+   - wording/policy slice;
+   - confirmation-flow slice;
+   - post-search summary slice;
+   - frontend presentation/layout slice.
+
+6. Add no-network coverage:
+   - no internal terms in recruiter-facing chat;
+   - LLM output cannot mutate facts/actions/counts/approval;
+   - confirmation starts search only through the approved backend path;
+   - refinement does not start search;
+   - post-search chat is concise;
+   - candidate workspace is visible after search;
+   - report/debug details are hidden or collapsed by default.
+
+7. Add browser verification after implementation:
+   - initial greeting;
+   - unclear/noise input;
+   - supported Java/Ukraine/stack search;
+   - natural confirmation;
+   - completed search;
+   - candidates-first review surface;
+   - no visible internal planner/debug language in the main recruiter flow.
+
+### Non-Goals
+
+- Do not replace deterministic validation with LLM decisions.
+- Do not let LLM choose tools or execute search.
+- Do not run Tavily without explicit recruiter confirmation.
+- Do not remove backend runtime approval, fingerprints, supported-flow validation, or safety checks.
+- Do not expand supported roles, countries, technologies, or sources.
+- Do not change query generation, scoring, filters, dedupe, Candidate Quality, location logic, snapshots, export semantics, or candidate facts unless a later task explicitly approves it.
+- Do not add persistence, memory, direct web search, LinkedIn login/scraping, candidate messaging, account actions, or autonomous execution.
+
+### Acceptance Notes
+
+- The individual observed-issue tasks remain as evidence and checklist items.
+- Implementation should close or partially close those tasks through this policy, not by adding unrelated hardcoded one-off responses.
+- Any slice that cannot fit this umbrella cleanly should be split and reviewed before coding.
 
 ---
 

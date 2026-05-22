@@ -96,6 +96,10 @@ Invoke-Check "P8 Export UI Wiring smoke" {
     & $python scripts/smoke_p8_export_ui_wiring.py
 }
 
+Invoke-Check "P8 Chat Quality smoke" {
+    & $python scripts/smoke_p8_chat_quality.py
+}
+
 Invoke-Check "P8 Candidate Explanation Wording smoke" {
     & $python scripts/smoke_p8_candidate_explanation_wording.py
 }

@@ -215,16 +215,27 @@ IMPLEMENTED_BACKEND_TECHNOLOGIES = {"Java"}
 
 JAVA_STACK_VALUES = {
     "spring": "Spring",
+    "спринг": "Spring",
     "spring boot": "Spring Boot",
+    "спринг бут": "Spring Boot",
     "hibernate": "Hibernate",
+    "хайбернейт": "Hibernate",
+    "хибернейт": "Hibernate",
     "kafka": "Kafka",
+    "кафка": "Kafka",
     "postgresql": "PostgreSQL",
     "postgres": "PostgreSQL",
     "aws": "AWS",
+    "авс": "AWS",
     "docker": "Docker",
+    "докер": "Docker",
     "kubernetes": "Kubernetes",
     "k8s": "Kubernetes",
+    "кубернетес": "Kubernetes",
+    "кубернетис": "Kubernetes",
+    "кубер": "Kubernetes",
     "microservices": "Microservices",
+    "микросервисы": "Microservices",
     "rest": "REST",
 }
 

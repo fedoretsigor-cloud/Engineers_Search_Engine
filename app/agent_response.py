@@ -217,6 +217,7 @@ def agent_response_next_iteration_options(
     query_plan: dict,
     summary_facts: dict,
     deduped_results: list[dict],
+    language: str = "en",
 ) -> list[dict[str, object]]:
     input_snapshot = (
         query_plan.get("input_snapshot")
@@ -247,7 +248,8 @@ def agent_response_next_iteration_options(
     strong_count = int(quality.get("strong") or 0)
     if strong_count:
         label, reason = next_iteration_review_high_quality_candidates_source_copy(
-            strong_count
+            strong_count,
+            language,
         )
         options.append(
             next_iteration_option(
@@ -279,6 +281,7 @@ def agent_response_next_iteration_options(
         label, reason = next_iteration_narrow_visible_stack_source_copy(
             visible_selected_stack,
             missing_selected_stack,
+            language,
         )
         options.append(
             next_iteration_option(
@@ -307,6 +310,7 @@ def agent_response_next_iteration_options(
         label, reason = next_iteration_broaden_observed_stack_source_copy(
             term,
             count,
+            language,
         )
         options.append(
             next_iteration_option(
@@ -328,7 +332,7 @@ def agent_response_next_iteration_options(
         and not visible_selected_stack
         and int(signals.get("selected_stack_not_visible") or 0) > 0
     ):
-        label, reason = next_iteration_clarify_stack_source_copy()
+        label, reason = next_iteration_clarify_stack_source_copy(language)
         options.append(
             next_iteration_option(
                 "clarify_stack_preference",
@@ -346,7 +350,7 @@ def agent_response_next_iteration_options(
         )
 
     if search_depth != SEARCH_DEPTH_DEEP and mode != "multi_wave":
-        label, reason = next_iteration_deep_search_source_copy()
+        label, reason = next_iteration_deep_search_source_copy(language)
         options.append(
             next_iteration_option(
                 "try_deep_search_depth",
@@ -402,6 +406,7 @@ def build_agent_response(
             query_plan,
             summary_facts,
             deduped_results,
+            normalized_language,
         ),
         "language": normalized_language,
         "source": "backend_returned_search_data",

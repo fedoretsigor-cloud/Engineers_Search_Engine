@@ -35,6 +35,7 @@ const AGENT_RUNTIME_TURN_MODE_PREPARE = "prepare";
 const AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED = "execute_approved";
 const AGENT_RUNTIME_EXECUTION_MODE_SINGLE_WAVE = "single_wave";
 const AGENT_RUNTIME_EXECUTION_MODE_MULTI_WAVE = "multi_wave";
+const ASSISTANT_SPEAKER_LABEL = "AI Assistant";
 
 const AGENT_ACTION_STATUS_LABELS = {
   blocked: "Blocked",
@@ -145,6 +146,7 @@ let currentChatLanguage = "en";
 let currentAgentPlanData = null;
 let currentAgentPlan = null;
 let currentAgentAction = null;
+let pendingChatAction = null;
 let adaptedStructuredRequest = null;
 let latestPlannerData = null;
 let latestQueryPlan = null;
@@ -824,6 +826,77 @@ function hasSupportedAgentAction() {
   );
 }
 
+function clearPendingChatAction() {
+  pendingChatAction = null;
+}
+
+function currentBuildPlanActionIdentity() {
+  if (!hasSupportedAgentAction()) {
+    return null;
+  }
+
+  return {
+    type: "build_search_plan",
+    briefFingerprint: currentAgentPlan.brief_fingerprint,
+    endpoint: currentAgentAction.endpoint,
+    plannerMode: currentAgentAction.planner_mode,
+    action: currentAgentAction.action,
+  };
+}
+
+function setPendingBuildPlanChatAction() {
+  const actionIdentity = currentBuildPlanActionIdentity();
+  pendingChatAction = actionIdentity
+    ? {
+        ...actionIdentity,
+        createdAt: Date.now(),
+      }
+    : null;
+}
+
+function pendingBuildPlanActionIsCurrent() {
+  const actionIdentity = currentBuildPlanActionIdentity();
+  return Boolean(
+    pendingChatAction?.type === "build_search_plan" &&
+      actionIdentity &&
+      pendingChatAction.briefFingerprint === actionIdentity.briefFingerprint &&
+      pendingChatAction.endpoint === actionIdentity.endpoint &&
+      pendingChatAction.plannerMode === actionIdentity.plannerMode &&
+      pendingChatAction.action === actionIdentity.action
+  );
+}
+
+function normalizeChatCommandText(text) {
+  return String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[!"'`.,;:!?()[\]{}<>]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isBuildPlanConfirmation(text) {
+  const normalizedText = normalizeChatCommandText(text);
+  return [
+    "yes",
+    "yep",
+    "yeah",
+    "build it",
+    "build plan",
+    "build search plan",
+    "да",
+    "давай",
+    "построй",
+    "строим",
+    "построить",
+  ].includes(normalizedText);
+}
+
+function isBuildPlanDismissal(text) {
+  const normalizedText = normalizeChatCommandText(text);
+  return ["no", "not now", "нет", "пока нет", "не сейчас"].includes(normalizedText);
+}
+
 function readyBriefChatStatus(options = {}) {
   const includePending = options.includePending !== false;
   if (includePending && agentPlanRequestInFlight) {
@@ -831,7 +904,7 @@ function readyBriefChatStatus(options = {}) {
   }
 
   if (hasSupportedAgentAction()) {
-    return "Agent Plan ready. Build Plan is available.";
+    return "Agent Plan ready. Build the Search Plan from chat or the button.";
   }
 
   if (currentAgentPlanData?.agent_plan_status === "unsupported") {
@@ -899,6 +972,7 @@ function isExecutablePlannerData(data = {}) {
 }
 
 function rememberPlannerData(data = {}) {
+  clearPendingChatAction();
   latestPlannerData = data;
   latestQueryPlan = queryPlanFromPlannerData(data);
   latestPlanFingerprint = planFingerprintFromPlannerData(data, latestQueryPlan);
@@ -920,6 +994,7 @@ function rememberPlannerData(data = {}) {
 }
 
 function clearPlannerData() {
+  clearPendingChatAction();
   latestPlannerData = null;
   latestQueryPlan = null;
   latestPlanFingerprint = null;
@@ -930,6 +1005,7 @@ function clearPlannerData() {
 }
 
 function clearAgentPlanData() {
+  clearPendingChatAction();
   currentAgentPlanData = null;
   currentAgentPlan = null;
   currentAgentAction = null;
@@ -937,6 +1013,7 @@ function clearAgentPlanData() {
 }
 
 function clearSearchResultsData() {
+  clearPendingChatAction();
   latestAgentResponse = null;
   messages = messages.filter((message) => message.kind !== "agent_response");
   clearWorkspaceState();
@@ -1156,10 +1233,10 @@ function buildApprovedRuntimeApproval() {
 
 function plainChatSpeaker(message = {}) {
   if (message.kind?.startsWith("agent_")) {
-    return "AI Agent";
+    return ASSISTANT_SPEAKER_LABEL;
   }
 
-  return message.role === "user" ? "You" : "AI";
+  return message.role === "user" ? "You" : ASSISTANT_SPEAKER_LABEL;
 }
 
 function chatRoleClass(message = {}) {
@@ -1175,16 +1252,21 @@ function renderPlainChatMessage(message = {}) {
   `;
 }
 
-function renderNextIterationOptions(options = []) {
+function renderNextIterationOptions(options = [], language = "en") {
   const visibleOptions = arrayValue(options);
   if (!visibleOptions.length) {
     return "";
   }
+  const isRussian = language === "ru";
+  const heading = isRussian ? "Варианты следующей итерации" : "Next iteration options";
+  const helper = isRussian
+    ? "Не выполняются автоматически. Напиши follow-up в чат, если нужно изменить Search Brief."
+    : "Not executable. Write a follow-up in chat if you want to change the Search Brief.";
 
   return `
-    <div class="next-iteration-options" aria-label="Next iteration options">
-      <strong>Next iteration options</strong>
-      <p>Not executable. Write a follow-up in chat if you want to change the Search Brief.</p>
+    <div class="next-iteration-options" aria-label="${escapeHtml(heading)}">
+      <strong>${escapeHtml(heading)}</strong>
+      <p>${escapeHtml(helper)}</p>
       <ol>
         ${visibleOptions
           .map((option, index) => {
@@ -1212,12 +1294,19 @@ function renderTypedChatMessage(message = {}) {
 
   const optionsMarkup =
     message.messageType === AGENT_MESSAGE_TYPES.AGENT_RESPONSE
-      ? renderNextIterationOptions(message.payload?.next_iteration_options)
+      ? renderNextIterationOptions(
+          message.payload?.next_iteration_options,
+          message.payload?.language || currentChatLanguage
+        )
       : "";
 
   return `
-    <article class="chat-message ${chatRoleClass(message)} typed-message ${meta.className}">
-      <span>${escapeHtml(meta.speaker)} - ${escapeHtml(meta.label)}</span>
+    <article
+      class="chat-message ${chatRoleClass(message)} typed-message ${meta.className}"
+      data-message-type="${escapeHtml(message.messageType || "")}"
+      data-message-type-label="${escapeHtml(meta.label)}"
+    >
+      <span aria-label="${escapeHtml(`${ASSISTANT_SPEAKER_LABEL}: ${meta.label}`)}">${escapeHtml(ASSISTANT_SPEAKER_LABEL)}</span>
       <p>${escapeHtml(message.content)}</p>
       ${optionsMarkup}
     </article>
@@ -1772,6 +1861,11 @@ function rememberAgentPlanData(data = {}) {
   currentAgentPlanData = data;
   currentAgentPlan = data.agent_plan || null;
   currentAgentAction = currentAgentPlan?.proposed_action || null;
+  if (hasSupportedAgentAction()) {
+    setPendingBuildPlanChatAction();
+  } else {
+    clearPendingChatAction();
+  }
 }
 
 function appendAgentPlanMessage(data = {}) {
@@ -1829,6 +1923,7 @@ function appendAgentResponseMessage(agentResponse = null) {
         messageType: AGENT_MESSAGE_TYPES.AGENT_RESPONSE,
         surface: "chat",
         payload: {
+          language: response.language || currentChatLanguage,
           next_iteration_options: nextIterationOptions,
         },
       }
@@ -2097,6 +2192,7 @@ function handlePostResultsFollowUp(userText) {
         messageType: AGENT_MESSAGE_TYPES.AGENT_RESPONSE,
         surface: "chat",
         payload: {
+          language: latestAgentResponse?.language || currentChatLanguage,
           next_iteration_options: options,
         },
       }
@@ -2107,7 +2203,73 @@ function handlePostResultsFollowUp(userText) {
   updateActionState();
 }
 
+async function handlePendingBuildPlanChatAction(userText) {
+  if (!pendingBuildPlanActionIsCurrent()) {
+    clearPendingChatAction();
+    return false;
+  }
+
+  if (isBuildPlanDismissal(userText)) {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    clearPendingChatAction();
+    messages.push(
+      typedChatMessage(
+        {
+          role: "assistant",
+          content:
+            currentChatLanguage === "ru"
+              ? "Ок, Search Plan не строю. Search Brief остается готовым."
+              : "Ok, I will not build the Search Plan now. The Search Brief stays ready.",
+          localOnly: true,
+        },
+        {
+          messageType: AGENT_MESSAGE_TYPES.BRIEF_SUMMARY,
+          surface: "chat",
+        }
+      )
+    );
+    chatStatusElement.textContent = readyBriefChatStatus({ includePending: false });
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  if (!isBuildPlanConfirmation(userText)) {
+    return false;
+  }
+
+  messages.push({ role: "user", content: userText, localOnly: true });
+  clearPendingChatAction();
+  messages.push(
+    typedChatMessage(
+      {
+        role: "assistant",
+        content:
+          currentChatLanguage === "ru"
+            ? "Строю Search Plan по текущему Agent Plan. Поиск не запустится без Approve & Search."
+            : "Building the Search Plan from the current Agent Plan. Search will still require Approve & Search.",
+        localOnly: true,
+      },
+      {
+        messageType: AGENT_MESSAGE_TYPES.BRIEF_SUMMARY,
+        surface: "chat",
+      }
+    )
+  );
+  renderChatMessages();
+  chatStatusElement.textContent = "Building Search Plan...";
+  updateActionState();
+  await buildPlanFromChat();
+  chatInput.focus();
+  return true;
+}
+
 async function sendChatTurn(userText) {
+  if (await handlePendingBuildPlanChatAction(userText)) {
+    return;
+  }
+
   if (isPostResultsFollowUpMessage(userText)) {
     handlePostResultsFollowUp(userText);
     chatInput.focus();
@@ -2880,6 +3042,25 @@ chatForm.addEventListener("submit", (event) => {
   }
   chatInput.value = "";
   sendChatTurn(userText);
+});
+
+chatInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+    return;
+  }
+  if (event.isComposing || chatInput.disabled || sendChatButton.disabled) {
+    return;
+  }
+  if (!chatInput.value.trim()) {
+    return;
+  }
+
+  event.preventDefault();
+  if (typeof chatForm.requestSubmit === "function") {
+    chatForm.requestSubmit();
+    return;
+  }
+  sendChatButton.click();
 });
 
 resetChatButton.addEventListener("click", resetChat);
