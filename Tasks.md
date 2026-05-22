@@ -5730,7 +5730,7 @@ Updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.m
 
 Added `docs/phase-6-closeout.md` as the dedicated decision record. The closeout explicitly says Phase 6 is not a complete autonomous recruiter agent, preserves human approval before execution, and keeps the absolute product boundaries.
 
-Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, the `P7.5-010` closeout, `P8-001 Define candidate workspace contract`, and Phase 8 frontend-only Candidate Workspace implementation slices: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, and `P8-007A Implement export model and serializers`.
+Current handoff: Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; Phase 7.5 is completed and closed as `Recruiter Simulation QA & Flow Hardening` with the decision `ready after approved fixes completed`. Later updates completed RU/EN browser QA, current-flow fixes, regression coverage, immediate EN/mixed hardening, the `P7.5-010` closeout, `P8-001 Define candidate workspace contract`, and Phase 8 frontend-only Candidate Workspace implementation slices: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, `P8-007A Implement export model and serializers`, and `P8-007B Add export UI and download workflow`.
 
 ---
 
@@ -9224,7 +9224,7 @@ Final closeout artifact: `docs/phase-7-5-closeout.md`.
 
 Next active phase: Phase 8 `Candidate Workspace/Table + Shortlist`.
 
-`P8-001 Define candidate workspace contract` is completed. Current approved Phase 8 candidate-workspace implementation slices: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, and `P8-007A Implement export model and serializers`.
+`P8-001 Define candidate workspace contract` is completed. Current completed Phase 8 candidate-workspace implementation slices: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, `P8-007A Implement export model and serializers`, and `P8-007B Add export UI and download workflow`.
 
 Phase 7.5 must not implement Candidate Workspace/Table, shortlist, notes/statuses, database/persistence, saved searches, memory, new countries, new technologies, new search sources, executable AI-generated QueryPlans, autonomous execution, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, outreach, or user/third-party account actions.
 
@@ -10889,8 +10889,6 @@ Implemented focused hardening:
 
 ### Backlog
 
-- [ ] P8-007 Prepare export workflow umbrella
-- [ ] P8-007B Add export UI and download workflow
 - [ ] P8-008 Add bounded LLM onboarding wording overlay
 - [ ] P8-009 Add off-topic and unclear input guardrails before Search Brief extraction
 - [ ] P8-010 Define conservative off-topic and unclear/noise classification policy
@@ -10910,7 +10908,9 @@ Implemented focused hardening:
 - [x] P8-004 Add shortlist, notes, and statuses
 - [x] P8-005 Add candidate-level agent explanations
 - [x] P8-006.1 Implement explicit selected-candidate wording overlay
+- [x] P8-007 Prepare export workflow umbrella
 - [x] P8-007A Implement export model and serializers
+- [x] P8-007B Add export UI and download workflow
 
 ### Current Phase 8 strategy note
 
@@ -10926,7 +10926,7 @@ Phase 8 must preserve the human-approved runtime boundary and absolute product r
 
 Candidate explanation order: `P8-005` implemented deterministic candidate-level explanations grounded only in returned workspace facts. `P8-006` completed the contract-first bounded candidate explanation wording payload, output validation, fallback, routing, and no-fact-mutation rules before code. `P8-006.1` implemented the explicit-action selected-candidate wording overlay. Do not mix LLM wording into the deterministic explanation helper.
 
-Export order: `P8-007A` is completed as the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage. `P8-007B` remains the later explicit UI/download slice and must not start without separate approval.
+Export order: `P8-007` is completed as a local frontend-only export workflow. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage, and `P8-007B` completed the explicit UI/download slice with current-run export state, grouped export controls, local `Blob` download glue, bounded inline statuses, CSS, and no-network frontend wiring smoke coverage.
 
 ---
 
@@ -13099,13 +13099,24 @@ Default verification must be no-network/no-live-OpenAI. Any live OpenAI check mu
 
 ### Status
 
-Partially implemented. `P8-007A` is completed; `P8-007B` remains not implemented and requires separate explicit approval.
+Implemented / completed.
 
-The umbrella export workflow is not complete until `P8-007B` adds the explicit UI/download layer.
+`P8-007A` completed the DOM-free helper/serializer foundation. `P8-007B` completed the visible local UI/download layer.
+
+The umbrella export workflow is now completed as a frontend-only, explicit user-click local download workflow.
+
+### Implementation Result
+
+Implemented as two narrow slices:
+
+- `P8-007A`: DOM-free export model, allowlisted rows/metadata, Excel-on-Windows CSV, deterministic Markdown, filename/MIME helpers, stricter export-time LinkedIn profile URL canonicalization, text sanitization, contact-like masking for returned candidate text, and helper smoke coverage.
+- `P8-007B`: grouped export UI in the Candidate Workspace toolbar, current-run `workspaceExportState`, export-specific data attributes and event delegation, click-time visible-scope recomputation, local `Blob`/object URL/temporary-anchor download glue, zero-candidate guard before file creation, bounded success/failure inline status, object URL cleanup, CSS, and no-network export UI wiring smoke coverage.
+
+The completed workflow does not add backend/API/search/runtime/Tavily/OpenAI/LinkedIn calls, persistence, browser storage, CRM/share behavior, outreach, candidate messaging, account actions, or autonomous execution.
 
 ### Context
 
-`P8-001` defined the Candidate Workspace contract. `P8-002`, `P8-003`, `P8-004`, and `P8-005` built the current frontend-only workspace: approved search results map into explicit workspace state, view controls sort/filter `workspaceCandidates`, review status/derived shortlist/notes stay browser in-memory, and deterministic candidate explanations are built from returned workspace facts.
+`P8-001` defined the Candidate Workspace contract. `P8-002`, `P8-003`, `P8-004`, and `P8-005` built the current frontend-only workspace: approved search results map into explicit workspace state, view controls sort/filter `workspaceCandidates`, review status/derived shortlist/notes stay browser in-memory, and deterministic candidate explanations are built from returned workspace facts. `P8-006.1` later added an explicit selected-candidate wording overlay, but export still uses deterministic explanation data unless a later reviewed task explicitly changes that. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer foundation; `P8-007B` completed the visible UI/download slice on top of those helpers.
 
 Recruiters now need a way to take the current working artifact out of the UI for review or handoff. This should be a local export workflow from the current Candidate Workspace state, not persistence, saved searches, CRM sync, candidate messaging, or a backend reporting feature.
 
@@ -13683,9 +13694,9 @@ Do not wire the download action before helper serialization tests pass. If imple
 - Candidate text, query text, snippets, and recruiter notes remain untrusted even though they are local.
 - The Markdown format is not automatically safer than CSV; it still needs escaping because recruiters may open it in renderers that process links or HTML.
 - Exporting recruiter notes is acceptable only because it is an explicit user action; it must not imply app persistence or carryover to future runs.
-- Approved-not-implemented `P8-006.1` may add bounded LLM wording for explanations in its own task, but `P8-007` should export deterministic explanation data unless a later reviewed task explicitly changes that.
-- Final critical review found no remaining blockers after the CSV newline/export framing clarification.
-- Implementation is split into two slices: helper/serializer first (`P8-007A`), then UI/download (`P8-007B`). `P8-007A` is completed; `P8-007B` must still be separately approved before coding.
+- Completed `P8-006.1` adds bounded selected-candidate LLM wording as a separate non-mutating overlay, but `P8-007` should export deterministic explanation data unless a later reviewed task explicitly changes that.
+- Final critical review found no remaining blockers after the CSV newline/export framing clarification, P8-007A/P8-007B split confirmation, and P8-006.1 status correction.
+- Implementation was completed in two slices: helper/serializer first (`P8-007A`), then UI/download (`P8-007B`). The completed export workflow remains local and frontend-only.
 
 ### Non-Goals
 
@@ -13697,9 +13708,9 @@ Do not wire the download action before helper serialization tests pass. If imple
 - Do not add new countries, technologies, roles, or search sources.
 - Do not change Candidate Quality, planner, QueryPlan, runtime approval, Tavily execution, dedupe, scoring, or filters.
 
-### Before Coding
+### Implementation Verification
 
-Codex must critically review this task against current `app/static/candidate_workspace.js`, `app/static/app.js`, `app/static/styles.css`, `scripts/smoke_p8_candidate_workspace_helpers.js`, `docs/phase-8-candidate-workspace-contract.md`, and absolute product boundaries. The user must explicitly approve coding before implementation starts.
+Coding was approved explicitly before implementation. Verification must keep covering `app/static/candidate_workspace.js`, `app/static/app.js`, `app/static/styles.css`, `scripts/smoke_p8_candidate_workspace_helpers.js`, `scripts/smoke_p8_export_ui_wiring.py`, `docs/phase-8-candidate-workspace-contract.md`, and absolute product boundaries.
 
 ---
 
@@ -13756,7 +13767,7 @@ Not included:
 
 ### Before Coding
 
-Review `P8-007` and `docs/phase-8-candidate-workspace-contract.md` first. Do not start `P8-007B` until this slice passes helper checks.
+Review `P8-007` and `docs/phase-8-candidate-workspace-contract.md` first. `P8-007B` was started only after this slice passed helper checks.
 
 ---
 
@@ -13764,9 +13775,26 @@ Review `P8-007` and `docs/phase-8-candidate-workspace-contract.md` first. Do not
 
 ### Status
 
-Reviewed / blocked on completed `P8-007A` and explicit user approval / not implemented.
+Implemented / completed.
 
-This slice is not approved for coding until the user explicitly asks to implement it after `P8-007A` is complete.
+Completed as the explicit local UI/download slice on top of the tested `P8-007A` helper/serializer contract.
+
+### Implementation Notes
+
+Implemented in `app/static/app.js`, `app/static/styles.css`, `scripts/smoke_p8_export_ui_wiring.py`, and `scripts/check_all.ps1`:
+
+- added current-run `workspaceExportState` with normalized `visible`/`csv` defaults and reset on workspace clear/new run;
+- rendered grouped Candidate Workspace export controls for `visible`/`shortlisted`/`all` scopes and `csv`/`markdown` formats, plus an explicit export button and `role="status"` / `aria-live="polite"` feedback target;
+- routed export changes/actions through export-specific `data-workspace-export-control` / `data-workspace-export-action` attributes and `closest(...)` delegation;
+- recomputed visible candidates at export-click time from `workspaceCandidates`, `workspaceViewState`, and `workspaceReviewStateByCandidateId`;
+- built the export model and serialization only through tested `P8-007A` helpers;
+- stopped zero-candidate selected-scope export before `Blob`, object URL, or temporary anchor creation;
+- created a local user-clicked `Blob` download with helper-owned filename/MIME, temporary anchor cleanup, and deferred object URL revocation;
+- added bounded success/failure/empty inline statuses without candidate names, profile URLs, notes, paths, raw errors, or payload data;
+- cleared stale export status on relevant view/review/note changes while preserving active note textarea typing;
+- added compact export CSS and a no-network static wiring smoke, wired into `scripts/check_all.ps1`.
+
+No backend/API/search/runtime/Tavily/OpenAI/LinkedIn calls, persistence, browser storage, CRM/share behavior, outreach, candidate messaging, account actions, or autonomous execution were added.
 
 ### Goal
 
@@ -13793,20 +13821,92 @@ Not included:
 
 If `P8-007B` uncovers a helper defect, the fix must update the relevant `P8-007A` helper smoke coverage and the implementation summary must explicitly call out the helper change. Do not silently expand or weaken the tested helper contract inside the UI/download slice.
 
+### Proposed Steps
+
+1. Reconfirm the completed helper boundary:
+   - run or rely on passing `P8-007A` helper coverage before wiring UI;
+   - use only `CandidateWorkspace.buildWorkspaceExportModel`, `serializeWorkspaceExportCsv`, `serializeWorkspaceExportMarkdown`, `buildWorkspaceExportFilename`, `workspaceExportMimeType`, `normalizeExportScope`, and `normalizeExportFormat` for export behavior;
+   - do not parse rendered DOM to recover candidate/export data.
+
+2. Add current-run export state:
+   - introduce a small `workspaceExportState` in `app/static/app.js`;
+   - default to normalized `scope = visible` and normalized `format = csv`;
+   - store only normalized `scope`, normalized `format`, and bounded inline `status`;
+   - reset it when a new workspace run is created or workspace state is cleared;
+   - do not use browser storage, backend storage, local persistence, or saved sessions.
+
+3. Render a compact export block in the Candidate Workspace toolbar:
+   - keep export controls visually grouped, for example `candidate-workspace-export`;
+   - include explicit `visible`, `shortlisted`, and `all` scopes;
+   - include explicit `csv` and `markdown` formats;
+   - include one explicit `Export` button;
+   - render export feedback with `role="status"` and `aria-live="polite"`;
+   - use export-specific attributes such as `data-workspace-export-control` and `data-workspace-export-action`, not the existing generic workspace control/action attributes.
+
+4. Add export-specific event routing:
+   - route export control/action events with `event.target.closest("[data-workspace-export-control]")` and `event.target.closest("[data-workspace-export-action]")`;
+   - normalize scope/format changes through `CandidateWorkspace` helpers;
+   - clear stale export status when scope/format changes;
+   - keep existing sorting/filtering/review/note handlers separate from export handlers.
+
+5. Clear stale export status safely:
+   - clear success/error status on view filter/sort change, reset filters, review status change, shortlist change, notes change, new workspace run, and workspace clear;
+   - for note input, update only export state/status target if needed and do not rerender the full workspace or replace the active textarea;
+   - preserve recruiter typing, note cursor position, and note focus.
+
+6. Implement explicit user-click local download:
+   - on Export click, create a single `Date` at click time;
+   - recompute visible candidates from `workspaceCandidates`, `workspaceViewState`, and `workspaceReviewStateByCandidateId` instead of trusting a stale `visibleWorkspaceCandidates`;
+   - build the export model from current explicit state and current review state;
+   - if selected scope has zero candidates, stop before creating `Blob`, object URL, or temporary anchor and show bounded inline status;
+   - serialize through the selected tested helper;
+   - create a local `Blob`, object URL, temporary anchor with helper-owned filename/MIME, dispatch the click, remove the anchor, and defer object URL revocation;
+   - show bounded success status such as `Exported 12 candidates as CSV`.
+
+7. Keep failure handling bounded:
+   - wrap model building, serialization, `Blob`, object URL, anchor click, and cleanup in a bounded `try`/`catch`/`finally`;
+   - show a generic inline failure such as `Export failed. Try again.`;
+   - do not show raw exceptions, file paths, candidate names, profile URLs, notes, payloads, or helper internals;
+   - do not throw export failures into the page.
+
+8. Add focused checks:
+   - keep the existing `P8-007A` helper smoke passing;
+   - add a no-network frontend/static check for export UI wiring; if `app/static/app.js` is not practical to execute under VM, use a focused static smoke that asserts the exported UI state/functions/data attributes and pair it with browser sanity for behavior;
+   - verify visible CSV, shortlisted Markdown, all-scope export, zero-candidate selected scope, stale status clearing, active note textarea preservation, object URL cleanup, bounded statuses, export-specific data attributes, and compact/mobile layout;
+   - verify no backend/API/search/runtime/Tavily/OpenAI/LinkedIn/outreach/account behavior is added.
+
+### Verification Plan
+
+- `node --check app/static/app.js`
+- `node --check app/static/candidate_workspace.js`
+- `node scripts/smoke_p8_candidate_workspace_helpers.js`
+- the new or updated no-network export UI wiring smoke passes and is added to `scripts/check_all.ps1`;
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1` passes;
+- browser sanity verifies export controls after a real or synthetic approved workspace run, including visible CSV, shortlisted Markdown, all scope, zero-candidate selected scope, stale status clearing, active note textarea preservation, bounded statuses, and mobile layout;
+- download glue is verified either with a Playwright download event or controlled monkeypatches/stubs for `URL.createObjectURL`, temporary anchor click, and `URL.revokeObjectURL`.
+
 ### Acceptance Criteria
 
 - UI uses only the tested `P8-007A` helpers for export model, serialization, filename, and MIME behavior.
 - Export remains explicit user-click local download only.
+- Export controls are visually grouped and use export-specific data attributes.
+- Export state is current-run only and resets on new workspace run or workspace clear.
+- Export click recomputes visible scope from explicit workspace state at click time.
 - Zero-candidate selected scope stops before `Blob`/object URL/anchor click and shows bounded inline status.
 - Success/error statuses are bounded and do not include candidate names, profile URLs, notes, file paths, raw errors, or payloads.
 - Export status clearing does not rerender or replace the active notes textarea.
+- Export failure cleanup removes temporary anchors and revokes object URLs without leaking browser resources.
+- Export does not mutate candidate, view, review, shortlist, note, explanation, wording, runtime, plan, or search state except for export UI status/scope/format.
 - `node --check app/static/app.js` passes.
+- `node --check app/static/candidate_workspace.js` passes.
+- Existing `scripts/smoke_p8_candidate_workspace_helpers.js` still passes.
+- A no-network export UI wiring smoke exists and is wired into `scripts/check_all.ps1`.
 - Browser/frontend sanity covers visible CSV, shortlisted Markdown, all scope export, zero-candidate selected scope, stale status clearing, object URL cleanup, and mobile layout.
 - No backend, API, search, runtime, persistence, or external-service behavior changes.
 
-### Before Coding
+### Implementation Verification
 
-Confirm `P8-007A` is completed and helper checks pass. Re-review current `app/static/app.js`, `app/static/styles.css`, `docs/phase-8-candidate-workspace-contract.md`, and absolute product boundaries before implementation.
+`P8-007A` helper checks passed before UI wiring. Keep `node --check app/static/app.js`, `node --check app/static/candidate_workspace.js`, `scripts/smoke_p8_candidate_workspace_helpers.js`, `scripts/smoke_p8_export_ui_wiring.py`, `scripts/check_all.ps1`, and browser/frontend sanity in the regression path for future export changes.
 
 ---
 

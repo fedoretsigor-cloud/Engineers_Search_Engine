@@ -161,6 +161,7 @@ let visibleWorkspaceCandidates = [];
 let workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
 let workspaceReviewStateByCandidateId = {};
 let workspaceExplanationWordingByKey = {};
+let workspaceExportState = defaultWorkspaceExportState();
 let chatRequestInFlight = false;
 let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
@@ -239,6 +240,40 @@ function clearRuntimeApproval() {
   runtimePrepareRequestInFlight = false;
 }
 
+function defaultWorkspaceExportState() {
+  return {
+    scope: candidateWorkspace.normalizeExportScope("visible"),
+    format: candidateWorkspace.normalizeExportFormat("csv"),
+    status: "",
+  };
+}
+
+function updateWorkspaceExportStatusTarget() {
+  const statusTarget = resultsList.querySelector("[data-workspace-export-status]");
+  if (statusTarget) {
+    statusTarget.textContent = workspaceExportState.status || "";
+  }
+}
+
+function setWorkspaceExportStatus(status, render = false) {
+  workspaceExportState = {
+    ...workspaceExportState,
+    status: String(status || ""),
+  };
+  if (render && latestWorkspaceRun) {
+    renderWorkspaceResults(latestWorkspaceRun.report);
+  } else {
+    updateWorkspaceExportStatusTarget();
+  }
+}
+
+function clearWorkspaceExportStatus(render = false) {
+  if (!workspaceExportState.status) {
+    return;
+  }
+  setWorkspaceExportStatus("", render);
+}
+
 function clearWorkspaceState() {
   latestWorkspaceRun = null;
   workspaceCandidates = [];
@@ -246,6 +281,7 @@ function clearWorkspaceState() {
   workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
   workspaceReviewStateByCandidateId = {};
   workspaceExplanationWordingByKey = {};
+  workspaceExportState = defaultWorkspaceExportState();
 }
 
 function captureWorkspaceRunContext(searchData = {}) {
@@ -299,12 +335,49 @@ function replaceWorkspaceRun(dedupedResults = [], report = null, runContext = {}
   workspaceReviewStateByCandidateId =
     candidateWorkspace.createReviewStateForCandidates(candidates);
   workspaceExplanationWordingByKey = {};
+  workspaceExportState = defaultWorkspaceExportState();
 }
 
 function renderWorkspaceOption(value, label, currentValue) {
   return `<option value="${escapeHtml(value)}" ${
     currentValue === value ? "selected" : ""
   }>${escapeHtml(label)}</option>`;
+}
+
+function renderWorkspaceExportBlock() {
+  const exportState = {
+    scope: candidateWorkspace.normalizeExportScope(workspaceExportState.scope),
+    format: candidateWorkspace.normalizeExportFormat(workspaceExportState.format),
+    status: workspaceExportState.status || "",
+  };
+
+  return `
+    <div class="candidate-workspace-export" aria-label="Candidate export controls">
+      <div class="candidate-workspace-export-controls">
+        <label>
+          Export scope
+          <select data-workspace-export-control="scope">
+            ${renderWorkspaceOption("visible", "Visible", exportState.scope)}
+            ${renderWorkspaceOption("shortlisted", "Shortlisted", exportState.scope)}
+            ${renderWorkspaceOption("all", "All", exportState.scope)}
+          </select>
+        </label>
+        <label>
+          Format
+          <select data-workspace-export-control="format">
+            ${renderWorkspaceOption("csv", "CSV", exportState.format)}
+            ${renderWorkspaceOption("markdown", "Markdown", exportState.format)}
+          </select>
+        </label>
+        <button type="button" class="secondary-button workspace-export-button" data-workspace-export-action="download">
+          Export
+        </button>
+      </div>
+      <span class="candidate-workspace-export-status" role="status" aria-live="polite" data-workspace-export-status>
+        ${escapeHtml(exportState.status)}
+      </span>
+    </div>
+  `;
 }
 
 function renderWorkspaceToolbar() {
@@ -396,6 +469,7 @@ function renderWorkspaceToolbar() {
           Reset filters
         </button>
       </div>
+      ${renderWorkspaceExportBlock()}
     </section>
   `;
 }
@@ -667,11 +741,7 @@ function renderWorkspaceResults(report = null) {
     return;
   }
 
-  visibleWorkspaceCandidates = candidateWorkspace.applyWorkspaceView(
-    workspaceCandidates,
-    workspaceViewState,
-    workspaceReviewStateByCandidateId
-  );
+  visibleWorkspaceCandidates = recomputeVisibleWorkspaceCandidates();
 
   if (!workspaceCandidates.length) {
     resultsStatus.textContent = report?.raw_total
@@ -2585,9 +2655,119 @@ async function requestCandidateExplanationWording(candidateId) {
   }
 }
 
+function recomputeVisibleWorkspaceCandidates() {
+  return candidateWorkspace.applyWorkspaceView(
+    workspaceCandidates,
+    workspaceViewState,
+    workspaceReviewStateByCandidateId
+  );
+}
+
+function exportFormatLabel(format) {
+  return candidateWorkspace.normalizeExportFormat(format) === "markdown" ? "Markdown" : "CSV";
+}
+
+function buildCurrentWorkspaceExportModel(exportedAt) {
+  return candidateWorkspace.buildWorkspaceExportModel({
+    workspaceRun: latestWorkspaceRun,
+    allCandidates: workspaceCandidates,
+    visibleCandidates: recomputeVisibleWorkspaceCandidates(),
+    reviewStateByCandidateId: workspaceReviewStateByCandidateId,
+    scope: workspaceExportState.scope,
+    format: workspaceExportState.format,
+    exportedAt,
+  });
+}
+
+function serializeWorkspaceExportModel(model, format) {
+  if (candidateWorkspace.normalizeExportFormat(format) === "markdown") {
+    return candidateWorkspace.serializeWorkspaceExportMarkdown(model);
+  }
+  return candidateWorkspace.serializeWorkspaceExportCsv(model);
+}
+
+function triggerWorkspaceExportDownload() {
+  if (!latestWorkspaceRun) {
+    return;
+  }
+
+  const scope = candidateWorkspace.normalizeExportScope(workspaceExportState.scope);
+  const format = candidateWorkspace.normalizeExportFormat(workspaceExportState.format);
+  const exportedAt = new Date();
+  let objectUrl = "";
+  let temporaryAnchor = null;
+
+  try {
+    const exportModel = buildCurrentWorkspaceExportModel(exportedAt);
+    if (!exportModel.metadata.candidate_count) {
+      setWorkspaceExportStatus("No candidates to export for selected scope.");
+      return;
+    }
+
+    const serialized = serializeWorkspaceExportModel(exportModel, format);
+    const blob = new Blob([serialized], {
+      type: candidateWorkspace.workspaceExportMimeType(format),
+    });
+    objectUrl = URL.createObjectURL(blob);
+    temporaryAnchor = document.createElement("a");
+    temporaryAnchor.href = objectUrl;
+    temporaryAnchor.download = candidateWorkspace.buildWorkspaceExportFilename(exportedAt, scope, format);
+    temporaryAnchor.rel = "noopener";
+    temporaryAnchor.style.display = "none";
+    document.body.appendChild(temporaryAnchor);
+    temporaryAnchor.click();
+    temporaryAnchor.remove();
+    temporaryAnchor = null;
+
+    const urlToRevoke = objectUrl;
+    objectUrl = "";
+    setTimeout(() => URL.revokeObjectURL(urlToRevoke), 0);
+    setWorkspaceExportStatus(
+      `Exported ${exportModel.metadata.candidate_count} ${pluralize(
+        exportModel.metadata.candidate_count,
+        "candidate",
+        "candidates"
+      )} as ${exportFormatLabel(format)}`
+    );
+  } catch (error) {
+    setWorkspaceExportStatus("Export failed. Try again.");
+  } finally {
+    if (temporaryAnchor && temporaryAnchor.parentNode) {
+      temporaryAnchor.remove();
+    }
+    if (objectUrl) {
+      const urlToRevoke = objectUrl;
+      setTimeout(() => URL.revokeObjectURL(urlToRevoke), 0);
+    }
+  }
+}
+
 function handleWorkspaceChange(event) {
   if (!latestWorkspaceRun) {
     return;
+  }
+
+  const exportControl = event.target.closest("[data-workspace-export-control]");
+  if (exportControl) {
+    const controlName = exportControl.dataset.workspaceExportControl;
+    if (controlName === "scope") {
+      workspaceExportState = {
+        ...workspaceExportState,
+        scope: candidateWorkspace.normalizeExportScope(exportControl.value),
+        status: "",
+      };
+      renderWorkspaceResults(latestWorkspaceRun.report);
+      return;
+    }
+    if (controlName === "format") {
+      workspaceExportState = {
+        ...workspaceExportState,
+        format: candidateWorkspace.normalizeExportFormat(exportControl.value),
+        status: "",
+      };
+      renderWorkspaceResults(latestWorkspaceRun.report);
+      return;
+    }
   }
 
   const controlName = event.target.dataset.workspaceControl;
@@ -2596,6 +2776,7 @@ function handleWorkspaceChange(event) {
       ...workspaceViewState,
       [controlName]: event.target.value,
     });
+    clearWorkspaceExportStatus(false);
     renderWorkspaceResults(latestWorkspaceRun.report);
     return;
   }
@@ -2612,6 +2793,7 @@ function handleWorkspaceChange(event) {
       candidateId,
       event.target.value
     );
+    clearWorkspaceExportStatus(false);
     renderWorkspaceResults(latestWorkspaceRun.report);
     return;
   }
@@ -2622,6 +2804,7 @@ function handleWorkspaceChange(event) {
       candidateId,
       event.target.checked
     );
+    clearWorkspaceExportStatus(false);
     renderWorkspaceResults(latestWorkspaceRun.report);
   }
 }
@@ -2648,14 +2831,24 @@ function handleWorkspaceInput(event) {
   if (countElement) {
     countElement.textContent = `${currentState.note.length} / ${candidateWorkspace.NOTE_MAX_LENGTH}`;
   }
+  clearWorkspaceExportStatus(false);
 }
 
 function handleWorkspaceClick(event) {
-  const action = event.target.dataset.workspaceAction;
   if (!latestWorkspaceRun) {
     return;
   }
 
+  const exportAction = event.target.closest("[data-workspace-export-action]");
+  if (exportAction) {
+    event.preventDefault();
+    if (exportAction.dataset.workspaceExportAction === "download") {
+      triggerWorkspaceExportDownload();
+    }
+    return;
+  }
+
+  const action = event.target.dataset.workspaceAction;
   if (action === "improve-wording") {
     event.preventDefault();
     const candidateId = candidateIdFromWorkspaceEvent(event);
@@ -2671,6 +2864,7 @@ function handleWorkspaceClick(event) {
 
   event.preventDefault();
   workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
+  clearWorkspaceExportStatus(false);
   renderWorkspaceResults(latestWorkspaceRun.report);
 }
 

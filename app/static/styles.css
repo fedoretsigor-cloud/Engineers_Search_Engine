@@ -1194,6 +1194,7 @@ summary {
 
 .candidate-workspace-meta span,
 .candidate-workspace-controls label,
+.candidate-workspace-export label,
 .workspace-review-strip label,
 .workspace-note {
   color: var(--muted);
@@ -1222,6 +1223,7 @@ summary {
 }
 
 .candidate-workspace-controls label,
+.candidate-workspace-export label,
 .workspace-review-strip label,
 .workspace-note {
   display: grid;
@@ -1229,6 +1231,7 @@ summary {
 }
 
 .candidate-workspace-controls select,
+.candidate-workspace-export select,
 .workspace-review-strip select,
 .workspace-note textarea {
   width: 100%;
@@ -1240,6 +1243,7 @@ summary {
 }
 
 .candidate-workspace-controls select,
+.candidate-workspace-export select,
 .workspace-review-strip select {
   min-height: 42px;
   padding: 0 12px;
@@ -1247,6 +1251,33 @@ summary {
 
 .workspace-reset-button {
   min-height: 42px;
+}
+
+.candidate-workspace-export {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(32, 201, 183, 0.22);
+  border-radius: 8px;
+  background: rgba(11, 34, 52, 0.58);
+}
+
+.candidate-workspace-export-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.workspace-export-button {
+  min-height: 42px;
+}
+
+.candidate-workspace-export-status {
+  min-height: 18px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .candidate-workspace-list {
