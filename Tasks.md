@@ -10885,11 +10885,10 @@ Implemented focused hardening:
 
 ### Approved
 
+- [x] P8-006 Define bounded candidate explanation wording contract
 
 ### Backlog
 
-- [ ] P8-006 Define bounded candidate explanation wording contract
-- [ ] P8-006.1 Implement explicit selected-candidate wording overlay
 - [ ] P8-007 Prepare export workflow umbrella
 - [ ] P8-007B Add export UI and download workflow
 - [ ] P8-008 Add bounded LLM onboarding wording overlay
@@ -10910,6 +10909,7 @@ Implemented focused hardening:
 - [x] P8-003 Add sorting and filtering by quality signals
 - [x] P8-004 Add shortlist, notes, and statuses
 - [x] P8-005 Add candidate-level agent explanations
+- [x] P8-006.1 Implement explicit selected-candidate wording overlay
 - [x] P8-007A Implement export model and serializers
 
 ### Current Phase 8 strategy note
@@ -10924,7 +10924,7 @@ Phase 8 can also contain narrow current-flow UX tasks when they make the agent f
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
 
-Candidate explanation order: `P8-005` implemented deterministic candidate-level explanations grounded only in returned workspace facts. `P8-006` is contract-first: define the bounded candidate explanation wording payload, output validation, fallback, routing, and no-fact-mutation rules before any implementation. `P8-006.1` may later implement an explicit-action selected-candidate wording overlay only after `P8-006` is approved. Do not mix LLM wording into the deterministic explanation helper.
+Candidate explanation order: `P8-005` implemented deterministic candidate-level explanations grounded only in returned workspace facts. `P8-006` completed the contract-first bounded candidate explanation wording payload, output validation, fallback, routing, and no-fact-mutation rules before code. `P8-006.1` implemented the explicit-action selected-candidate wording overlay. Do not mix LLM wording into the deterministic explanation helper.
 
 Export order: `P8-007A` is completed as the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage. `P8-007B` remains the later explicit UI/download slice and must not start without separate approval.
 
@@ -12275,7 +12275,7 @@ Codex must critically review this task against current `app/static/candidate_wor
 
 ### Status
 
-Draft / reviewed direction / not approved for coding / not implemented.
+Approved and completed as a docs-only contract. No code implementation was added.
 
 This task is contract-first. It should not add code, OpenAI calls, backend endpoints, frontend controls, or candidate wording behavior until the contract is separately approved and a follow-up implementation task is reviewed.
 
@@ -12420,6 +12420,8 @@ The wording request payload must use a wording-safe facts mapper instead of copy
 
 `P8-006.1` should treat the current `EXPLANATION_REASON_CODES` set as an explicit wording-semantics snapshot. The mapper, prompt, validator, and smoke tests should use the same snapshot so no reason code is interpreted ad hoc during implementation.
 
+`P8-006.1` should include a drift check that compares the implemented candidate-explanation wording semantics snapshot against `EXPLANATION_REASON_CODES`. If a future code change adds, removes, or renames a reason code, the wording overlay tests should fail until `Tasks.md`, `docs/phase-8-candidate-workspace-contract.md`, the mapper, prompt, validator, and semantic guardrail tests are reviewed and updated together.
+
 | Reason code | Allowed wording meaning | Forbidden wording meaning | Allowed wording-safe fact keys |
 | --- | --- | --- | --- |
 | `quality_score_high` | Returned quality score is high under existing workspace `qualityBucket` semantics. | Best candidate, guaranteed fit, independent ranking, changed score, or LinkedIn/profile verification. | `score`, `bucket` |
@@ -12447,6 +12449,8 @@ For nested facts, the top-level container must also be explicitly allowed. For e
 The `role` fact currently present in deterministic `P8-005` `role_or_technology_visible` facts must be stripped by the wording-safe mapper. It can come from headline/raw-title fallback and is therefore too close to raw candidate text for the first wording payload. Future wording may use normalized role text only through a later reviewed safe variant.
 
 Allowed wording-safe string values should be controlled or normalized values, not arbitrary candidate/search text. Examples: known review flag codes, known quality component names, known quality penalty reasons, query source ids/categories, selected stack/location terms already shown to the recruiter, and fit/status enum values. Unknown strings, arbitrary labels, raw headline/title/location/snippet text, raw query text, and unexpected object-derived strings should be omitted or rejected.
+
+For `stack_confirmed`, wording-safe `terms` must be normalized selected or recognized stack terms, not arbitrary direct evidence strings copied from returned candidate text. If a direct stack evidence term is not in the supported selected-stack/recognized-stack vocabulary for the current Search Brief, the mapper should omit it from the wording payload or require a later reviewed safe variant.
 
 The future backend endpoint must treat the frontend-submitted wording payload as bounded contract input, not as trusted candidate truth. The backend should validate contract shape and integrity:
 
@@ -12670,6 +12674,7 @@ The future UI control should avoid verification language. Preferred labels shoul
    - State OpenAI receives only the model payload, not `workspace_run_id`, `wording_target_key`, fingerprints, cache keys, or runtime identifiers.
    - State facts are shallow allowlisted controlled values only, with reason-code-specific allowed keys.
    - State `role` from deterministic `role_or_technology_visible` facts is stripped from the first wording payload because it may come from raw headline/title fallback.
+   - State `stack_confirmed.terms` must use normalized selected/recognized stack terms and must not pass arbitrary candidate-extracted evidence strings.
    - State nested fact containers such as `components` and `penalties` must have explicit top-level and nested allowlists.
    - State future implementation should prefer structured output / JSON schema when available, while still running local validation.
    - State the LLM overlay is stored separately from the deterministic explanation and clears on new search/reset/stale/search failure.
@@ -12709,6 +12714,7 @@ The future UI control should avoid verification language. Preferred labels shoul
    - Reason keys are generated by the bounded payload builder, not by the LLM, and do not imply backend fact ownership.
    - Semantic guardrails cover every current reason code.
    - Every current reason code has explicit allowed meaning, forbidden meaning, and allowed wording-safe fact keys.
+   - Reason-code snapshot drift check fails if `EXPLANATION_REASON_CODES` changes without a reviewed wording contract/mapper/validator/test update.
    - Backend-owned candidate facts are explicitly deferred to a later task.
    - Unsupported languages no-call before OpenAI.
    - Wording request/model payloads and model responses are not persisted or logged.
@@ -12727,6 +12733,7 @@ The future UI control should avoid verification language. Preferred labels shoul
    - Facts mutation rejected.
    - LLM-returned `warnings` rejected as an unexpected output field.
    - Every current reason code has explicit allowed meaning, forbidden meaning, and allowed wording-safe fact keys in the semantics snapshot.
+   - Reason-code snapshot drift check fails if `EXPLANATION_REASON_CODES` adds, removes, or renames a reason code without updating the wording contract, mapper, prompt, validator, and semantic guardrail coverage.
    - Obvious unsupported-language/script mismatch rejected, while mixed technology/location/query tokens such as `Java`, `AWS`, `Kyiv`, `Q01`, `C#`, or `.NET` do not cause false language failures.
    - URL/direct LinkedIn/profile-inspection claim rejected.
    - Disallowed number rejected.
@@ -12744,6 +12751,7 @@ The future UI control should avoid verification language. Preferred labels shoul
    - Wording-safe facts mapper excludes raw candidate/search text and only passes reason-code-allowlisted facts.
    - Facts with raw headline/raw title/current location line, snippets/content, URLs, unknown fact keys, unknown nested fact keys, arbitrary nested objects, uncontrolled strings, or unbounded strings/arrays are rejected.
    - `role` from deterministic `role_or_technology_visible` facts is stripped and is not sent to OpenAI in the first wording payload.
+   - `stack_confirmed.terms` excludes arbitrary candidate-extracted evidence strings and keeps only normalized selected/recognized stack terms.
    - Nested `quality_component.components` and `quality_penalty.penalties` containers accept only explicitly allowlisted nested keys.
    - Prompt/data separation is tested: instruction-like text inside bounded `summary`, `label`, or allowed `facts` is treated as data and cannot change policy, schema, reason keys/codes, facts, scores, provenance, or execution behavior.
    - Backend model payload construction keeps backend-owned instructions separate from candidate/user-derived data fields.
@@ -12782,7 +12790,7 @@ The future UI control should avoid verification language. Preferred labels shoul
 ### Acceptance Criteria
 
 - `P8-006` is documented as a contract-first task.
-- `P8-006.1` exists as the later implementation task title/handoff.
+- `P8-006.1` exists as the approved implementation task title/handoff.
 - The contract states deterministic P8-005 explanation remains source of truth.
 - The contract states the LLM may only rewrite `summary` and existing reason `label` text.
 - The contract states the LLM overlay must be stored separately and must not overwrite or mutate the deterministic P8-005 explanation object.
@@ -12802,8 +12810,10 @@ The future UI control should avoid verification language. Preferred labels shoul
 - The contract requires backend to recompute the request-level explanation fingerprint from sanitized request-bounded fields before using it for request validation.
 - The contract requires a wording-safe facts mapper and forbids blindly forwarding all deterministic P8-005 facts.
 - The contract defines an explicit reason-code wording semantics snapshot for every current explanation reason code.
+- The contract requires drift-check coverage so a future `EXPLANATION_REASON_CODES` change cannot silently bypass the wording semantics snapshot.
 - The contract requires controlled or normalized fact values and rejects arbitrary candidate/search strings in wording-safe facts.
 - The contract strips deterministic `role_or_technology_visible.role` from the first wording payload because it may come from raw headline/title fallback.
+- The contract requires `stack_confirmed.terms` to use normalized selected/recognized stack terms, not arbitrary candidate-extracted evidence strings.
 - The contract explicitly allows nested `components` and `penalties` containers only with reason-code-specific nested keys.
 - The contract requires explicit reason semantics and canonicalizer version metadata for provenance/cache behavior.
 - The contract defines deterministic JSON canonicalization rules and `sha256:<hex>` output for the request-level explanation fingerprint, with JS/Python fixture coverage expected for P8-006.1.
@@ -12859,9 +12869,18 @@ The future UI control should avoid verification language. Preferred labels shoul
 
 ### Status
 
-Backlog / not reviewed / not approved / not implemented.
+Implemented and completed.
 
-This is the future implementation task after `P8-006` is approved. It should implement a bounded LLM wording overlay for candidate explanations only after an explicit user action, using the `P8-006` contract. It must remain backend-owned, validated, deterministic-fallback-safe, current-run scoped, and non-persistent.
+This task implemented a bounded LLM wording overlay for candidate explanations only after an explicit user action, using the `P8-006` contract. It remains backend-owned, validated, deterministic-fallback-safe, current-run scoped, and non-persistent.
+
+Implementation summary:
+
+- added `POST /api/candidate-workspace/explanation-wording`;
+- added candidate-specific request validation, wording-safe facts mapping, canonical fingerprinting, model payload building, output validation, fallback, and provenance in `app/candidate_explanation_wording.py`;
+- added frontend current-run `wording_target_key` assignment, explicit `Improve wording` button, pending/fallback/applied overlay state, stale response binding, and escaped/plain-text overlay rendering;
+- added no-network backend route/contract smoke coverage and frontend helper fingerprint/request-construction smoke coverage;
+- wired the new smoke into `scripts/check_all.ps1`;
+- did not add backend session storage, backend candidate workspace memory, browser storage persistence, search/runtime/export behavior changes, LinkedIn access, direct web-search bypass, candidate messaging, account actions, or autonomous execution.
 
 Implementation direction after `P8-006` approval:
 
@@ -12882,6 +12901,7 @@ Implementation direction after `P8-006` approval:
 - backend/frontend implementation uses an explicit wording-safe facts mapper by reason code and does not forward all deterministic P8-005 facts wholesale;
 - wording-safe facts use controlled or normalized values only; arbitrary candidate/search strings are omitted or rejected;
 - `role` from deterministic `role_or_technology_visible` facts is stripped from the first wording payload because it may come from raw headline/title fallback;
+- `stack_confirmed.terms` includes only normalized selected/recognized stack terms and excludes arbitrary candidate-extracted evidence strings;
 - nested fact containers such as `quality_component.components` and `quality_penalty.penalties` use explicit top-level and nested allowlists;
 - do not send current workspace `candidate_id`, `normalized_url`, profile href, LinkedIn URL, or URL-derived candidate identity to the LLM wording payload;
 - candidate-explanation-specific payload, prompt, validator, fallback, and provenance;
@@ -12891,6 +12911,7 @@ Implementation direction after `P8-006` approval:
 - request-level explanation fingerprint uses UTF-8 canonical JSON and `sha256:<hex>` output with JS/Python fixture coverage for frontend/backend parity;
 - semantic guardrail map for every current explanation reason code;
 - explicit allowed meaning, forbidden meaning, and allowed wording-safe fact keys for every current explanation reason code;
+- drift check that fails when `EXPLANATION_REASON_CODES` changes without a reviewed wording contract/mapper/prompt/validator/test update;
 - deterministic explanation `source` / `version` locked;
 - backend-owned `wording_mode`, `fallback_reason`, nested-only `no_call_reason`, `wording_provenance`, `surface = candidate_workspace`, `source_owner = candidate_workspace`, `source_object = candidate_explanation`, `wording_use_case = candidate_explanation`, `request_payload_contract_version`, `model_payload_contract_version`, `reason_semantics_version`, `canonicalizer_version`, `prompt_contract_version`, `prompt_version`, `validator_version`, `deterministic_builder_version`, internal `llm_warnings`, and attempted-call `model` metadata;
 - backend owns wording call/validation/fallback/provenance, but not candidate fact truth in this slice;
@@ -12908,6 +12929,169 @@ Implementation direction after `P8-006` approval:
 - backend errors and frontend status/error UI do not expose raw wording request payloads, backend-to-OpenAI model payloads, or raw model responses;
 - no mutation of facts, reason codes, score, filters, review state, notes, shortlist, export, search, or runtime behavior;
 - no persistence.
+
+### Critical Review Notes
+
+This task is allowed to implement code, unlike `P8-006`, but only inside the bounded contract that `P8-006` approved.
+
+The implementation should not treat the existing Phase 7 `agent_plan` / `agent_response` wording path as a generic reusable validator. The low-level OpenAI call pattern may be referenced, but candidate explanation wording needs a candidate-specific request schema, prompt builder, output validator, fallback/provenance envelope, and smoke coverage because the accepted output shape is `summary` / `reasons`, not `message` / `warnings` / `limitations`.
+
+The preferred endpoint for this slice is:
+
+```text
+POST /api/candidate-workspace/explanation-wording
+```
+
+The endpoint name is intentionally not an Agent Runtime endpoint. It is a bounded wording helper for the current Candidate Workspace surface. It must not prepare, approve, execute, search, export, persist, message, open profiles, or perform account actions.
+
+The implementation should add a small dedicated backend module, for example `app/candidate_explanation_wording.py`, rather than expanding `app/main.py` with ad hoc logic. Route registration should follow the existing `app/routes.py` dependency pattern.
+
+Default local/CI tests must not make live OpenAI calls. They should inject a fake wording runner and cover success, fallback, malformed output, unsafe output, and stale response behavior without network access. Live OpenAI verification can be a separate manual/browser sanity step only when explicitly requested.
+
+The first implementation should not add backend session storage or backend in-memory candidate workspace storage. Any overlay reuse in this slice should be frontend current-run memory only. A backend-owned `backend_wording_cache_key` may be returned as provenance/correlation metadata if useful, but it must not imply persistent or cross-request backend candidate memory.
+
+### Scope
+
+Included:
+
+- backend request/response schema for candidate explanation wording;
+- backend endpoint and route wiring;
+- candidate-specific wording payload builder, canonicalizer, fingerprint recomputation, wording-safe facts mapper, prompt builder, OpenAI runner integration, output validator, fallback, and provenance;
+- frontend memory-only `wording_target_key` assignment for current workspace candidates;
+- frontend current-run overlay/pending/error/cache state;
+- explicit candidate-level `Improve wording` / `Polish explanation` control;
+- frontend request construction from the deterministic `P8-005` explanation;
+- frontend response binding before applying any overlay;
+- no-network backend/frontend/helper smoke coverage;
+- browser sanity for the explicit selected-candidate UI path after implementation.
+
+Not included:
+
+- moving candidate fact truth to the backend;
+- backend workspace persistence;
+- database/browser-storage persistence;
+- changing deterministic `P8-005` explanation semantics;
+- changing scoring, sorting, filtering, dedupe, location, QueryPlan, runtime, Tavily, export, notes, shortlist, or review-state behavior;
+- automatic wording for all candidates;
+- OpenAI call on candidate details open/select;
+- LinkedIn access, login, scraping, restriction bypass, direct profile inspection, candidate messaging, outreach, direct web-search bypass, account actions, or autonomous execution.
+
+### Proposed Implementation Steps
+
+1. Add backend schemas for the wording request and response.
+   - Request contains only the approved `P8-006` bounded fields.
+   - Request rejects raw candidate/search fields, URLs/profile identifiers, review state, notes, prompts, hard boundaries, `allowed_numbers`, OpenAI/provider controls, and unexpected fields.
+   - Response includes binding fields needed by the frontend: `workspace_run_id`, `wording_target_key`, `request_explanation_fingerprint`, and language.
+   - Response includes backend-owned metadata: `wording_mode`, optional `fallback_reason`, nested `wording_provenance`, optional internal `llm_warnings`, and attempted-call `model` only when an OpenAI call was actually attempted.
+   - Response includes `wording_overlay` only after output validation succeeds; fallback/no-call responses should leave the deterministic frontend explanation visible rather than returning a model-owned replacement.
+
+2. Add candidate-specific backend wording module.
+   - Define request/model/prompt/validator/canonicalizer/reason-semantics/deterministic-builder version constants.
+   - Add explicit `EXPLANATION_REASON_CODES` semantics snapshot and drift check.
+   - Add wording-safe facts mapper by reason code.
+   - Strip `role_or_technology_visible.role`.
+   - Keep `stack_confirmed.terms` to normalized selected/recognized stack terms.
+   - Reject unknown top-level fields, unknown fact keys, unknown nested fact keys, uncontrolled strings, arbitrary nested objects, URLs, raw snippets, raw query text, profile identifiers, review state, notes, and unbounded arrays/strings.
+   - Recompute `allowed_numbers` from sanitized user-visible wording fields only.
+   - Recompute the request-level explanation fingerprint from sanitized bounded request fields before any OpenAI call.
+
+3. Add candidate-specific prompt/model payload builder.
+   - Backend-owned instructions and candidate/user-derived data stay structurally separated.
+   - Backend-to-OpenAI payload excludes request correlation/cache/runtime fields.
+   - Prefer provider-supported structured output / JSON schema when available through the existing configured model path.
+   - If provider-supported schema output is not available in the current code path, use JSON-object prompting plus the same strict local validation; do not weaken validation.
+
+4. Add candidate-specific output validator.
+   - Accept exactly `summary` and `reasons`.
+   - Reject missing/extra reason keys, changed codes, changed counts, extra fields, blank text, overlong text, unsafe content, URLs, direct LinkedIn/profile inspection claims, disallowed numbers, wrong language/script, model-returned warnings, and semantic contradictions.
+   - Preserve caution/uncertainty semantics for all current reason codes.
+   - Return deterministic fallback metadata on every validation failure.
+
+5. Wire the backend route.
+   - Add route dependency in `app/routes.py`.
+   - Add endpoint wrapper in `app/main.py` following existing module-boundary patterns.
+   - Keep endpoint independent from Agent Runtime and search execution.
+   - Do not write raw wording request/model payloads or model responses to persistent logs, snapshots, database, or browser storage.
+
+6. Add frontend current-run target and overlay state.
+   - Generate opaque `wording_target_key` after a new workspace run is created, not from URL/profile fields.
+   - Keep target keys and overlay state in memory only.
+   - Clear overlay/pending/cache/error state on new search, workspace clear, reset, stale workspace reset, search failure, and page reload.
+   - Do not include `candidate_id`, `normalized_url`, `profile_href`, profile URL, notes, review status, shortlist, or raw candidate objects in the request.
+   - Use target language `en` for v1 regardless of chat language; other languages remain unsupported/no-call until a later localization task.
+   - Build the request from the structured deterministic explanation helper output, not from rendered DOM text.
+
+7. Add explicit selected-candidate UI.
+   - Add a neutral `Improve wording` or `Polish explanation` button inside the candidate explanation area.
+   - Opening details or selecting a candidate must not call OpenAI.
+   - Button click builds the bounded request from the already-renderable deterministic explanation.
+   - Disable duplicate clicks while pending for the same workspace run, target key, fingerprint, and language.
+   - Show bounded status/fallback text only; never expose raw request/model payloads or raw model output.
+   - Render deterministic and overlay text with the same escaping/plain-text safety; never insert model text as raw HTML.
+
+8. Bind and render validated overlays.
+   - Apply overlay only when response binding matches the current workspace run, target key, request explanation fingerprint, language, and non-stale workspace state.
+   - Discard late/mismatched responses and keep deterministic wording visible.
+   - Keep accepted overlay separate from the deterministic `P8-005` explanation object.
+   - Sorting/filtering/details re-render may keep a valid overlay only when the same current-run target key and fingerprint still match.
+   - Reuse accepted overlays only from frontend current-run memory in the first implementation; do not add backend session storage, backend workspace memory, browser storage, or persistence.
+
+9. Add no-network smoke coverage.
+   - Backend schema/mapper/fingerprint/prompt/output/provenance tests with fake wording runner.
+   - Frontend/helper tests for request construction, target-key safety, no mutation, binding, stale reset, duplicate pending, deterministic fallback, and no raw URL/profile/note/review-state leakage.
+   - Route smoke confirming the endpoint is registered and does not call OpenAI when validation/no-call gates fail.
+   - Drift-check smoke confirming `EXPLANATION_REASON_CODES` parity.
+   - Extend `scripts/check_all.ps1`.
+
+10. Run browser sanity after implementation.
+   - Open a search result with candidate explanations.
+   - Verify no OpenAI call happens on details open.
+   - Click `Improve wording` for one selected candidate.
+   - Verify pending/disabled state, successful overlay display or deterministic fallback, no mutation of deterministic explanation data, and stale response/reset behavior.
+
+### Required Verification
+
+- `git diff --check`;
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- targeted backend smoke for candidate explanation wording contract;
+- targeted frontend/helper smoke for candidate explanation wording request/overlay state;
+- browser sanity for the explicit selected-candidate wording path after implementation.
+
+Default verification must be no-network/no-live-OpenAI. Any live OpenAI check must be explicitly requested and must use only the approved backend endpoint, never direct browser-side OpenAI calls.
+
+### Acceptance Criteria
+
+- `POST /api/candidate-workspace/explanation-wording` exists and is route-wired through the existing dependency pattern.
+- The endpoint accepts only the approved bounded request payload and rejects forbidden fields.
+- Backend recomputes allowed numbers and request-level explanation fingerprint before any OpenAI call.
+- Backend-to-OpenAI payload excludes workspace/run/target/fingerprint/cache/runtime/candidate id/profile/provenance fields.
+- Existing Phase 7 `agent_plan` / `agent_response` validator is not reused directly for candidate explanations.
+- Candidate-specific validator accepts only `summary` and `reasons`.
+- Valid LLM output can replace only display `summary` and existing reason labels through a separate overlay.
+- Invalid, unsafe, unsupported-language, no-config, timeout, or network-failure cases keep deterministic `P8-005` wording visible.
+- Frontend sends only bounded deterministic explanation data and never sends raw candidates, snippets, URLs, profile identifiers, notes, review state, shortlist state, prompts, hard boundaries, `allowed_numbers`, or OpenAI/provider controls.
+- `wording_target_key` is opaque, memory-only, non-URL, non-profile-identifying, stable within the current workspace run, and reset on new workspace state.
+- v1 frontend requests use target language `en`; non-`en` candidate explanation wording remains unsupported/no-call.
+- Frontend request construction uses structured deterministic explanation data, not DOM text.
+- Opening candidate details does not call OpenAI.
+- Only explicit selected-candidate button click may request wording.
+- Duplicate pending requests are prevented.
+- Late/mismatched responses are discarded.
+- Accepted overlay does not mutate deterministic explanation, candidate facts, notes, shortlist, filters, sorting, export, search, runtime, or approval state.
+- Accepted overlay is rendered as escaped/plain text and never as raw HTML.
+- Overlay reuse is frontend current-run memory only in the first implementation; no backend session storage or backend candidate workspace memory is added.
+- Raw wording request payloads, backend-to-OpenAI model payloads, and raw model responses are not persisted or exposed in user-visible errors/statuses.
+- No default local/CI verification makes live OpenAI, Tavily, LinkedIn, web-search, messaging, or account-action calls.
+
+### Non-Goals
+
+- Do not implement backend-owned candidate fact truth.
+- Do not implement workspace persistence or saved candidates.
+- Do not implement bulk wording for all candidates.
+- Do not localize candidate explanations beyond the approved v1 `en` path.
+- Do not change export behavior.
+- Do not change Agent Runtime, QueryPlan, Tavily execution, search approval, scoring, filters, dedupe, location logic, or candidate ordering.
+- Do not add LinkedIn login/scraping/profile inspection, candidate messaging/outreach, account actions, direct web-search bypass, or autonomous execution.
 
 ---
 
@@ -13499,7 +13683,7 @@ Do not wire the download action before helper serialization tests pass. If imple
 - Candidate text, query text, snippets, and recruiter notes remain untrusted even though they are local.
 - The Markdown format is not automatically safer than CSV; it still needs escaping because recruiters may open it in renderers that process links or HTML.
 - Exporting recruiter notes is acceptable only because it is an explicit user action; it must not imply app persistence or carryover to future runs.
-- `P8-006.1` may later add bounded LLM wording for explanations, but `P8-007` should export deterministic explanation data unless a later reviewed task explicitly changes that.
+- Approved-not-implemented `P8-006.1` may add bounded LLM wording for explanations in its own task, but `P8-007` should export deterministic explanation data unless a later reviewed task explicitly changes that.
 - Final critical review found no remaining blockers after the CSV newline/export framing clarification.
 - Implementation is split into two slices: helper/serializer first (`P8-007A`), then UI/download (`P8-007B`). `P8-007A` is completed; `P8-007B` must still be separately approved before coding.
 

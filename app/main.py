@@ -186,6 +186,9 @@ from app.brief_patch import (
     BRIEF_PATCH_UNSUPPORTED,
     build_brief_patch,
 )
+from app.candidate_explanation_wording import (
+    build_candidate_explanation_wording_response,
+)
 from app.planning import (
     RuleBasedQueryPlannerV1,
     add_plan_validation_error,
@@ -202,6 +205,7 @@ from app.schemas import (
     AgentPlanRequest,
     AgentQueryPlanRequest,
     AgentRuntimeTurnRequest,
+    CandidateExplanationWordingRequest,
     ExecutionApproval,
     MultiWaveStructuredSearchRequest,
     RecruiterChatMessage,
@@ -3776,6 +3780,12 @@ async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
     ).to_dict()
 
 
+async def create_candidate_explanation_wording(
+    request: CandidateExplanationWordingRequest,
+) -> dict:
+    return await build_candidate_explanation_wording_response(request.model_dump())
+
+
 def validate_ai_query_plan_endpoint(request: AIQueryPlanValidationRequest) -> dict:
     brief_response = search_brief_validation_response(request.search_brief)
     normalized_brief = brief_response["normalized_brief"]
@@ -4040,6 +4050,7 @@ app.include_router(
             create_query_plan=create_query_plan,
             create_agent_query_plan=create_agent_query_plan,
             create_agent_runtime_turn=create_agent_runtime_turn,
+            create_candidate_explanation_wording=create_candidate_explanation_wording,
             validate_ai_query_plan_endpoint=validate_ai_query_plan_endpoint,
             structured_search=structured_search,
             structured_search_multi_wave=structured_search_multi_wave,

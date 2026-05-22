@@ -25,6 +25,7 @@ const PRIMARY_BUILD_PLAN_MODE = "rule_based";
 const AGENT_PLAN_ENDPOINT = "/api/agent/plan";
 const AGENT_QUERY_PLAN_ENDPOINT = "/api/agent/query-plan";
 const AGENT_RUNTIME_TURN_ENDPOINT = "/api/agent/runtime/turn";
+const CANDIDATE_EXPLANATION_WORDING_ENDPOINT = "/api/candidate-workspace/explanation-wording";
 const AGENT_ACTION_BUILD_QUERY_PLAN = "build_query_plan";
 const AGENT_ACTION_RUN_SINGLE_WAVE = "run_single_wave_search";
 const AGENT_ACTION_RUN_MULTI_WAVE = "run_multi_wave_search";
@@ -159,6 +160,7 @@ let workspaceCandidates = [];
 let visibleWorkspaceCandidates = [];
 let workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
 let workspaceReviewStateByCandidateId = {};
+let workspaceExplanationWordingByKey = {};
 let chatRequestInFlight = false;
 let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
@@ -243,6 +245,7 @@ function clearWorkspaceState() {
   visibleWorkspaceCandidates = [];
   workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
   workspaceReviewStateByCandidateId = {};
+  workspaceExplanationWordingByKey = {};
 }
 
 function captureWorkspaceRunContext(searchData = {}) {
@@ -271,10 +274,17 @@ function captureWorkspaceRunContext(searchData = {}) {
 }
 
 function replaceWorkspaceRun(dedupedResults = [], report = null, runContext = {}) {
-  const candidates = candidateWorkspace.mapDedupedResultsToWorkspaceCandidates(
+  const mappedCandidates = candidateWorkspace.mapDedupedResultsToWorkspaceCandidates(
     dedupedResults
   );
   const workspaceRunId = candidateWorkspace.createWorkspaceRunId(runContext);
+  const candidates = mappedCandidates.map((candidate, index) => ({
+    ...candidate,
+    wording_target_key: candidateWorkspace.createWordingTargetKey(
+      runContext.run_counter || workspaceRunCounter || 1,
+      index
+    ),
+  }));
 
   latestWorkspaceRun = {
     workspace_run_id: workspaceRunId,
@@ -288,6 +298,7 @@ function replaceWorkspaceRun(dedupedResults = [], report = null, runContext = {}
   workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
   workspaceReviewStateByCandidateId =
     candidateWorkspace.createReviewStateForCandidates(candidates);
+  workspaceExplanationWordingByKey = {};
 }
 
 function renderWorkspaceOption(value, label, currentValue) {
@@ -414,16 +425,72 @@ function renderWorkspaceReviewStatusOptions(currentStatus) {
     .join("");
 }
 
-function renderExplanationReasonList(items = [], emptyText = "") {
+function renderExplanationReasonList(items = [], emptyText = "", overlayReasonsByKey = {}) {
   if (!items.length) {
     return emptyText ? `<p>${escapeHtml(emptyText)}</p>` : "";
   }
 
   return `
     <ul>
-      ${items.map((item) => `<li>${escapeHtml(item.label || item.code)}</li>`).join("")}
+      ${items
+        .map((item) => {
+          const overlayReason = overlayReasonsByKey[item.reason_key] || null;
+          return `<li>${escapeHtml(overlayReason?.label || item.label || item.code)}</li>`;
+        })
+        .join("")}
     </ul>
   `;
+}
+
+function workspaceWordingStateKey(workspaceRunId, wordingTargetKey) {
+  return `${workspaceRunId || "no-run"}::${wordingTargetKey || "no-target"}`;
+}
+
+function workspaceWordingStateForCandidate(candidate = {}) {
+  if (!latestWorkspaceRun || !candidate.wording_target_key) {
+    return null;
+  }
+  return (
+    workspaceExplanationWordingByKey[
+      workspaceWordingStateKey(latestWorkspaceRun.workspace_run_id, candidate.wording_target_key)
+    ] || null
+  );
+}
+
+function overlayReasonsByKey(overlay = null) {
+  return arrayValue(overlay?.reasons).reduce((items, reason) => {
+    if (reason?.reason_key) {
+      items[reason.reason_key] = reason;
+    }
+    return items;
+  }, {});
+}
+
+function wordingStatusText(state = null) {
+  if (!state) {
+    return "";
+  }
+  if (state.status === "pending") {
+    return "Improving wording...";
+  }
+  if (state.status === "applied") {
+    return "AI wording applied. Deterministic facts unchanged.";
+  }
+  if (state.status === "fallback") {
+    if (state.reason === "openai_not_configured") {
+      return "Wording helper unavailable. Deterministic wording kept.";
+    }
+    if (state.reason === "unsupported_language") {
+      return "Candidate explanation wording supports English only. Deterministic wording kept.";
+    }
+    return "Could not improve wording. Deterministic wording kept.";
+  }
+  return "";
+}
+
+function renderCandidateExplanationWordingStatus(state = null) {
+  const text = wordingStatusText(state);
+  return text ? `<span class="candidate-explanation-wording-status">${escapeHtml(text)}</span>` : "";
 }
 
 function renderCandidateExplanation(candidate) {
@@ -435,24 +502,53 @@ function renderCandidateExplanation(candidate) {
   if (!explanation || explanation.source !== "deterministic_workspace_facts") {
     return "";
   }
+  const renderableReasons = candidateWorkspace.buildCandidateExplanationRenderableReasons(explanation);
+  const wordingState = workspaceWordingStateForCandidate(candidate);
+  const activeOverlay = wordingState?.status === "applied" ? wordingState.overlay : null;
+  const activeOverlayReasons = overlayReasonsByKey(activeOverlay);
+  const summary = activeOverlay?.summary || explanation.summary || "Review returned candidate details manually.";
+  const wordingPending = wordingState?.status === "pending";
 
   return `
     <section class="candidate-explanation" aria-label="Candidate explanation">
       <h4>Candidate explanation</h4>
-      <p>${escapeHtml(explanation.summary || "Review returned candidate details manually.")}</p>
+      <p>${escapeHtml(summary)}</p>
       <div class="candidate-explanation-grid">
         <div>
           <span>Positive signals</span>
-          ${renderExplanationReasonList(explanation.positive_signals || [], "No strong positive signal selected.")}
+          ${renderExplanationReasonList(
+            renderableReasons.positive_signals,
+            "No strong positive signal selected.",
+            activeOverlayReasons
+          )}
         </div>
         <div>
           <span>Cautions</span>
-          ${renderExplanationReasonList(explanation.cautions || [], "No caution selected.")}
+          ${renderExplanationReasonList(
+            renderableReasons.cautions,
+            "No caution selected.",
+            activeOverlayReasons
+          )}
         </div>
         <div>
           <span>Evidence</span>
-          ${renderExplanationReasonList(explanation.evidence_items || [], "No extra evidence returned.")}
+          ${renderExplanationReasonList(
+            renderableReasons.evidence_items,
+            "No extra evidence returned.",
+            activeOverlayReasons
+          )}
         </div>
+      </div>
+      <div class="candidate-explanation-wording-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          data-workspace-action="improve-wording"
+          ${wordingPending ? "disabled" : ""}
+        >
+          ${wordingPending ? "Improving..." : "Improve wording"}
+        </button>
+        ${renderCandidateExplanationWordingStatus(wordingState)}
       </div>
     </section>
   `;
@@ -2344,6 +2440,151 @@ function candidateIdFromWorkspaceEvent(event) {
   return row ? row.getAttribute("data-candidate-id") : "";
 }
 
+function workspaceCandidateById(candidateId) {
+  return workspaceCandidates.find((candidate) => candidate.candidate_id === candidateId) || null;
+}
+
+function currentWordingStateKeyForCandidate(candidate = {}) {
+  if (!latestWorkspaceRun || !candidate.wording_target_key) {
+    return "";
+  }
+  return workspaceWordingStateKey(latestWorkspaceRun.workspace_run_id, candidate.wording_target_key);
+}
+
+function setCandidateWordingState(candidate, state) {
+  const stateKey = currentWordingStateKeyForCandidate(candidate);
+  if (!stateKey) {
+    return;
+  }
+  workspaceExplanationWordingByKey = {
+    ...workspaceExplanationWordingByKey,
+    [stateKey]: state,
+  };
+}
+
+function wordingResponseMatchesCurrentState(data = {}, requestPayload = {}, pendingKey = "") {
+  if (!latestWorkspaceRun) {
+    return false;
+  }
+  const stateKey = workspaceWordingStateKey(
+    latestWorkspaceRun.workspace_run_id,
+    requestPayload.wording_target_key
+  );
+  const currentState = workspaceExplanationWordingByKey[stateKey];
+  return Boolean(
+    data.workspace_run_id === latestWorkspaceRun.workspace_run_id &&
+      data.wording_target_key === requestPayload.wording_target_key &&
+      data.request_explanation_fingerprint === requestPayload.request_explanation_fingerprint &&
+      data.language === requestPayload.target_language &&
+      currentState?.pending_key === pendingKey
+  );
+}
+
+async function requestCandidateExplanationWording(candidateId) {
+  if (!latestWorkspaceRun) {
+    return;
+  }
+  const candidate = workspaceCandidateById(candidateId);
+  if (!candidate || !candidate.wording_target_key) {
+    return;
+  }
+  const explanation = candidateWorkspace.buildCandidateExplanation(candidate);
+  if (!explanation || explanation.source !== "deterministic_workspace_facts") {
+    return;
+  }
+
+  let requestPayload;
+  try {
+    requestPayload = await candidateWorkspace.buildCandidateExplanationWordingRequest({
+      workspaceRunId: latestWorkspaceRun.workspace_run_id,
+      wordingTargetKey: candidate.wording_target_key,
+      explanation,
+      targetLanguage: candidateWorkspace.CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
+    });
+  } catch (error) {
+    setCandidateWordingState(candidate, {
+      status: "fallback",
+      reason: "request_build_failed",
+    });
+    renderWorkspaceResults(latestWorkspaceRun.report);
+    return;
+  }
+
+  const pendingKey = [
+    requestPayload.workspace_run_id,
+    requestPayload.wording_target_key,
+    requestPayload.request_explanation_fingerprint,
+    requestPayload.target_language,
+  ].join("|");
+  const existingState = workspaceWordingStateForCandidate(candidate);
+  if (
+    existingState?.status === "applied" &&
+    existingState.request_explanation_fingerprint === requestPayload.request_explanation_fingerprint &&
+    existingState.language === requestPayload.target_language
+  ) {
+    renderWorkspaceResults(latestWorkspaceRun.report);
+    return;
+  }
+  if (existingState?.status === "pending" && existingState.pending_key === pendingKey) {
+    return;
+  }
+
+  setCandidateWordingState(candidate, {
+    status: "pending",
+    pending_key: pendingKey,
+    request_explanation_fingerprint: requestPayload.request_explanation_fingerprint,
+    language: requestPayload.target_language,
+  });
+  renderWorkspaceResults(latestWorkspaceRun.report);
+
+  try {
+    const response = await fetch(CANDIDATE_EXPLANATION_WORDING_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestPayload),
+    });
+    const data = await response.json();
+    if (!wordingResponseMatchesCurrentState(data, requestPayload, pendingKey)) {
+      return;
+    }
+
+    if (
+      response.ok &&
+      data.ok &&
+      data.wording_mode === "llm_assisted" &&
+      data.wording_overlay
+    ) {
+      setCandidateWordingState(candidate, {
+        status: "applied",
+        overlay: data.wording_overlay,
+        backend_wording_cache_key: data.backend_wording_cache_key,
+        request_explanation_fingerprint: requestPayload.request_explanation_fingerprint,
+        language: requestPayload.target_language,
+      });
+    } else {
+      setCandidateWordingState(candidate, {
+        status: "fallback",
+        reason: data.fallback_reason || "wording_not_applied",
+        request_explanation_fingerprint: requestPayload.request_explanation_fingerprint,
+        language: requestPayload.target_language,
+      });
+    }
+  } catch (error) {
+    setCandidateWordingState(candidate, {
+      status: "fallback",
+      reason: "wording_request_failed",
+      request_explanation_fingerprint: requestPayload.request_explanation_fingerprint,
+      language: requestPayload.target_language,
+    });
+  } finally {
+    if (latestWorkspaceRun) {
+      renderWorkspaceResults(latestWorkspaceRun.report);
+    }
+  }
+}
+
 function handleWorkspaceChange(event) {
   if (!latestWorkspaceRun) {
     return;
@@ -2411,7 +2652,20 @@ function handleWorkspaceInput(event) {
 
 function handleWorkspaceClick(event) {
   const action = event.target.dataset.workspaceAction;
-  if (action !== "reset-filters" || !latestWorkspaceRun) {
+  if (!latestWorkspaceRun) {
+    return;
+  }
+
+  if (action === "improve-wording") {
+    event.preventDefault();
+    const candidateId = candidateIdFromWorkspaceEvent(event);
+    if (candidateId) {
+      void requestCandidateExplanationWording(candidateId);
+    }
+    return;
+  }
+
+  if (action !== "reset-filters") {
     return;
   }
 

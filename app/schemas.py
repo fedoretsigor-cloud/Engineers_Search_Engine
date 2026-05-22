@@ -122,3 +122,20 @@ class AgentRuntimeTurnRequest(BaseModel):
     runtime_context: dict[str, Any]
     runtime_approval: AgentRuntimeApproval | None
     agent_language: str | None
+
+
+class CandidateExplanationWordingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    wording_use_case: str
+    request_payload_contract_version: str
+    target_language: str
+    workspace_run_id: str
+    wording_target_key: str
+    request_explanation_fingerprint: str
+    explanation_version: str
+    source: str
+    summary: str
+    positive_signals: list[dict[str, Any]] = Field(default_factory=list)
+    cautions: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_items: list[dict[str, Any]] = Field(default_factory=list)

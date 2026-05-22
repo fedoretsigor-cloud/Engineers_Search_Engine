@@ -1,6 +1,8 @@
 const assert = require("assert");
+const nodeCrypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { TextEncoder } = require("util");
 const vm = require("vm");
 
 const repoRoot = path.resolve(__dirname, "..");
@@ -10,8 +12,15 @@ const indexPath = path.join(repoRoot, "app", "static", "index.html");
 const context = {
   console,
   Date,
+  TextEncoder,
   URL,
-  window: {},
+  crypto: nodeCrypto.webcrypto,
+  require,
+  window: {
+    TextEncoder,
+    crypto: nodeCrypto.webcrypto,
+    require,
+  },
 };
 context.globalThis = context;
 vm.createContext(context);
@@ -203,6 +212,91 @@ const explanationWithReviewState = workspace.buildCandidateExplanation(
   })
 );
 assert.deepStrictEqual(explanationWithReviewState, strongExplanation);
+
+async function runWordingRequestChecks() {
+  assert.strictEqual(workspace.CANDIDATE_EXPLANATION_WORDING_USE_CASE, "candidate_explanation");
+  assert.strictEqual(
+    workspace.CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
+    "candidate_explanation_wording_request_v1"
+  );
+  assert.strictEqual(workspace.CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE, "en");
+  assert.strictEqual(workspace.createWordingTargetKey(7, 2), "wtk-7-3");
+
+  const wordingRequest = await workspace.buildCandidateExplanationWordingRequest({
+    workspaceRunId: "workspace:test:run-1",
+    wordingTargetKey: "wtk-1-1",
+    explanation: strongExplanation,
+  });
+  assert.strictEqual(wordingRequest.wording_use_case, "candidate_explanation");
+  assert.strictEqual(wordingRequest.request_payload_contract_version, "candidate_explanation_wording_request_v1");
+  assert.strictEqual(wordingRequest.target_language, "en");
+  assert.strictEqual(wordingRequest.workspace_run_id, "workspace:test:run-1");
+  assert.strictEqual(wordingRequest.wording_target_key, "wtk-1-1");
+  assert.ok(/^sha256:[0-9a-f]{64}$/.test(wordingRequest.request_explanation_fingerprint));
+  assert.strictEqual(wordingRequest.positive_signals[0].reason_key, "positive_signals[0]:quality_score_high");
+  assert.strictEqual(wordingRequest.positive_signals[0].section, "positive_signals");
+  assert.ok(!JSON.stringify(wordingRequest).includes("candidate_id"));
+  assert.ok(!JSON.stringify(wordingRequest).includes("normalized_url"));
+  assert.ok(!JSON.stringify(wordingRequest).includes("linkedin.com/in"));
+  assert.ok(!JSON.stringify(wordingRequest).includes("raw query should not export"));
+
+  const repeatedRequest = await workspace.buildCandidateExplanationWordingRequest({
+    workspaceRunId: "workspace:test:run-1",
+    wordingTargetKey: "wtk-1-1",
+    explanation: strongExplanation,
+  });
+  assert.strictEqual(
+    repeatedRequest.request_explanation_fingerprint,
+    wordingRequest.request_explanation_fingerprint,
+    "wording request fingerprint should be deterministic"
+  );
+
+  const changedRequest = await workspace.buildCandidateExplanationWordingRequest({
+    workspaceRunId: "workspace:test:run-1",
+    wordingTargetKey: "wtk-1-1",
+    explanation: Object.assign({}, strongExplanation, {
+      summary: "Candidate has useful returned signals, with cautions to review.",
+    }),
+  });
+  assert.notStrictEqual(
+    changedRequest.request_explanation_fingerprint,
+    wordingRequest.request_explanation_fingerprint,
+    "wording request fingerprint should change when display wording changes"
+  );
+
+  const roleExplanation = {
+    version: workspace.CANDIDATE_EXPLANATION_VERSION,
+    source: "deterministic_workspace_facts",
+    summary: "Candidate has role evidence.",
+    positive_signals: [
+      {
+        code: "role_or_technology_visible",
+        label: "Role or technology evidence is visible",
+        facts: {
+          role: "Raw Headline Role",
+          role_fit: "target_or_close_role",
+          technology: "Java",
+          technology_fit: "exact",
+        },
+      },
+    ],
+    cautions: [],
+    evidence_items: [],
+  };
+  const roleRequest = await workspace.buildCandidateExplanationWordingRequest({
+    workspaceRunId: "workspace:test:run-2",
+    wordingTargetKey: "wtk-2-1",
+    explanation: roleExplanation,
+  });
+  assert.strictEqual(
+    JSON.stringify(roleRequest.positive_signals[0].facts),
+    JSON.stringify({
+      role_fit: "target_or_close_role",
+      technology: "Java",
+      technology_fit: "exact",
+    })
+  );
+}
 
 const runIdA = workspace.createWorkspaceRunId({
   idempotency_key: "idem",
@@ -597,4 +691,11 @@ assert.ok(
   "candidate_workspace.js should load before app.js"
 );
 
-console.log("P8 candidate workspace helper smoke passed.");
+runWordingRequestChecks()
+  .then(() => {
+    console.log("P8 candidate workspace helper smoke passed.");
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

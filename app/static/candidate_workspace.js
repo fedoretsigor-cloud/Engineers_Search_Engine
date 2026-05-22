@@ -50,6 +50,9 @@
 
   const NOTE_MAX_LENGTH = 1000;
   const CANDIDATE_EXPLANATION_VERSION = "candidate_explanation_v1";
+  const CANDIDATE_EXPLANATION_WORDING_USE_CASE = "candidate_explanation";
+  const CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION = "candidate_explanation_wording_request_v1";
+  const CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE = "en";
   const EXPLANATION_REASON_CODES = Object.freeze({
     QUALITY_SCORE_HIGH: "quality_score_high",
     QUALITY_SCORE_MEDIUM: "quality_score_medium",
@@ -79,6 +82,29 @@
   const SAFE_SEVERITIES = new Set(["info", "warning", "risk", "positive", "high", "medium", "low"]);
   const SAFE_REVIEW_STATUSES = new Set(Object.values(REVIEW_STATUSES));
   const SAFE_EXPLANATION_REASON_CODES = new Set(Object.values(EXPLANATION_REASON_CODES));
+  const WORDING_SAFE_FACT_KEYS = Object.freeze({
+    quality_score_high: Object.freeze({ score: "number", bucket: "string" }),
+    quality_score_medium: Object.freeze({ score: "number", bucket: "string" }),
+    quality_score_missing: Object.freeze({}),
+    target_location: Object.freeze({ status: "string", group: "string", terms: "string_list" }),
+    location_unknown_or_weak: Object.freeze({ status: "string", group: "string", terms: "string_list" }),
+    location_foreign_or_mismatch: Object.freeze({ status: "string", group: "string", terms: "string_list" }),
+    stack_confirmed: Object.freeze({ terms: "string_list", source: "string" }),
+    stack_query_source_only: Object.freeze({}),
+    stack_not_visible: Object.freeze({ missing_terms: "string_list" }),
+    role_or_technology_visible: Object.freeze({
+      role_fit: "string",
+      technology: "string",
+      technology_fit: "string",
+    }),
+    seniority_unknown: Object.freeze({}),
+    stable_profile_identity: Object.freeze({ profile_href_present: "boolean" }),
+    profile_href_missing_or_unsafe: Object.freeze({}),
+    review_flags_present: Object.freeze({ codes: "string_list" }),
+    query_source: Object.freeze({ ids: "string_list", categories: "string_list" }),
+    quality_component: Object.freeze({ components: "quality_components" }),
+    quality_penalty: Object.freeze({ penalties: "quality_penalties" }),
+  });
   const EXPORT_SCOPES = Object.freeze({
     VISIBLE: "visible",
     SHORTLISTED: "shortlisted",
@@ -708,6 +734,221 @@
       evidence_items: limitedEvidenceItems,
       source: "deterministic_workspace_facts",
     };
+  }
+
+  function normalizeWordingText(value, maxLength = 160) {
+    const text = stringValue(value).replace(/\s+/g, " ").trim();
+    if (!text || text.length > maxLength || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) {
+      return "";
+    }
+    if (/(https?:\/\/|www\.|linkedin\.com|\/in\/|javascript:|mailto:|<|>|\[[^\]]+\]\([^)]+\))/i.test(text)) {
+      return "";
+    }
+    return text;
+  }
+
+  function normalizeWordingStringList(value) {
+    const terms = [];
+    const seen = new Set();
+    for (const item of arrayValue(value).slice(0, 8)) {
+      const text = normalizeWordingText(item, 80);
+      if (!text) {
+        return null;
+      }
+      const key = text.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        terms.push(text);
+      }
+    }
+    return terms;
+  }
+
+  function normalizeWordingNumber(value) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < -10000 || value > 10000) {
+      return null;
+    }
+    return Number.isInteger(value) ? value : Number(value.toFixed(4));
+  }
+
+  function normalizeWordingQualityComponents(value) {
+    return arrayValue(value)
+      .slice(0, 5)
+      .map((item) => {
+        const source = item || {};
+        const component = {};
+        if (Object.prototype.hasOwnProperty.call(source, "component")) {
+          component.component = normalizeWordingText(source.component, 80);
+        }
+        if (Object.prototype.hasOwnProperty.call(source, "fit")) {
+          component.fit = normalizeWordingText(source.fit, 80);
+        }
+        if (Object.prototype.hasOwnProperty.call(source, "points")) {
+          component.points = normalizeWordingNumber(source.points);
+        }
+        if (Object.prototype.hasOwnProperty.call(source, "max_points")) {
+          component.max_points = normalizeWordingNumber(source.max_points);
+        }
+        Object.keys(component).forEach((key) => {
+          if (component[key] === "" || component[key] === null) {
+            delete component[key];
+          }
+        });
+        return component;
+      })
+      .filter((item) => Object.keys(item).length);
+  }
+
+  function normalizeWordingQualityPenalties(value) {
+    return arrayValue(value)
+      .slice(0, 5)
+      .map((item) => {
+        const source = item || {};
+        const penalty = {};
+        if (Object.prototype.hasOwnProperty.call(source, "points")) {
+          penalty.points = normalizeWordingNumber(source.points);
+        }
+        if (Object.prototype.hasOwnProperty.call(source, "reason")) {
+          penalty.reason = normalizeWordingText(source.reason, 80);
+        }
+        Object.keys(penalty).forEach((key) => {
+          if (penalty[key] === "" || penalty[key] === null) {
+            delete penalty[key];
+          }
+        });
+        return penalty;
+      })
+      .filter((item) => Object.keys(item).length);
+  }
+
+  function wordingSafeFactsForReason(code, facts) {
+    const contract = WORDING_SAFE_FACT_KEYS[code] || {};
+    const source = facts && typeof facts === "object" && !Array.isArray(facts) ? facts : {};
+    const sanitized = {};
+    Object.entries(contract).forEach(([key, kind]) => {
+      if (!Object.prototype.hasOwnProperty.call(source, key)) {
+        return;
+      }
+      let value = null;
+      if (kind === "string") {
+        value = normalizeWordingText(source[key], 80);
+      } else if (kind === "string_list") {
+        value = normalizeWordingStringList(source[key]);
+      } else if (kind === "number") {
+        value = normalizeWordingNumber(source[key]);
+      } else if (kind === "boolean") {
+        value = typeof source[key] === "boolean" ? source[key] : null;
+      } else if (kind === "quality_components") {
+        value = normalizeWordingQualityComponents(source[key]);
+      } else if (kind === "quality_penalties") {
+        value = normalizeWordingQualityPenalties(source[key]);
+      }
+      if (value !== "" && value !== null) {
+        sanitized[key] = value;
+      }
+    });
+    return sanitized;
+  }
+
+  function explanationReasonKey(section, index, code) {
+    return `${section}[${index}]:${code}`;
+  }
+
+  function renderableExplanationReasonsForSection(explanation, section) {
+    return arrayValue(explanation && explanation[section])
+      .filter((reason) => reason && SAFE_EXPLANATION_REASON_CODES.has(reason.code))
+      .map((reason, index) => {
+        const label = normalizeWordingText(reason.label || reason.code, 160);
+        return {
+          reason_key: explanationReasonKey(section, index, reason.code),
+          section,
+          code: reason.code,
+          label: label || reason.code,
+          facts: wordingSafeFactsForReason(reason.code, reason.facts || {}),
+        };
+      });
+  }
+
+  function buildCandidateExplanationRenderableReasons(explanation) {
+    return {
+      positive_signals: renderableExplanationReasonsForSection(explanation, "positive_signals"),
+      cautions: renderableExplanationReasonsForSection(explanation, "cautions"),
+      evidence_items: renderableExplanationReasonsForSection(explanation, "evidence_items"),
+    };
+  }
+
+  function candidateExplanationFingerprintPayload(request) {
+    return {
+      wording_use_case: request.wording_use_case,
+      target_language: request.target_language,
+      request_payload_contract_version: request.request_payload_contract_version,
+      explanation_version: request.explanation_version,
+      source: request.source,
+      summary: request.summary,
+      positive_signals: request.positive_signals,
+      cautions: request.cautions,
+      evidence_items: request.evidence_items,
+    };
+  }
+
+  function canonicalJson(value) {
+    if (value === null || typeof value !== "object") {
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+    }
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+
+  async function sha256Hex(text) {
+    const encoder = (root.TextEncoder || globalThis.TextEncoder) && new (root.TextEncoder || globalThis.TextEncoder)();
+    const cryptoSource = root.crypto || globalThis.crypto;
+    if (cryptoSource && cryptoSource.subtle && encoder) {
+      const digest = await cryptoSource.subtle.digest("SHA-256", encoder.encode(text));
+      return Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+    }
+    const requireFn = root.require || globalThis.require;
+    if (typeof requireFn === "function") {
+      return requireFn("crypto").createHash("sha256").update(text, "utf8").digest("hex");
+    }
+    throw new Error("SHA-256 support is not available.");
+  }
+
+  async function candidateExplanationRequestFingerprint(request) {
+    return `sha256:${await sha256Hex(canonicalJson(candidateExplanationFingerprintPayload(request)))}`;
+  }
+
+  function createWordingTargetKey(runCounter, index) {
+    const safeRunCounter = Math.max(1, Math.floor(finiteNumber(runCounter, 1)));
+    const safeIndex = Math.max(0, Math.floor(finiteNumber(index, 0)));
+    return `wtk-${safeRunCounter}-${safeIndex + 1}`;
+  }
+
+  async function buildCandidateExplanationWordingRequest(config = {}) {
+    const explanation = config.explanation || {};
+    const renderableReasons = buildCandidateExplanationRenderableReasons(explanation);
+    const request = {
+      wording_use_case: CANDIDATE_EXPLANATION_WORDING_USE_CASE,
+      request_payload_contract_version: CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
+      target_language: config.targetLanguage || CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
+      workspace_run_id: stringValue(config.workspaceRunId),
+      wording_target_key: stringValue(config.wordingTargetKey),
+      request_explanation_fingerprint: "",
+      explanation_version: CANDIDATE_EXPLANATION_VERSION,
+      source: "deterministic_workspace_facts",
+      summary: normalizeWordingText(explanation.summary || "Review returned candidate details manually.", 320),
+      positive_signals: renderableReasons.positive_signals,
+      cautions: renderableReasons.cautions,
+      evidence_items: renderableReasons.evidence_items,
+    };
+    request.request_explanation_fingerprint = await candidateExplanationRequestFingerprint(request);
+    return request;
   }
 
   function mapDedupedResultToWorkspaceCandidate(item, index) {
@@ -1615,9 +1856,16 @@
     EXPORT_CSV_COLUMNS,
     NOTE_MAX_LENGTH,
     CANDIDATE_EXPLANATION_VERSION,
+    CANDIDATE_EXPLANATION_WORDING_USE_CASE,
+    CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
+    CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
     EXPLANATION_REASON_CODES,
     buildSafeLinkedInProfileHref,
     buildCandidateExplanation,
+    buildCandidateExplanationRenderableReasons,
+    buildCandidateExplanationWordingRequest,
+    candidateExplanationRequestFingerprint,
+    createWordingTargetKey,
     createWorkspaceRunId,
     defaultWorkspaceViewState,
     normalizeWorkspaceViewState,

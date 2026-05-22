@@ -1130,6 +1130,26 @@ code {
   line-height: 1.4;
 }
 
+.candidate-explanation-wording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.candidate-explanation-wording-actions button {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.candidate-explanation-wording-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 details {
   display: grid;
   gap: 8px;
