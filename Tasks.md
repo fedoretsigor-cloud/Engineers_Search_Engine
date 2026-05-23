@@ -10891,7 +10891,6 @@ None.
 
 #### Independent backlog tasks
 
-- [ ] P8-016 Harden pending clarification answer routing
 - [ ] P8-022 Make multi-wave the default approved search mode
 
 #### Parent umbrella task
@@ -10934,6 +10933,7 @@ None.
 - [x] P8-013 Add chat-confirmed Build Plan action
 - [x] P8-014 Add Enter-to-send chat input behavior
 - [x] P8-015 Normalize chat assistant speaker title
+- [x] P8-016 Harden pending clarification answer routing
 
 ### Current Phase 8 strategy note
 
@@ -15059,7 +15059,7 @@ Completed after critical review against `AGENT_MESSAGE_TYPE_META`, `renderTypedC
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Completed / implemented.
 
 ### Context
 
@@ -15071,9 +15071,19 @@ Observed issue from browser review:
 
 This is misleading. The agent should not pretend the answer was normal when the user replied to a specific pending clarification with a value that does not match that field.
 
+Current baseline already covers part of this behavior through the existing Phase 8 chat-quality code:
+
+- pending `location` + `Киев` / `Київ` / `Kyiv` / `Ukraine` can normalize to `location = Ukraine`;
+- pending `location` + unrelated value such as `сантехника` can return a specific unrecognized-location response;
+- pending `location` + off-topic question such as `какая погода?` can route to off-topic handling while preserving the draft brief;
+- pending `stack` + supported Russian stack aliases such as `Спринг` / `кафка` can update stack;
+- pending `stack` + unrelated value can return a specific unrecognized-stack response.
+
+This task is therefore no longer a full first implementation. It is a remaining hardening and documentation/status reconciliation task for gaps found during review.
+
 ### Goal
 
-Define and later implement a conservative pending-clarification router for short answers to a specific missing field.
+Finish and document the conservative pending-clarification router for short answers to a specific missing field.
 
 The router should distinguish:
 
@@ -15085,34 +15095,64 @@ The router should distinguish:
 
 ### Initial Proposed Steps
 
-1. Add field-specific pending answer checks before generic LLM extraction/refinement.
+1. Reconcile task status with current implementation:
+   - keep already implemented pending-location and pending-stack behavior;
+   - do not reimplement the whole router from scratch;
+   - update completion notes only after the remaining gaps below are fixed and verified.
 
-2. For pending `location`:
+2. Audit existing field-specific pending answer checks before generic LLM extraction/refinement:
+   - verify they use backend/current Search Brief state and `missing_fields[0]`;
+   - verify they do not read rendered UI text;
+   - verify they do not require backend session storage or persistence;
+   - preserve safety/prohibited/off-topic/unclear priority before pending-field acceptance.
+
+3. For pending `location`:
    - accept Ukraine and supported Ukrainian city aliases such as `Киев`, `Київ`, `Kyiv`, `Украина`, `Україна`, `Ukraine`;
    - normalize accepted city/country answers to `location = Ukraine` for the current baseline;
    - reject unrelated values such as `сантехника` with a specific message like `Не распознал локацию...`;
-   - treat unsupported countries such as `Польша` as unsupported for the current Java/Ukraine baseline, not as noise.
+   - treat unsupported country/location answers such as `Польша` / `Poland` as unsupported for the current Java/Ukraine baseline, not as generic noise or generic refinement.
 
-3. For pending `stack`:
+4. For pending `stack`:
    - keep the already implemented Russian stack answer behavior;
    - return a specific unrecognized-stack message for unrelated answers instead of repeating the same stack question forever.
 
-4. Preserve state boundaries:
+5. Handle valid different-field refinement while another clarification remains:
+   - if the current pending field is `location` and recruiter says `добавь кафка`, apply the supported stack refinement if valid;
+   - after applying that refinement, recompute the Search Brief;
+   - if `location` is still missing, ask the next missing-field question instead of saying only `Build a new plan before search`;
+   - same principle for other supported refinements when the brief is still incomplete.
+
+6. Preserve state boundaries:
    - preserve the current draft Search Brief on unrelated/noise answers;
    - do not set `brief_changed`;
    - do not clear Agent Plan/Search Plan unless a real accepted field value changes the brief;
    - do not call Tavily, LinkedIn, direct web search, runtime execution, or account actions.
 
-5. Add no-network regression coverage:
+7. Add no-network regression coverage:
    - pending location + `Киев` -> ready brief with `location = Ukraine`;
    - pending location + `сантехника` -> specific unrecognized-location message, draft preserved, no build plan;
    - pending location + `какая погода?` -> off-topic redirect, draft preserved;
    - pending location + `Польша` -> unsupported current-baseline response;
-   - pending stack + unsupported/unrelated answer -> specific unrecognized-stack message.
+   - pending location + valid different-field refinement such as `добавь кафка` -> stack changes, location remains missing, next location clarification is asked;
+   - pending stack + unsupported/unrelated answer -> specific unrecognized-stack message;
+   - clean-state unsupported country/stack-only inputs do not create a fake ready Search Brief.
 
 ### Notes
 
-There is a local draft patch from the browser finding, but it is not approved and must not be committed as completed work. Review this task first, update the steps if needed, then code only after explicit approval.
+Review found that some behavior originally listed here was already present in code and smoke coverage. The implementation therefore stayed narrow and only closed the remaining routing gaps instead of rewriting the whole clarification router.
+
+### Implementation Result
+
+Completed as a narrow backend router hardening plus no-network regression coverage:
+
+- preserved the already implemented pending `location` and pending `stack` routes;
+- added a pending-location unsupported-country route for values such as `Польша` / `Poland`, returning a Java/Ukraine baseline message while preserving the draft brief;
+- updated successful different-field refinements while the brief is still incomplete, so `добавь кафка` can update stack and then ask the next missing `location` clarification instead of saying only to rebuild a plan;
+- added smoke coverage for Kyiv normalization, unrelated location answers, unsupported location answers, valid different-field refinement while location is missing, off-topic handling, pending stack aliases, pending stack unrelated answers, and clean-state non-ready unsupported inputs.
+
+Verification:
+
+- `.\.venv\Scripts\python.exe -X utf8 .\scripts\smoke_p8_chat_quality.py`
 
 ### Non-Goals
 
@@ -15121,6 +15161,8 @@ There is a local draft patch from the browser finding, but it is not approved an
 - Do not add autonomous execution.
 - Do not change planner, Tavily execution, scoring, filters, dedupe, Candidate Quality, candidate workspace, persistence, memory, or export behavior.
 - Do not use LLM classification as the source of truth for pending-field acceptance.
+- Do not implement broad multilingual NLU or a hardcoded list of all bad countries.
+- Do not change the location filter. This task only handles recruiter dialogue while a Search Brief field is pending.
 
 ---
 

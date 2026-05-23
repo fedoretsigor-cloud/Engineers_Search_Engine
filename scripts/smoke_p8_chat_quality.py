@@ -195,6 +195,38 @@ async def assert_pending_location_answers_and_noise() -> None:
     assert "Не распознал локацию" in noise["assistant_message"]
     assert noise["can_build_plan"] is False
 
+    poland = await main.recruiter_chat_turn_response(
+        chat_request("Польша", language="ru", draft_brief=missing_location_brief())
+    )
+    assert len(RECRUITER_LLM_CALLS) == before
+    assert poland["state"] == "needs_clarification"
+    assert poland["normalized_brief"]["location"] is None
+    assert "поддерживает только Украину" in poland["assistant_message"]
+    assert poland["can_build_plan"] is False
+
+    add_kafka = await main.recruiter_chat_turn_response(
+        chat_request("добавь кафка", language="ru", draft_brief=missing_location_brief())
+    )
+    assert len(RECRUITER_LLM_CALLS) == before
+    assert add_kafka["state"] == "needs_clarification"
+    assert add_kafka["normalized_brief"]["stack"] == ["Spring", "Kafka"]
+    assert add_kafka["normalized_brief"]["location"] is None
+    assert add_kafka["brief_changed"] is True
+    assert add_kafka["can_build_plan"] is False
+    assert "локации" in add_kafka["assistant_message"]
+    assert "Нужно заново построить план" not in add_kafka["assistant_message"]
+
+    clean_unsupported_country = await main.recruiter_chat_turn_response(
+        chat_request("Польша", language="ru")
+    )
+    assert clean_unsupported_country["state"] == "needs_clarification"
+    assert clean_unsupported_country["can_build_plan"] is False
+    if clean_unsupported_country["normalized_brief"] is not None:
+        assert (
+            clean_unsupported_country["normalized_brief"]["brief_status"]
+            != main.SEARCH_BRIEF_STATUS_READY_FOR_PLANNING
+        )
+
 
 def assert_next_iteration_options_localized() -> None:
     query_plan = main.RuleBasedQueryPlannerV1().build(

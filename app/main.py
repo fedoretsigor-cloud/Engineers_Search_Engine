@@ -2833,7 +2833,12 @@ def brief_patch_operation_label(operation_name: str, language: str) -> str:
     )
 
 
-def patch_success_message(patch: dict, language: str, changed: bool) -> str:
+def patch_success_message(
+    patch: dict,
+    language: str,
+    changed: bool,
+    next_question: str | None = None,
+) -> str:
     operations = patch.get("operations") or []
     operation_labels = [
         brief_patch_operation_label(operation.get("operation", "update"), language)
@@ -2843,6 +2848,11 @@ def patch_success_message(patch: dict, language: str, changed: bool) -> str:
     action_summary = ", ".join(operation_labels) if operation_labels else (
         "обновил" if language == "ru" else "updated"
     )
+
+    if changed and next_question:
+        if language == "ru":
+            return f"Обновил Search Brief ({action_summary}). {next_question}"
+        return f"Updated the Search Brief ({action_summary}). {next_question}"
 
     return brief_refinement_source_message(language, changed, action_summary)
 
@@ -3079,6 +3089,15 @@ def build_recruiter_chat_refinement_response(
     if normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
         state = RECRUITER_CHAT_STATE_READY_FOR_PLANNING
 
+    if changed and state == RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION and next_question:
+        message = patch_success_message(
+            patch,
+            language,
+            changed,
+            next_question=next_question,
+        )
+        patch["assistant_message"] = message
+
     return build_recruiter_chat_response(
         ok=True,
         state=state,
@@ -3094,17 +3113,26 @@ def build_recruiter_chat_refinement_response(
     )
 
 
+def pending_clarification_field(
+    request: RecruiterChatTurnRequest,
+    language: str = "en",
+) -> str | None:
+    if not request.draft_brief:
+        return None
+
+    context = current_brief_context_for_language(request.draft_brief, language)
+    normalized_brief = context.get("normalized_brief") or {}
+    missing_fields = normalized_brief.get("missing_fields") or []
+    if not missing_fields:
+        return None
+    return missing_fields[0]
+
+
 def pending_stack_clarification_patch_from_message(
     request: RecruiterChatTurnRequest,
     text: str,
 ) -> dict | None:
-    if not request.draft_brief:
-        return None
-
-    context = current_brief_context_for_language(request.draft_brief, "en")
-    normalized_brief = context.get("normalized_brief") or {}
-    missing_fields = normalized_brief.get("missing_fields") or []
-    if not missing_fields or missing_fields[0] != "stack":
+    if pending_clarification_field(request) != "stack":
         return None
 
     stack_terms = java_stack_terms_in_text(text)
@@ -3128,13 +3156,7 @@ def pending_location_clarification_patch_from_message(
     request: RecruiterChatTurnRequest,
     text: str,
 ) -> dict | None:
-    if not request.draft_brief:
-        return None
-
-    context = current_brief_context_for_language(request.draft_brief, "en")
-    normalized_brief = context.get("normalized_brief") or {}
-    missing_fields = normalized_brief.get("missing_fields") or []
-    if not missing_fields or missing_fields[0] != "location":
+    if pending_clarification_field(request) != "location":
         return None
 
     location = deterministic_chat_brief_hints(text).get("location")
@@ -3154,21 +3176,39 @@ def pending_location_clarification_patch_from_message(
     )
 
 
+def pending_location_unsupported_answer_from_message(
+    request: RecruiterChatTurnRequest,
+    text: str,
+) -> bool:
+    if pending_clarification_field(request) != "location":
+        return False
+
+    return any(
+        operation.get("field") == "location"
+        for operation in unsupported_refinement_operations(text)
+    )
+
+
+def pending_location_unsupported_answer_message(language: str) -> str:
+    if language == "ru":
+        return (
+            "Текущий Java/Ukraine baseline поддерживает только Украину как локацию. "
+            "Укажи Украину или город в Украине, например Киев."
+        )
+    return (
+        "The current Java/Ukraine baseline supports only Ukraine as the location. "
+        "Use Ukraine or a Ukrainian city, for example Kyiv."
+    )
+
+
 def pending_clarification_unrecognized_answer_field(
     request: RecruiterChatTurnRequest,
     text: str,
     language: str,
 ) -> str | None:
-    if not request.draft_brief:
+    field = pending_clarification_field(request, language)
+    if not field:
         return None
-
-    context = current_brief_context_for_language(request.draft_brief, language)
-    normalized_brief = context.get("normalized_brief") or {}
-    missing_fields = normalized_brief.get("missing_fields") or []
-    if not missing_fields:
-        return None
-
-    field = missing_fields[0]
     if field not in {"location", "stack"}:
         return None
 
@@ -3361,6 +3401,14 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
                 planner_mode,
                 pending_location_patch,
                 chat_text,
+            )
+
+        if pending_location_unsupported_answer_from_message(request, latest_user_text):
+            return build_recruiter_chat_preserve_current_brief_response(
+                request,
+                language,
+                planner_mode,
+                pending_location_unsupported_answer_message(language),
             )
 
         brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
