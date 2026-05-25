@@ -434,7 +434,7 @@ async def assert_en_hardening_regressions() -> None:
         ),
         (
             "What's the weather in Kyiv?",
-            "sourcing",
+            "candidate search",
         ),
         (
             "How are you?",
@@ -442,15 +442,15 @@ async def assert_en_hardening_regressions() -> None:
         ),
         (
             "Write me a poem.",
-            "sourcing",
+            "candidate search",
         ),
         (
             "Recommend a restaurant in Kyiv.",
-            "sourcing",
+            "candidate search",
         ),
         (
             "Who is the US president?",
-            "sourcing",
+            "candidate search",
         ),
     ]
 

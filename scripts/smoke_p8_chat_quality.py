@@ -237,7 +237,8 @@ async def assert_off_topic_and_unclear_guardrails() -> None:
     )
     assert len(RECRUITER_LLM_CALLS) == before
     assert weather["normalized_brief"] is None
-    assert "не про поиск кандидатов" in weather["assistant_message"]
+    assert "не смогу помочь" in weather["assistant_message"]
+    assert "поиском кандидатов" in weather["assistant_message"]
 
     recruiter_context = await main.recruiter_chat_turn_response(
         chat_request(

@@ -17155,10 +17155,11 @@ If `quality_notes`, `limitations`, `suggested_next_actions`, or `next_iteration_
 ### Done
 
 - [x] P8.75-001 Run recruiter UAT acceptance gate before persistence
+- [x] P8.75.1-001 Run UI conversation UX UAT before persistence
 
 ### Strategy note
 
-Phase 8.75 validates the current stateless AI Agent v0 flow before Phase 9 persistence. The gate covers recruiter chat, Search Brief extraction/refinement, planning/approval boundaries, runtime guardrails, Candidate Workspace, Phase 8.5 review aids, export, and a limited live Tavily sanity pass through the existing backend runtime path. It must not add persistence, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, autonomous execution, or new providers.
+Phase 8.75 validates the current stateless AI Agent v0 flow before Phase 9 persistence. The gate covers recruiter chat, Search Brief extraction/refinement, planning/approval boundaries, runtime guardrails, Candidate Workspace, Phase 8.5 review aids, export, and a limited live Tavily sanity pass through the existing backend runtime path. Phase 8.75.1 adds real frontend simulated-user conversation UX coverage for positive, negative, incomplete, noisy, off-topic, prohibited, refinement, confirmation, and post-search behavior. It must not add persistence, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, autonomous execution, or new providers.
 
 ---
 
@@ -17252,6 +17253,100 @@ Implemented as a UAT gate slice:
 - Do not open, fetch, inspect, scrape, or automate LinkedIn profiles.
 - Do not message candidates or perform account actions.
 - Do not add autonomous execution.
+
+---
+
+## Task: P8.75.1-001 Run UI conversation UX UAT before persistence
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user through the `/goal` request to follow the P8.75.1 conversation UX UAT idea until green, run real simulated users through the UI, fix issues immediately, rerun failed cases, prepare the report, update docs, verify, commit, and push.
+
+### Context
+
+`P8.75-001` proved the backend/runtime/workspace gate, but it did not deeply test whether real recruiter messages feel natural in the frontend. The missing quality gate is conversation UX: positive and negative user messages typed into the actual chat UI, with visible response wording reviewed for politeness, clarity, language fit, and absence of internal implementation terms.
+
+### Goal
+
+Create and run a UI-level conversation UX UAT gate that drives the real frontend chat with simulated recruiter messages and verifies both state and wording.
+
+### Reviewed Steps
+
+1. Define the Phase 8.75.1 conversation UX contract.
+   - Add `docs/phase-8-75-1-conversation-ux-uat.md`.
+   - Keep the scope focused on `Backend Developer + Java + Ukraine`.
+   - Explicitly preserve the product boundaries from previous phases.
+
+2. Add a Playwright-based UI simulated-user runner.
+   - Add `scripts/uat_phase_8_75_1_ui_conversation.py`.
+   - Start a local FastAPI server from the current app.
+   - Open the real frontend in Chromium.
+   - Type user messages into `Recruiter Chat`.
+   - Read visible chat/status/summary/results surfaces.
+   - Use deterministic local doubles for OpenAI/Tavily execution so the runner is safe and repeatable.
+
+3. Cover realistic conversation classes.
+   - Positive ready searches in EN/RU/mixed phrasing.
+   - Missing fields and clarification questions.
+   - Russian pending stack/location answers.
+   - Small talk, greetings, unclear/noisy input, and off-topic input.
+   - Prohibited requests.
+   - Search refinements before execution.
+   - Chat confirmation that starts search through the safe runtime path.
+   - Post-search compact answer and candidate table visibility.
+
+4. Add UX wording checks.
+   - Replies must be polite, brief, and useful.
+   - Replies must match the user's language where practical.
+   - Replies must not expose internal terms such as `QueryPlan`, `backend planner`, `fingerprint`, `runtime`, `approval`, `Tavily`, `Build Plan`, or `Frontend ready`.
+   - Harmless input must not get a harsh refusal.
+   - Prohibited input must be refused without stale executable state.
+
+5. Run, fix, and rerun until green.
+   - Run the UI UAT.
+   - Fix any observed product or test-contract issue.
+   - Rerun failed paths and the full UI UAT.
+   - Produce `docs/phase-8-75-1-conversation-ux-report.md`.
+
+6. Verify and close.
+   - Run the relevant local checks.
+   - Keep the UI UAT local-only and do not wire it into CI until browser dependencies are explicitly part of CI.
+   - Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, `AGENTS.md`, and this task.
+
+### Acceptance Criteria
+
+- Phase 8.75.1 contract exists.
+- UI simulated-user UAT passes green.
+- The runner covers at least 100 UI scenarios.
+- The report includes scenario counts by category, failures, fixes, and analysis.
+- No live Tavily/OpenAI calls are made by this UI runner.
+- No raw candidate/profile URLs, screenshots, raw Tavily/OpenAI payloads, or secrets are committed.
+- Full local regression checks pass.
+- Phase 9 remains next and starts only after this gate is green.
+
+### Implementation Notes
+
+Implemented as a UI-level UAT gate slice:
+
+- added `docs/phase-8-75-1-conversation-ux-uat.md`;
+- added `scripts/uat_phase_8_75_1_ui_conversation.py`;
+- added `docs/phase-8-75-1-conversation-ux-report.md`;
+- kept the runner local-only because it requires Playwright browser binaries;
+- kept execution safe through deterministic local doubles for external services;
+- final UI UAT passed `116/116` scenarios across positive ready, missing clarification, pending answers, small talk, unclear/noisy input, off-topic input, prohibited requests, refinement, chat confirmation, and post-search results;
+- fixes from the gate tightened harmless off-topic/noise routing, Russian public wording, prohibited stale executable state, natural chat confirmation detection, progress copy, and UI-runner current-state waits.
+
+### Non-Goals
+
+- Phase 9 persistence/database implementation.
+- New search providers.
+- New country or role support.
+- Live Tavily/OpenAI stress testing.
+- LinkedIn browser automation.
+- Direct web-search outside the backend runtime.
+- Candidate messaging or account actions.
 
 ---
 

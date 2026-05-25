@@ -297,20 +297,10 @@ def agent_message_language(
 def recruiter_chat_refusal_source_message(language: str) -> str:
     if language == "ru":
         return (
-            "\u042f \u043d\u0435 \u043c\u043e\u0433\u0443 "
-            "\u0432\u044b\u043f\u043e\u043b\u043d\u044f\u0442\u044c LinkedIn login, "
-            "scraping, \u043e\u0431\u0445\u043e\u0434 "
-            "\u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u0439, "
-            "\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0435 "
-            "\u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f "
-            "\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u0430\u043c, "
-            "\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f \u0441 "
-            "\u0430\u043a\u043a\u0430\u0443\u043d\u0442\u0430\u043c\u0438 "
-            "\u0438\u043b\u0438 \u043f\u0440\u044f\u043c\u043e\u0439 "
-            "web-search \u0432 \u043e\u0431\u0445\u043e\u0434 backend. "
-            "\u041c\u043e\u0433\u0443 \u043f\u043e\u043c\u043e\u0447\u044c "
-            "\u0441\u0444\u043e\u0440\u043c\u0438\u0440\u043e\u0432\u0430\u0442\u044c "
-            "search summary \u0434\u043b\u044f safe public-profile search."
+            "Я не могу выполнять вход в LinkedIn, скрейпинг, обход ограничений, "
+            "автоматические сообщения кандидатам, действия с аккаунтами или прямой "
+            "веб-поиск в обход приложения. Могу помочь сформировать описание поиска "
+            "кандидатов по публичным профилям."
         )
 
     return (
@@ -331,8 +321,8 @@ def localized_clarifying_question_source_message(field: str, language: str) -> s
                 "\u0443 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u0430?"
             ),
             "stack": (
-                "\u041a\u0430\u043a\u0438\u0435 Java stack "
-                "\u0441\u0438\u0433\u043d\u0430\u043b\u044b \u0432\u0430\u0436\u043d\u044b: "
+                "\u041a\u0430\u043a\u0438\u0435 Java \u0441\u0442\u0435\u043a-\u0441\u0438\u0433\u043d\u0430\u043b\u044b "
+                "\u0432\u0430\u0436\u043d\u044b: "
                 "Spring, Kafka, AWS, Hibernate \u0438\u043b\u0438 "
                 "\u0447\u0442\u043e-\u0442\u043e \u0434\u0440\u0443\u0433\u043e\u0435?"
             ),
@@ -470,11 +460,11 @@ def refinement_requires_initial_brief_source_message(language: str) -> str:
     if language == "ru":
         return (
             "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 "
-            "\u0441\u043e\u0431\u0435\u0440\u0435\u043c initial search summary: "
+            "\u0441\u043e\u0431\u0435\u0440\u0435\u043c \u043f\u0435\u0440\u0432\u0438\u0447\u043d\u043e\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043f\u043e\u0438\u0441\u043a\u0430: "
             "\u0440\u043e\u043b\u044c, \u043e\u0441\u043d\u043e\u0432\u043d\u0430\u044f "
             "\u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f, "
-            "\u043b\u043e\u043a\u0430\u0446\u0438\u044f \u0438 1-3 stack "
-            "\u0441\u0438\u0433\u043d\u0430\u043b\u0430."
+            "\u043b\u043e\u043a\u0430\u0446\u0438\u044f \u0438 1-3 "
+            "\u0441\u0438\u0433\u043d\u0430\u043b\u0430 \u0441\u0442\u0435\u043a\u0430."
         )
     return (
         "Let's collect the initial search summary first: role, main technology, "
@@ -487,11 +477,11 @@ def unsupported_patch_source_message(language: str) -> str:
         return (
             "\u042d\u0442\u043e \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 "
             "\u0432\u043d\u0435 \u0442\u0435\u043a\u0443\u0449\u0435\u0433\u043e "
-            "Java/Ukraine flow. \u0423\u0442\u043e\u0447\u043d\u0438 "
+            "\u0441\u0446\u0435\u043d\u0430\u0440\u0438\u044f Java/Ukraine. \u0423\u0442\u043e\u0447\u043d\u0438 "
             "\u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 \u0432 "
             "\u0440\u0430\u043c\u043a\u0430\u0445 Backend Developer, Java, "
             "Ukraine \u0438 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0430\u043d\u043d\u043e\u0433\u043e "
-            "Java stack."
+            "Java-\u0441\u0442\u0435\u043a\u0430."
         )
     return (
         "That change is outside the current Java/Ukraine flow. Please refine it "
@@ -504,11 +494,11 @@ def last_stack_item_source_message(language: str) -> str:
         return (
             "\u041d\u0435\u043b\u044c\u0437\u044f "
             "\u0443\u0431\u0440\u0430\u0442\u044c "
-            "\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0439 stack item "
+            "\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0439 \u044d\u043b\u0435\u043c\u0435\u043d\u0442 \u0441\u0442\u0435\u043a\u0430 "
             "\u0431\u0435\u0437 \u0437\u0430\u043c\u0435\u043d\u044b. "
-            "\u0412\u044b\u0431\u0435\u0440\u0438 replacement \u0438\u0437 "
+            "\u0412\u044b\u0431\u0435\u0440\u0438 \u0437\u0430\u043c\u0435\u043d\u0443 \u0438\u0437 "
             "\u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0430\u043d\u043d\u043e\u0433\u043e "
-            "Java stack."
+            "Java-\u0441\u0442\u0435\u043a\u0430."
         )
     return (
         "I cannot remove the last stack item without a replacement. Choose a "
@@ -524,7 +514,7 @@ def brief_refinement_source_message(
     if not changed:
         if language == "ru":
             return (
-                "Search summary \u043d\u0435 "
+                "\u0421\u0432\u043e\u0434\u043a\u0430 \u043f\u043e\u0438\u0441\u043a\u0430 \u043d\u0435 "
                 "\u0438\u0437\u043c\u0435\u043d\u0438\u043b\u0441\u044f. "
                 "\u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u043b\u0430\u043d "
                 "\u043c\u043e\u0436\u043d\u043e \u043e\u0441\u0442\u0430\u0432\u0438\u0442\u044c."
@@ -533,7 +523,7 @@ def brief_refinement_source_message(
 
     if language == "ru":
         return (
-            f"\u041e\u0431\u043d\u043e\u0432\u0438\u043b search summary ({action_summary}). "
+            f"\u041e\u0431\u043d\u043e\u0432\u0438\u043b \u0441\u0432\u043e\u0434\u043a\u0443 \u043f\u043e\u0438\u0441\u043a\u0430 ({action_summary}). "
             "\u041f\u0440\u043e\u0432\u0435\u0440\u044c \u0441\u0432\u043e\u0434\u043a\u0443 "
             "\u0438 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438 "
             "\u043f\u043e\u0438\u0441\u043a \u0437\u0430\u043d\u043e\u0432\u043e."
@@ -550,7 +540,7 @@ def agent_plan_supported_source_message(
         return (
             "\u042f \u043f\u043e\u043d\u044f\u043b \u0437\u0430\u0434\u0430\u0447\u0443: "
             "\u0438\u0449\u0435\u043c Backend Developer \u0441 Java \u0432 "
-            f"\u0423\u043a\u0440\u0430\u0438\u043d\u0435, stack: {stack_text}. "
+            f"\u0423\u043a\u0440\u0430\u0438\u043d\u0435, \u0441\u0442\u0435\u043a: {stack_text}. "
             "\u0415\u0441\u043b\u0438 \u044d\u0442\u043e \u0432\u0435\u0440\u043d\u043e, "
             "\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438, \u0438 \u044f "
             "\u043d\u0430\u0447\u043d\u0443 \u043f\u043e\u0438\u0441\u043a."
@@ -566,9 +556,9 @@ def agent_plan_supported_source_message(
 def agent_plan_needs_clarification_source_message(language: str) -> str:
     if language == "ru":
         return (
-            "\u041c\u043d\u0435 \u043d\u0443\u0436\u0435\u043d stack, "
+            "\u041c\u043d\u0435 \u043d\u0443\u0436\u0435\u043d \u0441\u0442\u0435\u043a, "
             "\u0447\u0442\u043e\u0431\u044b \u0441\u043e\u0437\u0434\u0430\u0442\u044c "
-            "search \u0434\u043b\u044f Java/Ukraine baseline."
+            "\u043f\u043e\u0438\u0441\u043a \u0434\u043b\u044f Java/Ukraine baseline."
         )
 
     return "I need the missing stack before I can prepare the search."

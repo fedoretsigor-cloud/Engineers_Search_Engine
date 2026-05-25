@@ -1297,7 +1297,18 @@ const SEARCH_RUN_AMBIGUOUS_REPLIES = new Set([
 ]);
 
 function isSearchRunConfirmation(text) {
-  return SEARCH_RUN_CONFIRMATIONS.has(normalizeChatCommandText(text));
+  const normalizedText = normalizeChatCommandText(text);
+  if (SEARCH_RUN_CONFIRMATIONS.has(normalizedText)) {
+    return true;
+  }
+
+  const hasEnglishConfirmIntent =
+    /\b(yes|yep|yeah|ok|okay|sure|go ahead|proceed)\b/.test(normalizedText) &&
+    /\b(start|run|search|go ahead|proceed)\b/.test(normalizedText);
+  const hasRussianConfirmIntent =
+    /(да|ок|окей|давай|вперед|запускай|старт|начинай)/.test(normalizedText) &&
+    /(запускай|вперед|старт|начинай|поиск|давай)/.test(normalizedText);
+  return hasEnglishConfirmIntent || hasRussianConfirmIntent;
 }
 
 function isSearchRunRefinementRequest(text) {
@@ -2487,7 +2498,7 @@ function updateChatStateFromResponse(data = {}) {
   if (chatState === "ready_for_planning") {
     chatStatusElement.textContent = readyBriefChatStatus();
   } else if (chatState === "refused") {
-    chatStatusElement.textContent = "Request refused by product safety boundaries.";
+    chatStatusElement.textContent = "I cannot help with that request, but I can help with candidate search.";
   } else {
     chatStatusElement.textContent = "Answer the clarification to complete the search summary.";
   }
@@ -3029,11 +3040,11 @@ async function runStructuredSearch() {
     };
 
     resultsStatus.textContent = multiWaveInput.checked
-      ? "Searching Tavily with multi-wave..."
-      : "Searching Tavily...";
+      ? "Searching with multi-wave..."
+      : "Searching...";
     reportStatus.textContent = multiWaveInput.checked
-      ? "Running multi-wave query plan..."
-      : "Running query plan...";
+      ? "Running multi-wave search..."
+      : "Running search...";
 
     const response = await fetch(AGENT_RUNTIME_TURN_ENDPOINT, {
       method: "POST",

@@ -1514,6 +1514,8 @@ def detect_recruiter_chat_off_topic_intent(text: str) -> bool:
         r"\bhow are you\b",
         r"\bwrite.{0,20}poem\b",
         r"\bpoem\b",
+        r"\bjoke\b|\btell me.{0,20}joke\b",
+        r"\border.{0,20}lunch\b|\blunch\b",
         r"\bcurrency\b|\bexchange rate\b|\bdollar rate\b",
         r"\brecommend.{0,30}restaurant\b",
         r"\brestaurant\b",
@@ -1522,6 +1524,7 @@ def detect_recruiter_chat_off_topic_intent(text: str) -> bool:
         r"\bcurrent affairs\b",
         r"погод",
         r"курс.{0,20}(доллар|долар|usd)|доллар.{0,20}курс|долар.{0,20}курс",
+        r"закаж|заказ.{0,20}обед|обед",
         r"новост|ресторан|стих|анекдот",
     ]
     return text_matches_any_pattern(normalized_text, off_topic_patterns)
@@ -1595,7 +1598,8 @@ def detect_recruiter_chat_unclear_request(text: str) -> bool:
         return True
     if len(tokens) == 1 and len(tokens[0]) >= 10:
         vowels = re.findall(r"[aeiouyаеёиоуыэюяіїє]", tokens[0], flags=re.IGNORECASE)
-        return len(vowels) / max(len(tokens[0]), 1) < 0.25
+        if len(vowels) / max(len(tokens[0]), 1) < 0.25:
+            return True
 
     known_short_words = {
         "what",
@@ -1613,7 +1617,10 @@ def detect_recruiter_chat_unclear_request(text: str) -> bool:
     return len(tokens) <= 2 and all(token not in known_short_words for token in tokens)
 
 
-def detect_recruiter_chat_ambiguity_or_contradiction(text: str) -> dict | None:
+def detect_recruiter_chat_ambiguity_or_contradiction(
+    text: str,
+    language: str = "en",
+) -> dict | None:
     normalized_text = normalized_chat_control_text(text)
     if not normalized_text:
         return None
@@ -1624,6 +1631,14 @@ def detect_recruiter_chat_ambiguity_or_contradiction(text: str) -> dict | None:
     has_ukraine = explicit_ukraine_location_signal(normalized_text)
 
     if stack_terms and has_ukraine and not (has_role and has_java):
+        if language == "ru":
+            return {
+                "code": "missing_role_or_technology",
+                "message": (
+                    "Вижу локацию и Java стек-сигналы, но перед поиском нужна "
+                    "целевая роль и основная технология. Ищем Backend Developer с Java?"
+                ),
+            }
         return {
             "code": "missing_role_or_technology",
             "message": (
@@ -2797,11 +2812,11 @@ def recruiter_chat_small_talk_message(
 def recruiter_chat_off_topic_message(language: str) -> str:
     if language == "ru":
         return (
-            "Похоже, это не про поиск кандидатов. Я могу помочь с sourcing: "
+            "Я не смогу помочь с этой темой здесь, но могу помочь с поиском кандидатов: "
             "напиши, кого ищем, основную технологию, локацию и 1-3 сигнала стека."
         )
     return (
-        "This does not look like candidate search. I can help with sourcing: "
+        "I cannot help with that topic here, but I can help with candidate search: "
         "tell me the role, main technology, location, and 1-3 stack signals."
     )
 
@@ -3346,7 +3361,7 @@ def pending_clarification_unrecognized_answer_message(field: str, language: str)
     if field == "stack":
         if language == "ru":
             return (
-                "Не распознал поддерживаемый Java stack. Укажи 1-3 сигнала, "
+                "Не распознал поддерживаемые Java стек-сигналы. Укажи 1-3 сигнала, "
                 "например Spring, Kafka, AWS или Hibernate."
             )
         return (
@@ -3469,25 +3484,6 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             recruiter_chat_off_topic_message(language),
         )
 
-    if detect_recruiter_chat_unclear_request(latest_user_text) and not (
-        request.draft_brief and is_refinement_like_chat_message(latest_user_text)
-    ):
-        return build_recruiter_chat_preserve_current_brief_response(
-            request,
-            language,
-            planner_mode,
-            recruiter_chat_unclear_request_message(language),
-        )
-
-    ambiguity = detect_recruiter_chat_ambiguity_or_contradiction(latest_user_text)
-    if ambiguity:
-        return build_recruiter_chat_preserve_current_brief_response(
-            request,
-            language,
-            planner_mode,
-            ambiguity["message"],
-        )
-
     if request.draft_brief:
         pending_stack_patch = pending_stack_clarification_patch_from_message(
             request,
@@ -3548,6 +3544,25 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
                     language,
                 ),
             )
+
+    if detect_recruiter_chat_unclear_request(latest_user_text) and not (
+        request.draft_brief and is_refinement_like_chat_message(latest_user_text)
+    ):
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            recruiter_chat_unclear_request_message(language),
+        )
+
+    ambiguity = detect_recruiter_chat_ambiguity_or_contradiction(latest_user_text, language)
+    if ambiguity:
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            ambiguity["message"],
+        )
 
     ai_output, ai_errors = await run_openai_json_recruiter_chat(request)
     if ai_errors or ai_output is None:
