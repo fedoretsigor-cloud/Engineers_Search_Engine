@@ -1298,6 +1298,122 @@ summary {
   font-weight: 800;
 }
 
+.workspace-agent-review {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(32, 201, 183, 0.26);
+  border-radius: 8px;
+  background: rgba(11, 34, 52, 0.44);
+}
+
+.workspace-agent-review-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.workspace-agent-review-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-agent-review-header span,
+.workspace-agent-review-reasons span {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspace-agent-review-header strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.workspace-agent-review-header p,
+.workspace-agent-review-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.workspace-agent-review-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-agent-review-list > li {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(12, 24, 42, 0.72);
+}
+
+.workspace-agent-review-list > li.primary {
+  border-color: rgba(32, 201, 183, 0.38);
+}
+
+.workspace-agent-review-candidate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.workspace-agent-review-candidate > span {
+  display: inline-grid;
+  min-width: 38px;
+  min-height: 38px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(32, 201, 183, 0.14);
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.workspace-agent-review-candidate strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.workspace-agent-review-candidate small {
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.workspace-agent-review-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspace-agent-review-reasons div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workspace-agent-review-reasons ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .candidate-workspace-list {
   display: grid;
   gap: 10px;
@@ -1510,7 +1626,11 @@ summary {
 
   .candidate-workspace-meta,
   .workspace-review-strip,
-  .candidate-row-main {
+  .candidate-row-main,
+  .workspace-agent-review-header,
+  .workspace-agent-review-candidate,
+  .workspace-agent-review-reasons {
+    display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
   }

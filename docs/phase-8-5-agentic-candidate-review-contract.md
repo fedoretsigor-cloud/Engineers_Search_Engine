@@ -131,7 +131,7 @@ The UI should keep candidate results as the primary surface. Agentic review outp
 ## Implementation Order
 
 1. `P8.5-001`: define this contract and guardrail smoke.
-2. `P8.5-002`: add deterministic top-candidate recommendation from returned workspace facts.
+2. `P8.5-002`: completed deterministic top-candidate recommendation from current visible workspace facts.
 3. `P8.5-003`: add selected-candidate comparison.
 4. `P8.5-004`: add fit/gap explanation across selected candidates.
 5. `P8.5-005`: add non-executable guided next-refinement suggestions from workspace results.
@@ -145,8 +145,9 @@ The local regression suite includes `scripts/smoke_p85_agentic_candidate_review_
 The smoke check verifies:
 
 - this contract exists;
-- `P8.5-001` is marked completed;
+- `P8.5-001` and `P8.5-002` are marked completed;
 - Phase 8.5 is recorded as the current active reviewed direction;
 - current workspace source-of-truth variables still exist;
 - deterministic candidate explanations remain available;
 - the contract preserves no-execution, no-LinkedIn, no-persistence, and bounded-LLM boundaries.
+- the deterministic top-candidate recommendation preserves visible-candidate scope, excludes `not_a_fit` and explicit foreign-location candidates, and does not leak profile URLs, URL-derived candidate ids, raw snippets, recruiter notes, or execution actions.

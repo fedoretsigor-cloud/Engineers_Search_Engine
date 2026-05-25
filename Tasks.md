@@ -17173,7 +17173,6 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ### Backlog
 
-- [ ] P8.5-002 Add top-candidate recommendation from returned workspace facts
 - [ ] P8.5-003 Add selected-candidate comparison
 - [ ] P8.5-004 Add fit/gap explanation across selected candidates
 - [ ] P8.5-005 Add guided next-refinement suggestions from workspace results
@@ -17183,6 +17182,7 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 ### Done
 
 - [x] P8.5-001 Define agentic candidate review contract
+- [x] P8.5-002 Add top-candidate recommendation from returned workspace facts
 
 ### Strategy note
 
@@ -17335,6 +17335,154 @@ Implemented as a docs-and-guardrail slice:
 - Do not implement fit/gap analysis in this task.
 - Do not implement guided refinement suggestions in this task.
 - Do not add an LLM call, backend endpoint, Agent Runtime action, Tavily call, provider call, LinkedIn access, persistence, or new search scope.
+
+---
+
+## Task: P8.5-002 Add top-candidate recommendation from returned workspace facts
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user in the implementation goal after deep review. This task remains a deterministic, frontend/current-run workspace review aid and does not add backend calls, LLM calls, Tavily execution, LinkedIn behavior, persistence, or autonomous actions.
+
+### Context
+
+`P8.5-001` defined Agentic Candidate Review v0 as analysis over already returned current-run workspace facts. The current implementation already has:
+
+- `workspaceCandidates` as the full current returned result set;
+- `visibleWorkspaceCandidates` as the current filtered/sorted view;
+- `workspaceReviewStateByCandidateId` as browser/session workflow state;
+- deterministic candidate explanations from `candidateWorkspace.buildCandidateExplanation()`;
+- candidate table rendering in `renderWorkspaceResults()`;
+- no backend candidate workspace database or persistence.
+
+### Goal
+
+Add a deterministic top-candidate recommendation to help the recruiter decide who to review first after search results are visible.
+
+The recommendation must be an advisory review aid, not a new search result, not a new Candidate Quality score, and not a hidden execution action.
+
+### Deep Review Findings
+
+1. Scope must be explicit.
+   - Use the current visible candidate set after existing workspace filters are applied.
+   - The UI must say the recommendation is based on current visible candidates.
+   - This avoids recommending candidates the recruiter has intentionally hidden with filters.
+
+2. Recommendation must not mutate candidate facts or scoring.
+   - Do not change `quality_score`, `quality_bucket`, Candidate Quality, filters, dedupe, export facts, QueryPlan, Search Brief, runtime approval, or search results.
+   - If a derived review-priority ordering is needed, keep it internal and do not expose it as a new score.
+
+3. Review state may only be used as workflow state.
+   - Do not use recruiter notes.
+   - Do not send notes anywhere.
+   - Candidates marked `not_a_fit` should be excluded from the recommendation because that is explicit recruiter workflow state, not evidence.
+   - Shortlist state should not boost ranking in v0; the recommendation should remain grounded in returned candidate facts.
+
+4. The deterministic ranking should prefer safer returned fit signals.
+   - Prefer candidates with existing quality scores.
+   - Prefer higher `quality_score`.
+   - Prefer target-location signals over unknown/weak location.
+   - Prefer confirmed selected stack evidence over query-source-only or not-visible stack.
+   - Prefer visible role/technology evidence and stable identity.
+   - Penalize high/medium review flags.
+   - Do not recommend explicit foreign-location candidates.
+   - Preserve original order as the final tie-breaker.
+
+5. The output wording must be conservative.
+   - Say `Suggested first review` / `Start with...`, not `best candidate` or `hire`.
+   - Include only bounded facts already visible in the workspace: display index, name, headline, quality score/bucket, fit signals, cautions.
+   - Do not include `candidate_id` in the recommendation model because current candidate ids may be URL-derived.
+   - Do not include profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, email/account identifiers, or recruiter notes.
+
+6. The UI should preserve the candidate table as the primary surface.
+   - Add a compact review-aid block above the candidate list, below workspace controls.
+   - Do not replace, hide, reorder, auto-open, auto-click, or auto-shortlist candidates.
+   - Do not add a button that executes search or opens profiles.
+
+7. State must stay derived and current-run only.
+   - Do not create backend session storage, database state, localStorage/sessionStorage/IndexedDB, or cross-session memory.
+   - New search/reset/filter changes recompute the recommendation from current state.
+
+8. Verification must be no-network and behavior-boundary aware.
+   - Add a focused smoke check for deterministic helper behavior and UI wiring.
+   - Assert no `fetch`, OpenAI endpoint, Tavily endpoint, storage API, `window.open`, or profile-opening action is introduced by the recommendation path.
+   - Wire the smoke into `scripts/check_all.ps1`.
+
+### Reviewed Steps
+
+1. Add a deterministic helper in `app/static/candidate_workspace.js`.
+   - Suggested API: `buildTopCandidateRecommendation(candidates, reviewStateByCandidateId, options)`.
+   - Return a model with `version`, `source`, `scope`, `candidates_analyzed`, `recommendations`, and conservative reason/caution labels.
+   - Source must be `deterministic_workspace_facts`.
+
+2. Define recommendation selection rules.
+   - Input is `visibleWorkspaceCandidates`.
+   - Exclude candidates with review status `not_a_fit`.
+   - Exclude explicit `location_group === "foreign"` from recommended candidates.
+   - Use only existing workspace fields and deterministic explanation reason codes.
+   - Do not expose a new numeric score.
+
+3. Render the recommendation as a compact review aid.
+   - Add `renderTopCandidateRecommendation()` in `app/static/app.js`.
+   - Render below `renderWorkspaceToolbar()` and above `.candidate-workspace-list`.
+   - Show up to three suggested candidates, with the first as the primary recommendation.
+   - Wording must be recruiter-facing and conservative.
+
+4. Preserve interaction boundaries.
+   - No action buttons.
+   - No profile opening automation.
+   - No backend calls.
+   - No changes to chat, Search Brief, QueryPlan, runtime approval, Tavily execution, scoring, filtering, dedupe, export, or Candidate Quality.
+
+5. Add styling.
+   - Add CSS for a compact `workspace-agent-review` block that fits the existing dark workspace.
+   - Keep table/list readability primary.
+
+6. Add no-network smoke coverage.
+   - Add `scripts/smoke_p85_top_candidate_recommendation.py`.
+   - Execute the helper with sample workspace candidates.
+   - Assert deterministic ranking, `not_a_fit` exclusion, foreign-location exclusion, no URL/raw-note leakage, UI wiring, and no forbidden APIs.
+   - Add the smoke to `scripts/check_all.ps1`.
+
+7. Update documentation/status.
+   - Move `P8.5-002` to Done after implementation.
+   - Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` with the completed deterministic frontend-only recommendation slice.
+
+### Acceptance Criteria
+
+- The candidate workspace shows a compact top-candidate recommendation after a successful search when visible candidates are available.
+- The recommendation is based on current visible candidates and recomputes when filters/statuses change.
+- Candidates marked `not_a_fit` and explicit foreign-location candidates are not recommended.
+- The recommendation uses only returned current-run workspace facts and deterministic candidate explanations.
+- No backend endpoint, LLM call, Tavily call, direct web-search call, LinkedIn automation/opening, candidate messaging, account action, persistence, or new provider is added.
+- Candidate facts, quality score, scoring, filters, dedupe, location logic, export, Search Brief, QueryPlan, runtime approval, and search execution remain unchanged.
+- No recruiter notes, URLs, normalized URLs, raw snippets/content, raw Tavily payloads, or account identifiers appear in the recommendation model.
+- A focused no-network smoke check covers the helper and UI wiring and is included in `scripts/check_all.ps1`.
+
+### Implementation Notes
+
+Implemented as a deterministic frontend/current-run workspace slice:
+
+- added `candidateWorkspace.buildTopCandidateRecommendation()` in `app/static/candidate_workspace.js`;
+- added `renderTopCandidateRecommendation()` in `app/static/app.js`;
+- added compact `workspace-agent-review` CSS in `app/static/styles.css`;
+- added `scripts/smoke_p85_top_candidate_recommendation.py`;
+- wired the smoke into `scripts/check_all.ps1`;
+- recommendation scope is current `visibleWorkspaceCandidates`;
+- candidates marked `not_a_fit` and explicit foreign-location candidates are not recommended;
+- recommendation output excludes `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, recruiter notes, and account identifiers;
+- no backend route, OpenAI/LLM call, Tavily call, profile-opening automation, storage, scoring mutation, filtering mutation, export change, runtime approval change, or search execution change was added.
+
+### Non-Goals
+
+- Do not implement selected-candidate comparison in this task.
+- Do not implement fit/gap analysis across selected candidates in this task.
+- Do not implement next-refinement suggestions in this task.
+- Do not add LLM-assisted candidate review.
+- Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
+- Do not add new search sources, countries, technologies, providers, or profile evidence intake.
 
 ---
 

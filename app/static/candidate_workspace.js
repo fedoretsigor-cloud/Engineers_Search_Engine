@@ -50,6 +50,8 @@
 
   const NOTE_MAX_LENGTH = 1000;
   const CANDIDATE_EXPLANATION_VERSION = "candidate_explanation_v1";
+  const TOP_CANDIDATE_RECOMMENDATION_VERSION = "top_candidate_recommendation_v1";
+  const TOP_CANDIDATE_RECOMMENDATION_DEFAULT_LIMIT = 3;
   const CANDIDATE_EXPLANATION_WORDING_USE_CASE = "candidate_explanation";
   const CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION = "candidate_explanation_wording_request_v1";
   const CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE = "en";
@@ -733,6 +735,202 @@
       cautions: limitedCautions,
       evidence_items: limitedEvidenceItems,
       source: "deterministic_workspace_facts",
+    };
+  }
+
+  function explanationCodes(explanation, section) {
+    return new Set(arrayValue(explanation && explanation[section]).map((reason) => reason && reason.code));
+  }
+
+  function reviewFlagSeverityCounts(candidate) {
+    return arrayValue(candidate && candidate.review_flags).reduce(
+      (counts, flag) => {
+        const severity = normalizeSeverity(flag && flag.severity);
+        if (severity === "high") {
+          counts.high += 1;
+        } else if (severity === "medium") {
+          counts.medium += 1;
+        } else if (severity === "risk" || severity === "warning") {
+          counts.warning += 1;
+        }
+        return counts;
+      },
+      { high: 0, medium: 0, warning: 0 }
+    );
+  }
+
+  function recommendationSafeText(value, fallback, maxLength = 160) {
+    const text = boundedText(value, maxLength).replace(/\s+/g, " ").trim();
+    if (!text || /(https?:\/\/|www\.|linkedin\.com|\/in\/|mailto:)/i.test(text)) {
+      return fallback;
+    }
+    return text;
+  }
+
+  function topCandidateRank(candidate, explanation, index) {
+    const positiveCodes = explanationCodes(explanation, "positive_signals");
+    const cautionCodes = explanationCodes(explanation, "cautions");
+    const flagCounts = reviewFlagSeverityCounts(candidate);
+    return {
+      has_quality_score: candidate && candidate.has_quality_score ? 1 : 0,
+      quality_score: candidate && candidate.has_quality_score ? finiteNumber(candidate.quality_score, 0) : -1,
+      target_location: positiveCodes.has(EXPLANATION_REASON_CODES.TARGET_LOCATION) ? 1 : 0,
+      stack_confirmed: positiveCodes.has(EXPLANATION_REASON_CODES.STACK_CONFIRMED) ? 1 : 0,
+      role_or_technology_visible: positiveCodes.has(EXPLANATION_REASON_CODES.ROLE_OR_TECHNOLOGY_VISIBLE) ? 1 : 0,
+      stable_identity: positiveCodes.has(EXPLANATION_REASON_CODES.STABLE_PROFILE_IDENTITY) ? 1 : 0,
+      high_flags: flagCounts.high,
+      medium_flags: flagCounts.medium,
+      warning_flags: flagCounts.warning,
+      caution_count: arrayValue(explanation && explanation.cautions).length,
+      order_index: Number.isFinite(Number(candidate && candidate.order_index))
+        ? Number(candidate.order_index)
+        : index,
+    };
+  }
+
+  function compareTopCandidateRecommendation(left, right) {
+    const leftRank = left._rank;
+    const rightRank = right._rank;
+    return (
+      rightRank.has_quality_score - leftRank.has_quality_score ||
+      rightRank.quality_score - leftRank.quality_score ||
+      rightRank.target_location - leftRank.target_location ||
+      rightRank.stack_confirmed - leftRank.stack_confirmed ||
+      rightRank.role_or_technology_visible - leftRank.role_or_technology_visible ||
+      rightRank.stable_identity - leftRank.stable_identity ||
+      leftRank.high_flags - rightRank.high_flags ||
+      leftRank.medium_flags - rightRank.medium_flags ||
+      leftRank.warning_flags - rightRank.warning_flags ||
+      leftRank.caution_count - rightRank.caution_count ||
+      leftRank.order_index - rightRank.order_index
+    );
+  }
+
+  function topCandidateReasonLabels(candidate, explanation) {
+    const positiveCodes = explanationCodes(explanation, "positive_signals");
+    const reasons = [];
+    if (candidate && candidate.has_quality_score) {
+      reasons.push(`Quality score ${candidate.quality_score} (${candidate.quality_bucket || qualityBucket(candidate.quality_score)})`);
+    }
+    if (positiveCodes.has(EXPLANATION_REASON_CODES.TARGET_LOCATION)) {
+      reasons.push("Target location signal is present");
+    }
+    if (positiveCodes.has(EXPLANATION_REASON_CODES.STACK_CONFIRMED)) {
+      const terms = directStackTerms(candidate).slice(0, 3);
+      reasons.push(terms.length ? `Selected stack is visible: ${terms.join(", ")}` : "Selected stack is visible");
+    }
+    if (positiveCodes.has(EXPLANATION_REASON_CODES.ROLE_OR_TECHNOLOGY_VISIBLE)) {
+      reasons.push("Role or technology evidence is visible");
+    }
+    if (positiveCodes.has(EXPLANATION_REASON_CODES.STABLE_PROFILE_IDENTITY)) {
+      reasons.push("Stable profile identity is available");
+    }
+    return reasons.slice(0, 4);
+  }
+
+  function topCandidateCautionLabels(candidate, explanation) {
+    const cautionCodes = explanationCodes(explanation, "cautions");
+    const flagCounts = reviewFlagSeverityCounts(candidate);
+    const cautions = [];
+    if (cautionCodes.has(EXPLANATION_REASON_CODES.LOCATION_UNKNOWN_OR_WEAK)) {
+      cautions.push("Location needs manual review");
+    }
+    if (cautionCodes.has(EXPLANATION_REASON_CODES.STACK_QUERY_SOURCE_ONLY)) {
+      cautions.push("Selected stack is query-source only");
+    }
+    if (cautionCodes.has(EXPLANATION_REASON_CODES.STACK_NOT_VISIBLE)) {
+      cautions.push("Selected stack is not visible");
+    }
+    if (flagCounts.high || flagCounts.medium || flagCounts.warning) {
+      cautions.push("Review flags need attention");
+    }
+    if (cautionCodes.has(EXPLANATION_REASON_CODES.SENIORITY_UNKNOWN)) {
+      cautions.push("Seniority is unknown");
+    }
+    if (cautionCodes.has(EXPLANATION_REASON_CODES.PROFILE_HREF_MISSING_OR_UNSAFE)) {
+      cautions.push("Safe profile link is missing or not validated");
+    }
+    return cautions.slice(0, 3);
+  }
+
+  function topCandidateSummary(displayName, reasons, cautions) {
+    if (reasons.length >= 3 && !cautions.length) {
+      return `Start with ${displayName}: returned workspace facts show several strong fit signals.`;
+    }
+    if (reasons.length >= 2 && cautions.length) {
+      return `Start with ${displayName}: returned fit signals are strong, with cautions to review.`;
+    }
+    if (reasons.length) {
+      return `Start with ${displayName}: returned facts make this candidate a useful first review.`;
+    }
+    return `Start with ${displayName}: returned facts are limited, so review details manually.`;
+  }
+
+  function buildTopCandidateRecommendation(candidates, reviewStateByCandidateId = {}, options = {}) {
+    const inputCandidates = arrayValue(candidates);
+    const limit = Math.max(
+      1,
+      Math.min(
+        5,
+        Number.isFinite(Number(options.limit))
+          ? Number(options.limit)
+          : TOP_CANDIDATE_RECOMMENDATION_DEFAULT_LIMIT
+      )
+    );
+    const scope = stringValue(options.scope) || "visible_candidates";
+    const ranked = [];
+
+    inputCandidates.forEach((candidate, index) => {
+      if (!candidate || candidate.location_group === "foreign") {
+        return;
+      }
+      const reviewState = candidateReviewState(reviewStateByCandidateId, candidate.candidate_id);
+      if (reviewState.status === REVIEW_STATUSES.NOT_A_FIT) {
+        return;
+      }
+      const explanation = buildCandidateExplanation(candidate);
+      if (!explanation || explanation.source !== "deterministic_workspace_facts") {
+        return;
+      }
+      const displayIndex = Number.isFinite(Number(candidate.display_index))
+        ? Number(candidate.display_index)
+        : index + 1;
+      const displayName = recommendationSafeText(
+        candidate.display_name,
+        `Candidate ${displayIndex}`,
+        EXPORT_TEXT_LIMITS.candidate_name
+      );
+      const headline = recommendationSafeText(
+        candidate.headline || candidate.raw_title,
+        "No headline returned.",
+        EXPORT_TEXT_LIMITS.headline
+      );
+      const reasons = topCandidateReasonLabels(candidate, explanation);
+      const cautions = topCandidateCautionLabels(candidate, explanation);
+      ranked.push({
+        _rank: topCandidateRank(candidate, explanation, index),
+        display_index: displayIndex,
+        display_name: displayName,
+        headline,
+        quality_score: candidate.has_quality_score ? candidate.quality_score : null,
+        quality_bucket: candidate.has_quality_score ? candidate.quality_bucket || qualityBucket(candidate.quality_score) : "",
+        location_status: recommendationSafeText(candidate.location_status, "unknown_current_location", 80),
+        stack_fit: recommendationSafeText(candidate.stack_fit, "unknown", 80),
+        summary: topCandidateSummary(displayName, reasons, cautions),
+        reasons,
+        cautions,
+      });
+    });
+
+    ranked.sort(compareTopCandidateRecommendation);
+
+    return {
+      version: TOP_CANDIDATE_RECOMMENDATION_VERSION,
+      source: "deterministic_workspace_facts",
+      scope,
+      candidates_analyzed: inputCandidates.length,
+      candidates_considered: ranked.length,
+      recommendations: ranked.slice(0, limit).map(({ _rank, ...item }) => item),
     };
   }
 
@@ -1856,12 +2054,14 @@
     EXPORT_CSV_COLUMNS,
     NOTE_MAX_LENGTH,
     CANDIDATE_EXPLANATION_VERSION,
+    TOP_CANDIDATE_RECOMMENDATION_VERSION,
     CANDIDATE_EXPLANATION_WORDING_USE_CASE,
     CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
     CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
     EXPLANATION_REASON_CODES,
     buildSafeLinkedInProfileHref,
     buildCandidateExplanation,
+    buildTopCandidateRecommendation,
     buildCandidateExplanationRenderableReasons,
     buildCandidateExplanationWordingRequest,
     candidateExplanationRequestFingerprint,

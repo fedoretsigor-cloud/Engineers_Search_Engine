@@ -124,5 +124,9 @@ Invoke-Check "P8.5 Agentic Candidate Review Contract smoke" {
     & $python scripts/smoke_p85_agentic_candidate_review_contract.py
 }
 
+Invoke-Check "P8.5 Top Candidate Recommendation smoke" {
+    & $python scripts/smoke_p85_top_candidate_recommendation.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

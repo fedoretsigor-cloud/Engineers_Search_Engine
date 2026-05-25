@@ -641,6 +641,82 @@ function renderCandidateExplanation(candidate) {
   `;
 }
 
+function renderRecommendationList(items = [], emptyText = "") {
+  if (!items.length) {
+    return emptyText ? `<p>${escapeHtml(emptyText)}</p>` : "";
+  }
+  return `
+    <ul>
+      ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function renderTopCandidateRecommendation() {
+  if (!candidateWorkspace.buildTopCandidateRecommendation || !visibleWorkspaceCandidates.length) {
+    return "";
+  }
+
+  const recommendation = candidateWorkspace.buildTopCandidateRecommendation(
+    visibleWorkspaceCandidates,
+    workspaceReviewStateByCandidateId,
+    {
+      limit: 3,
+      scope: "visible_candidates",
+    }
+  );
+
+  if (
+    !recommendation ||
+    recommendation.source !== "deterministic_workspace_facts" ||
+    !recommendation.recommendations.length
+  ) {
+    return "";
+  }
+
+  return `
+    <section class="workspace-agent-review" aria-label="Agent candidate review">
+      <div class="workspace-agent-review-header">
+        <div>
+          <span>Agent review</span>
+          <strong>Suggested first review</strong>
+        </div>
+        <p>Based on current visible candidates.</p>
+      </div>
+      <ol class="workspace-agent-review-list">
+        ${recommendation.recommendations
+          .map((item, index) => {
+            const quality = item.quality_score === null ? "n/a" : item.quality_score;
+            return `
+              <li class="${index === 0 ? "primary" : ""}">
+                <div class="workspace-agent-review-candidate">
+                  <span>#${escapeHtml(item.display_index)}</span>
+                  <div>
+                    <strong>${escapeHtml(item.display_name)}</strong>
+                    <p>${escapeHtml(item.headline)}</p>
+                  </div>
+                  <small>${escapeHtml(quality)} ${escapeHtml(item.quality_bucket || "")}</small>
+                </div>
+                <p>${escapeHtml(item.summary)}</p>
+                <div class="workspace-agent-review-reasons">
+                  <div>
+                    <span>Why</span>
+                    ${renderRecommendationList(item.reasons, "Returned fit signals are limited.")}
+                  </div>
+                  <div>
+                    <span>Check</span>
+                    ${renderRecommendationList(item.cautions, "No major caution selected.")}
+                  </div>
+                </div>
+              </li>
+            `;
+          })
+          .join("")}
+      </ol>
+    </section>
+  `;
+}
+
 function renderWorkspaceCandidate(candidate) {
   const reviewState =
     workspaceReviewStateByCandidateId[candidate.candidate_id] ||
@@ -788,6 +864,7 @@ function renderWorkspaceResults(report = null) {
 
   resultsList.innerHTML = `
     ${renderWorkspaceToolbar()}
+    ${renderTopCandidateRecommendation()}
     ${
       visibleWorkspaceCandidates.length
         ? `<section class="candidate-workspace-list">${visibleWorkspaceCandidates
