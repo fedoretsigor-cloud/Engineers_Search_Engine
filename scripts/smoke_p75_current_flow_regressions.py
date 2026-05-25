@@ -623,7 +623,7 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     prepare_index = build_plan_body.index("void prepareRuntimeSearchAction();")
     settled_index = build_plan_body.rfind("planRequestInFlight = false;", 0, prepare_index)
     assert settled_index >= 0
-    assert "if (latestExecutablePlan)" in build_plan_body[settled_index:prepare_index]
+    assert "if (latestExecutablePlan && autoPrepareRuntime)" in build_plan_body[settled_index:prepare_index]
 
     assert (
         "searchButton.disabled = !latestExecutablePlan || !currentRuntimePendingApproval || isBusy;"
@@ -641,7 +641,7 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert 'else if (chatState !== "refused")' in update_chat_body
     assert "chatStatusElement.textContent = readyBriefChatStatus();" in update_chat_body
     assert "hasSupportedAgentAction()" in ready_status_body
-    assert "Search is understood. Prepare it from chat or the button." in ready_status_body
+    assert "Search is understood. Confirm in chat to start it" in ready_status_body
     refusal_branch_start = update_chat_body.index('if (chatState === "refused")')
     assert "clearExecutableStateAfterRefusal();" in update_chat_body[refusal_branch_start:]
 

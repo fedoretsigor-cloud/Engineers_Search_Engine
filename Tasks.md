@@ -10897,20 +10897,20 @@ Implemented focused hardening:
   - [ ] P8-020 Remove redundant Recruiter Chat helper subtitle (child issue)
   - [ ] P8-021 Make initial chat helper prompt warmer (child issue)
   - [x] P8-023 Ask next missing clarification after successful brief patch (already covered by P8-016; evidence/check item)
-  - [ ] P8-024 Replace technical plan UX with conversational search confirmation (child issue)
+  - [x] P8-024 Replace technical plan UX with conversational search confirmation (implemented through Bundle B)
   - [x] P8-025 Shorten post-search Agent Response summary (covered by P8-032C)
   - [x] P8-026 Hide Next Iteration Options block from recruiter chat (covered by P8-032C)
   - [ ] P8-027 Hide query contribution diagnostics from recruiter UI (child issue)
   - [ ] P8-028 Collapse report metrics behind unique-candidate summary (child issue)
   - [ ] P8-029 Remove frontend-ready status badge from recruiter UI (child issue)
-  - [ ] P8-030 Rebalance desktop layout toward candidate workspace (child issue)
-  - [ ] P8-031 Make candidate table the primary post-search surface (child issue)
+  - [x] P8-030 Rebalance desktop layout toward candidate workspace (implemented through Bundle A)
+  - [x] P8-031 Make candidate table the primary post-search surface (implemented through Bundle A)
 
 ### Backlog
 
 #### Independent backlog tasks
 
-- [ ] P8-022 Make multi-wave the default approved search mode
+- [x] P8-022 Make multi-wave the default approved search mode (implemented through Bundle C)
 
 ### In Progress
 
@@ -10935,6 +10935,10 @@ Implemented focused hardening:
 - [x] P8-014 Add Enter-to-send chat input behavior
 - [x] P8-015 Normalize chat assistant speaker title
 - [x] P8-016 Harden pending clarification answer routing
+- [x] P8-030 Rebalance desktop layout toward candidate workspace
+- [x] P8-031 Make candidate table the primary post-search surface
+- [x] P8-024 Replace technical plan UX with conversational search confirmation
+- [x] P8-022 Make multi-wave the default approved search mode
 
 ### Current Phase 8 strategy note
 
@@ -10952,9 +10956,11 @@ Candidate explanation order: `P8-005` implemented deterministic candidate-level 
 
 Export order: `P8-007` is completed as a local frontend-only export workflow. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage, and `P8-007B` completed the explicit UI/download slice with current-run export state, grouped export controls, local `Blob` download glue, bounded inline statuses, CSS, and no-network frontend wiring smoke coverage.
 
-Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A`, `P8-032B`, and `P8-032C` add recruiter-facing visible-term cleanup, deterministic harmless-small-talk handling, more polite EN/RU fallback wording, compact post-search completion summaries, and hidden next-iteration option blocks in recruiter chat. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit `Run search`.
+Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A, Bundle B, and Bundle C add recruiter-facing visible-term cleanup, deterministic harmless-small-talk handling, more polite EN/RU fallback wording, compact post-search completion summaries, hidden next-iteration option blocks in recruiter chat, candidate-first results presentation, state-bound conversational search confirmation, and multi-wave as the default approved search mode with a visible opt-out toggle. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit recruiter confirmation.
 
-Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, parts of `P8-024`, `P8-027`, `P8-028`, and `P8-029` are covered or partially covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`. Remaining items should still be reviewed and implemented through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` stays separate because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
+Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, parts of `P8-027`, `P8-028`, and `P8-029` are covered or partially covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B. Remaining items should still be reviewed and implemented through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
+
+Bundle A, Bundle B, and Bundle C are now implemented. The next Phase 8 review should return to the remaining recruiter-facing presentation backlog (`P8-027`, `P8-028`, `P8-029`) unless the user chooses a different approved slice.
 
 ---
 
@@ -15450,7 +15456,25 @@ Replace the mechanical initial helper prompt with warmer recruiter-facing wordin
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented through Bundle C:
+
+- the visible `Multi-wave` toggle is checked by default in the initial DOM;
+- `resetChat()` restores `multiWaveInput.checked = DEFAULT_MULTI_WAVE_ENABLED`, so reset/new chat returns to multi-wave default;
+- runtime action, runtime context, tool input, and conversational confirmation identity continue to use the current selected execution mode from the visible toggle;
+- the existing opt-out toggle remains: turning `Multi-wave` off prepares/runs single-wave and clears stale pending confirmation/runtime approval;
+- backend compatibility endpoints remain unchanged: single-wave endpoint is still single-wave, multi-wave endpoint is still multi-wave;
+- added `scripts/smoke_p8_multi_wave_default.py` and wired it into `scripts/check_all.ps1`;
+- did not change query generation, wave defaults, scoring, filters, dedupe, Candidate Quality, candidate facts, export, persistence, or approval/runtime guardrails.
+
+Verification passed:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- `git diff --check`;
+- browser sanity on `http://127.0.0.1:8000` confirmed `Multi-wave` is checked by default, visible `Prepare search` / `Run search` controls are present, `Candidate Results` renders before `Search summary`, and there are no browser console errors.
 
 ### Context
 
@@ -15465,6 +15489,24 @@ This should be implemented as a real execution-mode default, not only a visual t
 ### Goal
 
 Make approved searches default to the existing multi-wave execution path while preserving the explicit human approval gate before Tavily execution.
+
+### Combined Review Update
+
+Reviewed together with `P8-031`, `P8-030`, and `P8-024` as the Phase 8 next-action group.
+
+This task is **Bundle C** and should stay separate from the UI/layout bundle (`P8-031` + `P8-030`) and the chat confirmation behavior bundle (`P8-024`). It changes execution-mode default behavior and therefore has different risk, cost, latency, and approval implications.
+
+Scope clarification:
+
+- "Default to multi-wave" means the primary recruiter UI / Agent Runtime selected tool defaults to `run_multi_wave_search`.
+- Do not silently change the explicit backend compatibility semantics of `/api/structured-search` and `/api/structured-search/multi-wave`: the single-wave endpoint remains single-wave and the multi-wave endpoint remains multi-wave.
+- Keep the existing visible user control as an opt-out unless a later reviewed task explicitly removes it.
+- Reset/new-chat/new-search initialization should return the primary UI to the new default checked multi-wave state.
+- The initial DOM checkbox state, JS initialization, reset path, and runtime action selection must agree. There must be no moment where the UI looks single-wave while the runtime prepares multi-wave, or the reverse.
+- Toggling execution mode after a plan is prepared must clear/recompute runtime approval exactly like today; no stale single-wave approval may execute multi-wave and no stale multi-wave approval may execute single-wave.
+- If `P8-024` is implemented before this task, `P8-024` must not hardcode single-wave assumptions. It must use the current selected execution mode so this task can later switch the default safely.
+- If this task is implemented before or after `P8-024`, visible confirmation/status wording must make the selected search mode understandable before Tavily runs.
+- Existing references that may need intentional updates during implementation include `docs/phase-3-multi-wave-evaluation.md`, `docs/phase-7-5-browser-qa-checklist.md`, browser QA result docs with historical `multiWaveChecked:false` evidence, and runtime/frontend smoke coverage that assumes single-wave as the default. Historical evidence should stay historical; current-behavior docs/tests should be updated.
 
 ### Initial Proposed Steps
 
@@ -15496,9 +15538,12 @@ Make approved searches default to the existing multi-wave execution path while p
 5. Update documentation and status references that still say multi-wave is off by default:
    - make clear this task intentionally supersedes the older default/off recommendation;
    - preserve historical experiment notes where they describe past measurements;
-   - update current product behavior docs after implementation.
+   - update current product behavior docs after implementation;
+   - update existing frontend/runtime smoke assertions if they assume the default toggle is off.
 
 6. Add regression coverage:
+   - initial DOM state and JS state agree that multi-wave is enabled by default;
+   - reset/new-chat/new-search restores the default multi-wave checked state;
    - default frontend/runtime mode is multi-wave;
    - approval binds to multi-wave execution mode;
    - single-wave approval cannot execute multi-wave and multi-wave approval cannot execute single-wave;
@@ -15508,12 +15553,18 @@ Make approved searches default to the existing multi-wave execution path while p
 
 7. Run the relevant no-network checks first, then only run live Tavily if a separate explicit test run is approved.
 
+8. Add explicit cross-task regression coverage:
+   - `P8-024` chat confirmation, if already implemented, uses the selected execution mode and does not bypass runtime approval;
+   - `P8-031`/`P8-030` candidate workspace presentation does not depend on single-wave-specific report fields;
+   - multi-wave report fields remain visible/collapsed in the appropriate summary/details surface without crowding the candidate table.
+
 ### Non-Goals
 
 - Do not change query generation logic, role aliases, location filters, scoring, dedupe, Candidate Quality, candidate workspace, export, or LLM wording behavior.
 - Do not expand supported roles, countries, sources, or recruiter scenarios.
 - Do not change multi-wave wave-count/patience defaults unless the implementation review finds they must be updated for safety.
-- Do not bypass `Build Plan` or `Approve & Search`.
+- Do not bypass backend runtime validation, fingerprints, pending approval, or explicit recruiter confirmation. The old visible button label may change in `P8-024`, but backend approval semantics must remain.
+- Do not change the explicit single-wave compatibility endpoint into a multi-wave endpoint.
 - Do not add persistence, memory, autonomous execution, direct web search, LinkedIn behavior, candidate messaging, or account actions.
 
 ---
@@ -15601,7 +15652,27 @@ When a patch updates one field but the Search Brief still has missing fields, th
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented through Bundle B:
+
+- supported ready Search Briefs now create a state-bound pending `start_search` confirmation identity in the frontend;
+- clean recruiter confirmations such as `yes`, `ok`, `go ahead`, `run it`, `start search`, `да`, `ок`, `вперед`, and `запускай` trigger the existing safe internal sequence: build/refresh search details -> prepare runtime approval -> execute approved runtime search;
+- the confirmation identity includes current Search Brief fingerprint, Agent action identity, run action, execution mode, and `multiWaveInput.checked`;
+- ambiguous replies ask whether to start or change the search; explicit refine/dismiss replies do not run search;
+- mixed replies with new constraints are not treated as clean confirmation and can flow through normal refinement/safety routing;
+- execution still uses `/api/agent/query-plan` and `/api/agent/runtime/turn`; no direct `/api/structured-search` path was added;
+- backend deterministic and bounded LLM Agent Plan wording now avoids recruiter-facing internal terms such as `Build Plan`, `Prepare search`, `Search Plan`, `QueryPlan`, `backend planner`, `approval`, `fingerprint`, `runtime`, and `Run search`;
+- added `scripts/smoke_p8_conversational_search_confirmation.py` and wired it into `scripts/check_all.ps1`;
+- did not change backend approval/fingerprint validation, Tavily execution semantics, query generation, scoring, filters, dedupe, Candidate Quality, candidate facts, export, persistence, or autonomous behavior.
+
+Verification passed:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- `git diff --check`;
+- browser sanity on `http://127.0.0.1:8000` confirmed current visible controls and no browser console errors.
 
 ### Context
 
@@ -15629,6 +15700,27 @@ Desired external flow:
 
 Hide technical planning mechanics from the recruiter and make the chat confirmation the visible control for proceeding with search, while preserving the human-approved execution boundary internally.
 
+### Combined Review Update
+
+Reviewed together with `P8-031`, `P8-030`, and `P8-022` as the Phase 8 next-action group.
+
+This task is **Bundle B** and must be implemented separately from the UI/layout bundle and the multi-wave-default bundle. It changes the visible approval interaction and therefore needs its own regression coverage.
+
+Critical implementation direction:
+
+- The recruiter chat confirmation is the explicit human approval intent, but it must be deterministic and state-bound. Do not use LLM classification to decide whether to execute search.
+- A confirmation is valid only after the app has a supported ready Search Brief and current Agent Plan/proposed action identity for the same brief fingerprint.
+- Store only frontend/session-local pending confirmation state. Clear it on brief changes, reset, refusal, unsupported flow, execution-mode toggle, new plan, stale agent action, or failed plan/runtime preparation.
+- Introduce or rename the frontend pending state so search-run confirmation is not conflated with the current `build_search_plan` chat confirmation. Internal state names should make it clear whether the user is confirming "prepare search details" or "start the approved search".
+- Pending confirmation identity must include the selected execution mode, so a single-wave confirmation cannot later execute multi-wave and a multi-wave confirmation cannot later execute single-wave after a toggle.
+- A clean confirmation such as `yes`, `ok`, `go ahead`, `run it`, `start search`, `да`, `ок`, `вперед`, or `запускай` may proceed. A message with additional sourcing constraints, safety-prohibited requests, candidate messaging requests, LinkedIn-opening requests, or unrelated text must not be treated as a clean execution confirmation.
+- On valid confirmation, use the existing safe internal sequence: if a current plan and runtime pending approval are fresh, execute through runtime; otherwise build/refresh plan -> prepare runtime approval -> execute approved runtime call. Do not call `/api/structured-search` directly and do not execute without backend-owned pending approval fingerprints.
+- If runtime prepare fails, returns stale context, or does not return a pending approval, no search runs and the assistant shows a safe failure/retry message.
+- Guard against double execution from repeated confirmation, Enter double-submit, in-flight state, stale approval, or browser retry.
+- Keep `Search details`/technical panels available only as secondary/collapsed surfaces if needed; the recruiter-facing chat should not instruct the user to understand `Build Plan`, `QueryPlan`, fingerprints, backend planner, or approval internals.
+- This task should use the current selected execution mode. If `P8-022` later changes the default to multi-wave, this task must continue to work without hardcoded single-wave assumptions.
+- Existing wording/guardrail references that may need intentional updates during implementation include `app/agent_messages.py`, `app/agent_plan.py`, `app/static/app.js`, `scripts/smoke_p5_llm_wording.py`, `scripts/smoke_p7_golden_conversations.py`, `scripts/smoke_p7_agent_messages.py`, `scripts/smoke_p8_chat_quality.py`, and Phase 7/7.5 docs that describe the old visible button flow. Update tests to assert the new recruiter-facing contract; do not simply remove guardrail coverage.
+
 ### Initial Proposed Steps
 
 1. Review current user-facing messages:
@@ -15650,7 +15742,9 @@ Hide technical planning mechanics from the recruiter and make the chat confirmat
 
 4. Bind confirmation to current state:
    - confirmation is valid only for the current Search Brief/Agent Plan/proposed action fingerprint;
+   - confirmation is valid only for the selected execution mode at the moment the confirmation prompt was created;
    - if the brief changes after the confirmation prompt, old confirmation is stale;
+   - if the execution mode changes after the confirmation prompt, old confirmation is stale;
    - if required fields are missing, confirmation cannot run search and the assistant asks the missing clarification.
 
 5. Convert the visible confirmation into internal approved execution safely:
@@ -15674,10 +15768,16 @@ Hide technical planning mechanics from the recruiter and make the chat confirmat
    - ready supported brief produces natural confirmation wording without internal planner terms;
    - `yes/ok/go ahead/run it` proceeds only from a fresh supported confirmation prompt;
    - stale confirmation is rejected;
+   - confirmation after a completed run does not rerun search unless a new confirmation prompt/action is created;
    - ambiguous confirmation does not run search;
+   - mixed confirmation plus new constraints does not run search and routes through refinement/safety as appropriate;
+   - repeated confirmation while plan/runtime/search is in flight does not double execute;
    - refinement reply does not run search and keeps the brief editable;
    - no Tavily call happens before confirmation;
-   - prohibited requests remain refused.
+   - execution still passes through `/api/agent/query-plan` and `/api/agent/runtime/turn`;
+   - no direct `/api/structured-search` call is introduced by the chat confirmation path;
+   - prohibited requests remain refused;
+   - existing wording/label smoke tests are updated to the new contract rather than weakened.
 
 9. Add live-browser/manual verification only after the no-network checks pass:
    - complete Java/Ukraine/stack brief;
@@ -15690,6 +15790,8 @@ Hide technical planning mechanics from the recruiter and make the chat confirmat
 - Do not remove backend validation, fingerprints, runtime approval checks, or supported-flow enforcement.
 - Do not make the agent autonomous: recruiter confirmation is still required before real search.
 - Do not run Tavily before confirmation.
+- Do not let LLM wording or LLM classification decide execution.
+- Do not make a stale frontend confirmation, stale plan, stale runtime approval, or repeated `yes` execute search.
 - Do not add direct web search, LinkedIn login/scraping, candidate messaging, account actions, persistence, or memory.
 - Do not expand supported roles, countries, technologies, sources, scoring, filters, dedupe, Candidate Quality, candidate workspace, or export behavior.
 - Do not make vague replies such as `maybe`, `later`, or unrelated text start search.
@@ -16049,7 +16151,22 @@ Remove the visible `Frontend ready` badge/text from the recruiter-facing UI.
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented through Bundle A with `P8-031`:
+
+- changed the desktop shell to favor the right-side candidate workspace with a narrower chat column and wider candidate/results column;
+- moved the candidate results panel above the search summary panel;
+- kept tablet/mobile layout stacked and verified no horizontal overflow at a narrow viewport;
+- did not change chat behavior, runtime approval, Tavily execution, scoring, filters, candidate facts, review state, export, persistence, or multi-wave defaults.
+
+Verification passed:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- `git diff --check`;
+- browser sanity on `http://127.0.0.1:8000` confirmed no horizontal overflow and no browser console errors.
 
 ### Context
 
@@ -16066,6 +16183,22 @@ Desired direction:
 ### Goal
 
 Rebalance the desktop layout so the candidate/report workspace has more usable width, while keeping the chat usable and readable.
+
+### Combined Review Update
+
+Reviewed together with `P8-031`, `P8-024`, and `P8-022` as the Phase 8 next-action group.
+
+This task is **Bundle A** together with `P8-031`. It is presentation/layout work and should not change chat behavior, runtime approval, Tavily execution, multi-wave defaults, scoring, filters, candidate facts, review state, export, or persistence.
+
+Implementation direction for the bundle:
+
+- `P8-031` should lead the product behavior of the post-search surface; `P8-030` should support it by making the desktop shell give the candidate workspace enough width.
+- Prefer CSS/layout changes and minimal markup movement. If DOM order changes are needed, they should support candidate-first presentation and preserve existing selectors/listeners.
+- The likely layout direction is: narrower fixed/minmax chat column, wider candidate/report workspace column, reduced outer gutters, and right-side candidate workspace visually above or more prominent than secondary search summary details.
+- Do not make the chat column too narrow to read or type in; textarea, buttons, toggles, Search Brief, and action queue content must not overflow or wrap incoherently.
+- Existing frontend/static smoke coverage that reads `app/static/index.html`, `app/static/styles.css`, or extracts `renderWorkspaceResults`/export UI wiring must be updated when selectors/layout change; do not remove export/candidate-workspace guardrails.
+- Keep responsive behavior conservative: under the existing tablet/mobile breakpoint, stack content cleanly and avoid horizontal scrolling.
+- Do not solve conversational confirmation or execution mode default here. Those remain `P8-024` and `P8-022`.
 
 ### Initial Proposed Steps
 
@@ -16096,6 +16229,8 @@ Rebalance the desktop layout so the candidate/report workspace has more usable w
    - desktop screenshot or browser check confirms left column is aligned closer to the left edge;
    - right candidate/report workspace has more width than before;
    - no overlap/overflow at common desktop and narrow viewport widths.
+   - candidate rows, filters, export controls, notes, and details remain usable after the layout change.
+   - keyboard focus order remains understandable after any DOM/order changes.
 
 ### Non-Goals
 
@@ -16110,7 +16245,23 @@ Rebalance the desktop layout so the candidate/report workspace has more usable w
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented through Bundle A with `P8-030`:
+
+- made `Candidate Results` the primary right-column post-search surface;
+- rendered candidates as a denser table/list hybrid with score, identity, role, location, stack, source, review status, and shortlist controls in the main row;
+- kept candidate details, deterministic explanations, selected-candidate wording action, quality details, query sources, notes, filters, and export available through the existing workspace state;
+- added `scripts/smoke_p8_candidate_primary_surface.py` and wired it into `scripts/check_all.ps1`;
+- did not change backend/API/search/runtime behavior, Tavily execution, query generation, scoring, dedupe, Candidate Quality, or multi-wave defaults.
+
+Verification passed:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+- `git diff --check`;
+- browser sanity on `http://127.0.0.1:8000` confirmed `Candidate Results` renders before `Search summary` and no browser console errors.
 
 ### Context
 
@@ -16143,6 +16294,24 @@ This is a product/UX reference, not a strict pixel-perfect requirement. It shoul
 
 After search completion, make the found candidates immediately visible and obvious as the primary recruiter workspace.
 
+### Combined Review Update
+
+Reviewed together with `P8-030`, `P8-024`, and `P8-022` as the Phase 8 next-action group.
+
+This task is the lead task for **Bundle A** (`P8-031` + `P8-030`). It should be implemented before the chat-confirmation behavior change and before the multi-wave-default change, because it improves the recruiter's post-search workspace without changing execution semantics.
+
+Critical implementation direction:
+
+- Use already returned `workspaceCandidates` / `latestWorkspaceRun` as the source of truth. Do not add backend candidate schemas, persistence, browser storage, new search calls, or new candidate facts.
+- Make the candidate workspace the first and most prominent post-search surface. The current right-column order may be changed so candidates appear before secondary search summary/report details.
+- Prefer a dense recruiter table/list hybrid, not large decorative cards. A semantic `<table>` is optional; a responsive grid/list is acceptable if it exposes the same scanning fields.
+- Main row fields should include, where available: score/bucket, name/headline or role, location, selected stack visibility, source/profile link, review status, and shortlist/status controls.
+- Candidate details, deterministic explanations, LLM wording overlay controls, notes, export, and detailed evidence can remain in expandable/detail areas, but must not be broken or removed.
+- Preserve existing review-state source of truth: `review_status` remains authoritative, shortlist remains derived, notes remain escaped plain text, and current-run export scope remains computed from visible/current workspace state.
+- Report metrics and query contribution details should be secondary/collapsed after this task. This task may cover the remaining visible parts of `P8-027` and `P8-028` only if the implementation demonstrably hides/collapses those diagnostics without deleting backend report data.
+- Existing helper/wiring coverage in `scripts/smoke_p8_candidate_workspace_helpers.js` and `scripts/smoke_p8_export_ui_wiring.py` remains relevant. If the table/list markup changes, update only the assumptions that changed and keep coverage for review state, filters, notes, export, profile URL validation, and explanation wording controls.
+- Do not change the current search execution flow, chat confirmation flow, or multi-wave default in this task.
+
 ### Initial Proposed Steps
 
 1. Review current candidate workspace rendering:
@@ -16158,6 +16327,7 @@ After search completion, make the found candidates immediately visible and obvio
    - prefer a dense results table/list similar to the visual reference above;
    - ensure candidate rows are visible without hunting through report/chat details;
    - keep sort/filter/review controls close to the candidate list.
+   - keep manual validated LinkedIn profile links as user-click-only links; do not auto-open or inspect profiles.
 
 3. Reduce competing surfaces:
    - coordinate with `P8-025` to shorten chat response;
@@ -16168,6 +16338,7 @@ After search completion, make the found candidates immediately visible and obvio
 4. Improve post-search focus:
    - after successful search, the UI should guide attention to the candidate workspace;
    - if needed, scroll/focus the results workspace instead of leaving the user inside chat;
+   - do not steal focus while the recruiter is typing or editing notes;
    - do not create disorienting jumps on narrow/mobile layouts.
 
 5. Keep candidate workspace behavior unchanged:
@@ -16181,6 +16352,9 @@ After search completion, make the found candidates immediately visible and obvio
    - at least one candidate row is visible when results exist;
    - report/chat diagnostics do not obscure the candidate table;
    - empty results still show a clear empty state.
+   - shortlist, review status, notes, filters, export controls, and selected-candidate explanation wording controls still render and remain wired.
+   - desktop and narrow viewport browser sanity confirms no overlap, no horizontal overflow, and readable rows.
+   - keyboard navigation can reach row actions, profile links, filters, notes, export controls, and explanation wording controls.
 
 ### Non-Goals
 
@@ -16195,9 +16369,9 @@ After search completion, make the found candidates immediately visible and obvio
 
 ### Status
 
-Approved / not implemented / implement through reviewed slices.
+Approved / partially implemented through reviewed slices A-C and Bundles A-C.
 
-Approval note: approved by the user after critical review. Do not code the whole umbrella as one large change; implement through the reviewed slice order below.
+Approval note: approved by the user after critical review. Do not code the whole umbrella as one large change. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A (`P8-031` + `P8-030`), Bundle B (`P8-024`), and separate Bundle C (`P8-022`) are implemented. Remaining child issues such as `P8-027`, `P8-028`, and `P8-029` still require separate review before coding.
 
 ### Context
 

@@ -343,8 +343,8 @@ def assert_next_iteration_options_localized() -> None:
 def assert_frontend_static_contract() -> None:
     source = (PROJECT_DIR / "app" / "static" / "app.js").read_text(encoding="utf-8")
     assert "let pendingChatAction = null;" in source
-    assert "function pendingBuildPlanActionIsCurrent()" in source
-    assert "await handlePendingBuildPlanChatAction(userText)" in source
+    assert "function pendingSearchRunConfirmationIsCurrent()" in source
+    assert "await handlePendingSearchRunChatAction(userText)" in source
     assert "chat confirmation never calls runtime/Tavily" not in source
     assert "event.isComposing" in source
     assert "chatForm.requestSubmit()" in source

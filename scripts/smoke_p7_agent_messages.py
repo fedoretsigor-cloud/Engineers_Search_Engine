@@ -162,11 +162,11 @@ def assert_agent_plan_and_query_messages() -> None:
 
     assert (
         agent_messages.query_plan_ready_approval_notice()
-        == "Search is ready to run. Review the details before running search."
+        == "Search details are ready. Start the search when ready."
     )
     assert (
         agent_messages.query_plan_preview_approval_notice()
-        == "This preview has not run. Confirm Run search before execution."
+        == "This preview has not run. Start it only after confirmation."
     )
     assert (
         agent_messages.runtime_tool_unavailable_source_message()

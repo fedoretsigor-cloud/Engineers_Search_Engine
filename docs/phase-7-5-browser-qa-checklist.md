@@ -83,7 +83,7 @@ Preflight steps:
 | `single_wave` | Approved search runs with the visible multi-wave toggle off. |
 | `multi_wave` | Approved search runs with the visible multi-wave toggle on. Not used in this checklist's live-search budget. |
 
-Single-wave is the default live-search mode. Multi-wave must remain off unless a later approved QA scenario explicitly tests it.
+Historical note: this P7.5 checklist predated `P8-022`. During P7.5, single-wave was the default live-search mode and multi-wave remained off unless a scenario explicitly tested it. Current Phase 8 behavior after `P8-022`: the visible `Multi-wave` toggle is checked by default and acts as an opt-out to single-wave.
 
 ## Tavily Selection Policy
 
@@ -128,7 +128,7 @@ Rules:
 - Clean scenarios should start after a page reload or explicit reset.
 - Stateful scenarios must name `setup_dependency`.
 - For `clean` scenarios, use the visible `Reset` control or page reload before the scenario starts.
-- For `clean` scenarios, make sure the visible `Multi-wave` toggle is off unless a scenario explicitly tests multi-wave.
+- Historical P7.5 clean scenarios expected the visible `Multi-wave` toggle off unless a scenario explicitly tested multi-wave. Current Phase 8 smoke/QA should expect it on by default after `P8-022`, unless the scenario intentionally opts out to single-wave.
 - For `current_brief` scenarios, prepare a ready Search Brief through the visible chat flow without spending Tavily budget.
 - For `visible_plan` scenarios, prepare chat -> Search Brief -> Agent Plan -> Build Plan and stop before `Approve & Search`.
 - For `approved_results` scenarios, reuse the approved search result dependency named in the matrix.

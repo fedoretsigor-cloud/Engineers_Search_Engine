@@ -57,6 +57,7 @@ def agent_wording_user_prompt(payload: dict) -> str:
     is_agent_response = (
         payload.get("wording_use_case") == AGENT_WORDING_USE_CASE_AGENT_RESPONSE
     )
+    is_agent_plan = payload.get("wording_use_case") == AGENT_WORDING_USE_CASE_AGENT_PLAN
     required_output_shape = {
         "message": "string",
         "warnings": ["optional short strings"],
@@ -86,6 +87,13 @@ def agent_wording_user_prompt(payload: dict) -> str:
                 "For agent_response, mention only total candidates and strong/review/weak counts.",
                 "For agent_response, do not mention raw results, query counts, limitations, or next steps.",
                 "For agent_response, return limitations as an empty list.",
+            ]
+        )
+    if is_agent_plan:
+        rules.extend(
+            [
+                "For agent_plan, summarize the understood search and ask for natural confirmation to start.",
+                "For agent_plan, do not mention Build Plan, Prepare search, Search Plan, QueryPlan, backend planner, approval, fingerprint, runtime, or a Run search button.",
             ]
         )
 
@@ -315,6 +323,21 @@ def agent_response_wording_has_disallowed_visible_content(text: str) -> bool:
     return any(re.search(pattern, text or "", re.IGNORECASE) for pattern in disallowed_patterns)
 
 
+def agent_plan_wording_has_disallowed_visible_content(text: str) -> bool:
+    disallowed_patterns = [
+        r"\bbuild\s+plan\b",
+        r"\bprepare\s+search\b",
+        r"\bsearch\s+plan\b",
+        r"\bqueryplan\b",
+        r"\bbackend\s+planner\b",
+        r"\bfingerprint\b",
+        r"\bruntime\b",
+        r"\bapproval\b",
+        r"\brun\s+search\b",
+    ]
+    return any(re.search(pattern, text or "", re.IGNORECASE) for pattern in disallowed_patterns)
+
+
 def agent_response_wording_has_invalid_message_shape(message: str) -> bool:
     normalized_message = message or ""
     if "\n" in normalized_message or "\r" in normalized_message:
@@ -411,6 +434,9 @@ def validate_agent_wording_output(
             return None, "llm_output_agent_response_not_single_sentence"
         if agent_response_wording_has_disallowed_visible_content(combined_text):
             return None, "llm_output_agent_response_disallowed_visible_content"
+    if wording_use_case == AGENT_WORDING_USE_CASE_AGENT_PLAN:
+        if agent_plan_wording_has_disallowed_visible_content(combined_text):
+            return None, "llm_output_agent_plan_disallowed_visible_content"
 
     output_numbers = agent_wording_number_tokens(combined_text)
     if not output_numbers.issubset(allowed_numbers):

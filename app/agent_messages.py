@@ -378,10 +378,15 @@ def ready_for_planning_source_message(language: str) -> str:
         return (
             "\u042f \u043f\u043e\u043d\u044f\u043b \u043f\u043e\u0438\u0441\u043a. "
             "\u041f\u0440\u043e\u0432\u0435\u0440\u044c summary. "
-            "\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u0438\u0442\u044c search?"
+            "\u0415\u0441\u043b\u0438 \u0432\u0441\u0435 \u0432\u0435\u0440\u043d\u043e, "
+            "\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438, \u0438 \u044f "
+            "\u043d\u0430\u0447\u043d\u0443 \u043f\u043e\u0438\u0441\u043a."
         )
 
-    return "I understood the search. Review the summary. Prepare search now?"
+    return (
+        "I understood the search. Review the summary. If it looks right, "
+        "confirm and I will start the search."
+    )
 
 
 def validation_error_source_message(
@@ -529,10 +534,11 @@ def brief_refinement_source_message(
     if language == "ru":
         return (
             f"\u041e\u0431\u043d\u043e\u0432\u0438\u043b search summary ({action_summary}). "
-            "\u041d\u0443\u0436\u043d\u043e \u0437\u0430\u043d\u043e\u0432\u043e "
-            "\u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u0438\u0442\u044c search."
+            "\u041f\u0440\u043e\u0432\u0435\u0440\u044c \u0441\u0432\u043e\u0434\u043a\u0443 "
+            "\u0438 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438 "
+            "\u043f\u043e\u0438\u0441\u043a \u0437\u0430\u043d\u043e\u0432\u043e."
         )
-    return f"Updated the search summary ({action_summary}). Prepare search again before running."
+    return f"Updated the search summary ({action_summary}). Review it and confirm again before search."
 
 
 def agent_plan_supported_source_message(
@@ -545,17 +551,15 @@ def agent_plan_supported_source_message(
             "\u042f \u043f\u043e\u043d\u044f\u043b \u0437\u0430\u0434\u0430\u0447\u0443: "
             "\u0438\u0449\u0435\u043c Backend Developer \u0441 Java \u0432 "
             f"\u0423\u043a\u0440\u0430\u0438\u043d\u0435, stack: {stack_text}. "
-            "\u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 "
-            "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0439 "
-            "\u0448\u0430\u0433 - \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u0438\u0442\u044c search details. \u041f\u043e\u0438\u0441\u043a "
-            "\u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u0441\u044f "
-            "\u0431\u0435\u0437 \u0442\u0432\u043e\u0435\u0433\u043e Run search."
+            "\u0415\u0441\u043b\u0438 \u044d\u0442\u043e \u0432\u0435\u0440\u043d\u043e, "
+            "\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438, \u0438 \u044f "
+            "\u043d\u0430\u0447\u043d\u0443 \u043f\u043e\u0438\u0441\u043a."
         )
 
     return (
         "I understood the task: find Backend Developer profiles with Java in "
-        f"Ukraine, stack: {stack_text}. The next step is to prepare search details. "
-        "Search will not run until you confirm Run search."
+        f"Ukraine, stack: {stack_text}. If this is correct, confirm and I will "
+        "start the search."
     )
 
 
@@ -604,23 +608,23 @@ def agent_plan_action_error_source_message(error_code: str) -> str:
 
 
 def query_plan_ready_approval_notice() -> str:
-    return "Search is ready to run. Review the details before running search."
+    return "Search details are ready. Start the search when ready."
 
 
 def query_plan_fallback_approval_notice() -> str:
-    return "Fallback search is ready. Review the details before running search."
+    return "Fallback search details are ready. Start the search when ready."
 
 
 def query_plan_rejected_approval_notice() -> str:
-    return "A fallback search is available. Confirm Run search before execution."
+    return "A fallback search is available. Start it only after confirmation."
 
 
 def query_plan_ai_validated_approval_notice() -> str:
-    return "This AI preview is validated. Confirm Run search before execution."
+    return "This AI preview is validated. Start it only after confirmation."
 
 
 def query_plan_preview_approval_notice() -> str:
-    return "This preview has not run. Confirm Run search before execution."
+    return "This preview has not run. Start it only after confirmation."
 
 
 def runtime_tool_unavailable_source_message() -> str:

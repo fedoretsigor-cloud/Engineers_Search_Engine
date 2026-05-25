@@ -63,7 +63,7 @@
               </label>
 
               <label class="toggle-field">
-                <input id="multi-wave-enabled" name="multiWaveEnabled" type="checkbox" />
+                <input id="multi-wave-enabled" name="multiWaveEnabled" type="checkbox" checked />
                 <span>Multi-wave</span>
               </label>
             </div>
@@ -91,6 +91,14 @@
         </section>
 
         <section class="right-column">
+          <section class="results-panel" aria-live="polite">
+            <div class="panel-header">
+              <h2>Candidate Results</h2>
+              <p id="results-status">Run a search to see candidates.</p>
+            </div>
+            <div class="results-list" id="results-list"></div>
+          </section>
+
           <section class="report-panel" aria-live="polite">
             <div class="panel-header">
               <h2>Search summary</h2>
@@ -98,14 +106,6 @@
             </div>
             <div class="report-grid" id="report-grid"></div>
             <div class="contribution-list" id="contribution-list"></div>
-          </section>
-
-          <section class="results-panel" aria-live="polite">
-            <div class="panel-header">
-              <h2>Candidate workspace</h2>
-              <p id="results-status">Run a search to see candidates.</p>
-            </div>
-            <div class="results-list" id="results-list"></div>
           </section>
         </section>
       </section>

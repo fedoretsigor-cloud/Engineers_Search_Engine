@@ -71,8 +71,7 @@ async def run_smoke() -> None:
             return {
                 "message": (
                     "I understood the Java Backend Developer search in Ukraine. "
-                    "Prepare search can create the details, and Run search is still "
-                    "required before execution."
+                    "If this is correct, confirm and I will start the search."
                 ),
                 "warnings": [],
                 "limitations": [],
@@ -113,8 +112,10 @@ async def run_smoke() -> None:
         assert agent_plan["wording_mode"] == "llm_assisted"
         assert agent_plan["fallback_reason"] is None
         assert agent_plan["proposed_action"] == main.agent_plan_proposed_action()
-        assert "Prepare search" in agent_plan["message"]
-        assert "Run search" in agent_plan["message"]
+        assert "confirm" in agent_plan["message"].lower()
+        assert "start the search" in agent_plan["message"].lower()
+        assert "Prepare search" not in agent_plan["message"]
+        assert "Run search" not in agent_plan["message"]
         assert plan_response["message"] == agent_plan["message"]
 
         agent_response = await main.apply_llm_wording_to_agent_response(

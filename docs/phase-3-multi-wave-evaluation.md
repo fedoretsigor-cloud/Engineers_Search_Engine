@@ -123,3 +123,7 @@ Recommendation for `P3-013`:
 - Do not make multi-wave the default.
 - Keep it backend-only for now, or expose it later as an explicit advanced/deeper-search control with cost and latency warning.
 - If exposed, the UI should show `waves_run`, `queries_executed`, `new_unique_profiles_per_wave`, and `stop_reason` so the recruiter understands the cost/gain tradeoff.
+
+Current Phase 8 note:
+
+- This historical Phase 3 recommendation was intentionally superseded by `P8-022`: the primary UI/runtime path now defaults to multi-wave while preserving a visible opt-out toggle and backend single-wave compatibility.

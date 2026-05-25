@@ -96,8 +96,20 @@ Invoke-Check "P8 Export UI Wiring smoke" {
     & $python scripts/smoke_p8_export_ui_wiring.py
 }
 
+Invoke-Check "P8 Candidate Primary Surface smoke" {
+    & $python scripts/smoke_p8_candidate_primary_surface.py
+}
+
 Invoke-Check "P8 Chat Quality smoke" {
     & $python scripts/smoke_p8_chat_quality.py
+}
+
+Invoke-Check "P8 Conversational Search Confirmation smoke" {
+    & $python scripts/smoke_p8_conversational_search_confirmation.py
+}
+
+Invoke-Check "P8 Multi-wave Default smoke" {
+    & $python scripts/smoke_p8_multi_wave_default.py
 }
 
 Invoke-Check "P8 Candidate Explanation Wording smoke" {

@@ -169,6 +169,7 @@ let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
 let runtimePrepareRequestInFlight = false;
 let searchRequestInFlight = false;
+let searchConfirmationInFlight = false;
 let interactionVersion = 0;
 let agentActionDisplayState = {
   [AGENT_QUEUE_ACTION_BUILD_PLAN]: null,
@@ -180,6 +181,7 @@ const MULTI_WAVE_DEFAULTS = {
   min_new_unique_per_wave: 3,
   patience: 2,
 };
+const DEFAULT_MULTI_WAVE_ENABLED = true;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -395,7 +397,7 @@ function renderWorkspaceToolbar() {
     <section class="candidate-workspace-toolbar" aria-label="Candidate workspace controls">
       <div class="candidate-workspace-meta">
         <div>
-          <span>Candidate Workspace</span>
+          <span>Candidate Results</span>
           <strong>${escapeHtml(latestWorkspaceRun.total_candidates)} ${escapeHtml(
             pluralize(latestWorkspaceRun.total_candidates, "candidate", "candidates")
           )}</strong>
@@ -487,6 +489,15 @@ function renderWorkspaceProfileLink(candidate = {}) {
     <a href="${escapeHtml(candidate.profile_href)}" target="_blank" rel="noreferrer">
       ${escapeHtml(candidate.profile_url || candidate.profile_href)}
     </a>
+  `;
+}
+
+function renderWorkspaceRowField(label, value) {
+  return `
+    <div class="candidate-row-field">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(displayValue(value, "N/A"))}</strong>
+    </div>
   `;
 }
 
@@ -650,29 +661,47 @@ function renderWorkspaceCandidate(candidate) {
     ? candidate.missing_selected_stack_terms.join(", ")
     : "";
   const qualityDisplay = candidate.has_quality_score ? candidate.quality_score : "n/a";
+  const roleDisplay = candidate.raw?.result?.role_display || candidate.headline || candidate.raw_title;
+  const technologyDisplay = candidate.raw?.result?.technology_display;
+  const sourceDisplay = candidate.source || "linkedin";
 
   return `
-    <article class="result-item candidate-card workspace-candidate-row" data-candidate-id="${escapeHtml(
+    <article class="result-item candidate-card candidate-result-row workspace-candidate-row" data-candidate-id="${escapeHtml(
       candidate.candidate_id
     )}">
-      <div class="candidate-header workspace-candidate-header">
-        <div class="candidate-identity">
-          <h3>${escapeHtml(candidate.display_name)}</h3>
-          <p>${escapeHtml(candidate.headline || candidate.raw_title || "No headline returned.")}</p>
-        </div>
-        <div class="candidate-score" aria-label="Quality score">
-          <span>Quality</span>
+      <div class="candidate-row-main">
+        <div class="candidate-score candidate-score-pill" aria-label="Quality score">
+          <span>Score</span>
           <strong>${escapeHtml(qualityDisplay)}</strong>
         </div>
-      </div>
-      ${renderWorkspaceProfileLink(candidate)}
-      <div class="quality-grid">
-        ${renderQualityField("Location", candidate.location_status)}
-        ${renderQualityField("Role", candidate.raw?.result?.role_display)}
-        ${renderQualityField("Tech", candidate.raw?.result?.technology_display)}
-        ${renderQualityField("Stack", selectedStack)}
-        ${renderQualityField("Seniority", candidate.seniority_level)}
-        ${renderQualityField("Source", candidate.source)}
+        <div class="candidate-identity candidate-row-identity">
+          <h3>${escapeHtml(candidate.display_name)}</h3>
+          <p>${escapeHtml(candidate.headline || candidate.raw_title || "No headline returned.")}</p>
+          <div class="candidate-row-link">
+            ${renderWorkspaceProfileLink(candidate)}
+          </div>
+        </div>
+        ${renderWorkspaceRowField("Role", roleDisplay)}
+        ${renderWorkspaceRowField("Location", candidate.location_status)}
+        ${renderWorkspaceRowField("Stack", selectedStack)}
+        ${renderWorkspaceRowField("Source", sourceDisplay)}
+        <div class="workspace-review-strip candidate-row-review ${escapeHtml(
+          candidateWorkspace.reviewStatusClassName(reviewState.status)
+        )}">
+          <label>
+            Status
+            <select data-workspace-action="status">
+              ${renderWorkspaceReviewStatusOptions(reviewState.status)}
+            </select>
+          </label>
+          <label class="workspace-checkbox">
+            <input type="checkbox" data-workspace-action="shortlist" ${
+              isShortlisted ? "checked" : ""
+            } />
+            Shortlist
+          </label>
+          <span>${escapeHtml(candidateWorkspace.reviewStatusLabel(reviewState.status))}</span>
+        </div>
       </div>
       ${
         missingStack
@@ -682,25 +711,16 @@ function renderWorkspaceCandidate(candidate) {
       <div class="flag-badges" aria-label="Review flags">
         ${renderFlagBadges(candidate.review_flags)}
       </div>
-      <div class="workspace-review-strip ${escapeHtml(
-        candidateWorkspace.reviewStatusClassName(reviewState.status)
-      )}">
-        <label>
-          Status
-          <select data-workspace-action="status">
-            ${renderWorkspaceReviewStatusOptions(reviewState.status)}
-          </select>
-        </label>
-        <label class="workspace-checkbox">
-          <input type="checkbox" data-workspace-action="shortlist" ${
-            isShortlisted ? "checked" : ""
-          } />
-          Shortlist
-        </label>
-        <span>${escapeHtml(candidateWorkspace.reviewStatusLabel(reviewState.status))}</span>
-      </div>
       <details>
         <summary>Candidate details</summary>
+        <div class="quality-grid">
+          ${renderQualityField("Location", candidate.location_status)}
+          ${renderQualityField("Role", roleDisplay)}
+          ${renderQualityField("Tech", technologyDisplay)}
+          ${renderQualityField("Stack", selectedStack)}
+          ${renderQualityField("Seniority", candidate.seniority_level)}
+          ${renderQualityField("Source", sourceDisplay)}
+        </div>
         <div class="score-details">
           ${renderQualityField("Stack fit", candidate.stack_fit)}
           ${renderQualityField("Quality bucket", candidate.quality_bucket)}
@@ -721,17 +741,20 @@ function renderWorkspaceCandidate(candidate) {
         </div>
         ${renderQuerySourceDetails(candidate.query_sources)}
       </details>
-      <label class="workspace-note">
-        Notes
-        <textarea
-          data-workspace-action="note"
-          maxlength="${escapeHtml(candidateWorkspace.NOTE_MAX_LENGTH)}"
-          placeholder="Private recruiter note for this run"
-        >${escapeHtml(reviewState.note)}</textarea>
-        <span data-workspace-note-count>${escapeHtml(reviewState.note.length)} / ${escapeHtml(
-          candidateWorkspace.NOTE_MAX_LENGTH
-        )}</span>
-      </label>
+      <details class="candidate-notes-details">
+        <summary>Recruiter notes</summary>
+        <label class="workspace-note">
+          Notes
+          <textarea
+            data-workspace-action="note"
+            maxlength="${escapeHtml(candidateWorkspace.NOTE_MAX_LENGTH)}"
+            placeholder="Private recruiter note for this run"
+          >${escapeHtml(reviewState.note)}</textarea>
+          <span data-workspace-note-count>${escapeHtml(reviewState.note.length)} / ${escapeHtml(
+            candidateWorkspace.NOTE_MAX_LENGTH
+          )}</span>
+        </label>
+      </details>
     </article>
   `;
 }
@@ -845,8 +868,23 @@ function currentBuildPlanActionIdentity() {
   };
 }
 
-function setPendingBuildPlanChatAction() {
+function currentSearchRunConfirmationIdentity() {
   const actionIdentity = currentBuildPlanActionIdentity();
+  if (!actionIdentity) {
+    return null;
+  }
+
+  return {
+    ...actionIdentity,
+    type: "start_search",
+    runAction: currentRunSearchAction(),
+    executionMode: currentRunSearchExecutionMode(),
+    multiWaveEnabled: multiWaveInput.checked,
+  };
+}
+
+function setPendingSearchRunChatAction() {
+  const actionIdentity = currentSearchRunConfirmationIdentity();
   pendingChatAction = actionIdentity
     ? {
         ...actionIdentity,
@@ -855,15 +893,18 @@ function setPendingBuildPlanChatAction() {
     : null;
 }
 
-function pendingBuildPlanActionIsCurrent() {
-  const actionIdentity = currentBuildPlanActionIdentity();
+function pendingSearchRunConfirmationIsCurrent() {
+  const actionIdentity = currentSearchRunConfirmationIdentity();
   return Boolean(
-    pendingChatAction?.type === "build_search_plan" &&
+    pendingChatAction?.type === "start_search" &&
       actionIdentity &&
       pendingChatAction.briefFingerprint === actionIdentity.briefFingerprint &&
       pendingChatAction.endpoint === actionIdentity.endpoint &&
       pendingChatAction.plannerMode === actionIdentity.plannerMode &&
-      pendingChatAction.action === actionIdentity.action
+      pendingChatAction.action === actionIdentity.action &&
+      pendingChatAction.runAction === actionIdentity.runAction &&
+      pendingChatAction.executionMode === actionIdentity.executionMode &&
+      pendingChatAction.multiWaveEnabled === actionIdentity.multiWaveEnabled
   );
 }
 
@@ -902,6 +943,65 @@ function isBuildPlanDismissal(text) {
   return ["no", "not now", "нет", "пока нет", "не сейчас"].includes(normalizedText);
 }
 
+const SEARCH_RUN_CONFIRMATIONS = new Set([
+  "yes",
+  "y",
+  "yep",
+  "yeah",
+  "ok",
+  "okay",
+  "go ahead",
+  "proceed",
+  "run it",
+  "run search",
+  "start",
+  "start search",
+  "\u0434\u0430",
+  "\u043e\u043a",
+  "\u043e\u043a\u0435\u0439",
+  "\u0434\u0430\u0432\u0430\u0439",
+  "\u0432\u043f\u0435\u0440\u0435\u0434",
+  "\u0437\u0430\u043f\u0443\u0441\u043a\u0430\u0439",
+  "\u0441\u0442\u0430\u0440\u0442",
+  "\u043d\u0430\u0447\u0438\u043d\u0430\u0439",
+]);
+
+const SEARCH_RUN_REFINEMENTS = new Set([
+  "no",
+  "not yet",
+  "change",
+  "refine",
+  "edit",
+  "not now",
+  "\u043d\u0435\u0442",
+  "\u043d\u0435 \u0441\u0435\u0439\u0447\u0430\u0441",
+  "\u043f\u043e\u043a\u0430 \u043d\u0435\u0442",
+  "\u0443\u0442\u043e\u0447\u043d\u0438\u0442\u044c",
+  "\u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c",
+  "\u043f\u043e\u043c\u0435\u043d\u044f\u0442\u044c",
+]);
+
+const SEARCH_RUN_AMBIGUOUS_REPLIES = new Set([
+  "maybe",
+  "later",
+  "not sure",
+  "\u043d\u0435 \u0437\u043d\u0430\u044e",
+  "\u043f\u043e\u0437\u0436\u0435",
+  "\u043c\u043e\u0436\u0435\u0442",
+]);
+
+function isSearchRunConfirmation(text) {
+  return SEARCH_RUN_CONFIRMATIONS.has(normalizeChatCommandText(text));
+}
+
+function isSearchRunRefinementRequest(text) {
+  return SEARCH_RUN_REFINEMENTS.has(normalizeChatCommandText(text));
+}
+
+function isSearchRunAmbiguousReply(text) {
+  return SEARCH_RUN_AMBIGUOUS_REPLIES.has(normalizeChatCommandText(text));
+}
+
 function readyBriefChatStatus(options = {}) {
   const includePending = options.includePending !== false;
   if (includePending && agentPlanRequestInFlight) {
@@ -909,7 +1009,7 @@ function readyBriefChatStatus(options = {}) {
   }
 
   if (hasSupportedAgentAction()) {
-    return "Search is understood. Prepare it from chat or the button.";
+    return "Search is understood. Confirm in chat to start it, or tell me what to change.";
   }
 
   if (currentAgentPlanData?.agent_plan_status === "unsupported") {
@@ -1808,7 +1908,7 @@ function rememberAgentPlanData(data = {}) {
   currentAgentPlan = data.agent_plan || null;
   currentAgentAction = currentAgentPlan?.proposed_action || null;
   if (hasSupportedAgentAction()) {
-    setPendingBuildPlanChatAction();
+    setPendingSearchRunChatAction();
   } else {
     clearPendingChatAction();
   }
@@ -1960,7 +2060,8 @@ async function fetchAgentQueryPlan() {
   return data;
 }
 
-async function buildPlanFromChat() {
+async function buildPlanFromChat(options = {}) {
+  const autoPrepareRuntime = options?.autoPrepareRuntime !== false;
   if (!normalizedBrief || chatState !== "ready_for_planning") {
     planStatus.textContent = "Complete the search summary in chat before preparing search.";
     return null;
@@ -2011,7 +2112,7 @@ async function buildPlanFromChat() {
     if (requestVersion === interactionVersion) {
       planRequestInFlight = false;
       updateActionState();
-      if (latestExecutablePlan) {
+      if (latestExecutablePlan && autoPrepareRuntime) {
         void prepareRuntimeSearchAction();
       }
     }
@@ -2024,7 +2125,8 @@ function updateActionState() {
     agentPlanRequestInFlight ||
     planRequestInFlight ||
     runtimePrepareRequestInFlight ||
-    searchRequestInFlight;
+    searchRequestInFlight ||
+    searchConfirmationInFlight;
   const canBuildPlan =
     chatState === "ready_for_planning" &&
     Boolean(normalizedBrief) &&
@@ -2128,6 +2230,127 @@ function handlePostResultsFollowUp(userText) {
   updateActionState();
 }
 
+function appendSearchConfirmationReply(content, messageType = AGENT_MESSAGE_TYPES.BRIEF_SUMMARY) {
+  messages.push(
+    typedChatMessage(
+      {
+        role: "assistant",
+        content,
+        localOnly: true,
+      },
+      {
+        messageType,
+        surface: "chat",
+      }
+    )
+  );
+}
+
+async function ensureSearchReadyForConfirmedRun() {
+  if (!latestExecutablePlan) {
+    await buildPlanFromChat({ autoPrepareRuntime: false });
+  }
+
+  if (!latestExecutablePlan) {
+    return false;
+  }
+
+  if (!currentRuntimePendingApproval) {
+    await prepareRuntimeSearchAction();
+  }
+
+  return Boolean(currentRuntimePendingApproval);
+}
+
+async function handlePendingSearchRunChatAction(userText) {
+  const cleanConfirmation = isSearchRunConfirmation(userText);
+  if (!pendingSearchRunConfirmationIsCurrent()) {
+    if (cleanConfirmation && pendingChatAction?.type === "start_search") {
+      messages.push({ role: "user", content: userText, localOnly: true });
+      clearPendingChatAction();
+      appendSearchConfirmationReply(
+        currentChatLanguage === "ru"
+          ? "\u041f\u043e\u0438\u0441\u043a\u043e\u0432\u0430\u044f \u0441\u0432\u043e\u0434\u043a\u0430 \u0438\u0437\u043c\u0435\u043d\u0438\u043b\u0430\u0441\u044c. \u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438 \u0442\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u043e\u0438\u0441\u043a \u0435\u0449\u0435 \u0440\u0430\u0437."
+          : "The search summary changed. Confirm the current search again before I start it.",
+        AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+      );
+      renderChatMessages();
+      updateActionState();
+      chatInput.focus();
+      return true;
+    }
+    clearPendingChatAction();
+    return false;
+  }
+
+  if (isSearchRunRefinementRequest(userText)) {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    clearPendingChatAction();
+    clearRuntimeApproval();
+    appendSearchConfirmationReply(
+      currentChatLanguage === "ru"
+        ? "\u041e\u043a, \u043f\u043e\u0438\u0441\u043a \u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u044e. \u041d\u0430\u043f\u0438\u0448\u0438, \u0447\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0432 \u0441\u0432\u043e\u0434\u043a\u0435."
+        : "Ok, I will not start the search. Tell me what to change in the summary."
+    );
+    chatStatusElement.textContent = readyBriefChatStatus({ includePending: false });
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  if (isSearchRunAmbiguousReply(userText)) {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    appendSearchConfirmationReply(
+      currentChatLanguage === "ru"
+        ? "\u0425\u043e\u0447\u0435\u0448\u044c, \u0447\u0442\u043e\u0431\u044b \u044f \u043d\u0430\u0447\u0430\u043b \u044d\u0442\u043e\u0442 \u043f\u043e\u0438\u0441\u043a, \u0438\u043b\u0438 \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u043d\u0443\u0436\u043d\u043e \u0447\u0442\u043e-\u0442\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c?"
+        : "Do you want me to start this search, or should we change something first?",
+      AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+    );
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  if (!cleanConfirmation) {
+    return false;
+  }
+
+  messages.push({ role: "user", content: userText, localOnly: true });
+  clearPendingChatAction();
+  appendSearchConfirmationReply(
+    currentChatLanguage === "ru"
+      ? "\u041f\u043e\u043d\u044f\u043b. \u041d\u0430\u0447\u0438\u043d\u0430\u044e \u043f\u043e\u0438\u0441\u043a \u043f\u043e \u0442\u0435\u043a\u0443\u0449\u0435\u0439 \u0441\u0432\u043e\u0434\u043a\u0435."
+      : "Confirmed. Starting the search from the current summary."
+  );
+  renderChatMessages();
+  chatStatusElement.textContent = "Starting search...";
+  searchConfirmationInFlight = true;
+  updateActionState();
+
+  try {
+    const readyToRun = await ensureSearchReadyForConfirmedRun();
+    if (!readyToRun) {
+      appendSearchConfirmationReply(
+        currentChatLanguage === "ru"
+          ? "\u041d\u0435 \u0441\u043c\u043e\u0433 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u0438\u0442\u044c \u043f\u043e\u0438\u0441\u043a. \u041f\u0440\u043e\u0432\u0435\u0440\u044c \u0441\u0432\u043e\u0434\u043a\u0443 \u0438 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438 \u0441\u043d\u043e\u0432\u0430."
+          : "I could not safely prepare this search. Review the summary and confirm again.",
+        AGENT_MESSAGE_TYPES.SYSTEM_ERROR
+      );
+      renderChatMessages();
+      return true;
+    }
+
+    await runStructuredSearch();
+    return true;
+  } finally {
+    searchConfirmationInFlight = false;
+    updateActionState();
+    chatInput.focus();
+  }
+}
+
 async function handlePendingBuildPlanChatAction(userText) {
   if (!pendingBuildPlanActionIsCurrent()) {
     clearPendingChatAction();
@@ -2191,7 +2414,7 @@ async function handlePendingBuildPlanChatAction(userText) {
 }
 
 async function sendChatTurn(userText) {
-  if (await handlePendingBuildPlanChatAction(userText)) {
+  if (await handlePendingSearchRunChatAction(userText)) {
     return;
   }
 
@@ -2272,6 +2495,8 @@ function resetChat() {
   agentPlanRequestInFlight = false;
   planRequestInFlight = false;
   searchRequestInFlight = false;
+  searchConfirmationInFlight = false;
+  multiWaveInput.checked = DEFAULT_MULTI_WAVE_ENABLED;
   clearAgentActionDisplayState();
   clearPlannerData();
   clearAgentPlanData();
@@ -3016,6 +3241,7 @@ resultsList.addEventListener("change", handleWorkspaceChange);
 resultsList.addEventListener("input", handleWorkspaceInput);
 resultsList.addEventListener("click", handleWorkspaceClick);
 multiWaveInput.addEventListener("change", () => {
+  clearPendingChatAction();
   clearRuntimeApproval();
   clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   updateActionState();
