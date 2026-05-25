@@ -29,9 +29,11 @@ def main() -> None:
     require(tasks, "- [x] P8.5-002 Add top-candidate recommendation from returned workspace facts", "P8.5-002 done item")
     require(tasks, "- [x] P8.5-003 Add selected-candidate comparison", "P8.5-003 done item")
     require(tasks, "- [x] P8.5-004 Add fit/gap explanation across selected candidates", "P8.5-004 done item")
+    require(tasks, "- [x] P8.5-005 Add guided next-refinement suggestions from workspace results", "P8.5-005 done item")
     require(tasks, "## Task: P8.5-001 Define agentic candidate review contract", "P8.5-001 task section")
     require(tasks, "## Task: P8.5-003 Add selected-candidate comparison", "P8.5-003 task section")
     require(tasks, "## Task: P8.5-004 Add fit/gap explanation across selected candidates", "P8.5-004 task section")
+    require(tasks, "## Task: P8.5-005 Add guided next-refinement suggestions from workspace results", "P8.5-005 task section")
     require(tasks, "Implemented / completed.", "P8.5-001 implemented status")
     require(project_status, "P8.5-001 Define agentic candidate review contract", "ProjectStatus P8.5 task")
     require(roadmap, "Phase 8.5", "Roadmap Phase 8.5")
@@ -81,6 +83,7 @@ def main() -> None:
         "function buildTopCandidateRecommendation(candidates, reviewStateByCandidateId = {}, options = {})",
         "function buildSelectedCandidateComparison(candidates, reviewStateByCandidateId = {}, options = {})",
         "function buildSelectedCandidateFitGapExplanation(candidates, reviewStateByCandidateId = {}, options = {})",
+        "function buildWorkspaceRefinementSuggestions(candidates, reviewStateByCandidateId = {}, options = {})",
         "source: \"deterministic_workspace_facts\"",
         "function buildWorkspaceExportModel(options)",
         "function applyWorkspaceView(candidates, viewState, reviewStateByCandidateId)",

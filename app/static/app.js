@@ -894,6 +894,55 @@ function renderSelectedCandidateFitGapExplanation() {
   `;
 }
 
+function renderWorkspaceRefinementSuggestions() {
+  if (!candidateWorkspace.buildWorkspaceRefinementSuggestions || !latestWorkspaceRun) {
+    return "";
+  }
+
+  const guidance = candidateWorkspace.buildWorkspaceRefinementSuggestions(
+    visibleWorkspaceCandidates,
+    workspaceReviewStateByCandidateId,
+    {
+      limit: 3,
+      scope: "visible_candidates",
+    }
+  );
+
+  if (
+    !guidance ||
+    guidance.source !== "deterministic_workspace_facts" ||
+    !guidance.suggestions.length
+  ) {
+    return "";
+  }
+
+  return `
+    <section class="workspace-agent-review workspace-refinement-guidance" aria-label="Workspace review guidance">
+      <div class="workspace-agent-review-header">
+        <div>
+          <span>Agent review</span>
+          <strong>Review guidance</strong>
+        </div>
+        <p>Based on current visible candidates.</p>
+      </div>
+      <div class="workspace-refinement-grid">
+        ${guidance.suggestions
+          .map(
+            (suggestion) => `
+              <article class="workspace-refinement-card">
+                <span>${escapeHtml(suggestion.suggestion_type.replace(/_/g, " "))}</span>
+                <strong>${escapeHtml(suggestion.title)}</strong>
+                <p>${escapeHtml(suggestion.reason)}</p>
+                <p>${escapeHtml(suggestion.guidance)}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkspaceCandidate(candidate) {
   const reviewState =
     workspaceReviewStateByCandidateId[candidate.candidate_id] ||
@@ -1044,6 +1093,7 @@ function renderWorkspaceResults(report = null) {
     ${renderTopCandidateRecommendation()}
     ${renderSelectedCandidateComparison()}
     ${renderSelectedCandidateFitGapExplanation()}
+    ${renderWorkspaceRefinementSuggestions()}
     ${
       visibleWorkspaceCandidates.length
         ? `<section class="candidate-workspace-list">${visibleWorkspaceCandidates

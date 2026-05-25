@@ -56,6 +56,8 @@
   const SELECTED_CANDIDATE_COMPARISON_DEFAULT_LIMIT = 4;
   const SELECTED_CANDIDATE_FIT_GAP_VERSION = "selected_candidate_fit_gap_v1";
   const SELECTED_CANDIDATE_FIT_GAP_DEFAULT_LIMIT = 4;
+  const WORKSPACE_REFINEMENT_SUGGESTIONS_VERSION = "workspace_refinement_suggestions_v1";
+  const WORKSPACE_REFINEMENT_SUGGESTIONS_DEFAULT_LIMIT = 3;
   const CANDIDATE_EXPLANATION_WORDING_USE_CASE = "candidate_explanation";
   const CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION = "candidate_explanation_wording_request_v1";
   const CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE = "en";
@@ -1322,6 +1324,191 @@
     };
   }
 
+  function emptyRefinementStats() {
+    return {
+      visible_candidates: 0,
+      shortlisted: 0,
+      not_a_fit: 0,
+      high_quality: 0,
+      medium_quality: 0,
+      low_quality: 0,
+      missing_quality: 0,
+      stack_confirmed: 0,
+      stack_needs_review: 0,
+      target_location: 0,
+      location_needs_review: 0,
+      review_flagged: 0,
+    };
+  }
+
+  function workspaceRefinementStats(candidates, reviewStateByCandidateId) {
+    const stats = emptyRefinementStats();
+    arrayValue(candidates).forEach((candidate) => {
+      if (!candidate) {
+        return;
+      }
+      stats.visible_candidates += 1;
+      const reviewState = candidateReviewState(reviewStateByCandidateId, candidate.candidate_id);
+      if (isWorkspaceCandidateShortlisted(reviewState)) {
+        stats.shortlisted += 1;
+      }
+      if (reviewState.status === REVIEW_STATUSES.NOT_A_FIT) {
+        stats.not_a_fit += 1;
+      }
+      if (candidate.has_quality_score) {
+        const bucket = candidate.quality_bucket || qualityBucket(candidate.quality_score);
+        if (bucket === "high") {
+          stats.high_quality += 1;
+        } else if (bucket === "medium") {
+          stats.medium_quality += 1;
+        } else {
+          stats.low_quality += 1;
+        }
+      } else {
+        stats.missing_quality += 1;
+      }
+      if (candidate.stack_fit === "confirmed") {
+        stats.stack_confirmed += 1;
+      } else if (candidate.stack_fit === "query_source_only" || candidate.stack_fit === "not_visible") {
+        stats.stack_needs_review += 1;
+      }
+      if (candidate.location_group === "target") {
+        stats.target_location += 1;
+      } else if (candidate.location_group === "unknown_weak" || candidate.location_group === "foreign") {
+        stats.location_needs_review += 1;
+      }
+      if (arrayValue(candidate.review_flags).length) {
+        stats.review_flagged += 1;
+      }
+    });
+    return stats;
+  }
+
+  function boundedSuggestion(type, title, reason, guidance) {
+    const suggestion = {
+      suggestion_type: comparisonSafeText(type, "review_guidance", 60),
+      title: comparisonSafeText(title, "Review current candidates", 120),
+      reason: comparisonSafeText(reason, "Based on current visible workspace facts.", 220),
+      guidance: comparisonSafeText(guidance, "Use the current workspace before changing the search.", 260),
+    };
+    return suggestion.title && suggestion.reason && suggestion.guidance ? suggestion : null;
+  }
+
+  function addWorkspaceSuggestion(suggestions, type, title, reason, guidance) {
+    const suggestion = boundedSuggestion(type, title, reason, guidance);
+    if (!suggestion) {
+      return;
+    }
+    if (suggestions.some((item) => item.suggestion_type === suggestion.suggestion_type)) {
+      return;
+    }
+    suggestions.push(suggestion);
+  }
+
+  function buildWorkspaceRefinementSuggestions(candidates, reviewStateByCandidateId = {}, options = {}) {
+    const inputCandidates = arrayValue(candidates);
+    const limit = Math.max(
+      1,
+      Math.min(
+        5,
+        Number.isFinite(Number(options.limit))
+          ? Number(options.limit)
+          : WORKSPACE_REFINEMENT_SUGGESTIONS_DEFAULT_LIMIT
+      )
+    );
+    const scope = "visible_candidates";
+    const stats = workspaceRefinementStats(inputCandidates, reviewStateByCandidateId);
+    const suggestions = [];
+    const total = stats.visible_candidates;
+
+    if (!total) {
+      addWorkspaceSuggestion(
+        suggestions,
+        "adjust_view",
+        "No visible candidates to review",
+        "Current workspace filters show no visible candidates.",
+        "Reset or adjust the workspace filters before changing the Search Brief."
+      );
+    } else {
+      if (stats.shortlisted >= 2) {
+        addWorkspaceSuggestion(
+          suggestions,
+          "review_selected",
+          "Use selected comparison next",
+          `${stats.shortlisted} visible candidates are shortlisted.`,
+          "Review the selected comparison and fit/gap sections before changing the search."
+        );
+      } else if (total >= 2) {
+        addWorkspaceSuggestion(
+          suggestions,
+          "shortlist_for_comparison",
+          "Shortlist candidates for comparison",
+          "At least two visible candidates are available for comparison.",
+          "Shortlist two to four candidates that look relevant, then compare their fit and gaps."
+        );
+      }
+
+      if (stats.high_quality > 0) {
+        addWorkspaceSuggestion(
+          suggestions,
+          "review_strong_candidates",
+          "Review strong candidates first",
+          `${stats.high_quality} visible candidates are in the high quality bucket.`,
+          "Start with the strongest visible candidates before refining the Search Brief."
+        );
+      }
+
+      if (stats.stack_needs_review >= Math.max(2, Math.ceil(total * 0.5))) {
+        addWorkspaceSuggestion(
+          suggestions,
+          "review_stack_visibility",
+          "Check stack visibility",
+          `${stats.stack_needs_review} visible candidates do not show confirmed selected stack evidence.`,
+          "If stack is mandatory, write the exact stack requirement in chat before running a new search."
+        );
+      }
+
+      if (stats.location_needs_review >= Math.max(2, Math.ceil(total * 0.3))) {
+        addWorkspaceSuggestion(
+          suggestions,
+          "review_location_confidence",
+          "Check location confidence",
+          `${stats.location_needs_review} visible candidates have weak, unknown, or mismatched location signals.`,
+          "Review workspace location signals; refine location wording in chat only if the current results are too uncertain."
+        );
+      }
+
+      if (stats.review_flagged > 0) {
+        addWorkspaceSuggestion(
+          suggestions,
+          "review_flags",
+          "Review flagged candidates",
+          `${stats.review_flagged} visible candidates have review flags.`,
+          "Inspect flagged candidates in the workspace before shortlisting or changing the Search Brief."
+        );
+      }
+    }
+
+    if (!suggestions.length) {
+      addWorkspaceSuggestion(
+        suggestions,
+        "continue_review",
+        "Continue current review",
+        "Current visible candidates have enough returned evidence for manual review.",
+        "Review visible candidates first; refine the Search Brief in chat only after the current set is not useful."
+      );
+    }
+
+    return {
+      version: WORKSPACE_REFINEMENT_SUGGESTIONS_VERSION,
+      source: "deterministic_workspace_facts",
+      scope,
+      candidates_analyzed: inputCandidates.length,
+      stats,
+      suggestions: suggestions.slice(0, limit),
+    };
+  }
+
   function normalizeWordingText(value, maxLength = 160) {
     const text = stringValue(value).replace(/\s+/g, " ").trim();
     if (!text || text.length > maxLength || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) {
@@ -2445,6 +2632,7 @@
     TOP_CANDIDATE_RECOMMENDATION_VERSION,
     SELECTED_CANDIDATE_COMPARISON_VERSION,
     SELECTED_CANDIDATE_FIT_GAP_VERSION,
+    WORKSPACE_REFINEMENT_SUGGESTIONS_VERSION,
     CANDIDATE_EXPLANATION_WORDING_USE_CASE,
     CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
     CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
@@ -2454,6 +2642,7 @@
     buildTopCandidateRecommendation,
     buildSelectedCandidateComparison,
     buildSelectedCandidateFitGapExplanation,
+    buildWorkspaceRefinementSuggestions,
     buildCandidateExplanationRenderableReasons,
     buildCandidateExplanationWordingRequest,
     candidateExplanationRequestFingerprint,

@@ -17173,8 +17173,6 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ### Backlog
 
-- [ ] P8.5-005 Add guided next-refinement suggestions from workspace results
-
 ### In Progress
 
 ### Done
@@ -17183,6 +17181,7 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 - [x] P8.5-002 Add top-candidate recommendation from returned workspace facts
 - [x] P8.5-003 Add selected-candidate comparison
 - [x] P8.5-004 Add fit/gap explanation across selected candidates
+- [x] P8.5-005 Add guided next-refinement suggestions from workspace results
 
 ### Strategy note
 
@@ -17762,6 +17761,146 @@ Implemented as a deterministic frontend/current-run workspace slice:
 - Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
 - Do not add a new score, ranking, shortlist source, or candidate selection mechanism.
 - Do not add executable next-step buttons, search refinement execution, profile opening, profile fetching, profile inspection, outreach, or account actions.
+
+---
+
+## Task: P8.5-005 Add guided next-refinement suggestions from workspace results
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user through the implementation goal after iterative review. This task remains deterministic, frontend/current-run only, and does not add backend calls, LLM calls, Tavily execution, LinkedIn behavior, persistence, executable follow-up actions, or autonomous actions.
+
+### Context
+
+`P8.5-002` through `P8.5-004` now provide deterministic review aids over already returned workspace facts: top-candidate recommendation, selected-candidate comparison, and fit/gap explanation across selected candidates.
+
+The next step is to guide the recruiter on what to do next with the current workspace results, without creating an executable search refinement path.
+
+### Goal
+
+Add deterministic guided next-refinement suggestions from current workspace results.
+
+The suggestions should help the recruiter decide whether to review current candidates, shortlist candidates, adjust filters, or manually write a follow-up in chat if they want to change the Search Brief.
+
+This task must not create `brief_patch` operations, action buttons, automatic refinement, Build Plan calls, Tavily calls, or executable next-iteration options.
+
+### Deep Review Findings
+
+1. This is not the backend Agent Response `next_iteration_options` surface.
+   - Do not revive or render old post-search `next_iteration_options` blocks.
+   - Do not add executable option payloads.
+   - Do not add `brief_patch`, `proposed_action`, `Build Plan`, `Run search`, or `Apply` behavior.
+
+2. Scope must be explicit and current-run only.
+   - Use current `visibleWorkspaceCandidates`.
+   - Use `workspaceReviewStateByCandidateId` only as workflow state for counts such as shortlisted/not-a-fit.
+   - Do not read or render recruiter notes.
+
+3. Suggestions must be conservative.
+   - Describe review guidance and possible manual follow-up, not commands the agent will execute.
+   - Missing evidence must stay `not visible` / `needs review`.
+   - Avoid claims like verified fit, verified location, or candidate lacks a skill.
+
+4. Suggestions must preserve the AI Agent path safely.
+   - The agent can guide the recruiter from returned facts.
+   - If the recruiter wants to change the search, they should write the change in chat, and the existing Search Brief/planning/approval flow handles it.
+   - This task must not shortcut approval or mutate Search Brief directly.
+
+5. UI should stay compact.
+   - Render a small guidance block attached to Candidate Workspace.
+   - Keep Candidate Results as the primary surface.
+   - Do not add noisy diagnostics or technical execution labels.
+
+6. Verification must assert no execution path.
+   - Add no-network smoke coverage for helper behavior, UI wiring, no forbidden fields, no notes, no `brief_patch`, no actions/buttons, and no forbidden APIs.
+
+### Reviewed Steps
+
+1. Add deterministic suggestions helper.
+   - Add `buildWorkspaceRefinementSuggestions(candidates, reviewStateByCandidateId, options)` to `app/static/candidate_workspace.js`.
+   - Source must be `deterministic_workspace_facts`.
+   - Scope must be `visible_candidates`.
+   - Return `version`, `source`, `scope`, `candidates_analyzed`, bounded `stats`, and bounded `suggestions`.
+
+2. Define suggestion inputs.
+   - Use current visible candidates only.
+   - Use review status only for workflow counts: shortlisted count and not-a-fit count.
+   - Use existing workspace facts: quality bucket, stack fit, location group/status, review flags, deterministic explanation-derived concepts when useful.
+   - Do not use recruiter notes, URLs, raw snippets/content, raw Tavily payloads, or candidate ids.
+
+3. Define allowed suggestion types.
+   - Review strong visible candidates first.
+   - Shortlist two or more visible candidates to compare them.
+   - Review stack visibility if selected stack is often not visible or query-source-only.
+   - Review location confidence if many visible candidates have unknown/weak or foreign/mismatched location signals.
+   - Refine the Search Brief manually through chat only when current results show a clear reason to change search criteria.
+
+4. Define forbidden suggestion payloads.
+   - No `brief_patch`.
+   - No `proposed_action`.
+   - No executable flags or approval flags.
+   - No endpoint names.
+   - No query text.
+   - No candidate ids, URLs, notes, snippets, raw payloads, emails, account ids, or profile identifiers.
+
+5. Render a compact guidance block.
+   - Add `renderWorkspaceRefinementSuggestions()` in `app/static/app.js`.
+   - Render below fit/gap explanation and above the candidate list.
+   - Use recruiter-facing wording such as `Review guidance`.
+   - Include no action buttons.
+   - Phrase Search Brief changes as manual chat follow-up, not automatic execution.
+
+6. Add styling.
+   - Reuse existing agent review visual system.
+   - Keep dense readable cards and responsive behavior.
+
+7. Add no-network verification.
+   - Add `scripts/smoke_p85_workspace_refinement_suggestions.py`.
+   - Assert suggestion generation from visible workspace stats.
+   - Assert suggestions are non-executable and contain no `brief_patch`, action endpoint, candidate ids, URLs, raw snippets, notes, or forbidden APIs.
+   - Wire the smoke into `scripts/check_all.ps1`.
+
+8. Update documentation/status after implementation.
+   - Move `P8.5-005` to Done.
+   - Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, `AGENTS.md`, and the Phase 8.5 contract with the completed deterministic frontend-only refinement guidance slice.
+
+### Acceptance Criteria
+
+- The workspace shows compact review/refinement guidance after visible candidates are available.
+- Suggestions are derived from current visible workspace facts and review-state counts.
+- Suggestions are advisory and non-executable; they do not contain `brief_patch`, action endpoints, buttons, approval flags, or execution flags.
+- If search criteria should change, the UI tells the recruiter to write the change in chat.
+- Candidate Results remain the primary surface.
+- No backend endpoint, LLM call, Tavily call, direct web-search call, LinkedIn automation/opening, candidate messaging, account action, persistence, or new provider is added.
+- Candidate facts, quality score, scoring, filters, dedupe, location logic, export, Search Brief, QueryPlan, runtime approval, and search execution remain unchanged.
+- No recruiter notes, URLs, normalized URLs, URL-derived candidate ids, raw snippets/content, raw Tavily payloads, emails, or account identifiers appear in the suggestions model.
+- A focused no-network smoke check covers helper behavior and UI wiring and is included in `scripts/check_all.ps1`.
+
+### Implementation Notes
+
+Implemented as a deterministic frontend/current-run workspace slice:
+
+- added `candidateWorkspace.buildWorkspaceRefinementSuggestions()` in `app/static/candidate_workspace.js`;
+- added `renderWorkspaceRefinementSuggestions()` in `app/static/app.js`;
+- added compact `workspace-refinement-*` CSS in `app/static/styles.css`;
+- added `scripts/smoke_p85_workspace_refinement_suggestions.py`;
+- wired the smoke into `scripts/check_all.ps1`;
+- suggestions are based on current `visibleWorkspaceCandidates` plus review-status counts only;
+- suggestions are advisory guidance with no `brief_patch`, `proposed_action`, endpoint, action button, approval flag, or executable next step;
+- if search criteria should change, wording directs the recruiter to write the change in chat so the existing Search Brief/planning/approval flow handles it;
+- suggestion output excludes `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, recruiter notes, and account identifiers;
+- no backend route, OpenAI/LLM call, Tavily call, profile-opening automation, storage, scoring mutation, filtering mutation, export change, runtime approval change, or search execution change was added.
+
+### Non-Goals
+
+- Do not implement executable next-iteration options.
+- Do not render backend `agent_response.next_iteration_options`.
+- Do not create or apply `brief_patch` operations.
+- Do not add LLM-assisted refinement suggestions.
+- Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
+- Do not add action buttons, auto-search, profile opening, profile fetching, profile inspection, outreach, or account actions.
 
 ---
 
