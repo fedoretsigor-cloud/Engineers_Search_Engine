@@ -203,8 +203,8 @@ async def assert_accepted_wording() -> None:
             return {
                 "message": (
                     "I understood the Java Backend Developer search in Ukraine. "
-                    "Build Plan can prepare the approved backend plan, and search "
-                    "execution still needs approval."
+                    "Prepare search can create the details, and Run search is still "
+                    "required before execution."
                 ),
                 "warnings": [],
                 "limitations": [],

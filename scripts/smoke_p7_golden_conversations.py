@@ -467,7 +467,7 @@ async def fake_valid_wording_llm(payload: dict):
         return {
             "message": (
                 "I understood the Java Backend Developer search in Ukraine. "
-                "Build Plan can prepare the approved backend plan."
+                "Prepare search can create the details before Run search."
             ),
             "warnings": [],
             "limitations": [],

@@ -10,10 +10,10 @@
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Phase 5 Recruiter Chat</p>
+          <p class="eyebrow">AI Sourcing Workspace</p>
           <h1>Engineers Search</h1>
         </div>
-        <div class="status" id="app-status">Frontend script loading...</div>
+        <div class="status" id="app-status">Starting workspace...</div>
       </header>
 
       <section class="workspace" aria-label="Search workspace">
@@ -21,7 +21,7 @@
           <section class="chat-panel" aria-label="Recruiter chat">
             <div class="panel-header">
               <h2>Recruiter Chat</h2>
-              <p id="chat-status">Describe the search in Russian or English.</p>
+              <p id="chat-status">Describe who you want to find in Russian or English.</p>
             </div>
 
             <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
@@ -69,8 +69,8 @@
             </div>
 
             <div class="actions">
-              <button class="secondary-button" id="build-plan" type="button" disabled>Build Plan</button>
-              <button class="primary-button" id="approve-search" type="button" disabled>Approve & Search</button>
+              <button class="secondary-button" id="build-plan" type="button" disabled>Prepare search</button>
+              <button class="primary-button" id="approve-search" type="button" disabled>Run search</button>
             </div>
           </section>
 
@@ -78,8 +78,8 @@
             <details class="collapsible-panel query-plan-collapsible">
               <summary class="collapsible-summary">
                 <div class="panel-header">
-                  <h2>Generated QueryPlan</h2>
-                  <p id="plan-status">Building plan...</p>
+                  <h2>Search details</h2>
+                  <p id="plan-status">Preparing search...</p>
                 </div>
                 <span class="collapse-indicator" aria-hidden="true"></span>
               </summary>
@@ -93,8 +93,8 @@
         <section class="right-column">
           <section class="report-panel" aria-live="polite">
             <div class="panel-header">
-              <h2>Report</h2>
-              <p id="report-status">Run a search to see counts.</p>
+              <h2>Search summary</h2>
+              <p id="report-status">Run a search to see the summary.</p>
             </div>
             <div class="report-grid" id="report-grid"></div>
             <div class="contribution-list" id="contribution-list"></div>
@@ -102,8 +102,8 @@
 
           <section class="results-panel" aria-live="polite">
             <div class="panel-header">
-              <h2>Results</h2>
-              <p id="results-status">Run a search to see deduped candidates.</p>
+              <h2>Candidate workspace</h2>
+              <p id="results-status">Run a search to see candidates.</p>
             </div>
             <div class="results-list" id="results-list"></div>
           </section>

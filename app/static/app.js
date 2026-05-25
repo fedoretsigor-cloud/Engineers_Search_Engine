@@ -40,7 +40,7 @@ const ASSISTANT_SPEAKER_LABEL = "AI Assistant";
 const AGENT_ACTION_STATUS_LABELS = {
   blocked: "Blocked",
   ready: "Ready",
-  ready_for_approval: "Ready for approval",
+  ready_for_approval: "Ready to run",
   running: "Running",
   completed: "Completed",
   stale: "Stale",
@@ -75,17 +75,17 @@ const AGENT_MESSAGE_TYPE_META = {
     speaker: "AI",
   },
   [AGENT_MESSAGE_TYPES.BRIEF_SUMMARY]: {
-    label: "Search Brief",
+    label: "Search summary",
     className: "typed-brief-summary",
     speaker: "AI",
   },
   [AGENT_MESSAGE_TYPES.BRIEF_REFINEMENT_APPLIED]: {
-    label: "Brief refinement",
+    label: "Search updated",
     className: "typed-brief-refinement",
     speaker: "AI",
   },
   [AGENT_MESSAGE_TYPES.BRIEF_REFINEMENT_REJECTED]: {
-    label: "Brief refinement blocked",
+    label: "Search update blocked",
     className: "typed-brief-refinement-rejected",
     speaker: "AI",
   },
@@ -100,12 +100,12 @@ const AGENT_MESSAGE_TYPE_META = {
     speaker: "AI",
   },
   [AGENT_MESSAGE_TYPES.TOOL_UNAVAILABLE]: {
-    label: "Tool unavailable",
+    label: "Configuration issue",
     className: "typed-tool-unavailable",
     speaker: "AI",
   },
   [AGENT_MESSAGE_TYPES.AGENT_PLAN]: {
-    label: "Agent Plan",
+    label: "Search ready",
     className: "typed-agent-plan",
     speaker: "AI Agent",
   },
@@ -115,7 +115,7 @@ const AGENT_MESSAGE_TYPE_META = {
     speaker: "AI Agent",
   },
   [AGENT_MESSAGE_TYPES.PLANNING_NEEDS_CLARIFICATION]: {
-    label: "Planning needs input",
+    label: "Search needs input",
     className: "typed-planning-needs-clarification",
     speaker: "AI Agent",
   },
@@ -125,7 +125,7 @@ const AGENT_MESSAGE_TYPE_META = {
     speaker: "AI",
   },
   [AGENT_MESSAGE_TYPES.AGENT_RESPONSE]: {
-    label: "Agent Response",
+    label: "Search completed",
     className: "typed-agent-response",
     speaker: "AI Agent",
   },
@@ -739,7 +739,7 @@ function renderWorkspaceCandidate(candidate) {
 function renderWorkspaceResults(report = null) {
   if (!latestWorkspaceRun) {
     resultsList.innerHTML = "";
-    resultsStatus.textContent = "Run a search to see deduped candidates.";
+    resultsStatus.textContent = "Run a search to see candidates.";
     return;
   }
 
@@ -795,14 +795,15 @@ function actionStatusLabel(status) {
 
 function plannerLabel(value) {
   const labels = {
-    rule_based: "Search Plan",
+    rule_based: "Search details",
     ai: "AI preview",
     ai_with_fallback: "AI-assisted preview",
-    draft_query_plan: "Draft QueryPlan",
+    draft_query_plan: "Draft search details",
     validated_not_executable: "Validated preview",
     rejected: "Rejected",
-    rule_based_fallback: "Fallback Search Plan",
+    rule_based_fallback: "Fallback search details",
     needs_clarification: "Needs clarification",
+    ready_for_planning: "Ready",
   };
 
   return labels[value] || displayValue(value);
@@ -884,6 +885,10 @@ function isBuildPlanConfirmation(text) {
     "build it",
     "build plan",
     "build search plan",
+    "prepare it",
+    "prepare search",
+    "prepare the search",
+    "go ahead",
     "да",
     "давай",
     "построй",
@@ -900,22 +905,22 @@ function isBuildPlanDismissal(text) {
 function readyBriefChatStatus(options = {}) {
   const includePending = options.includePending !== false;
   if (includePending && agentPlanRequestInFlight) {
-    return "Search Brief ready. Preparing Agent Plan...";
+    return "Search summary is ready. Preparing the next step...";
   }
 
   if (hasSupportedAgentAction()) {
-    return "Agent Plan ready. Build the Search Plan from chat or the button.";
+    return "Search is understood. Prepare it from chat or the button.";
   }
 
   if (currentAgentPlanData?.agent_plan_status === "unsupported") {
-    return "Agent v0 does not support this brief yet.";
+    return "This search is outside the supported Java/Ukraine flow.";
   }
 
   if (currentAgentPlanData) {
-    return "Agent Plan needs clarification before Build Plan.";
+    return "Search needs one more clarification before it can be prepared.";
   }
 
-  return "Search Brief ready. Preparing Agent Plan...";
+  return "Search summary is ready. Preparing the next step...";
 }
 
 function isBackendSearchPlan(data = {}) {
@@ -931,7 +936,7 @@ function plannerStatusLabel(status, mode) {
     status === "validated_not_executable" &&
     isBackendSearchPlan({ planner_mode: mode, plan_status: status })
   ) {
-    return "Ready for approval";
+    return "Ready to run";
   }
 
   if (status === "validated_not_executable" && mode === "ai") {
@@ -984,8 +989,8 @@ function rememberPlannerData(data = {}) {
       AGENT_QUEUE_ACTION_BUILD_PLAN,
       "completed",
       latestExecutablePlan
-        ? "Search Plan is visible and ready for approval."
-        : "A non-executable plan preview is visible."
+        ? "Search is ready to run."
+        : "Search preview is visible."
     );
   }
   clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
@@ -1017,10 +1022,10 @@ function clearSearchResultsData() {
   latestAgentResponse = null;
   messages = messages.filter((message) => message.kind !== "agent_response");
   clearWorkspaceState();
-  reportStatus.textContent = "Run a search to see counts.";
+  reportStatus.textContent = "Run a search to see the summary.";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
-  resultsStatus.textContent = "Run a search to see deduped candidates.";
+  resultsStatus.textContent = "Run a search to see candidates.";
   resultsList.innerHTML = "";
 }
 
@@ -1029,7 +1034,7 @@ function clearDownstreamStateAfterBriefChange() {
   clearPlannerData();
   clearAgentPlanData();
   clearSearchResultsData();
-  planStatus.textContent = "Build a plan from the updated chat brief.";
+  planStatus.textContent = "Prepare search from the updated chat summary.";
   queryList.innerHTML = "";
 }
 
@@ -1038,7 +1043,7 @@ function clearExecutableStateAfterRefusal() {
   clearPlannerData();
   clearAgentPlanData();
   clearSearchResultsData();
-  planStatus.textContent = "Build a plan from the current Search Brief.";
+  planStatus.textContent = "Prepare search from the current summary.";
   queryList.innerHTML = "";
 }
 
@@ -1165,7 +1170,7 @@ function syncExecutionControlsFromPlan() {
 
 function buildRuntimeToolInput() {
   if (!adaptedStructuredRequest) {
-    throw new Error("Build Plan before approving search.");
+    throw new Error("Prepare the search before running it.");
   }
 
   const toolInput = {
@@ -1190,10 +1195,10 @@ function buildRuntimeToolInput() {
 
 function buildRuntimeContext() {
   if (!latestPlanFingerprint || !latestQueryPlan?.queries?.length) {
-    throw new Error("Current QueryPlan is missing approval fingerprint.");
+    throw new Error("Current search details are missing.");
   }
   if (!currentAgentPlan?.brief_fingerprint) {
-    throw new Error("Current Agent Plan is missing Search Brief fingerprint.");
+    throw new Error("Current search summary is missing.");
   }
 
   const context = {
@@ -1218,7 +1223,7 @@ function buildRuntimeContext() {
 
 function buildApprovedRuntimeApproval() {
   if (!currentRuntimePendingApproval) {
-    throw new Error("Runtime approval is not prepared for the current Search Plan.");
+    throw new Error("Search is not ready to run yet.");
   }
 
   return {
@@ -1257,11 +1262,11 @@ function renderNextIterationOptions(options = [], language = "en") {
   if (!visibleOptions.length) {
     return "";
   }
-  const isRussian = language === "ru";
-  const heading = isRussian ? "Варианты следующей итерации" : "Next iteration options";
-  const helper = isRussian
-    ? "Не выполняются автоматически. Напиши follow-up в чат, если нужно изменить Search Brief."
-    : "Not executable. Write a follow-up in chat if you want to change the Search Brief.";
+  const heading = language === "ru" ? "Идеи для следующего шага" : "Follow-up ideas";
+  const helper =
+    language === "ru"
+      ? "Это только предложения. Напиши follow-up в чат, если хочешь изменить поиск."
+      : "Suggestions only. Write a follow-up in chat if you want to change the search.";
 
   return `
     <div class="next-iteration-options" aria-label="${escapeHtml(heading)}">
@@ -1317,7 +1322,7 @@ function renderChatMessages() {
   if (!messages.length) {
     chatMessagesElement.innerHTML = `
       <article class="chat-message assistant-message">
-        <p>Describe the search in natural language. I will collect a Search Brief before planning.</p>
+        <p>Describe who to find in natural language. I will prepare a search summary first.</p>
       </article>
     `;
     return;
@@ -1350,7 +1355,7 @@ function renderBriefSummaryCard(brief = normalizedBrief, state = chatState) {
   const markup = `
     <details class="planner-section collapsible-section brief-collapsible">
       <summary class="collapsible-summary brief-heading">
-        <h3>Search Brief</h3>
+        <h3>Search summary</h3>
         <span>${escapeHtml(plannerLabel(state))}</span>
         <span class="collapse-indicator" aria-hidden="true"></span>
       </summary>
@@ -1409,45 +1414,40 @@ function buildSearchPlanQueueItem() {
 
   const displayState = agentActionDisplayState[AGENT_QUEUE_ACTION_BUILD_PLAN];
   let status = "blocked";
-  let detail = "Complete a supported Search Brief before building a plan.";
+  let detail = "Complete a supported search summary before preparing search.";
 
   if (planRequestInFlight) {
     status = "running";
-    detail = "Building the visible QueryPlan.";
+    detail = "Preparing search details.";
   } else if (displayState?.status === "failed" && !latestQueryPlan) {
     status = "failed";
-    detail = displayState.detail || "Build Plan failed.";
+    detail = displayState.detail || "Prepare search failed.";
   } else if (latestQueryPlan?.queries?.length) {
     status = "completed";
     detail = latestExecutablePlan
-      ? "Search Plan is visible and ready for approval."
-      : "A non-executable plan preview is visible.";
+      ? "Search is ready to run."
+      : "Search preview is visible.";
   } else if (hasSupportedAgentAction()) {
     status = "ready";
-    detail = "Supported Agent Plan action is ready.";
+    detail = "Search summary is ready.";
   } else if (agentPlanRequestInFlight) {
-    detail = "Waiting for Agent Plan.";
+    detail = "Preparing search summary.";
   } else if (currentAgentPlanData?.agent_plan_status === "unsupported") {
-    detail = "Agent v0 does not support this brief.";
+    detail = "This search is outside the supported Java/Ukraine flow.";
   } else if (chatState === "ready_for_planning" && normalizedBrief) {
-    detail = "Waiting for a supported Agent Plan action.";
+    detail = "Waiting until the search can be prepared.";
   }
 
   return {
     id: AGENT_QUEUE_ACTION_BUILD_PLAN,
-    title: "Build Search Plan",
-    action: AGENT_ACTION_BUILD_QUERY_PLAN,
+    title: "Prepare search",
+    action: "Prepare search",
     requiresApproval: false,
     status,
     detail,
     context: [
-      ["Source", "Agent Plan"],
-      [
-        "Brief",
-        currentAgentPlan?.brief_fingerprint
-          ? `fingerprint ${shortFingerprint(currentAgentPlan.brief_fingerprint)}`
-          : "not bound",
-      ],
+      ["Source", "Current search summary"],
+      ["Status", currentAgentPlan?.brief_fingerprint ? "Current" : "Not ready"],
     ],
   };
 }
@@ -1460,14 +1460,14 @@ function runSearchQueueItem() {
   }
 
   let status = "blocked";
-  let detail = "Build an executable Search Plan before approval.";
+  let detail = "Prepare a runnable search before continuing.";
 
   if (searchRequestInFlight) {
     status = "running";
     detail = `Running ${currentRunSearchModeLabel()} search.`;
   } else if (runtimePrepareRequestInFlight) {
     status = "running";
-    detail = "Preparing runtime approval for the visible Search Plan.";
+    detail = "Checking that the search is ready to run.";
   } else if (displayState?.status === "failed") {
     status = "failed";
     detail = displayState.detail || "Search failed.";
@@ -1476,36 +1476,25 @@ function runSearchQueueItem() {
     detail = "Search completed and results are visible.";
   } else if (latestExecutablePlan && latestPlanFingerprint && currentRuntimePendingApproval) {
     status = "ready_for_approval";
-    detail = "Runtime approval is prepared for the visible Search Plan.";
+    detail = "Search is ready to run.";
   } else if (latestExecutablePlan && latestPlanFingerprint) {
-    detail = "Waiting for runtime approval preparation.";
+    detail = "Checking that the search is ready to run.";
   } else if (hasVisiblePlan) {
-    detail = "Visible plan is not executable.";
+    detail = "This search preview cannot run yet.";
   }
 
   return {
     id: AGENT_QUEUE_ACTION_RUN_SEARCH,
-    title: "Run Search",
-    action: currentRunSearchAction(),
+    title: "Run search",
+    action: "Run search",
     requiresApproval: true,
     status,
     detail,
     context: [
-      ["Source", "Visible QueryPlan"],
+      ["Source", "Prepared search"],
       ["Mode", currentRunSearchModeLabel()],
-      [
-        "QueryPlan",
-        latestPlanFingerprint
-          ? `fingerprint ${shortFingerprint(latestPlanFingerprint)}`
-          : "not bound",
-      ],
       ["Queries", queryCountForCurrentPlan() || "not ready"],
-      [
-        "Runtime",
-        currentRuntimePendingApproval
-          ? `approval ${shortFingerprint(currentRuntimePendingApproval.tool_call_id)}`
-          : "not prepared",
-      ],
+      ["Status", currentRuntimePendingApproval ? "Ready" : "Not ready"],
     ],
   };
 }
@@ -1535,7 +1524,7 @@ function renderAgentActionQueue() {
   const items = agentActionQueueItems();
   const header = `
     <summary class="collapsible-summary agent-action-header">
-      <h3>Agent Actions</h3>
+      <h3>Search steps</h3>
       <span>${escapeHtml(items.length ? `${items.length} active` : "idle")}</span>
       <span class="collapse-indicator" aria-hidden="true"></span>
     </summary>
@@ -1546,7 +1535,7 @@ function renderAgentActionQueue() {
       <details class="collapsible-section agent-action-collapsible">
         ${header}
         <div class="collapsible-content">
-          <p class="agent-action-empty">No agent action is ready yet.</p>
+          <p class="agent-action-empty">No search step is ready yet.</p>
         </div>
       </details>
     `;
@@ -1572,11 +1561,11 @@ function renderAgentActionQueue() {
                   <p class="agent-action-detail">${escapeHtml(item.detail)}</p>
                   <div class="agent-action-context">
                     <div>
-                      <span>Tool</span>
+                      <span>Step</span>
                       <strong>${escapeHtml(item.action)}</strong>
                     </div>
                     <div>
-                      <span>Approval</span>
+                      <span>Confirmation</span>
                       <strong>${item.requiresApproval ? "Required" : "Not required"}</strong>
                     </div>
                     ${renderAgentActionContext(item.context)}
@@ -1630,7 +1619,7 @@ function renderPlannerDetails(data = {}) {
         data.explanation || data.fallback_reason || warnings.length || assumptions.length
           ? `
             <div class="planner-section">
-              <h3>Planner explanation</h3>
+              <h3>Search detail notes</h3>
               ${data.explanation ? `<p>${escapeHtml(data.explanation)}</p>` : ""}
               ${data.fallback_reason ? `<p>${escapeHtml(data.fallback_reason)}</p>` : ""}
               ${warnings.length ? `<p>Warnings: ${escapeHtml(warnings.join(", "))}</p>` : ""}
@@ -1643,7 +1632,7 @@ function renderPlannerDetails(data = {}) {
       ${
         data.approval_notice || data.approval_required
           ? `<p class="planner-notice">${escapeHtml(
-              data.approval_notice || "This plan is not executed yet. Search execution requires approval."
+              data.approval_notice || "Search is not running yet. Use Run search when you are ready."
             )}</p>`
           : ""
       }
@@ -1656,7 +1645,7 @@ function renderPlanErrors(errors = []) {
   setAgentActionDisplayState(
     AGENT_QUEUE_ACTION_BUILD_PLAN,
     "failed",
-    validationMessage(errors) || "Build Plan failed."
+    validationMessage(errors) || "Prepare search failed."
   );
   clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   planStatus.textContent = validationMessage(errors);
@@ -1711,7 +1700,7 @@ async function prepareRuntimeSearchAction() {
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_RUN_SEARCH,
       "failed",
-      error.message || "Runtime approval preparation failed."
+      error.message || "Search readiness check failed."
     );
     updateActionState();
     return null;
@@ -1723,7 +1712,7 @@ async function prepareRuntimeSearchAction() {
   setAgentActionDisplayState(
     AGENT_QUEUE_ACTION_RUN_SEARCH,
     "running",
-    "Preparing runtime approval for the visible Search Plan."
+    "Checking that the search is ready to run."
   );
   updateActionState();
 
@@ -1744,7 +1733,7 @@ async function prepareRuntimeSearchAction() {
     }
 
     if (!response.ok) {
-      throw new Error(data.detail || "Runtime approval preparation failed.");
+      throw new Error(data.detail || "Search readiness check failed.");
     }
 
     if (data.errors?.length) {
@@ -1755,7 +1744,7 @@ async function prepareRuntimeSearchAction() {
     const pendingApproval = data.pending_approvals?.[0] || null;
     const toolCall = data.tool_calls?.[0] || null;
     if (!pendingApproval || !toolCall) {
-      throw new Error("Runtime approval response did not include a pending tool call.");
+      throw new Error("Search readiness response did not include a runnable action.");
     }
 
     currentRuntimePendingApproval = pendingApproval;
@@ -1763,9 +1752,9 @@ async function prepareRuntimeSearchAction() {
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_RUN_SEARCH,
       "ready_for_approval",
-      "Runtime approval is prepared for the visible Search Plan."
+      "Search is ready to run."
     );
-    resultsStatus.textContent = "Search plan is ready for explicit approval.";
+    resultsStatus.textContent = "Search is ready to run.";
     return data;
   } catch (error) {
     if (
@@ -1779,7 +1768,7 @@ async function prepareRuntimeSearchAction() {
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_RUN_SEARCH,
       "failed",
-      error.message || "Runtime approval preparation failed."
+      error.message || "Search readiness check failed."
     );
     resultsStatus.textContent = error.message;
     return null;
@@ -1799,12 +1788,12 @@ function renderQueryPlan(queryPlan, plannerData = null) {
   const queryCountText = `${queries.length} ${pluralize(queries.length, "query", "queries")}`;
 
   if (plannerData && isBackendSearchPlan(plannerData)) {
-    planStatus.textContent = `Search plan is ready: ${queryPlan.planner_version} generated ${queryCountText}.`;
+    planStatus.textContent = `Search details are ready: ${queryCountText} prepared.`;
   } else {
     const modeText = plannerData?.planner_mode
       ? `${plannerLabel(plannerData.planner_mode)}: `
       : "";
-    planStatus.textContent = `${modeText}${queryPlan.planner_version} generated ${queryCountText}.`;
+    planStatus.textContent = `${modeText}${queryCountText} prepared.`;
   }
 
   const queryMarkup = queries
@@ -1841,7 +1830,7 @@ function renderAgentQueryPlan(data) {
   if (!queryPlan) {
     planStatus.textContent = plannerLabel(data.plan_status || "rejected");
     queryList.innerHTML = renderPlannerDetails(data);
-    resultsStatus.textContent = "Build a valid plan before approving search.";
+    resultsStatus.textContent = "Prepare a valid search before running it.";
     return;
   }
 
@@ -1849,12 +1838,12 @@ function renderAgentQueryPlan(data) {
 
   if (latestExecutablePlan) {
     resultsStatus.textContent =
-      "Search plan is ready. Review the queries before running search.";
+      "Search is ready to run. Review the details first.";
     return;
   }
 
   resultsStatus.textContent =
-    "Plan preview is not executable yet. Use a rule-based or rule-based fallback plan to search.";
+    "Search preview cannot run yet. Prepare a runnable search first.";
 }
 
 function rememberAgentPlanData(data = {}) {
@@ -1872,7 +1861,7 @@ function appendAgentPlanMessage(data = {}) {
   const content =
     data.agent_plan?.message ||
     data.message ||
-    "Agent Plan is not available for this Search Brief.";
+    "Search is not ready for this summary.";
 
   messages = messages.filter((message) => message.kind !== "agent_plan");
   messages.push(
@@ -1940,7 +1929,7 @@ async function fetchAgentPlanForCurrentBrief() {
   const requestVersion = interactionVersion;
   agentPlanRequestInFlight = true;
   updateActionState();
-  chatStatusElement.textContent = "Preparing Agent Plan...";
+  chatStatusElement.textContent = "Preparing search summary...";
 
   try {
     const response = await fetch(AGENT_PLAN_ENDPOINT, {
@@ -1960,7 +1949,7 @@ async function fetchAgentPlanForCurrentBrief() {
     }
 
     if (!response.ok) {
-      throw new Error(data.detail || "Agent Plan request failed.");
+      throw new Error(data.detail || "Search summary request failed.");
     }
 
     rememberAgentPlanData(data);
@@ -2003,7 +1992,7 @@ async function fetchAgentPlanForCurrentBrief() {
 
 async function fetchAgentQueryPlan() {
   if (!hasSupportedAgentAction()) {
-    throw new Error("Build Plan requires a supported Agent Plan action.");
+    throw new Error("Prepare search requires a supported current action.");
   }
 
   const response = await fetch(currentAgentAction.endpoint, {
@@ -2021,7 +2010,7 @@ async function fetchAgentQueryPlan() {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.detail || "Query plan request failed.");
+    throw new Error(data.detail || "Prepare search request failed.");
   }
 
   return data;
@@ -2029,7 +2018,7 @@ async function fetchAgentQueryPlan() {
 
 async function buildPlanFromChat() {
   if (!normalizedBrief || chatState !== "ready_for_planning") {
-    planStatus.textContent = "Complete the Search Brief in chat before building a plan.";
+    planStatus.textContent = "Complete the search summary in chat before preparing search.";
     return null;
   }
 
@@ -2038,11 +2027,11 @@ async function buildPlanFromChat() {
   setAgentActionDisplayState(
     AGENT_QUEUE_ACTION_BUILD_PLAN,
     "running",
-    "Building the visible QueryPlan."
+    "Preparing search details."
   );
   clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
   updateActionState();
-  planStatus.textContent = "Building plan...";
+  planStatus.textContent = "Preparing search...";
   queryList.innerHTML = "";
   clearPlannerData();
 
@@ -2068,7 +2057,7 @@ async function buildPlanFromChat() {
     setAgentActionDisplayState(
       AGENT_QUEUE_ACTION_BUILD_PLAN,
       "failed",
-      error.message || "Build Plan failed."
+      error.message || "Prepare search failed."
     );
     clearAgentActionDisplayState([AGENT_QUEUE_ACTION_RUN_SEARCH]);
     planStatus.textContent = error.message;
@@ -2148,7 +2137,7 @@ function updateChatStateFromResponse(data = {}) {
   } else if (chatState === "refused") {
     chatStatusElement.textContent = "Request refused by product safety boundaries.";
   } else {
-    chatStatusElement.textContent = "Answer the clarification to complete the Search Brief.";
+    chatStatusElement.textContent = "Answer the clarification to complete the search summary.";
   }
 
   renderChatMessages();
@@ -2184,7 +2173,7 @@ function handlePostResultsFollowUp(userText) {
       {
         role: "assistant",
         content:
-          `Based on the visible results, improve the next iteration by reviewing the strongest candidates first and then choosing a refined follow-up search.${optionText} I will not rerun search without explicit approval.`,
+          `Based on the visible results, improve the next step by reviewing the strongest candidates first and then choosing a refined follow-up search.${optionText} I will not rerun search without your confirmation.`,
         kind: "agent_response",
         localOnly: true,
       },
@@ -2218,8 +2207,8 @@ async function handlePendingBuildPlanChatAction(userText) {
           role: "assistant",
           content:
             currentChatLanguage === "ru"
-              ? "Ок, Search Plan не строю. Search Brief остается готовым."
-              : "Ok, I will not build the Search Plan now. The Search Brief stays ready.",
+              ? "Ок, поиск сейчас не готовлю. Текущая сводка остается готовой."
+              : "Ok, I will not prepare the search now. The current search summary stays ready.",
           localOnly: true,
         },
         {
@@ -2247,8 +2236,8 @@ async function handlePendingBuildPlanChatAction(userText) {
         role: "assistant",
         content:
           currentChatLanguage === "ru"
-            ? "Строю Search Plan по текущему Agent Plan. Поиск не запустится без Approve & Search."
-            : "Building the Search Plan from the current Agent Plan. Search will still require Approve & Search.",
+            ? "Готовлю поиск по текущей сводке. Поиск не запустится без Run search."
+            : "Preparing the search from the current summary. Search will still require Run search.",
         localOnly: true,
       },
       {
@@ -2258,7 +2247,7 @@ async function handlePendingBuildPlanChatAction(userText) {
     )
   );
   renderChatMessages();
-  chatStatusElement.textContent = "Building Search Plan...";
+  chatStatusElement.textContent = "Preparing search...";
   updateActionState();
   await buildPlanFromChat();
   chatInput.focus();
@@ -2280,7 +2269,7 @@ async function sendChatTurn(userText) {
   messages.push({ role: "user", content: userText });
   renderChatMessages();
   chatRequestInFlight = true;
-  chatStatusElement.textContent = "Updating Search Brief...";
+  chatStatusElement.textContent = "Updating search summary...";
   updateActionState();
 
   try {
@@ -2352,13 +2341,13 @@ function resetChat() {
   clearAgentPlanData();
   clearWorkspaceState();
   chatInput.value = "";
-  chatStatusElement.textContent = "Describe the search in Russian or English.";
-  planStatus.textContent = "Build a plan from the chat brief.";
+  chatStatusElement.textContent = "Describe who you want to find in Russian or English.";
+  planStatus.textContent = "Prepare search from the chat summary.";
   queryList.innerHTML = "";
-  reportStatus.textContent = "Run a search to see counts.";
+  reportStatus.textContent = "Run a search to see the summary.";
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
-  resultsStatus.textContent = "Run a search to see deduped candidates.";
+  resultsStatus.textContent = "Run a search to see candidates.";
   resultsList.innerHTML = "";
   renderChatMessages();
   renderBriefSummaryCard(null);
@@ -2375,11 +2364,12 @@ function renderReport(report) {
   }
 
   const reportMode = report.mode === "multi_wave" ? "Multi-wave" : "Single-wave";
-  reportStatus.textContent = `${reportMode}: ${report.queries_succeeded} of ${report.queries_total} ${pluralize(
-    report.queries_total,
-    "query",
-    "queries"
-  )} succeeded.`;
+  const uniqueCount = report.unique_profiles ?? report.displayed ?? 0;
+  reportStatus.textContent = `${uniqueCount} unique ${pluralize(
+    uniqueCount,
+    "candidate",
+    "candidates"
+  )} found. ${reportMode} search completed.`;
 
   const fields = [
     ["Raw", report.raw_total],
@@ -2404,7 +2394,7 @@ function renderReport(report) {
     );
   }
 
-  reportGrid.innerHTML = fields
+  const metricMarkup = fields
     .map(
       ([label, value]) => `
         <div class="report-metric">
@@ -2414,8 +2404,17 @@ function renderReport(report) {
       `
     )
     .join("");
+  reportGrid.innerHTML = `
+    <details class="collapsible-section report-details">
+      <summary class="collapsible-summary">
+        <span>Detailed metrics</span>
+        <span class="collapse-indicator" aria-hidden="true"></span>
+      </summary>
+      <div class="report-grid-inner">${metricMarkup}</div>
+    </details>
+  `;
 
-  contributionList.innerHTML = (report.query_contribution || [])
+  const contributionMarkup = (report.query_contribution || [])
     .map(
       (item) => `
         <article class="contribution-item ${item.ok ? "" : "is-failed"}">
@@ -2432,6 +2431,17 @@ function renderReport(report) {
       `
     )
     .join("");
+  contributionList.innerHTML = contributionMarkup
+    ? `
+      <details class="collapsible-section contribution-details">
+        <summary class="collapsible-summary">
+          <span>Query contribution details</span>
+          <span class="collapse-indicator" aria-hidden="true"></span>
+        </summary>
+        <div class="contribution-details-list">${contributionMarkup}</div>
+      </details>
+    `
+    : "";
 }
 
 function renderQualityField(label, value, modifier = "") {
@@ -2539,12 +2549,12 @@ function renderResults(dedupedResults, report, options = {}) {
 async function runStructuredSearch() {
   if (!latestExecutablePlan) {
     resultsStatus.textContent =
-      "Build an executable rule-based or fallback plan before approving search.";
+      "Prepare a runnable search before continuing.";
     return;
   }
   if (!currentRuntimePendingApproval) {
     resultsStatus.textContent =
-      "Wait for runtime approval preparation before approving search.";
+      "Wait until the search is ready to run.";
     return;
   }
 
@@ -2557,8 +2567,8 @@ async function runStructuredSearch() {
     `Running ${currentRunSearchModeLabel()} search.`
   );
   updateActionState();
-  resultsStatus.textContent = "Preparing approval for the visible QueryPlan...";
-  reportStatus.textContent = "Validating current plan before Tavily execution...";
+  resultsStatus.textContent = "Checking that the search is ready to run...";
+  reportStatus.textContent = "Starting search...";
   clearWorkspaceState();
   resultsList.innerHTML = "";
   reportGrid.innerHTML = "";
@@ -2566,7 +2576,7 @@ async function runStructuredSearch() {
 
   try {
     if (!latestPlanFingerprint || !latestQueryPlan?.queries?.length) {
-      throw new Error("Current QueryPlan is missing approval fingerprint.");
+      throw new Error("Current search details are missing.");
     }
 
     const payload = {
@@ -3031,7 +3041,7 @@ function handleWorkspaceClick(event) {
 }
 
 if (statusElement) {
-  statusElement.textContent = "Frontend ready";
+  statusElement.textContent = "Workspace ready";
 }
 
 chatForm.addEventListener("submit", (event) => {

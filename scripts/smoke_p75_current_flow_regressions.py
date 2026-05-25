@@ -641,7 +641,7 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert 'else if (chatState !== "refused")' in update_chat_body
     assert "chatStatusElement.textContent = readyBriefChatStatus();" in update_chat_body
     assert "hasSupportedAgentAction()" in ready_status_body
-    assert "Agent Plan ready. Build the Search Plan from chat or the button." in ready_status_body
+    assert "Search is understood. Prepare it from chat or the button." in ready_status_body
     refusal_branch_start = update_chat_body.index('if (chatState === "refused")')
     assert "clearExecutableStateAfterRefusal();" in update_chat_body[refusal_branch_start:]
 
@@ -658,7 +658,7 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert "isPostResultsFollowUpMessage(userText)" in send_chat_body
     assert "/api/recruiter-chat/turn" not in post_results_body
     assert "localOnly: true" in post_results_body
-    assert "I will not rerun search without explicit approval." in post_results_body
+    assert "I will not rerun search without your confirmation." in post_results_body
 
 
 async def run_async_smoke() -> None:

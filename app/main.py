@@ -1889,9 +1889,9 @@ def deterministic_brief_patch_from_message(
 
     if not operations and is_refinement_like_chat_message(normalized_text):
         message = (
-            "Уточни, что именно изменить в текущем Search Brief."
+            "Уточни, что именно изменить в текущей search summary."
             if language == "ru"
-            else "Please clarify what to change in the current Search Brief."
+            else "Please clarify what to change in the current search summary."
         )
         return build_brief_patch(
             source_message=text,
@@ -2570,7 +2570,7 @@ def build_recruiter_chat_response(
     build_plan_action = None
     if can_build_plan:
         build_plan_action = {
-            "label": "Build Plan",
+            "label": "Prepare search",
             "method": "POST",
             "endpoint": AGENT_QUERY_PLAN_ENDPOINT,
             "planner_mode": planner_mode,
@@ -2717,12 +2717,12 @@ def recruiter_chat_unclear_request_message(language: str) -> str:
 def recruiter_chat_stack_explanation_message(language: str) -> str:
     if language == "ru":
         return (
-            "Stack нужен, чтобы собрать конкретный Java/Ukraine Search Brief и "
+            "Stack нужен, чтобы собрать конкретную Java/Ukraine search summary и "
             "не запускать слишком широкий поиск. Для текущего flow выбери 1-3 "
             "сигнала, например Spring, Kafka, AWS, Docker или Kubernetes."
         )
     return (
-        "Stack is required so the Java/Ukraine Search Brief is specific enough "
+        "Stack is required so the Java/Ukraine search summary is specific enough "
         "before planning. Choose 1-3 signals such as Spring, Kafka, AWS, Docker, "
         "or Kubernetes."
     )
@@ -2730,8 +2730,8 @@ def recruiter_chat_stack_explanation_message(language: str) -> str:
 
 def recruiter_chat_reset_message(language: str) -> str:
     if language == "ru":
-        return "Текущий Search Brief очищен. Напиши новый sourcing request."
-    return "The current Search Brief is cleared. Tell me the new sourcing request."
+        return "Текущая search summary очищена. Напиши новый sourcing request."
+    return "The current search summary is cleared. Tell me the new sourcing request."
 
 
 def patch_validation_error(field: str, code: str, message: str) -> dict[str, str]:
@@ -2851,8 +2851,8 @@ def patch_success_message(
 
     if changed and next_question:
         if language == "ru":
-            return f"Обновил Search Brief ({action_summary}). {next_question}"
-        return f"Updated the Search Brief ({action_summary}). {next_question}"
+            return f"Обновил search summary ({action_summary}). {next_question}"
+        return f"Updated the search summary ({action_summary}). {next_question}"
 
     return brief_refinement_source_message(language, changed, action_summary)
 
@@ -2998,7 +2998,7 @@ def apply_brief_patch_to_draft(
         return None, None, False, [
             {
                 "field": "brief_patch",
-                "message": f"Patched Search Brief is invalid: {error['msg']}",
+                "message": f"Updated search summary is invalid: {error['msg']}",
             }
             for error in exc.errors()
         ], validation_error_message([], language)
@@ -4247,7 +4247,7 @@ async def create_agent_runtime_turn(request: AgentRuntimeTurnRequest) -> dict:
                 runtime_error(
                     error.get("field", "execution_approval"),
                     AGENT_RUNTIME_ERROR_APPROVAL_MISMATCH,
-                    error.get("message", "Runtime approval bridge failed."),
+                    error.get("message", "Search execution could not be confirmed."),
                 )
                 for error in legacy_approval_errors
             ]

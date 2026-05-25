@@ -189,7 +189,7 @@ def adapt_search_brief_to_structured_request(
         return None, [
             {
                 "field": "brief_status",
-                "message": "Search Brief needs clarification before planning.",
+                "message": "Search summary needs clarification before preparing search.",
             }
         ]
 

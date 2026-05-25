@@ -275,8 +275,21 @@ def assert_frontend_static_contract() -> None:
     assert "${escapeHtml(meta.speaker)} - ${escapeHtml(meta.label)}" not in source
     assert "data-message-type-label" in source
     assert "renderNextIterationOptions(" in source
-    assert "Варианты следующей итерации" in source
-    assert "Not executable. Write a follow-up in chat" in source
+    assert "Идеи для следующего шага" in source
+    assert "Suggestions only. Write a follow-up in chat" in source
+    assert "Prepare search" in source
+    assert "Run search" in (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    normal_ui_forbidden_terms = [
+        "Generated QueryPlan",
+        "Agent Actions",
+        "Approve & Search",
+        "Frontend ready",
+        "deduped candidates",
+        "Not executable. Write a follow-up",
+    ]
+    public_surface = source + (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    for term in normal_ui_forbidden_terms:
+        assert term not in public_surface
 
 
 async def run_smoke() -> None:

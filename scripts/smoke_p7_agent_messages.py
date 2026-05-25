@@ -141,7 +141,7 @@ def assert_language_and_chat_messages() -> None:
 
     refusal = main.recruiter_chat_refusal_message("en")
     assert "I cannot perform LinkedIn login" in refusal
-    assert "approved backend pipeline" in refusal
+    assert "approved search flow" in refusal
 
 
 def assert_agent_plan_and_query_messages() -> None:
@@ -162,11 +162,11 @@ def assert_agent_plan_and_query_messages() -> None:
 
     assert (
         agent_messages.query_plan_ready_approval_notice()
-        == "Search plan is ready. Review the queries before running search."
+        == "Search is ready to run. Review the details before running search."
     )
     assert (
         agent_messages.query_plan_preview_approval_notice()
-        == "This plan is not executed yet. Search execution requires approval."
+        == "This preview has not run. Confirm Run search before execution."
     )
     assert (
         agent_messages.runtime_tool_unavailable_source_message()

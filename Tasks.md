@@ -10888,6 +10888,7 @@ Implemented focused hardening:
 #### Parent umbrella task
 
 - [ ] P8-032 Define recruiter-facing AI conversation and workspace presentation policy
+  - [x] P8-032A Recruiter-facing language policy and visible-term cleanup (implemented first slice)
   - [ ] P8-017 Handle social small talk without harsh off-topic redirect (child issue)
   - [ ] P8-018 Make greeting onboarding wording more polite (child issue)
   - [ ] P8-019 Make unclear/noise response more polite (child issue)
@@ -10941,7 +10942,7 @@ Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the r
 
 The first candidate-workspace implementation batch is completed: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`. The batch stayed frontend-only: approved search results now map into explicit workspace state, workspace view controls sort/filter already returned candidates, and review state/shortlist/notes/statuses stay browser in-memory only.
 
-Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow, `Build Plan` remains separate from Tavily execution and visible `Approve & Search` is the explicit approval gate before real search. If reviewed/approved `P8-032` moves the visible recruiter flow to conversational confirmation, that confirmation is still an explicit human approval intent and backend runtime approval/fingerprint/supported-flow validation must remain mandatory before any Tavily execution.
+Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`, visible `Prepare search` remains separate from Tavily execution and visible `Run search` is the explicit human confirmation before real search. Backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
 
@@ -16349,6 +16350,130 @@ This umbrella task defines the implementation approach for these observed issues
    - candidates-first review surface;
    - candidate table/list is the first practical post-search work surface, not hidden below chat/report/debug details;
    - no visible internal planner/debug language in the main recruiter flow.
+
+### Reviewed Implementation Slice A: P8-032A Recruiter-facing language policy and visible-term cleanup
+
+Status: approved and implemented.
+
+Critical review result: the first implementation slice must be smaller than the whole `P8-032` umbrella. It should not start with layout, multi-wave defaults, persistence, AI planner execution, or new LLM decision paths. The safest first slice is to make the primary recruiter-facing flow stop exposing internal implementation language while preserving the existing backend/runtime contracts.
+
+#### Goal
+
+Make the current supported Java/Ukraine recruiter flow read like a recruiter assistant, not a developer/debug console, without changing search logic.
+
+This slice should cover the first visible-language cleanup needed for:
+
+- `P8-020 Remove redundant Recruiter Chat helper subtitle`;
+- `P8-021 Make initial chat helper prompt warmer`;
+- part of `P8-024 Replace technical plan UX with conversational search confirmation`;
+- part of `P8-027 Hide query contribution diagnostics from recruiter UI`;
+- part of `P8-028 Collapse report metrics behind unique-candidate summary`;
+- part of `P8-029 Remove frontend-ready status badge from recruiter UI`.
+
+It may prepare later slices for `P8-017`, `P8-018`, `P8-019`, `P8-025`, `P8-026`, `P8-030`, and `P8-031`, but it must not claim those are closed unless the implementation demonstrably resolves them.
+
+#### Primary recruiter-facing surfaces for this slice
+
+Audit and update only the normal visible recruiter flow:
+
+- `app/static/index.html` static labels and helper text;
+- `app/static/app.js` visible chat/status/button/panel strings;
+- `app/main.py` deterministic recruiter-chat/status strings that are still served directly to the frontend;
+- `app/agent_plan.py` visible Agent Plan wording;
+- current deterministic assistant/source-message strings used in the main flow from `app/agent_messages.py` and `app/agent_response.py` only when those strings are actually shown to the recruiter;
+- no-network smoke scripts that assert current visible wording.
+
+Do not treat docs, internal code identifiers, API fields, route names, object keys, test helper names, or backend logs as recruiter-facing text.
+
+#### Proposed visible wording direction
+
+The exact final labels can be adjusted during implementation review, but the slice should use this direction:
+
+- visible `Build Plan` button/action -> `Prepare search`;
+- visible `Approve & Search` button/action -> `Run search`;
+- visible `Generated QueryPlan` -> `Search queries` or collapsed `Search details`;
+- visible `Agent Actions` -> `Search steps` or collapsed `Search steps`;
+- visible `Agent Plan` in normal chat/status copy -> `I understood the search` / `Search is ready to prepare`;
+- visible `Search Brief` in normal chat/status copy -> `understood search` or `search summary`;
+- visible `Search Plan is ready for approval` -> `Search is ready to run`;
+- visible `Runtime approval is prepared` -> `Search is ready to run`;
+- visible `fingerprint`, `tool`, `runtime`, `QueryPlan`, `non-executable`, `backend planner` -> hide from normal recruiter-facing copy or move behind collapsed technical details if still useful.
+
+Internal constants may keep technical names such as `AGENT_ACTION_BUILD_QUERY_PLAN`, `QueryPlan`, `plan_fingerprint`, `runtime`, and route field names. This slice is a presentation cleanup, not a contract rename.
+
+#### Guardrails
+
+- Do not rename backend routes, schemas, request/response fields, JS state variables, Python functions, smoke helper APIs, or persisted/snapshot field names.
+- Do not change `Search Brief`, `Agent Plan`, `QueryPlan`, runtime approval, Tavily execution, scoring, Candidate Quality, dedupe, location filtering, export, or candidate facts.
+- Do not make AI-generated plans executable.
+- Do not let LLM wording decide confirmation, action selection, tool selection, approval, or execution.
+- Do not add new LLM calls in this slice unless a later review explicitly approves a bounded wording overlay for these exact messages.
+- Do not run Tavily in no-network regression tests.
+- Do not remove safety boundary wording; make it recruiter-readable while preserving prohibited-behavior clarity.
+- If visible wording changes `Approve & Search` to `Run search`, that click or explicit chat confirmation still represents explicit human approval intent. Backend approval payloads, runtime validation, fingerprints, and stale-state checks must remain unchanged.
+
+#### Implementation steps for review
+
+1. Inventory visible current strings in the primary recruiter flow and classify them:
+   - recruiter-facing normal flow;
+   - collapsed technical details;
+   - internal code/API/test/docs only.
+2. Replace only normal-flow technical labels/status text with recruiter-facing equivalents.
+3. Keep technical details collapsed by default when they remain useful for debugging.
+4. Ensure button behavior and event handlers are unchanged even if visible labels change.
+5. Keep confirmation execution path unchanged:
+   - recruiter confirmation may trigger the existing prepare/build path only through current frontend state;
+   - actual Tavily execution still requires the existing backend runtime approval validation.
+6. Update no-network regression coverage with targeted visible-text assertions:
+   - primary chat/status/button/panel text does not expose forbidden internal terms;
+   - internal code identifiers and API fields are not globally banned;
+   - approved runtime path remains the only execution path;
+   - refinement and ambiguous replies do not execute search.
+7. Run local checks:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+   - focused browser sanity after implementation if the server/browser tools are available.
+
+#### Forbidden-term testing rule
+
+Do not implement a naive repository-wide grep that fails on legitimate internal code, docs, API fields, or historical QA evidence. The test should inspect targeted recruiter-facing rendered/static strings or controlled scenario outputs.
+
+Forbidden in normal recruiter-facing flow after this slice:
+
+- `QueryPlan`;
+- `backend planner`;
+- `fingerprint`;
+- `runtime approval`;
+- `Agent Plan`;
+- `Search Brief`;
+- `tool_call`;
+- `non-executable`;
+- raw action names such as `build_query_plan`, `run_single_wave_search`, `run_multi_wave_search`.
+
+Allowed outside normal recruiter-facing flow:
+
+- code identifiers;
+- API contracts;
+- docs and historical QA evidence;
+- collapsed technical/debug details if explicitly kept for diagnostics;
+- local smoke tests that verify internal contracts.
+
+#### Acceptance criteria
+
+- Current visible recruiter flow no longer presents the product as `Build Plan -> Search Plan -> QueryPlan -> runtime approval`.
+- Recruiter sees a simpler sequence: describe search, review understood search, prepare search, run search, review candidates.
+- Existing backend runtime approval and fingerprint validation still operate unchanged.
+- Visible `Run search` / chat confirmation is still explicit human approval intent, not autonomous execution.
+- No Tavily call happens without the existing explicit approved runtime execution path.
+- No backend/API/search/scoring/location/export behavior changes.
+- Regression coverage protects both sides: no internal terms in normal recruiter-facing output, and no accidental contract renames internally.
+
+#### Implementation notes
+
+- Updated primary visible labels to `Prepare search`, `Run search`, `Search details`, `Search summary`, `Candidate workspace`, and `Search steps`.
+- Reworded normal chat/status copy away from `Search Brief`, `Agent Plan`, `QueryPlan`, `runtime approval`, `fingerprint`, `backend planner`, and `non-executable`.
+- Kept backend/API/runtime identifiers, approval payloads, fingerprints, stale checks, Tavily execution path, query generation, scoring, filtering, dedupe, location logic, candidate facts, and export behavior unchanged.
+- Collapsed detailed metrics and query contribution diagnostics behind recruiter-facing details sections.
+- Added focused no-network regression assertions for visible-term cleanup without banning legitimate internal code identifiers.
 
 ### Non-Goals
 

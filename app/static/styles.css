@@ -830,9 +830,14 @@ code {
 
 .report-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.report-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .report-metric {
@@ -1391,6 +1396,7 @@ summary {
 
   .form-grid,
   .report-grid,
+  .report-grid-inner,
   .brief-grid,
   .quality-grid,
   .candidate-header {
