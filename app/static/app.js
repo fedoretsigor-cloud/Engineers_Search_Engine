@@ -717,6 +717,107 @@ function renderTopCandidateRecommendation() {
   `;
 }
 
+function renderSelectedCandidateComparison() {
+  if (!candidateWorkspace.buildSelectedCandidateComparison || !visibleWorkspaceCandidates.length) {
+    return "";
+  }
+
+  const comparison = candidateWorkspace.buildSelectedCandidateComparison(
+    visibleWorkspaceCandidates,
+    workspaceReviewStateByCandidateId,
+    {
+      limit: 4,
+      scope: "visible_shortlisted_candidates",
+    }
+  );
+
+  if (
+    !comparison ||
+    comparison.source !== "deterministic_workspace_facts" ||
+    !comparison.selected_count
+  ) {
+    return "";
+  }
+
+  if (!comparison.ready) {
+    return `
+      <section class="workspace-agent-review workspace-selected-comparison" aria-label="Selected candidate comparison">
+        <div class="workspace-agent-review-header">
+          <div>
+            <span>Agent review</span>
+            <strong>Selected comparison</strong>
+          </div>
+          <p>Based on visible shortlisted candidates.</p>
+        </div>
+        <p class="workspace-agent-review-empty">Shortlist one more visible candidate to compare them.</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="workspace-agent-review workspace-selected-comparison" aria-label="Selected candidate comparison">
+      <div class="workspace-agent-review-header">
+        <div>
+          <span>Agent review</span>
+          <strong>Selected comparison</strong>
+        </div>
+        <p>Based on ${escapeHtml(comparison.selected_count)} visible shortlisted ${escapeHtml(
+          pluralize(comparison.selected_count, "candidate", "candidates")
+        )}.</p>
+      </div>
+      <div class="workspace-selected-comparison-grid">
+        ${comparison.candidates
+          .map((candidate) => {
+            const quality = candidate.quality_score === null ? "n/a" : candidate.quality_score;
+            return `
+              <article class="workspace-comparison-card">
+                <div class="workspace-agent-review-candidate">
+                  <span>#${escapeHtml(candidate.display_index)}</span>
+                  <div>
+                    <strong>${escapeHtml(candidate.display_name)}</strong>
+                    <p>${escapeHtml(candidate.headline)}</p>
+                  </div>
+                  <small>${escapeHtml(quality)} ${escapeHtml(candidate.quality_bucket || "")}</small>
+                </div>
+                <dl class="workspace-comparison-facts">
+                  <div><dt>Role</dt><dd>${escapeHtml(candidate.role)}</dd></div>
+                  <div><dt>Tech</dt><dd>${escapeHtml(candidate.technology)}</dd></div>
+                  <div><dt>Location</dt><dd>${escapeHtml(candidate.location_status)}</dd></div>
+                  <div><dt>Stack</dt><dd>${escapeHtml(candidate.stack_terms.length ? candidate.stack_terms.join(", ") : candidate.stack_fit)}</dd></div>
+                  <div><dt>Seniority</dt><dd>${escapeHtml(candidate.seniority)}</dd></div>
+                </dl>
+                <div class="workspace-agent-review-reasons workspace-comparison-lists">
+                  <div>
+                    <span>Signals</span>
+                    ${renderRecommendationList(candidate.positive_signals, "Returned fit signals are limited.")}
+                  </div>
+                  <div>
+                    <span>Check</span>
+                    ${renderRecommendationList(
+                      candidate.cautions.concat(candidate.review_flags),
+                      "No major caution selected."
+                    )}
+                  </div>
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+      <div class="workspace-comparison-summary">
+        <div>
+          <span>Shared signals</span>
+          ${renderRecommendationList(comparison.shared_signals, "No shared signal across all selected candidates.")}
+        </div>
+        <div>
+          <span>Differences</span>
+          ${renderRecommendationList(comparison.differences, "Returned comparison facts are similar.")}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkspaceCandidate(candidate) {
   const reviewState =
     workspaceReviewStateByCandidateId[candidate.candidate_id] ||
@@ -865,6 +966,7 @@ function renderWorkspaceResults(report = null) {
   resultsList.innerHTML = `
     ${renderWorkspaceToolbar()}
     ${renderTopCandidateRecommendation()}
+    ${renderSelectedCandidateComparison()}
     ${
       visibleWorkspaceCandidates.length
         ? `<section class="candidate-workspace-list">${visibleWorkspaceCandidates

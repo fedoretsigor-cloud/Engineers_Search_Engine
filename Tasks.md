@@ -17173,7 +17173,6 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ### Backlog
 
-- [ ] P8.5-003 Add selected-candidate comparison
 - [ ] P8.5-004 Add fit/gap explanation across selected candidates
 - [ ] P8.5-005 Add guided next-refinement suggestions from workspace results
 
@@ -17183,6 +17182,7 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 - [x] P8.5-001 Define agentic candidate review contract
 - [x] P8.5-002 Add top-candidate recommendation from returned workspace facts
+- [x] P8.5-003 Add selected-candidate comparison
 
 ### Strategy note
 
@@ -17483,6 +17483,146 @@ Implemented as a deterministic frontend/current-run workspace slice:
 - Do not add LLM-assisted candidate review.
 - Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
 - Do not add new search sources, countries, technologies, providers, or profile evidence intake.
+
+---
+
+## Task: P8.5-003 Add selected-candidate comparison
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user through the implementation goal after iterative review. This task remains deterministic, frontend/current-run only, and does not add backend calls, LLM calls, Tavily execution, LinkedIn behavior, persistence, or autonomous actions.
+
+### Context
+
+`P8.5-002` added a deterministic top-candidate recommendation over current visible workspace facts. The next agentic review step is to let the recruiter compare candidates they intentionally selected for review.
+
+The current workspace already has:
+
+- `visibleWorkspaceCandidates` as the current sorted/filtered candidate set;
+- `workspaceReviewStateByCandidateId` as browser/session workflow state;
+- `review_status = shortlisted` as the existing recruiter selection mechanism;
+- deterministic `candidateWorkspace.buildCandidateExplanation()` output;
+- no backend candidate workspace database, saved candidate store, or cross-session memory.
+
+### Goal
+
+Add a selected-candidate comparison over already returned workspace facts so the recruiter can compare shortlisted candidates without leaving the Candidate Workspace.
+
+For v0, `selected candidates` means candidates currently marked `Shortlisted` in the visible workspace. This keeps one workflow source of truth and avoids adding a second selection model.
+
+### Deep Review Findings
+
+1. Selection must reuse existing shortlist state.
+   - Do not add independent compare checkboxes or a second selected-candidate state.
+   - `review_status = shortlisted` remains workflow state, not candidate evidence.
+   - Changing shortlist/filter/status recomputes the comparison from current state.
+
+2. Scope must be explicit.
+   - Analyze current `visibleWorkspaceCandidates` only.
+   - The UI must say the comparison is based on visible shortlisted candidates.
+   - Hidden candidates should not appear unless the recruiter changes filters.
+
+3. Comparison must not become ranking or recommendation.
+   - Do not expose a new score.
+   - Do not reorder search results.
+   - Do not mutate Candidate Quality, candidate facts, filters, dedupe, location logic, export, Search Brief, QueryPlan, runtime approval, or search execution.
+
+4. The model must be bounded and safe.
+   - Use only display index, safe display name/headline, existing quality score/bucket, role/technology/location/seniority/stack display values, deterministic explanation reason labels, and review flag labels.
+   - Do not include `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, recruiter notes, emails, account ids, or profile-identifying URL-derived strings.
+
+5. Explicit foreign-location candidates need conservative handling.
+   - If a shortlisted visible candidate has `location_group === "foreign"`, the comparison may show it because the recruiter selected it, but it must present it as a caution and not as a recommended fit.
+   - The comparison must not auto-open or inspect any profile.
+
+6. UI should stay compact.
+   - Render a review-aid block below the top-candidate recommendation and above the candidate list.
+   - If fewer than two visible shortlisted candidates exist, show no block or a minimal hint only after one candidate is shortlisted.
+   - Candidate Results remain the primary surface.
+
+7. Verification must protect product boundaries.
+   - Add no-network smoke coverage for helper behavior, UI wiring, data leakage, and forbidden API usage.
+   - Assert no backend/API/LLM/Tavily/storage/profile-opening behavior is introduced.
+
+### Reviewed Steps
+
+1. Add deterministic comparison helper.
+   - Add `buildSelectedCandidateComparison(candidates, reviewStateByCandidateId, options)` to `app/static/candidate_workspace.js`.
+   - Source must be `deterministic_workspace_facts`.
+   - Input scope is `visible_shortlisted_candidates`.
+   - Return `version`, `source`, `scope`, `selected_count`, `candidates_analyzed`, `ready`, `min_required`, `max_compared`, `candidates`, `shared_signals`, and `differences`.
+
+2. Define selected candidate rules.
+   - Select candidates whose current review status is `shortlisted`.
+   - Use current visible candidates only.
+   - Exclude candidates marked `not_a_fit`.
+   - Cap compared candidates to a small number, with deterministic visible order.
+   - Do not use recruiter notes.
+
+3. Build bounded candidate comparison rows.
+   - Include safe display label, headline, quality score/bucket, role, technology, location status/group, stack fit, seniority, positive signal labels, caution labels, and review flag labels.
+   - Strip or replace URL-like display text.
+   - Do not include `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, notes, or account identifiers.
+
+4. Build shared signal and difference summaries.
+   - Shared signals should only describe facts common to the selected set, such as target location, confirmed stack, visible role/technology, or high/medium quality.
+   - Differences should compare visible returned facts, such as quality bucket, stack visibility, location confidence, seniority visibility, and review flags.
+   - Keep wording conservative and avoid `best`, `hire`, or verified-profile claims.
+
+5. Render comparison in the workspace.
+   - Add `renderSelectedCandidateComparison()` in `app/static/app.js`.
+   - Render below `renderTopCandidateRecommendation()` and above the candidate list.
+   - Show the block only when at least one visible candidate is shortlisted; with one selected, show a minimal "shortlist one more" hint.
+
+6. Add styling.
+   - Reuse the existing dark workspace review-aid visual system.
+   - Keep layout responsive and avoid hiding the candidate table.
+
+7. Add no-network verification.
+   - Add `scripts/smoke_p85_selected_candidate_comparison.py`.
+   - Assert selection from shortlist, not-a-fit exclusion, bounded output, no URL/raw-note leakage, foreign-location caution behavior, UI wiring, and no forbidden APIs.
+   - Wire the smoke into `scripts/check_all.ps1`.
+
+8. Update documentation/status after implementation.
+   - Move `P8.5-003` to Done.
+   - Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` with the completed deterministic frontend-only comparison slice.
+
+### Acceptance Criteria
+
+- The workspace can compare currently visible shortlisted candidates.
+- One visible shortlisted candidate shows only a minimal hint; two or more show a compact comparison.
+- Comparison is derived from current-run frontend workspace facts and deterministic candidate explanations.
+- Comparison recomputes after shortlist/status/filter changes.
+- Candidate Results remain the primary surface.
+- No backend endpoint, LLM call, Tavily call, direct web-search call, LinkedIn automation/opening, candidate messaging, account action, persistence, or new provider is added.
+- Candidate facts, quality score, scoring, filters, dedupe, location logic, export, Search Brief, QueryPlan, runtime approval, and search execution remain unchanged.
+- No recruiter notes, URLs, normalized URLs, URL-derived candidate ids, raw snippets/content, raw Tavily payloads, emails, or account identifiers appear in the comparison model.
+- A focused no-network smoke check covers helper behavior and UI wiring and is included in `scripts/check_all.ps1`.
+
+### Implementation Notes
+
+Implemented as a deterministic frontend/current-run workspace slice:
+
+- added `candidateWorkspace.buildSelectedCandidateComparison()` in `app/static/candidate_workspace.js`;
+- added `renderSelectedCandidateComparison()` in `app/static/app.js`;
+- added compact `workspace-selected-comparison` / `workspace-comparison-*` CSS in `app/static/styles.css`;
+- added `scripts/smoke_p85_selected_candidate_comparison.py`;
+- wired the smoke into `scripts/check_all.ps1`;
+- selected candidates are current visible candidates with review status `shortlisted`;
+- one visible shortlisted candidate renders only a minimal compare hint; two or more render a compact comparison;
+- comparison output excludes `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, recruiter notes, and account identifiers;
+- no backend route, OpenAI/LLM call, Tavily call, profile-opening automation, storage, scoring mutation, filtering mutation, export change, runtime approval change, or search execution change was added.
+
+### Non-Goals
+
+- Do not implement fit/gap explanation across selected candidates in this task.
+- Do not implement guided next-refinement suggestions in this task.
+- Do not add LLM-assisted candidate comparison.
+- Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
+- Do not add a second selection mechanism beyond existing shortlist state.
+- Do not add profile opening, profile fetching, profile inspection, outreach, or account actions.
 
 ---
 

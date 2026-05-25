@@ -52,6 +52,8 @@
   const CANDIDATE_EXPLANATION_VERSION = "candidate_explanation_v1";
   const TOP_CANDIDATE_RECOMMENDATION_VERSION = "top_candidate_recommendation_v1";
   const TOP_CANDIDATE_RECOMMENDATION_DEFAULT_LIMIT = 3;
+  const SELECTED_CANDIDATE_COMPARISON_VERSION = "selected_candidate_comparison_v1";
+  const SELECTED_CANDIDATE_COMPARISON_DEFAULT_LIMIT = 4;
   const CANDIDATE_EXPLANATION_WORDING_USE_CASE = "candidate_explanation";
   const CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION = "candidate_explanation_wording_request_v1";
   const CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE = "en";
@@ -931,6 +933,194 @@
       candidates_analyzed: inputCandidates.length,
       candidates_considered: ranked.length,
       recommendations: ranked.slice(0, limit).map(({ _rank, ...item }) => item),
+    };
+  }
+
+  function comparisonSafeText(value, fallback, maxLength = 160) {
+    return recommendationSafeText(value, fallback, maxLength);
+  }
+
+  function comparisonReasonLabels(reasons, fallback) {
+    const labels = arrayValue(reasons)
+      .map((reason) => comparisonSafeText(reason && reason.label, "", 180))
+      .filter(Boolean);
+    return labels.length ? labels.slice(0, 3) : fallback ? [fallback] : [];
+  }
+
+  function comparisonReviewFlagLabels(candidate) {
+    return arrayValue(candidate && candidate.review_flags)
+      .map((flag) =>
+        comparisonSafeText(flag && (flag.label || flag.code), "", EXPORT_TEXT_LIMITS.compact)
+      )
+      .filter(Boolean)
+      .slice(0, 3);
+  }
+
+  function comparisonSelectedStackTerms(candidate) {
+    return directStackTerms(candidate).map((term) => comparisonSafeText(term, "", 80)).filter(Boolean);
+  }
+
+  function selectedComparisonRow(candidate, explanation, index) {
+    const roleTech = roleTechnologyFacts(candidate || {});
+    const positiveCodes = explanationCodes(explanation, "positive_signals");
+    const cautionCodes = explanationCodes(explanation, "cautions");
+    const displayIndex = Number.isFinite(Number(candidate && candidate.display_index))
+      ? Number(candidate.display_index)
+      : index + 1;
+    const displayName = comparisonSafeText(
+      candidate && candidate.display_name,
+      `Candidate ${displayIndex}`,
+      EXPORT_TEXT_LIMITS.candidate_name
+    );
+    const headline = comparisonSafeText(
+      (candidate && (candidate.headline || candidate.raw_title)) || "",
+      "No headline returned.",
+      EXPORT_TEXT_LIMITS.headline
+    );
+    const cautions = comparisonReasonLabels(explanation && explanation.cautions, "");
+    if (candidate && candidate.location_group === "foreign" && !cautions.some((item) => /location/i.test(item))) {
+      cautions.unshift("Current location appears outside the target location");
+    }
+
+    return {
+      _positive_codes: positiveCodes,
+      _caution_codes: cautionCodes,
+      display_index: displayIndex,
+      display_name: displayName,
+      headline,
+      quality_score: candidate && candidate.has_quality_score ? candidate.quality_score : null,
+      quality_bucket: candidate && candidate.has_quality_score ? candidate.quality_bucket || qualityBucket(candidate.quality_score) : "",
+      role: comparisonSafeText(roleTech.role, "n/a", EXPORT_TEXT_LIMITS.compact),
+      technology: comparisonSafeText(roleTech.technology, "n/a", 80),
+      location_status: comparisonSafeText(candidate && candidate.location_status, "unknown_current_location", 80),
+      location_group: comparisonSafeText(candidate && candidate.location_group, "unknown_weak", 80),
+      stack_fit: comparisonSafeText(candidate && candidate.stack_fit, "unknown", 80),
+      stack_terms: comparisonSelectedStackTerms(candidate || {}).slice(0, 3),
+      seniority: comparisonSafeText(candidate && candidate.seniority_level, "unknown", 80),
+      positive_signals: comparisonReasonLabels(explanation && explanation.positive_signals, ""),
+      cautions: cautions.slice(0, 4),
+      review_flags: comparisonReviewFlagLabels(candidate),
+    };
+  }
+
+  function uniqueComparisonValues(rows, field) {
+    return uniqueStrings(rows.map((row) => row && row[field]), 6);
+  }
+
+  function buildComparisonSharedSignals(rows) {
+    if (rows.length < 2) {
+      return [];
+    }
+    const signals = [];
+    if (rows.every((row) => row._positive_codes.has(EXPLANATION_REASON_CODES.TARGET_LOCATION))) {
+      signals.push("All selected candidates have target-location signals in returned data");
+    }
+    if (rows.every((row) => row._positive_codes.has(EXPLANATION_REASON_CODES.STACK_CONFIRMED))) {
+      signals.push("Selected stack is visible for all selected candidates");
+    }
+    if (rows.every((row) => row._positive_codes.has(EXPLANATION_REASON_CODES.ROLE_OR_TECHNOLOGY_VISIBLE))) {
+      signals.push("Role or technology evidence is visible for all selected candidates");
+    }
+    const qualityBuckets = uniqueComparisonValues(rows.filter((row) => row.quality_score !== null), "quality_bucket");
+    if (qualityBuckets.length === 1 && rows.every((row) => row.quality_score !== null)) {
+      signals.push(`All selected candidates are in the ${qualityBuckets[0]} quality bucket`);
+    }
+    return signals.slice(0, 4);
+  }
+
+  function buildComparisonDifferences(rows, selectedCount) {
+    if (rows.length < 2) {
+      return [];
+    }
+    const differences = [];
+    if (selectedCount > rows.length) {
+      differences.push(`Showing first ${rows.length} of ${selectedCount} visible shortlisted candidates`);
+    }
+
+    const scored = rows.filter((row) => row.quality_score !== null);
+    if (scored.length >= 2) {
+      const orderedScores = scored.slice().sort((left, right) => left.quality_score - right.quality_score);
+      const low = orderedScores[0];
+      const high = orderedScores[orderedScores.length - 1];
+      if (low.quality_score !== high.quality_score) {
+        differences.push(`Quality scores range from ${low.quality_score} to ${high.quality_score}`);
+      }
+    }
+
+    const stackFits = uniqueComparisonValues(rows, "stack_fit");
+    if (stackFits.length > 1) {
+      differences.push(`Stack visibility differs: ${stackFits.join(", ")}`);
+    }
+    const locationGroups = uniqueComparisonValues(rows, "location_group");
+    if (locationGroups.length > 1) {
+      differences.push(`Location confidence differs: ${locationGroups.join(", ")}`);
+    }
+    const visibleSeniorityCount = rows.filter((row) => isUsefulText(row.seniority)).length;
+    if (visibleSeniorityCount > 0 && visibleSeniorityCount < rows.length) {
+      differences.push(`Seniority is visible for ${visibleSeniorityCount} of ${rows.length} selected candidates`);
+    }
+    const flaggedCount = rows.filter((row) => row.review_flags.length > 0).length;
+    if (flaggedCount) {
+      differences.push(`Review flags appear for ${flaggedCount} selected candidates`);
+    }
+    const foreignLocationCount = rows.filter((row) => row.location_group === "foreign").length;
+    if (foreignLocationCount) {
+      differences.push(`${foreignLocationCount} selected candidates have foreign or mismatched location caution`);
+    }
+    return differences.slice(0, 5);
+  }
+
+  function buildSelectedCandidateComparison(candidates, reviewStateByCandidateId = {}, options = {}) {
+    const inputCandidates = arrayValue(candidates);
+    const maxCompared = Math.max(
+      2,
+      Math.min(
+        6,
+        Number.isFinite(Number(options.limit))
+          ? Number(options.limit)
+          : SELECTED_CANDIDATE_COMPARISON_DEFAULT_LIMIT
+      )
+    );
+    const scope = stringValue(options.scope) || "visible_shortlisted_candidates";
+    const selected = [];
+
+    inputCandidates.forEach((candidate, index) => {
+      if (!candidate) {
+        return;
+      }
+      const reviewState = candidateReviewState(reviewStateByCandidateId, candidate.candidate_id);
+      if (reviewState.status === REVIEW_STATUSES.NOT_A_FIT || !isWorkspaceCandidateShortlisted(reviewState)) {
+        return;
+      }
+      const explanation = buildCandidateExplanation(candidate);
+      if (!explanation || explanation.source !== "deterministic_workspace_facts") {
+        return;
+      }
+      selected.push({
+        candidate,
+        explanation,
+        index,
+      });
+    });
+
+    const rows = selected
+      .slice(0, maxCompared)
+      .map((item) => selectedComparisonRow(item.candidate, item.explanation, item.index));
+    const candidatesForOutput = rows.map(({ _positive_codes, _caution_codes, ...row }) => row);
+
+    return {
+      version: SELECTED_CANDIDATE_COMPARISON_VERSION,
+      source: "deterministic_workspace_facts",
+      scope,
+      candidates_analyzed: inputCandidates.length,
+      selected_count: selected.length,
+      compared_count: rows.length,
+      ready: selected.length >= 2,
+      min_required: 2,
+      max_compared: maxCompared,
+      candidates: candidatesForOutput,
+      shared_signals: buildComparisonSharedSignals(rows),
+      differences: buildComparisonDifferences(rows, selected.length),
     };
   }
 
@@ -2055,6 +2245,7 @@
     NOTE_MAX_LENGTH,
     CANDIDATE_EXPLANATION_VERSION,
     TOP_CANDIDATE_RECOMMENDATION_VERSION,
+    SELECTED_CANDIDATE_COMPARISON_VERSION,
     CANDIDATE_EXPLANATION_WORDING_USE_CASE,
     CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
     CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
@@ -2062,6 +2253,7 @@
     buildSafeLinkedInProfileHref,
     buildCandidateExplanation,
     buildTopCandidateRecommendation,
+    buildSelectedCandidateComparison,
     buildCandidateExplanationRenderableReasons,
     buildCandidateExplanationWordingRequest,
     candidateExplanationRequestFingerprint,

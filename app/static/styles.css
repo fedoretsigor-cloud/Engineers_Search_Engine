@@ -1414,6 +1414,84 @@ summary {
   line-height: 1.4;
 }
 
+.workspace-agent-review-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.workspace-selected-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.workspace-comparison-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(12, 24, 42, 0.72);
+}
+
+.workspace-comparison-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.workspace-comparison-facts div {
+  min-width: 0;
+}
+
+.workspace-comparison-facts dt,
+.workspace-comparison-summary span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspace-comparison-facts dd {
+  margin: 3px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.workspace-comparison-lists {
+  grid-template-columns: 1fr;
+}
+
+.workspace-comparison-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspace-comparison-summary > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(12, 24, 42, 0.52);
+}
+
+.workspace-comparison-summary ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .candidate-workspace-list {
   display: grid;
   gap: 10px;
@@ -1629,7 +1707,9 @@ summary {
   .candidate-row-main,
   .workspace-agent-review-header,
   .workspace-agent-review-candidate,
-  .workspace-agent-review-reasons {
+  .workspace-agent-review-reasons,
+  .workspace-comparison-facts,
+  .workspace-comparison-summary {
     display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
