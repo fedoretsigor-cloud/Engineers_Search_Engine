@@ -210,22 +210,12 @@ async def assert_accepted_wording() -> None:
                 "limitations": [],
             }, None
 
-        limitation_kind = payload["limitations"][0]["kind"]
         return {
             "message": (
-                "The approved backend search returned 3 candidates from 3 raw "
-                "results. Review the strongest matches before changing the brief."
+                "Search completed: 3 unique candidates found: 2 strong, 1 review, 0 weak."
             ),
             "warnings": ["Public snippets are incomplete."],
-            "limitations": [
-                {
-                    "kind": limitation_kind,
-                    "message": (
-                        "This summary uses only public snippets already returned "
-                        "by the backend."
-                    ),
-                }
-            ],
+            "limitations": [],
         }, None
 
     main.run_openai_json_agent_wording = fake_wording_llm
@@ -252,6 +242,9 @@ async def assert_accepted_wording() -> None:
         original_response
     )
     assert agent_response["wording_mode"] == "llm_assisted"
+    assert agent_response["message"] == (
+        "Search completed: 3 unique candidates found: 2 strong, 1 review, 0 weak."
+    )
     assert agent_response["summary_facts"] == response_snapshot["summary_facts"]
     assert agent_response["quality_notes"] == response_snapshot["quality_notes"]
     assert (
@@ -265,6 +258,14 @@ async def assert_accepted_wording() -> None:
     assert [item["kind"] for item in agent_response["limitations"]] == [
         item["kind"] for item in response_snapshot["limitations"]
     ]
+    agent_response_payload = captured_payloads[-1]
+    assert "visible_summary_facts" in agent_response_payload
+    assert "summary_facts" not in agent_response_payload
+    assert "quality_notes" not in agent_response_payload
+    assert "limitations" not in agent_response_payload
+    assert "suggested_next_actions" not in agent_response_payload
+    assert "raw_total" not in str(agent_response_payload)
+    assert "queries_total" not in str(agent_response_payload)
     assert agent_response["llm_warnings"] == ["Public snippets are incomplete."]
     assert_provenance(
         agent_response,
@@ -369,25 +370,25 @@ async def assert_attempted_call_fallbacks() -> None:
         model="fake-openai-model",
     )
 
-    async def new_limitation_kind_llm(payload: dict):
+    async def agent_response_limitation_llm(payload: dict):
         return {
             "message": "The approved backend search returned 3 candidates.",
             "warnings": [],
             "limitations": [
                 {
-                    "kind": "new_kind",
-                    "message": "This new limitation kind is not allowed.",
+                    "kind": "public_snippets",
+                    "message": "This limitation rewrite is not allowed here.",
                 }
             ],
         }, None
 
-    main.run_openai_json_agent_wording = new_limitation_kind_llm
+    main.run_openai_json_agent_wording = agent_response_limitation_llm
     response = await main.apply_llm_wording_to_agent_response(sample_agent_response())
     assert_provenance(
         response,
         message_type="agent_response",
         wording_mode="deterministic_fallback",
-        fallback_reason="llm_output_new_limitation_kind",
+        fallback_reason="llm_output_agent_response_limitations_not_allowed",
         model="fake-openai-model",
     )
 

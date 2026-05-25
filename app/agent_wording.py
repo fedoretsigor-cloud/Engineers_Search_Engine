@@ -54,29 +54,46 @@ def agent_wording_system_prompt() -> str:
 
 
 def agent_wording_user_prompt(payload: dict) -> str:
+    is_agent_response = (
+        payload.get("wording_use_case") == AGENT_WORDING_USE_CASE_AGENT_RESPONSE
+    )
+    required_output_shape = {
+        "message": "string",
+        "warnings": ["optional short strings"],
+        "limitations": []
+        if is_agent_response
+        else [
+            {
+                "kind": "existing limitation kind only",
+                "message": "optional rewritten limitation message",
+            }
+        ],
+    }
+    rules = [
+        "Return JSON only.",
+        "Use the requested language.",
+        "Use only facts present in the payload.",
+        "Do not add numbers outside allowed_numbers.",
+        "Do not include query text.",
+        "Do not create or change suggested_next_actions.",
+        "Do not make any next step executable.",
+        "Do not repeat prohibited behavior as a capability.",
+    ]
+    if is_agent_response:
+        rules.extend(
+            [
+                "For agent_response, return one concise completion sentence only.",
+                "For agent_response, mention only total candidates and strong/review/weak counts.",
+                "For agent_response, do not mention raw results, query counts, limitations, or next steps.",
+                "For agent_response, return limitations as an empty list.",
+            ]
+        )
+
     return json.dumps(
         {
             "task": "Rewrite only allowed user-facing text fields.",
-            "required_output_shape": {
-                "message": "string",
-                "warnings": ["optional short strings"],
-                "limitations": [
-                    {
-                        "kind": "existing limitation kind only",
-                        "message": "optional rewritten limitation message",
-                    }
-                ],
-            },
-            "rules": [
-                "Return JSON only.",
-                "Use the requested language.",
-                "Use only facts present in the payload.",
-                "Do not add numbers outside allowed_numbers.",
-                "Do not include query text.",
-                "Do not create or change suggested_next_actions.",
-                "Do not make any next step executable.",
-                "Do not repeat prohibited behavior as a capability.",
-            ],
+            "required_output_shape": required_output_shape,
+            "rules": rules,
             "payload": payload,
         },
         ensure_ascii=False,
@@ -276,6 +293,38 @@ def agent_wording_has_prohibited_content(text: str) -> bool:
     return any(re.search(pattern, text or "", re.IGNORECASE) for pattern in prohibited_patterns)
 
 
+def agent_response_wording_has_disallowed_visible_content(text: str) -> bool:
+    disallowed_patterns = [
+        r"\braw\s+results?\b",
+        r"\bqueries?\b",
+        r"\bquery\s+(count|counts|success|successes|execution|executions)\b",
+        r"\bkey\s+indicators?\b",
+        r"\blimitations?\b",
+        r"\bsuggest(ed|ion|ions)?\b",
+        r"\bnext\s+(step|steps|iteration|iterations)\b",
+        r"\bnon[- ]executable\b",
+        r"\bbuild\s+plan\b",
+        r"\bsearch\s+plan\b",
+        r"\bqueryplan\b",
+        r"\bruntime\b",
+        r"\bapproval\b",
+        r"\bbackend\s+planner\b",
+        r"\bcandidate\s+workspace\b",
+        r"\breview\s+(them|the|candidates|strongest|top)\b",
+    ]
+    return any(re.search(pattern, text or "", re.IGNORECASE) for pattern in disallowed_patterns)
+
+
+def agent_response_wording_has_invalid_message_shape(message: str) -> bool:
+    normalized_message = message or ""
+    if "\n" in normalized_message or "\r" in normalized_message:
+        return True
+    if re.search(r"(^|\s)[-*]\s+", normalized_message):
+        return True
+    sentence_markers = re.findall(r"[.!?]+(?:\s|$)", normalized_message)
+    return len(sentence_markers) > 1
+
+
 def normalize_agent_wording_warnings(value: object) -> list[str] | None:
     if value is None:
         return []
@@ -342,6 +391,8 @@ def validate_agent_wording_output(
 
     if wording_use_case == AGENT_WORDING_USE_CASE_AGENT_PLAN and limitations:
         return None, "llm_output_agent_plan_limitations_not_allowed"
+    if wording_use_case == AGENT_WORDING_USE_CASE_AGENT_RESPONSE and limitations:
+        return None, "llm_output_agent_response_limitations_not_allowed"
 
     if existing_limitation_kinds is not None:
         for limitation in limitations:
@@ -355,6 +406,11 @@ def validate_agent_wording_output(
         return None, "llm_output_wrong_language"
     if agent_wording_has_prohibited_content(combined_text):
         return None, "llm_output_unsafe_content"
+    if wording_use_case == AGENT_WORDING_USE_CASE_AGENT_RESPONSE:
+        if agent_response_wording_has_invalid_message_shape(message):
+            return None, "llm_output_agent_response_not_single_sentence"
+        if agent_response_wording_has_disallowed_visible_content(combined_text):
+            return None, "llm_output_agent_response_disallowed_visible_content"
 
     output_numbers = agent_wording_number_tokens(combined_text)
     if not output_numbers.issubset(allowed_numbers):
@@ -467,14 +523,21 @@ def agent_plan_wording_payload(
 
 
 def agent_response_wording_payload(agent_response: dict) -> dict:
+    summary_facts = agent_response.get("summary_facts") or {}
+    quality = summary_facts.get("quality_distribution") or {}
+    visible_summary_facts = {
+        "candidate_count": summary_facts.get("candidate_count"),
+        "quality_distribution": {
+            "strong": quality.get("strong"),
+            "review": quality.get("review"),
+            "weak": quality.get("weak"),
+        },
+    }
     payload = {
         "wording_use_case": AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
         "language": agent_response.get("language"),
         "deterministic_message": agent_response.get("message"),
-        "summary_facts": agent_response.get("summary_facts") or {},
-        "quality_notes": agent_response.get("quality_notes") or [],
-        "limitations": agent_response.get("limitations") or [],
-        "suggested_next_actions": agent_response.get("suggested_next_actions") or [],
+        "visible_summary_facts": visible_summary_facts,
         "requires_approval_for_execution": agent_response.get(
             "requires_approval_for_execution"
         ),
@@ -560,11 +623,6 @@ async def apply_llm_wording_to_agent_response(
 
     payload = agent_response_wording_payload(agent_response)
     model = normalize_text_value(os.getenv("OPENAI_MODEL") or "") or None
-    existing_limitation_kinds = {
-        str(item.get("kind"))
-        for item in agent_response.get("limitations") or []
-        if isinstance(item, dict) and item.get("kind")
-    }
     llm_output, fallback_reason = await wording_runner(payload)
     if fallback_reason or llm_output is None:
         return with_agent_wording_metadata(
@@ -581,7 +639,7 @@ async def apply_llm_wording_to_agent_response(
         language=language,
         allowed_numbers=set(payload["allowed_numbers"]),
         wording_use_case=AGENT_WORDING_USE_CASE_AGENT_RESPONSE,
-        existing_limitation_kinds=existing_limitation_kinds,
+        existing_limitation_kinds=set(),
     )
     if validation_reason or validated_output is None:
         return with_agent_wording_metadata(
@@ -602,20 +660,6 @@ async def apply_llm_wording_to_agent_response(
         llm_warnings=validated_output["warnings"],
     )
     updated_agent_response["message"] = validated_output["message"]
-
-    if validated_output["limitations"]:
-        limitation_messages = {
-            item["kind"]: item["message"]
-            for item in validated_output["limitations"]
-        }
-        updated_limitations = []
-        for limitation in updated_agent_response.get("limitations") or []:
-            updated_limitation = dict(limitation)
-            kind = updated_limitation.get("kind")
-            if kind in limitation_messages:
-                updated_limitation["message"] = limitation_messages[kind]
-            updated_limitations.append(updated_limitation)
-        updated_agent_response["limitations"] = updated_limitations
 
     return updated_agent_response
 

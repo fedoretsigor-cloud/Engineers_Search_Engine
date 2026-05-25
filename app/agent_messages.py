@@ -224,7 +224,7 @@ AGENT_MESSAGE_COVERAGE = {
     "next_iteration_review_high_quality_candidates_source_copy": {
         "helper": "next_iteration_review_high_quality_candidates_source_copy",
         "message_type": "next_iteration_options",
-        "surface": "chat, results_panel",
+        "surface": "backend_response, future_reviewed_surface",
         "source_owner": "deterministic Agent Response backend",
         "source_object": "agent_response.next_iteration_options",
         "public_response_field": "agent_response.next_iteration_options[].label/reason",
@@ -232,7 +232,7 @@ AGENT_MESSAGE_COVERAGE = {
     "next_iteration_narrow_visible_stack_source_copy": {
         "helper": "next_iteration_narrow_visible_stack_source_copy",
         "message_type": "next_iteration_options",
-        "surface": "chat, results_panel",
+        "surface": "backend_response, future_reviewed_surface",
         "source_owner": "deterministic Agent Response backend",
         "source_object": "agent_response.next_iteration_options",
         "public_response_field": "agent_response.next_iteration_options[].label/reason",
@@ -240,7 +240,7 @@ AGENT_MESSAGE_COVERAGE = {
     "next_iteration_broaden_observed_stack_source_copy": {
         "helper": "next_iteration_broaden_observed_stack_source_copy",
         "message_type": "next_iteration_options",
-        "surface": "chat, results_panel",
+        "surface": "backend_response, future_reviewed_surface",
         "source_owner": "deterministic Agent Response backend",
         "source_object": "agent_response.next_iteration_options",
         "public_response_field": "agent_response.next_iteration_options[].label/reason",
@@ -248,7 +248,7 @@ AGENT_MESSAGE_COVERAGE = {
     "next_iteration_clarify_stack_source_copy": {
         "helper": "next_iteration_clarify_stack_source_copy",
         "message_type": "next_iteration_options",
-        "surface": "chat, results_panel",
+        "surface": "backend_response, future_reviewed_surface",
         "source_owner": "deterministic Agent Response backend",
         "source_object": "agent_response.next_iteration_options",
         "public_response_field": "agent_response.next_iteration_options[].label/reason",
@@ -256,7 +256,7 @@ AGENT_MESSAGE_COVERAGE = {
     "next_iteration_deep_search_source_copy": {
         "helper": "next_iteration_deep_search_source_copy",
         "message_type": "next_iteration_options",
-        "surface": "chat, results_panel",
+        "surface": "backend_response, future_reviewed_surface",
         "source_owner": "deterministic Agent Response backend",
         "source_object": "agent_response.next_iteration_options",
         "public_response_field": "agent_response.next_iteration_options[].label/reason",
@@ -637,19 +637,23 @@ def search_brief_not_ready_for_query_plan_source_message() -> str:
 
 def agent_response_summary_source_message(language: str, summary_facts: dict) -> str:
     candidate_count = summary_facts["candidate_count"]
+    quality = summary_facts.get("quality_distribution") or {}
+    strong_count = int(quality.get("strong") or 0)
+    review_count = int(quality.get("review") or 0)
+    weak_count = int(quality.get("weak") or 0)
 
     if language == "ru":
         return (
-            f"\u041f\u043e\u0438\u0441\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d: {candidate_count} "
-            f"\u0443\u043d\u0438\u043a\u0430\u043b\u044c\u043d\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 "
-            "\u043d\u0430\u0439\u0434\u0435\u043d\u043e. \u041e\u0442\u043a\u0440\u043e\u0439 candidate workspace "
-            "\u0438 \u043d\u0430\u0447\u043d\u0438 \u0441 \u0441\u0430\u043c\u044b\u0445 "
-            "\u0441\u0438\u043b\u044c\u043d\u044b\u0445 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439."
+            f"\u041f\u043e\u0438\u0441\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d: "
+            f"\u043d\u0430\u0439\u0434\u0435\u043d\u043e {candidate_count} "
+            f"\u0443\u043d\u0438\u043a\u0430\u043b\u044c\u043d\u044b\u0445 "
+            f"\u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432: "
+            f"{strong_count} strong, {review_count} review, {weak_count} weak."
         )
 
     return (
-        f"Search completed: {candidate_count} unique candidates found. Review them "
-        "in the candidate workspace, starting with the strongest matches."
+        f"Search completed: {candidate_count} unique candidates found: "
+        f"{strong_count} strong, {review_count} review, {weak_count} weak."
     )
 
 

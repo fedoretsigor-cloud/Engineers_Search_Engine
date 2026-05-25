@@ -80,20 +80,10 @@ async def run_smoke() -> None:
 
         return {
             "message": (
-                "The approved backend search returned 3 candidates from 3 raw "
-                "results. Public snippets are limited, so review the strongest "
-                "matches manually before changing the brief."
+                "Search completed: 3 unique candidates found: 2 strong, 1 review, 0 weak."
             ),
             "warnings": ["Public snippets are incomplete."],
-            "limitations": [
-                {
-                    "kind": "public_snippets",
-                    "message": (
-                        "This summary uses only public snippets already returned "
-                        "by the backend."
-                    ),
-                }
-            ],
+            "limitations": [],
         }, None
 
     async def disallowed_number_llm(payload: dict):
@@ -132,7 +122,18 @@ async def run_smoke() -> None:
         )
         assert agent_response["wording_mode"] == "llm_assisted"
         assert agent_response["fallback_reason"] is None
+        assert agent_response["message"] == (
+            "Search completed: 3 unique candidates found: 2 strong, 1 review, 0 weak."
+        )
         assert agent_response["summary_facts"]["candidate_count"] == 3
+        response_payload = captured_payloads[-1]
+        assert "visible_summary_facts" in response_payload
+        assert "summary_facts" not in response_payload
+        assert "quality_notes" not in response_payload
+        assert "limitations" not in response_payload
+        assert "suggested_next_actions" not in response_payload
+        assert "raw_total" not in str(response_payload)
+        assert "queries_total" not in str(response_payload)
         assert all(
             action["executable"] is False
             for action in agent_response["suggested_next_actions"]
@@ -144,10 +145,7 @@ async def run_smoke() -> None:
             for option in agent_response["next_iteration_options"]
         )
         assert agent_response["llm_warnings"] == ["Public snippets are incomplete."]
-        assert (
-            agent_response["limitations"][0]["message"]
-            == "This summary uses only public snippets already returned by the backend."
-        )
+        assert "public snippets" in agent_response["limitations"][0]["message"]
 
         main.run_openai_json_agent_wording = disallowed_number_llm
         fallback_response = await main.apply_llm_wording_to_agent_response(

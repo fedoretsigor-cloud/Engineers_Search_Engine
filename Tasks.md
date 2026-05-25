@@ -10890,6 +10890,7 @@ Implemented focused hardening:
 - [ ] P8-032 Define recruiter-facing AI conversation and workspace presentation policy
   - [x] P8-032A Recruiter-facing language policy and visible-term cleanup (implemented first slice)
   - [x] P8-032B Chat tone and harmless small-talk cleanup (implemented second slice)
+  - [x] P8-032C Post-search chat cleanup (implemented third slice)
   - [x] P8-017 Handle social small talk without harsh off-topic redirect (covered by P8-032B)
   - [x] P8-018 Make greeting onboarding wording more polite (covered by P8-032B)
   - [x] P8-019 Make unclear/noise response more polite (covered by P8-032B)
@@ -10897,8 +10898,8 @@ Implemented focused hardening:
   - [ ] P8-021 Make initial chat helper prompt warmer (child issue)
   - [x] P8-023 Ask next missing clarification after successful brief patch (already covered by P8-016; evidence/check item)
   - [ ] P8-024 Replace technical plan UX with conversational search confirmation (child issue)
-  - [ ] P8-025 Shorten post-search Agent Response summary (child issue)
-  - [ ] P8-026 Hide Next Iteration Options block from recruiter chat (child issue)
+  - [x] P8-025 Shorten post-search Agent Response summary (covered by P8-032C)
+  - [x] P8-026 Hide Next Iteration Options block from recruiter chat (covered by P8-032C)
   - [ ] P8-027 Hide query contribution diagnostics from recruiter UI (child issue)
   - [ ] P8-028 Collapse report metrics behind unique-candidate summary (child issue)
   - [ ] P8-029 Remove frontend-ready status badge from recruiter UI (child issue)
@@ -10943,7 +10944,7 @@ Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the r
 
 The first candidate-workspace implementation batch is completed: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`. The batch stayed frontend-only: approved search results now map into explicit workspace state, workspace view controls sort/filter already returned candidates, and review state/shortlist/notes/statuses stay browser in-memory only.
 
-Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`, visible `Prepare search` remains separate from Tavily execution and visible `Run search` is the explicit human confirmation before real search. Harmless small talk is deterministic and preserves current search state without triggering execution. Backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution.
+Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`/`P8-032C`, visible `Prepare search` remains separate from Tavily execution and visible `Run search` is the explicit human confirmation before real search. Harmless small talk is deterministic and preserves current search state without triggering execution. Post-search recruiter chat now stays compact and does not render next-iteration option blocks. Backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
 
@@ -10951,9 +10952,9 @@ Candidate explanation order: `P8-005` implemented deterministic candidate-level 
 
 Export order: `P8-007` is completed as a local frontend-only export workflow. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage, and `P8-007B` completed the explicit UI/download slice with current-run export state, grouped export controls, local `Blob` download glue, bounded inline statuses, CSS, and no-network frontend wiring smoke coverage.
 
-Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A` and `P8-032B` add recruiter-facing visible-term cleanup plus deterministic harmless-small-talk handling and more polite EN/RU fallback wording. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit `Run search`.
+Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A`, `P8-032B`, and `P8-032C` add recruiter-facing visible-term cleanup, deterministic harmless-small-talk handling, more polite EN/RU fallback wording, compact post-search completion summaries, and hidden next-iteration option blocks in recruiter chat. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit `Run search`.
 
-Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, parts of `P8-024`, `P8-027`, `P8-028`, and `P8-029` are covered or partially covered by implemented `P8-032A`. Remaining items should still be reviewed and implemented through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` stays separate because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
+Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, parts of `P8-024`, `P8-027`, `P8-028`, and `P8-029` are covered or partially covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`. Remaining items should still be reviewed and implemented through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` stays separate because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
 ---
 
@@ -15699,7 +15700,7 @@ Hide technical planning mechanics from the recruiter and make the chat confirmat
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032C` / completed.
 
 ### Context
 
@@ -15711,13 +15712,31 @@ Post-search assistant response is too long and includes too much analysis:
 
 Preferred direction:
 
-`Search completed: 47 unique candidates identified: 19 strong, 23 in review, and 5 weak candidates.`
+`Search completed: 47 unique candidates found: 19 strong, 23 review, 5 weak.`
 
 The recruiter should see a compact completion summary. Detailed analysis already belongs in the candidate table, filters, explanations, and review UI.
 
 ### Goal
 
 Make the post-search chat response a single concise summary sentence with only candidate count and quality distribution.
+
+### Reviewed Direction
+
+Implement this task through `P8-032C Post-search chat cleanup`, together with `P8-026`.
+
+The visible recruiter-chat message after search should be short and count-only:
+
+- EN shape: `Search completed: 47 unique candidates found: 19 strong, 23 review, 5 weak.`
+- RU shape: equivalent concise summary with total unique candidates plus strong/review/weak counts.
+
+Important implementation detail: this is not only a deterministic string change. The existing LLM-assisted `Agent Response` wording path must also be bounded so it cannot expand the visible chat message back into raw counts, query counts, limitations, suggested next steps, or internal planning/execution language.
+
+Current code surfaces to account for during implementation:
+
+- deterministic summary helper: `agent_response_summary_source_message`;
+- LLM wording payload/validator: `agent_response_wording_payload` and `validate_agent_wording_output`;
+- frontend chat rendering: `appendAgentResponseMessage` and the former `renderNextIterationOptions` path;
+- source-message coverage/tests that currently treat `next_iteration_options` as chat-visible.
 
 ### Initial Proposed Steps
 
@@ -15743,15 +15762,17 @@ Make the post-search chat response a single concise summary sentence with only c
    - if a count is missing, use deterministic fallback rather than inventing.
 
 4. Decide what happens to existing next-iteration options UI:
-   - preferred first pass: do not include next-step wording in the chat sentence;
-   - if options remain visible elsewhere, keep them visually separate from the short completion sentence;
+   - do not include next-step wording in the chat sentence;
+   - coordinate with `P8-026` / `P8-032C` so `next_iteration_options` are not rendered in recruiter chat;
+   - preserve backend/internal `next_iteration_options` data unless a later reviewed task explicitly removes or replaces the contract;
    - do not show “non-executable option” language in the main chat response.
 
 5. Add no-network regression coverage:
    - EN response matches the short format;
    - RU response matches equivalent short format;
    - response does not contain raw results, query success, key indicators, limitations, suggested next step, `non-executable`, `Build Plan`, or internal planner language;
-   - LLM overlay cannot expand the response beyond allowed fields/facts.
+   - LLM overlay cannot expand the response beyond allowed fields/facts;
+   - LLM overlay cannot change total candidate count or strong/review/weak bucket counts.
 
 ### Non-Goals
 
@@ -15766,7 +15787,7 @@ Make the post-search chat response a single concise summary sentence with only c
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032C` / completed.
 
 ### Context
 
@@ -15774,7 +15795,7 @@ Observed UI issue from browser review:
 
 After search, the chat shows a separate block:
 
-`NEXT ITERATION OPTIONS`
+`NEXT ITERATION OPTIONS` / `Follow-up ideas`
 
 with items such as:
 
@@ -15787,6 +15808,19 @@ This block is not useful for the recruiter in the main chat. It adds internal/ac
 ### Goal
 
 Remove the visible `Next Iteration Options` block from recruiter-facing chat messages.
+
+### Reviewed Direction
+
+Implement this task through `P8-032C Post-search chat cleanup`, together with `P8-025`.
+
+The correct first implementation is frontend/chat-presentation only:
+
+- backend may continue returning `agent_response.next_iteration_options`;
+- frontend may keep `latestAgentResponse` for future reviewed surfaces;
+- recruiter chat should not render the block, heading, helper text, option labels, option reasons, or `non-executable` wording;
+- hiding the block must not make any option executable or change normal follow-up chat behavior.
+
+Pre-implementation detail: before `P8-032C`, `app/static/app.js` had a dedicated `renderNextIterationOptions` renderer and `appendAgentResponseMessage` passed visible `next_iteration_options` into typed chat payload. `P8-032C` removed that recruiter-chat rendering path without deleting the backend/internal option generator.
 
 ### Initial Proposed Steps
 
@@ -15809,8 +15843,9 @@ Remove the visible `Next Iteration Options` block from recruiter-facing chat mes
    - follow-up messages can still be handled by normal chat logic.
 
 5. Add or update regression coverage:
-   - post-search chat does not contain `NEXT ITERATION OPTIONS`;
+   - post-search chat does not contain `NEXT ITERATION OPTIONS` or `Follow-up ideas`;
    - post-search chat does not contain `Not executable`;
+   - post-search chat does not contain `Suggestions only`;
    - post-search chat does not render option labels/descriptions;
    - backend response shape can remain unchanged if needed, but UI hides the block.
 
@@ -16326,9 +16361,9 @@ This umbrella task defines the implementation approach for these observed issues
 5. Implement in slices after review:
    - slice A: policy/doc and regression expectations, including forbidden visible terms and LLM field boundaries;
    - slice B: chat wording cleanup for greeting, small talk, unclear/noise, helper subtitle, and initial helper prompt;
-   - slice C: conversational confirmation flow that converts explicit recruiter confirmation into the existing backend-approved build/prepare/execute path;
-   - slice D: post-search summary cleanup and hiding next-iteration/options/debug wording from the main chat;
-   - slice E: candidates-first frontend presentation/layout, including collapsed report details and hidden query contribution diagnostics.
+   - slice C: post-search summary cleanup and hiding next-iteration options from recruiter chat;
+   - slice D: candidates-first frontend presentation/layout, including collapsed report details and hidden query contribution diagnostics;
+   - if conversational confirmation still needs more work after implemented `P8-013` / `P8-032A`, review it as a separate narrow slice before coding.
 
 6. Add no-network coverage:
    - no internal terms in recruiter-facing chat;
@@ -16602,6 +16637,110 @@ It should not cover conversational search confirmation, post-search summary clea
 - Kept existing `P8-008` bounded onboarding overlay behavior for greeting/near-empty turns.
 - Updated deterministic EN/RU greeting fallback wording and EN/RU unclear/noise fallback wording to be more polite.
 - Added no-network smoke coverage for EN/RU clean-state small talk, draft/pending/ready preservation, refinement not swallowed by `thanks`, weather remaining off-topic, and no unintended LLM/planner/runtime/Tavily/workspace mutation from small talk.
+
+### Reviewed Implementation Slice C: P8-032C Post-search chat cleanup
+
+Status: approved and implemented.
+
+#### Scope
+
+This slice covers the post-search recruiter-chat cleanup under `P8-032`:
+
+- `P8-025 Shorten post-search Agent Response summary`;
+- `P8-026 Hide Next Iteration Options block from recruiter chat`.
+
+It should not cover layout rebalancing, candidate table primacy, multi-wave defaults, persistence, AI planner execution, new recommendation UI, or candidate workspace behavior.
+
+#### Goal
+
+After an approved search completes, recruiter chat should show only one compact assistant completion sentence:
+
+- total unique candidates found;
+- quality distribution counts: strong, review, weak.
+
+Detailed analysis remains available in the candidate workspace, filters, candidate explanations, report/details panels, and future reviewed surfaces. Recruiter chat should not show raw result counts, query execution counts, key indicators, limitations, suggested next steps, `non-executable` language, or next-iteration option blocks.
+
+#### Critical Implementation Decision
+
+This slice must handle both deterministic and LLM-assisted `Agent Response` wording.
+
+Changing only `agent_response_summary_source_message` is not enough because the current bounded wording path can still receive `summary_facts`, `quality_notes`, `limitations`, and `suggested_next_actions`. Without an updated payload/validator boundary, the LLM overlay could re-expand the visible chat message into raw results, query counts, limitations, or suggested next steps.
+
+For this slice, the visible `agent_response.message` wording payload should be bounded to the facts needed for the short chat sentence:
+
+- candidate count;
+- strong/review/weak quality bucket counts;
+- language;
+- deterministic fallback sentence;
+- existing hard boundaries/provenance metadata.
+
+The wording overlay must not change counts, quality bucket labels, approval state, execution state, candidate facts, Search Brief, QueryPlan, runtime context, filters, scoring, dedupe, or next actions.
+
+Allowed numbers for the Agent Response wording overlay should be computed from this reduced visible-message payload only. Raw result counts, query counts, hidden/filter counts, signal counts, and limitation counts must not be available as allowed visible-message numbers for this slice, even if they remain elsewhere in backend/internal `agent_response` data.
+
+If `quality_notes`, `limitations`, `suggested_next_actions`, or `next_iteration_options` remain in the backend `agent_response` object, they should not be treated as allowed visible-message source data for the post-search chat sentence. They can remain internal/backend data for existing contracts and future reviewed surfaces, but they should not drive visible chat wording in this slice.
+
+#### Proposed Steps
+
+1. Update deterministic post-search summary wording:
+   - EN shape: `Search completed: 47 unique candidates found: 19 strong, 23 review, 5 weak.`;
+   - RU shape: equivalent concise summary with total unique candidates plus strong/review/weak counts;
+   - counts come only from backend `summary_facts`.
+
+2. Update Agent Response wording payload/validation:
+   - restrict visible `agent_response.message` wording to candidate count and quality distribution;
+   - reject or fallback if LLM output includes raw result counts, query counts, limitations, suggested next steps, `non-executable`, planner/runtime/internal terms, URLs, LinkedIn inspection claims, or disallowed numbers;
+   - reject or fallback if LLM output uses markdown, bullet lists, multiple paragraphs, or more than one concise completion sentence;
+   - keep existing deterministic fallback/provenance behavior.
+
+3. Preserve backend response data shape:
+   - keep `agent_response.summary_facts`;
+   - keep `quality_notes`, `limitations`, `suggested_next_actions`, and `next_iteration_options` if existing tests/contracts still use them;
+   - do not make any next option executable;
+   - do not remove backend/internal data in this slice.
+
+4. Stop rendering next-iteration options in recruiter chat:
+   - remove the visible chat block heading/list/helper text from normal recruiter chat;
+   - do not pass `next_iteration_options` into the typed chat message payload for display;
+   - keep `latestAgentResponse` available for future reviewed surfaces if needed;
+   - update message taxonomy/source coverage so `next_iteration_options` are no longer documented as chat-visible after this slice;
+   - normal follow-up messages still go through existing recruiter chat/refinement logic.
+
+5. Update no-network regression coverage:
+   - deterministic EN/RU summary is short;
+   - LLM-assisted output cannot expand beyond the short summary;
+   - frontend recruiter chat does not render `Follow-up ideas`, `Next Iteration Options`, `Suggestions only`, `Not executable`, option labels, or option reasons;
+   - backend `next_iteration_options` remains present/non-executable if the backend contract is preserved;
+   - existing frontend/source tests that currently assert `renderNextIterationOptions` or `next_iteration_options` in `appendAgentResponseMessage` are updated to assert the opposite for recruiter chat;
+   - existing backend tests that assert non-executable `next_iteration_options` may remain if the backend contract is preserved;
+   - no changes to search execution, approval, Tavily, QueryPlan, scoring, filtering, dedupe, location logic, candidate workspace, export, or candidate explanations.
+
+6. Run verification after coding:
+   - `.\.venv\Scripts\python.exe -m compileall app`;
+   - `node --check app/static/app.js`;
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+   - browser sanity for one completed Java/Ukraine search flow if the server/test setup is available.
+
+#### Acceptance Criteria
+
+- Post-search recruiter chat shows one concise completion sentence.
+- The sentence includes only total unique candidates plus strong/review/weak counts.
+- The sentence does not mention raw result count, query count, key indicators, limitations, suggested next step, `non-executable`, `Build Plan`, `Search Plan`, `QueryPlan`, runtime, approval, backend planner, or debug terms.
+- LLM-assisted wording cannot change counts or expand the visible message beyond the approved short facts.
+- `Next Iteration Options` / `Follow-up ideas` are not visible in recruiter chat.
+- Backend/internal `next_iteration_options` remain non-executable and approval-gated if still present in the response shape.
+- Follow-up recruiter messages still use the existing chat/refinement flow.
+- No backend execution, Tavily, approval, runtime, QueryPlan, scoring, filtering, dedupe, location, candidate workspace, export, persistence, LinkedIn, or account-action behavior changes.
+
+#### Implementation Notes
+
+- Updated deterministic post-search `Agent Response` summary to one compact EN/RU sentence with only total unique candidates and strong/review/weak counts.
+- Reduced the Agent Response LLM wording payload to visible-message facts only: candidate count, quality bucket counts, language, deterministic fallback sentence, and hard boundaries.
+- Agent Response wording validation now rejects limitations, raw/query counts, next-step/internal wording, URLs/LinkedIn inspection claims, markdown/list/multi-paragraph output, and multi-sentence completion messages for this surface.
+- Preserved backend `agent_response.summary_facts`, `quality_notes`, `limitations`, `suggested_next_actions`, and non-executable `next_iteration_options` data shape for existing contracts/future reviewed surfaces.
+- Removed recruiter-chat rendering of next-iteration option blocks from `app/static/app.js`; chat messages no longer include visible `next_iteration_options` payload, `Follow-up ideas`, or `Suggestions only` helper text.
+- Updated regression coverage for P5/P7/P7.5/P8 wording, typed-message, chat-quality, and current-flow expectations.
+- Verification passed: `compileall`, bundled-node `node --check`, `scripts/check_all.ps1`, and browser sanity on `http://127.0.0.1:8000`.
 
 ### Non-Goals
 

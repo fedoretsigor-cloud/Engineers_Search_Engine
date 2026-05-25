@@ -1257,53 +1257,11 @@ function renderPlainChatMessage(message = {}) {
   `;
 }
 
-function renderNextIterationOptions(options = [], language = "en") {
-  const visibleOptions = arrayValue(options);
-  if (!visibleOptions.length) {
-    return "";
-  }
-  const heading = language === "ru" ? "Идеи для следующего шага" : "Follow-up ideas";
-  const helper =
-    language === "ru"
-      ? "Это только предложения. Напиши follow-up в чат, если хочешь изменить поиск."
-      : "Suggestions only. Write a follow-up in chat if you want to change the search.";
-
-  return `
-    <div class="next-iteration-options" aria-label="${escapeHtml(heading)}">
-      <strong>${escapeHtml(heading)}</strong>
-      <p>${escapeHtml(helper)}</p>
-      <ol>
-        ${visibleOptions
-          .map((option, index) => {
-            const safeOption = option || {};
-            const label = safeOption.label || safeOption.id || `Option ${index + 1}`;
-            const reason = safeOption.reason || "Grounded in the returned search data.";
-            return `
-              <li>
-                <strong>${escapeHtml(label)}</strong>
-                <p>${escapeHtml(reason)}</p>
-              </li>
-            `;
-          })
-          .join("")}
-      </ol>
-    </div>
-  `;
-}
-
 function renderTypedChatMessage(message = {}) {
   const meta = AGENT_MESSAGE_TYPE_META[message.messageType];
   if (!meta) {
     return renderPlainChatMessage(message);
   }
-
-  const optionsMarkup =
-    message.messageType === AGENT_MESSAGE_TYPES.AGENT_RESPONSE
-      ? renderNextIterationOptions(
-          message.payload?.next_iteration_options,
-          message.payload?.language || currentChatLanguage
-        )
-      : "";
 
   return `
     <article
@@ -1313,7 +1271,6 @@ function renderTypedChatMessage(message = {}) {
     >
       <span aria-label="${escapeHtml(`${ASSISTANT_SPEAKER_LABEL}: ${meta.label}`)}">${escapeHtml(ASSISTANT_SPEAKER_LABEL)}</span>
       <p>${escapeHtml(message.content)}</p>
-      ${optionsMarkup}
     </article>
   `;
 }
@@ -1880,22 +1837,10 @@ function appendAgentPlanMessage(data = {}) {
   );
 }
 
-function visibleNextIterationOptions(agentResponse = {}) {
-  return arrayValue(agentResponse.next_iteration_options).map((option, index) => {
-    const safeOption = option || {};
-    return {
-      id: safeOption.id || `option_${index + 1}`,
-      label: safeOption.label || safeOption.id || `Option ${index + 1}`,
-      reason: safeOption.reason || "Grounded in the returned search data.",
-    };
-  });
-}
-
 function appendAgentResponseMessage(agentResponse = null) {
   const response = agentResponse || {};
   const content = response.message || "";
-  const nextIterationOptions = visibleNextIterationOptions(response);
-  if (!content && !nextIterationOptions.length) {
+  if (!content) {
     return;
   }
 
@@ -1913,7 +1858,6 @@ function appendAgentResponseMessage(agentResponse = null) {
         surface: "chat",
         payload: {
           language: response.language || currentChatLanguage,
-          next_iteration_options: nextIterationOptions,
         },
       }
     )
@@ -2160,20 +2104,13 @@ function isPostResultsFollowUpMessage(text) {
 }
 
 function handlePostResultsFollowUp(userText) {
-  const options = visibleNextIterationOptions(latestAgentResponse);
-  const optionText = options.length
-    ? ` Current options: ${options
-        .slice(0, 3)
-        .map((option) => option.label)
-        .join("; ")}.`
-    : "";
   messages.push({ role: "user", content: userText, localOnly: true });
   messages.push(
     typedChatMessage(
       {
         role: "assistant",
         content:
-          `Based on the visible results, improve the next step by reviewing the strongest candidates first and then choosing a refined follow-up search.${optionText} I will not rerun search without your confirmation.`,
+          "Based on the visible results, start with the strongest matches. Tell me what you want to refine before I prepare another search.",
         kind: "agent_response",
         localOnly: true,
       },
@@ -2182,12 +2119,11 @@ function handlePostResultsFollowUp(userText) {
         surface: "chat",
         payload: {
           language: latestAgentResponse?.language || currentChatLanguage,
-          next_iteration_options: options,
         },
       }
     )
   );
-  chatStatusElement.textContent = "Results are visible. Follow-up suggestions are grounded in the current results.";
+  chatStatusElement.textContent = "Results are visible. You can refine the search in chat.";
   renderChatMessages();
   updateActionState();
 }

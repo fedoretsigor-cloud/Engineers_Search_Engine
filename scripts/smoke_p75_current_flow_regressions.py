@@ -658,7 +658,8 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
     assert "isPostResultsFollowUpMessage(userText)" in send_chat_body
     assert "/api/recruiter-chat/turn" not in post_results_body
     assert "localOnly: true" in post_results_body
-    assert "I will not rerun search without your confirmation." in post_results_body
+    assert "Tell me what you want to refine before I prepare another search." in post_results_body
+    assert "next_iteration_options" not in post_results_body
 
 
 async def run_async_smoke() -> None:

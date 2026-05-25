@@ -473,22 +473,12 @@ async def fake_valid_wording_llm(payload: dict):
             "limitations": [],
         }, None
 
-    limitation_kind = payload["limitations"][0]["kind"]
     return {
         "message": (
-            "The approved backend search returned 3 candidates from 5 raw "
-            "results. Review the strongest matches before changing the brief."
+            "Search completed: 3 unique candidates found: 2 strong, 1 review, 0 weak."
         ),
         "warnings": ["Public snippets are incomplete."],
-        "limitations": [
-            {
-                "kind": limitation_kind,
-                "message": (
-                    "This summary uses only public snippets already returned "
-                    "by the backend."
-                ),
-            }
-        ],
+        "limitations": [],
     }, None
 
 
@@ -525,6 +515,9 @@ async def assert_wording_contracts(query_plan_response: dict) -> None:
         original_response
     )
     assert worded_response["wording_mode"] == "llm_assisted"
+    assert worded_response["message"] == (
+        "Search completed: 3 unique candidates found: 2 strong, 1 review, 0 weak."
+    )
     assert worded_response["summary_facts"] == response_snapshot["summary_facts"]
     assert worded_response["quality_notes"] == response_snapshot["quality_notes"]
     assert (
@@ -535,6 +528,14 @@ async def assert_wording_contracts(query_plan_response: dict) -> None:
         worded_response["next_iteration_options"]
         == response_snapshot["next_iteration_options"]
     )
+    response_payload = RECORDER.wording_llm_calls[-1]
+    assert "visible_summary_facts" in response_payload
+    assert "summary_facts" not in response_payload
+    assert "quality_notes" not in response_payload
+    assert "limitations" not in response_payload
+    assert "suggested_next_actions" not in response_payload
+    assert "raw_total" not in str(response_payload)
+    assert "queries_total" not in str(response_payload)
     assert worded_response["wording_provenance"]["model"] == FAKE_OPENAI_MODEL
 
     clear_openai_env()
@@ -588,18 +589,10 @@ def assert_frontend_typed_message_contract() -> None:
     assert "surface" not in chat_payload
     assert "payload" not in chat_payload
 
-    visible_options = extract_function(source, "visibleNextIterationOptions")
-    assert "id:" in visible_options
-    assert "label:" in visible_options
-    assert "reason:" in visible_options
-    forbidden_option_fields = [
-        "proposed_brief_patch",
-        "requires_approval_before_execution",
-        "is_executable_now",
-        "wording_provenance",
-    ]
-    for field_name in forbidden_option_fields:
-        assert field_name not in visible_options
+    assert "function visibleNextIterationOptions" not in source
+    assert "function renderNextIterationOptions" not in source
+    assert "Follow-up ideas" not in source
+    assert "Suggestions only" not in source
 
     agent_plan_message = extract_function(source, "appendAgentPlanMessage")
     assert 'kind: "agent_plan"' in agent_plan_message
@@ -609,7 +602,7 @@ def assert_frontend_typed_message_contract() -> None:
     agent_response_message = extract_function(source, "appendAgentResponseMessage")
     assert 'kind: "agent_response"' in agent_response_message
     assert "localOnly: true" in agent_response_message
-    assert "next_iteration_options: nextIterationOptions" in agent_response_message
+    assert "next_iteration_options" not in agent_response_message
 
 
 async def run_smoke() -> None:

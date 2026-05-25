@@ -352,9 +352,12 @@ def assert_frontend_static_contract() -> None:
     assert 'const ASSISTANT_SPEAKER_LABEL = "AI Assistant";' in source
     assert "${escapeHtml(meta.speaker)} - ${escapeHtml(meta.label)}" not in source
     assert "data-message-type-label" in source
-    assert "renderNextIterationOptions(" in source
-    assert "Идеи для следующего шага" in source
-    assert "Suggestions only. Write a follow-up in chat" in source
+    assert "renderNextIterationOptions(" not in source
+    assert "visibleNextIterationOptions(" not in source
+    assert "next_iteration_options" not in source
+    assert "Идеи для следующего шага" not in source
+    assert "Follow-up ideas" not in source
+    assert "Suggestions only. Write a follow-up in chat" not in source
     assert "Prepare search" in source
     assert "Run search" in (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
     normal_ui_forbidden_terms = [
@@ -364,6 +367,8 @@ def assert_frontend_static_contract() -> None:
         "Frontend ready",
         "deduped candidates",
         "Not executable. Write a follow-up",
+        "Suggestions only",
+        "Follow-up ideas",
     ]
     public_surface = source + (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
     for term in normal_ui_forbidden_terms:
