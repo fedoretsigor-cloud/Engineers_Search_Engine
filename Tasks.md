@@ -10887,7 +10887,7 @@ Implemented focused hardening:
 
 #### Parent umbrella task
 
-- [ ] P8-032 Define recruiter-facing AI conversation and workspace presentation policy
+- [x] P8-032 Define recruiter-facing AI conversation and workspace presentation policy (completed parent umbrella)
   - [x] P8-032A Recruiter-facing language policy and visible-term cleanup (implemented first slice)
   - [x] P8-032B Chat tone and harmless small-talk cleanup (implemented second slice)
   - [x] P8-032C Post-search chat cleanup (implemented third slice)
@@ -10944,6 +10944,7 @@ Implemented focused hardening:
 - [x] P8-027 Hide query contribution diagnostics from recruiter UI
 - [x] P8-028 Collapse report metrics behind unique-candidate summary
 - [x] P8-029 Remove frontend-ready status badge from recruiter UI
+- [x] P8-032 Define recruiter-facing AI conversation and workspace presentation policy
 
 ### Current Phase 8 strategy note
 
@@ -10965,7 +10966,7 @@ Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current
 
 Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-028` and `P8-029` are covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B; `P8-027` is covered by implemented Bundle D. `P8-020` and `P8-021` were reviewed after `P8-032A` and implemented as their own narrow frontend-only cleanup slice. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
-Bundle A, Bundle B, Bundle C, and Bundle D are now implemented. The remaining Phase 8 work should continue through separately reviewed slices.
+Bundle A, Bundle B, Bundle C, Bundle D, and the `P8-032` parent umbrella are now implemented. The next reviewed direction is Phase 8.5 agentic candidate review from already returned workspace facts.
 
 ---
 
@@ -16550,9 +16551,32 @@ Critical implementation direction:
 
 ### Status
 
-Approved / partially implemented through reviewed slices A-C and Bundles A-D.
+Implemented / completed.
 
-Approval note: approved by the user after critical review. Do not code the whole umbrella as one large change. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A (`P8-031` + `P8-030`), Bundle B (`P8-024`), separate Bundle C (`P8-022`), and Bundle D (`P8-027`) are implemented. Later review of `P8-027`/`P8-028`/`P8-029` found that `P8-028` and `P8-029` are already covered by `P8-032A`; `P8-027` was implemented as a narrow frontend-only cleanup.
+Approval note: approved by the user after critical review. The umbrella was intentionally not coded as one large change. It is now closed through reviewed slices and child tasks: `P8-032A`, `P8-032B`, `P8-032C`, Bundle A (`P8-031` + `P8-030`), Bundle B (`P8-024`), separate Bundle C (`P8-022`), Bundle D (`P8-027`), and the later standalone cleanup slice for `P8-020` / `P8-021`. Later review of `P8-027`/`P8-028`/`P8-029` found that `P8-028` and `P8-029` are already covered by `P8-032A`; `P8-027` was implemented as a narrow frontend-only cleanup.
+
+### Closeout Notes
+
+`P8-032` is completed as the recruiter-facing AI conversation and workspace presentation umbrella.
+
+The observed child issues are closed or covered:
+
+- `P8-017`, `P8-018`, and `P8-019` are covered by `P8-032B`;
+- `P8-020` and `P8-021` were reviewed after `P8-032A` and implemented as their own narrow frontend-only cleanup slice;
+- `P8-023` is covered by completed `P8-016`;
+- `P8-024` is implemented through Bundle B;
+- `P8-025` and `P8-026` are covered by `P8-032C`;
+- `P8-027` is implemented through Bundle D;
+- `P8-028` and `P8-029` are covered by `P8-032A`;
+- `P8-030` and `P8-031` are implemented through Bundle A.
+
+The resulting primary flow is:
+
+`chat with recruiter -> confirm understood search -> treat recruiter confirmation as explicit approval intent -> backend validates and safely runs approved search -> show found candidates first`
+
+No backend search logic, query generation, scoring, filters, dedupe, location logic, Tavily boundaries, LinkedIn boundaries, candidate facts, export behavior, persistence, memory, account actions, candidate messaging, or autonomous execution were added by closing this parent umbrella.
+
+Next reviewed direction: Phase 8.5 agentic candidate review and iteration from already returned workspace facts.
 
 ### Context
 
