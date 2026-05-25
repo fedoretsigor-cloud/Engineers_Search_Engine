@@ -10900,9 +10900,9 @@ Implemented focused hardening:
   - [x] P8-024 Replace technical plan UX with conversational search confirmation (implemented through Bundle B)
   - [x] P8-025 Shorten post-search Agent Response summary (covered by P8-032C)
   - [x] P8-026 Hide Next Iteration Options block from recruiter chat (covered by P8-032C)
-  - [ ] P8-027 Hide query contribution diagnostics from recruiter UI (child issue)
-  - [ ] P8-028 Collapse report metrics behind unique-candidate summary (child issue)
-  - [ ] P8-029 Remove frontend-ready status badge from recruiter UI (child issue)
+  - [x] P8-027 Hide query contribution diagnostics from recruiter UI (implemented through Bundle D)
+  - [x] P8-028 Collapse report metrics behind unique-candidate summary (covered by P8-032A; verified in review)
+  - [x] P8-029 Remove frontend-ready status badge from recruiter UI (covered by P8-032A; verified in review)
   - [x] P8-030 Rebalance desktop layout toward candidate workspace (implemented through Bundle A)
   - [x] P8-031 Make candidate table the primary post-search surface (implemented through Bundle A)
 
@@ -10939,6 +10939,9 @@ Implemented focused hardening:
 - [x] P8-031 Make candidate table the primary post-search surface
 - [x] P8-024 Replace technical plan UX with conversational search confirmation
 - [x] P8-022 Make multi-wave the default approved search mode
+- [x] P8-027 Hide query contribution diagnostics from recruiter UI
+- [x] P8-028 Collapse report metrics behind unique-candidate summary
+- [x] P8-029 Remove frontend-ready status badge from recruiter UI
 
 ### Current Phase 8 strategy note
 
@@ -10948,7 +10951,7 @@ Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the r
 
 The first candidate-workspace implementation batch is completed: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`. The batch stayed frontend-only: approved search results now map into explicit workspace state, workspace view controls sort/filter already returned candidates, and review state/shortlist/notes/statuses stay browser in-memory only.
 
-Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`/`P8-032C`, visible `Prepare search` remains separate from Tavily execution and visible `Run search` is the explicit human confirmation before real search. Harmless small talk is deterministic and preserves current search state without triggering execution. Post-search recruiter chat now stays compact and does not render next-iteration option blocks. Backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution.
+Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`/`P8-032C` and Bundle B/C, visible `Prepare search` remains separate from Tavily execution, clean state-bound chat confirmation or visible `Run search` can express recruiter approval intent, and backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution. Harmless small talk is deterministic and preserves current search state without triggering execution. Post-search recruiter chat now stays compact and does not render next-iteration option blocks.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
 
@@ -10958,9 +10961,9 @@ Export order: `P8-007` is completed as a local frontend-only export workflow. `P
 
 Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A, Bundle B, and Bundle C add recruiter-facing visible-term cleanup, deterministic harmless-small-talk handling, more polite EN/RU fallback wording, compact post-search completion summaries, hidden next-iteration option blocks in recruiter chat, candidate-first results presentation, state-bound conversational search confirmation, and multi-wave as the default approved search mode with a visible opt-out toggle. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit recruiter confirmation.
 
-Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, parts of `P8-027`, `P8-028`, and `P8-029` are covered or partially covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B. Remaining items should still be reviewed and implemented through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
+Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, `P8-028`, and `P8-029` are covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B; `P8-027` is covered by implemented Bundle D. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
-Bundle A, Bundle B, and Bundle C are now implemented. The next Phase 8 review should return to the remaining recruiter-facing presentation backlog (`P8-027`, `P8-028`, `P8-029`) unless the user chooses a different approved slice.
+Bundle A, Bundle B, Bundle C, and Bundle D are now implemented. The remaining Phase 8 work should continue through separately reviewed slices.
 
 ---
 
@@ -15964,7 +15967,31 @@ Pre-implementation detail: before `P8-032C`, `app/static/app.js` had a dedicated
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Combined Review Update
+
+Reviewed together with `P8-028` and `P8-029` after Bundle A/B/C.
+
+Current code state:
+
+- `renderReport(report)` no longer renders `report.query_contribution` into recruiter-facing UI;
+- the previous `Query contribution details` surface is removed from the recruiter UI;
+- backend report payload, snapshots, logs, and candidate `query_sources` still need this data for diagnostics and source tracking.
+
+Decision:
+
+- `P8-027` was implemented as the Bundle D code task from this group.
+- The correct implementation is frontend-presentation only: do not remove backend report fields and do not change search/runtime behavior.
+- Hide query contribution from recruiter UI completely for now, not merely collapsed. If internal diagnostics are needed later, add a separate debug/developer surface through a reviewed task.
+
+### Implementation Note
+
+Implemented as a frontend-only report presentation cleanup:
+
+- `app/static/app.js` clears `contributionList` in `renderReport(report)` instead of building query contribution cards;
+- backend `report.query_contribution` remains in the response/log/snapshot path;
+- `scripts/smoke_p8_query_contribution_hidden.py` guards against returning the query contribution UI while preserving backend report data.
 
 ### Context
 
@@ -15986,7 +16013,10 @@ Remove query contribution diagnostics from the recruiter-facing frontend.
 
 ### Initial Proposed Steps
 
-1. Find where query contribution cards are rendered in the frontend.
+1. Update `renderReport(report)` in `app/static/app.js`:
+   - stop building recruiter-facing `contributionMarkup`;
+   - stop assigning `Query contribution details` markup to `contributionList`;
+   - keep clearing `contributionList.innerHTML = ""` in reset/error/no-report paths.
 
 2. Hide/remove the recruiter-facing display of:
    - query ids such as `Q01`, `Q02`, `Q03`;
@@ -15999,14 +16029,20 @@ Remove query contribution diagnostics from the recruiter-facing frontend.
    - do not remove fields from API contracts in this task;
    - only remove or hide the main UI surface.
 
-4. Check remaining report UI:
+4. Leave `P8-028` behavior intact:
+   - keep the compact unique-candidate `reportStatus` summary;
+   - keep detailed aggregate metric grid collapsed by default;
+   - do not move query contribution into the collapsed aggregate metrics details.
+
+5. Check remaining report UI:
    - keep high-level useful counts if they are still needed;
    - avoid leaving empty sections, headers, or awkward spacing;
    - candidate table/workspace remains the primary post-search surface.
 
-5. Add or update frontend/static coverage:
+6. Add or update frontend/static coverage:
    - UI no longer renders `Q01`/query contribution cards after search;
    - UI no longer renders `raw X, filtered Y, new Z, duplicates N`;
+   - UI no longer renders `Query contribution details`;
    - backend response shape can remain unchanged;
    - candidate workspace still renders candidates.
 
@@ -16023,7 +16059,20 @@ Remove query contribution diagnostics from the recruiter-facing frontend.
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032A` / completed.
+
+### Review Result
+
+Reviewed together with `P8-027` and `P8-029` after Bundle A/B/C.
+
+Current code already satisfies this task:
+
+- `renderReport(report)` writes a compact top-level summary into `reportStatus`, for example `{N} unique candidates found. Multi-wave search completed.`;
+- aggregate diagnostic metrics are rendered inside `<details class="collapsible-section report-details">`, which is collapsed by default;
+- missing/no-report/reset paths clear `reportGrid` cleanly;
+- backend report payload, snapshots, runtime, search, scoring, candidate workspace, export, and Agent Response facts are unchanged.
+
+No separate code task is needed unless a later UX review decides to remove the entire `Search summary` panel or redesign it.
 
 ### Context
 
@@ -16104,7 +16153,20 @@ Make the report panel recruiter-first: show only the unique candidate count by d
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032A` / completed.
+
+### Review Result
+
+Reviewed together with `P8-027` and `P8-028` after Bundle A/B/C.
+
+Current code already satisfies this task:
+
+- visible `Frontend ready` is not present in `app/static/index.html` or `app/static/app.js`;
+- the top status now starts as `Starting workspace...` and becomes `Workspace ready`;
+- `scripts/smoke_p8_chat_quality.py` explicitly forbids `Frontend ready` in the public frontend surface;
+- no frontend initialization logic, search/runtime behavior, candidate workspace, report data, or export behavior is tied to `Frontend ready`.
+
+No separate code task is needed.
 
 ### Context
 
@@ -16369,9 +16431,9 @@ Critical implementation direction:
 
 ### Status
 
-Approved / partially implemented through reviewed slices A-C and Bundles A-C.
+Approved / partially implemented through reviewed slices A-C and Bundles A-D.
 
-Approval note: approved by the user after critical review. Do not code the whole umbrella as one large change. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A (`P8-031` + `P8-030`), Bundle B (`P8-024`), and separate Bundle C (`P8-022`) are implemented. Remaining child issues such as `P8-027`, `P8-028`, and `P8-029` still require separate review before coding.
+Approval note: approved by the user after critical review. Do not code the whole umbrella as one large change. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A (`P8-031` + `P8-030`), Bundle B (`P8-024`), separate Bundle C (`P8-022`), and Bundle D (`P8-027`) are implemented. Later review of `P8-027`/`P8-028`/`P8-029` found that `P8-028` and `P8-029` are already covered by `P8-032A`; `P8-027` was implemented as a narrow frontend-only cleanup.
 
 ### Context
 
@@ -16536,8 +16598,9 @@ This umbrella task defines the implementation approach for these observed issues
    - slice A: policy/doc and regression expectations, including forbidden visible terms and LLM field boundaries;
    - slice B: chat wording cleanup for greeting, small talk, unclear/noise, helper subtitle, and initial helper prompt;
    - slice C: post-search summary cleanup and hiding next-iteration options from recruiter chat;
-   - slice D: candidates-first frontend presentation/layout, including collapsed report details and hidden query contribution diagnostics;
-   - if conversational confirmation still needs more work after implemented `P8-013` / `P8-032A`, review it as a separate narrow slice before coding.
+   - slice D1: candidates-first frontend presentation/layout, completed by Bundle A;
+   - slice D2: hide query contribution diagnostics from recruiter UI through `P8-027`, completed by Bundle D;
+   - conversational confirmation was later implemented by Bundle B (`P8-024`).
 
 6. Add no-network coverage:
    - no internal terms in recruiter-facing chat;
@@ -16682,7 +16745,9 @@ Allowed outside normal recruiter-facing flow:
 - Updated primary visible labels to `Prepare search`, `Run search`, `Search details`, `Search summary`, `Candidate workspace`, and `Search steps`.
 - Reworded normal chat/status copy away from `Search Brief`, `Agent Plan`, `QueryPlan`, `runtime approval`, `fingerprint`, `backend planner`, and `non-executable`.
 - Kept backend/API/runtime identifiers, approval payloads, fingerprints, stale checks, Tavily execution path, query generation, scoring, filtering, dedupe, location logic, candidate facts, and export behavior unchanged.
-- Collapsed detailed metrics and query contribution diagnostics behind recruiter-facing details sections.
+- Collapsed detailed metrics behind recruiter-facing details sections.
+- Removed visible `Frontend ready` wording from the public frontend surface.
+- Partially covered query contribution diagnostics by moving them out of the default view; later Bundle D (`P8-027`) removed the remaining recruiter-facing `Query contribution details` surface.
 - Added focused no-network regression assertions for visible-term cleanup without banning legitimate internal code identifiers.
 
 ### Reviewed Implementation Slice B: P8-032B Chat tone and harmless small-talk cleanup

@@ -2575,34 +2575,7 @@ function renderReport(report) {
     </details>
   `;
 
-  const contributionMarkup = (report.query_contribution || [])
-    .map(
-      (item) => `
-        <article class="contribution-item ${item.ok ? "" : "is-failed"}">
-          <div>
-            <strong>${escapeHtml(item.id)}</strong>
-            <span>${escapeHtml(item.category)}</span>
-          </div>
-          <p>
-            raw ${escapeHtml(item.raw)}, filtered ${escapeHtml(item.filtered)},
-            new ${escapeHtml(item.new_unique_profiles)}, duplicates ${escapeHtml(item.duplicates)}
-          </p>
-          ${item.error ? `<p class="error-text">${escapeHtml(item.error)}</p>` : ""}
-        </article>
-      `
-    )
-    .join("");
-  contributionList.innerHTML = contributionMarkup
-    ? `
-      <details class="collapsible-section contribution-details">
-        <summary class="collapsible-summary">
-          <span>Query contribution details</span>
-          <span class="collapse-indicator" aria-hidden="true"></span>
-        </summary>
-        <div class="contribution-details-list">${contributionMarkup}</div>
-      </details>
-    `
-    : "";
+  contributionList.innerHTML = "";
 }
 
 function renderQualityField(label, value, modifier = "") {

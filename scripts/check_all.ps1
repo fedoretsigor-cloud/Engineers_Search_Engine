@@ -100,6 +100,10 @@ Invoke-Check "P8 Candidate Primary Surface smoke" {
     & $python scripts/smoke_p8_candidate_primary_surface.py
 }
 
+Invoke-Check "P8 Query Contribution Hidden smoke" {
+    & $python scripts/smoke_p8_query_contribution_hidden.py
+}
+
 Invoke-Check "P8 Chat Quality smoke" {
     & $python scripts/smoke_p8_chat_quality.py
 }
