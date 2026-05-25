@@ -16957,6 +16957,95 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ---
 
+## Phase 8.5 - Agentic Candidate Review & Iteration
+
+### Approved
+
+### Backlog
+
+- [ ] P8.5-001 Define agentic candidate review contract
+- [ ] P8.5-002 Add top-candidate recommendation from returned workspace facts
+- [ ] P8.5-003 Add selected-candidate comparison
+- [ ] P8.5-004 Add fit/gap explanation across selected candidates
+- [ ] P8.5-005 Add guided next-refinement suggestions from workspace results
+
+### In Progress
+
+### Done
+
+### Strategy note
+
+Phase 8.5 should make the completed Phase 8 workspace feel like a fuller AI Agent experience before persistence or provider expansion. The agent may analyze already returned candidate facts, summarize tradeoffs, compare candidates selected by the recruiter, and propose next search refinements. It must not execute searches autonomously, call Tavily, open LinkedIn, scrape, message candidates, persist data, or add new providers.
+
+---
+
+## Phase 10 - Manual Candidate Evidence Intake
+
+### Approved
+
+### Backlog
+
+- [ ] P10-001 Define manual evidence intake contract and safety boundaries
+- [ ] P10-002 Add paste-in profile evidence input for a selected candidate
+- [ ] P10-003 Compare pasted evidence against the current Search Brief and workspace candidate
+- [ ] P10-004 Produce structured fit, gap, contradiction, and confidence summary
+- [ ] P10-005 Add no-storage/no-logging/privacy handling for pasted profile text unless Phase 9 explicitly allows persistence
+
+### In Progress
+
+### Done
+
+### Strategy note
+
+This phase is for user-provided evidence only: the recruiter may manually open a public profile outside the app, copy visible text, and paste it into the product. The app and agent must not open LinkedIn, log in, scrape, automate browsing, bypass restrictions, message candidates, perform account actions, or claim that the pasted text is complete or current. Output should clearly separate confirmed evidence, missing evidence, contradictions, risks, and fit judgment against the active Search Brief.
+
+---
+
+## Phase 11 - Resume Upload & Fit Analysis
+
+### Approved
+
+### Backlog
+
+- [ ] P11-001 Define resume upload contract, supported file types, and privacy boundaries
+- [ ] P11-002 Add resume parser/intake with safe size and content limits
+- [ ] P11-003 Analyze resume evidence against the active Search Brief and target stack
+- [ ] P11-004 Produce structured fit summary with strengths, gaps, risks, and follow-up questions
+- [ ] P11-005 Define retention, deletion, masking, and logging rules aligned with Phase 9
+
+### In Progress
+
+### Done
+
+### Strategy note
+
+Resume/CV data is sensitive. The first reviewed version should be explicit about whether resumes are session-only or persisted, what is logged, how contact details are handled, how deletion works, and how analysis provenance is shown. The agent may analyze and summarize; it must not contact the candidate, enrich the resume through hidden external searches, or perform account actions.
+
+---
+
+## Phase 12 - Multi-Provider Search
+
+### Approved
+
+### Backlog
+
+- [ ] P12-001 Define search-provider abstraction and provider result contract
+- [ ] P12-002 Add Serper provider behind approval-gated runtime execution
+- [ ] P12-003 Add SerpApi Google provider behind approval-gated runtime execution
+- [ ] P12-004 Add SerpApi Bing provider behind approval-gated runtime execution
+- [ ] P12-005 Add cross-provider dedupe, provenance, cost/latency limits, and failure handling
+- [ ] P12-006 Define provider-selection policy and user-visible execution review
+
+### In Progress
+
+### Done
+
+### Strategy note
+
+Provider expansion should be a separate reviewed phase, not a quick bypass around the existing backend pipeline. Serper, SerpApi Google, and SerpApi Bing should run only through an approved provider abstraction, explicit user approval, visible provider provenance, cost/latency controls, and cross-provider dedupe. This phase must preserve the no-autonomous-execution rule and must not introduce direct LinkedIn login, scraping, messaging, or account actions.
+
+---
+
 ## Task: P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail
 
 ### Status

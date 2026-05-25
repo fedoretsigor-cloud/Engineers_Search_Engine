@@ -108,6 +108,12 @@ Planned current and later phases:
 - Phase 7.5: `Recruiter Simulation QA & Flow Hardening`, completed and closed.
 - Phase 8: `Candidate Workspace/Table + Shortlist`, current active direction.
 - Phase 9: `Persistent Memory + Saved Searches`.
+- Phase 8.5: `Agentic Candidate Review & Iteration`, future post-Phase-8 product track for top-candidate analysis, selected-candidate comparison, fit/gap explanation, and guided refinement from already returned workspace facts only.
+- Phase 10: `Manual Candidate Evidence Intake`, future track where the recruiter manually pastes public profile text copied outside the app, and the agent compares that user-provided evidence against the current Search Brief and workspace context.
+- Phase 11: `Resume Upload & Fit Analysis`, future track for structured resume/CV analysis against the current Search Brief, with explicit privacy, retention, masking, logging, and deletion rules.
+- Phase 12: `Multi-Provider Search`, future provider-expansion track for Serper, SerpApi Google, and SerpApi Bing through the same approval-gated backend runtime boundary.
+
+Future-track boundaries: manual LinkedIn/profile evidence and resume uploads are user-provided inputs only. The app must not open LinkedIn, log in, scrape, automate browsing, bypass restrictions, message candidates, perform account actions, or run new providers outside an approved backend pipeline. Provider expansion should stay separate from candidate evidence and resume-analysis phases.
 
 `P5-001` is completed as a docs-only contract task. The approved recruiter chat contract supports Russian and English input, asks one clarifying question at a time, replaces the structured form as the primary UX over time, shows a normalized brief summary before `Build Plan`, and keeps `Build Plan` separate from Tavily execution. After `P5-004`, primary chat `Build Plan` defaults to `rule_based` so supported briefs produce an approvable Search Plan. Tavily execution remains behind explicit backend approval. Direct web-search bypass, direct LinkedIn access/automation, LinkedIn login, LinkedIn scraping/restriction bypass, candidate messaging/automatic outreach, autonomous execution, and user or third-party account actions remain prohibited behavior.
 
