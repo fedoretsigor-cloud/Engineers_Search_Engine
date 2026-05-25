@@ -1527,6 +1527,49 @@ def detect_recruiter_chat_off_topic_intent(text: str) -> bool:
     return text_matches_any_pattern(normalized_text, off_topic_patterns)
 
 
+def detect_recruiter_chat_small_talk_intent(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+    if is_greeting_only_chat_message(normalized_text) or is_near_empty_chat_message(
+        normalized_text
+    ):
+        return False
+    if has_sourcing_or_recruiter_context_signal(normalized_text):
+        return False
+    if is_refinement_like_chat_message(normalized_text):
+        return False
+
+    small_talk_phrases = {
+        "how are you",
+        "how s it going",
+        "are you there",
+        "you there",
+        "thanks",
+        "thank you",
+        "thanks a lot",
+        "thank you very much",
+        "thank you so much",
+        "thanks for help",
+        "thanks for your help",
+        "как дела",
+        "ты тут",
+        "спасибо",
+        "спасибо большое",
+        "спс",
+        "благодарю",
+        "благодарю за помощь",
+    }
+    if normalized_text in small_talk_phrases:
+        return True
+
+    gratitude_patterns = [
+        r"^(thanks|thank you) (a lot|very much|so much|for help|for your help)$",
+        r"^(спасибо|спс|благодарю) (большое|за помощь)$",
+    ]
+    return text_matches_any_pattern(normalized_text, gratitude_patterns)
+
+
 def detect_recruiter_chat_unclear_request(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     if not normalized_text:
@@ -2690,6 +2733,67 @@ def build_recruiter_chat_preserve_current_brief_response(
     )
 
 
+def recruiter_chat_small_talk_prefix(text: str, language: str) -> str:
+    normalized_text = normalized_chat_control_text(text)
+    gratitude_phrases = {
+        "thanks",
+        "thank you",
+        "thanks a lot",
+        "thank you very much",
+        "thank you so much",
+        "thanks for help",
+        "thanks for your help",
+        "спасибо",
+        "спасибо большое",
+        "спс",
+        "благодарю",
+        "благодарю за помощь",
+    }
+    if normalized_text in gratitude_phrases:
+        if language == "ru":
+            return "Пожалуйста."
+        return "You're welcome."
+
+    if language == "ru":
+        return "Я на связи и готов помочь."
+    return "I'm here and ready to help."
+
+
+def recruiter_chat_small_talk_message(
+    request: RecruiterChatTurnRequest,
+    text: str,
+    language: str,
+) -> str:
+    prefix = recruiter_chat_small_talk_prefix(text, language)
+    context = current_brief_context_for_language(request.draft_brief, language)
+    normalized_brief = context.get("normalized_brief") or {}
+    next_question = context.get("next_question")
+
+    if normalized_brief.get("brief_status") == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        if language == "ru":
+            return (
+                f"{prefix} Текущая сводка поиска готова. "
+                "Можем продолжить или уточнить параметры."
+            )
+        return (
+            f"{prefix} The current search summary is still ready. "
+            "We can continue or adjust the details."
+        )
+
+    if next_question:
+        return f"{prefix} {next_question}"
+
+    if language == "ru":
+        return (
+            f"{prefix} Расскажи, кого ищем: роль, основная технология, "
+            "локация и 1-3 сигнала стека."
+        )
+    return (
+        f"{prefix} Tell me who we should find: role, main technology, "
+        "location, and 1-3 stack signals."
+    )
+
+
 def recruiter_chat_off_topic_message(language: str) -> str:
     if language == "ru":
         return (
@@ -2705,11 +2809,11 @@ def recruiter_chat_off_topic_message(language: str) -> str:
 def recruiter_chat_unclear_request_message(language: str) -> str:
     if language == "ru":
         return (
-            "Не понял запрос. Я могу помочь с поиском кандидатов: напиши, "
+            "Извини, я не понял запрос. Я могу помочь с поиском кандидатов: напиши, "
             "кого ищем, основную технологию, локацию и 1-3 сигнала стека."
         )
     return (
-        "I did not understand the request. I can help with candidate search: "
+        "Sorry, I did not understand the request. I can help with candidate search: "
         "tell me the role, main technology, location, and 1-3 stack signals."
     )
 
@@ -3347,6 +3451,14 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             language,
             planner_mode,
             recruiter_chat_stack_explanation_message(language),
+        )
+
+    if detect_recruiter_chat_small_talk_intent(latest_user_text):
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            recruiter_chat_small_talk_message(request, latest_user_text, language),
         )
 
     if detect_recruiter_chat_off_topic_intent(latest_user_text):

@@ -10889,9 +10889,10 @@ Implemented focused hardening:
 
 - [ ] P8-032 Define recruiter-facing AI conversation and workspace presentation policy
   - [x] P8-032A Recruiter-facing language policy and visible-term cleanup (implemented first slice)
-  - [ ] P8-017 Handle social small talk without harsh off-topic redirect (child issue)
-  - [ ] P8-018 Make greeting onboarding wording more polite (child issue)
-  - [ ] P8-019 Make unclear/noise response more polite (child issue)
+  - [x] P8-032B Chat tone and harmless small-talk cleanup (implemented second slice)
+  - [x] P8-017 Handle social small talk without harsh off-topic redirect (covered by P8-032B)
+  - [x] P8-018 Make greeting onboarding wording more polite (covered by P8-032B)
+  - [x] P8-019 Make unclear/noise response more polite (covered by P8-032B)
   - [ ] P8-020 Remove redundant Recruiter Chat helper subtitle (child issue)
   - [ ] P8-021 Make initial chat helper prompt warmer (child issue)
   - [x] P8-023 Ask next missing clarification after successful brief patch (already covered by P8-016; evidence/check item)
@@ -10942,7 +10943,7 @@ Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the r
 
 The first candidate-workspace implementation batch is completed: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`. The batch stayed frontend-only: approved search results now map into explicit workspace state, workspace view controls sort/filter already returned candidates, and review state/shortlist/notes/statuses stay browser in-memory only.
 
-Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`, visible `Prepare search` remains separate from Tavily execution and visible `Run search` is the explicit human confirmation before real search. Backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution.
+Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`, visible `Prepare search` remains separate from Tavily execution and visible `Run search` is the explicit human confirmation before real search. Harmless small talk is deterministic and preserves current search state without triggering execution. Backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
 
@@ -10950,9 +10951,9 @@ Candidate explanation order: `P8-005` implemented deterministic candidate-level 
 
 Export order: `P8-007` is completed as a local frontend-only export workflow. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage, and `P8-007B` completed the explicit UI/download slice with current-run export state, grouped export controls, local `Blob` download glue, bounded inline statuses, CSS, and no-network frontend wiring smoke coverage.
 
-Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit `Approve & Search`.
+Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A` and `P8-032B` add recruiter-facing visible-term cleanup plus deterministic harmless-small-talk handling and more polite EN/RU fallback wording. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit `Run search`.
 
-Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. Do not implement them as independent hardcoded phrase fixes. Review and implement them through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` stays separate because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
+Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, parts of `P8-024`, `P8-027`, `P8-028`, and `P8-029` are covered or partially covered by implemented `P8-032A`. Remaining items should still be reviewed and implemented through the umbrella policy task `P8-032` unless a later task review explicitly splits a narrow frontend-only cleanup. `P8-022` stays separate because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
 ---
 
@@ -15169,7 +15170,7 @@ Verification:
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032B` / completed.
 
 ### Context
 
@@ -15220,7 +15221,7 @@ The route should make the chat feel more natural without changing Search Brief s
 
 ### Notes
 
-This should be reviewed before coding. The likely implementation should be deterministic first; an LLM wording overlay can be considered later only if it stays bounded and cannot change facts/state/actions.
+Implemented through the `P8-032B` slice as a deterministic harmless-small-talk route. It preserves existing draft/ready search-summary state, does not call OpenAI, and does not create or mutate Search Brief, planner, runtime, Tavily, results, or workspace state.
 
 ### Non-Goals
 
@@ -15235,7 +15236,7 @@ This should be reviewed before coding. The likely implementation should be deter
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032B` / completed.
 
 ### Context
 
@@ -15277,7 +15278,7 @@ Improve greeting/onboarding wording so the first assistant response feels more p
 
 ### Notes
 
-This is a wording-quality task, not a behavior or execution task. Review wording examples before coding.
+Implemented through the `P8-032B` slice as deterministic fallback wording cleanup while preserving the existing `P8-008` bounded onboarding overlay behavior.
 
 ### Non-Goals
 
@@ -15292,7 +15293,7 @@ This is a wording-quality task, not a behavior or execution task. Review wording
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Covered by `P8-032B` / completed.
 
 ### Context
 
@@ -15335,7 +15336,7 @@ Improve unclear/noise response wording so it is polite, brief, and helpful while
 
 ### Notes
 
-This is wording-quality hardening for an existing guardrail, not a routing expansion.
+Implemented through the `P8-032B` slice as deterministic fallback wording cleanup for the existing unclear/noise guardrail, without changing Search Brief extraction, planner, runtime, Tavily, or workspace behavior.
 
 ### Non-Goals
 
@@ -16474,6 +16475,133 @@ Allowed outside normal recruiter-facing flow:
 - Kept backend/API/runtime identifiers, approval payloads, fingerprints, stale checks, Tavily execution path, query generation, scoring, filtering, dedupe, location logic, candidate facts, and export behavior unchanged.
 - Collapsed detailed metrics and query contribution diagnostics behind recruiter-facing details sections.
 - Added focused no-network regression assertions for visible-term cleanup without banning legitimate internal code identifiers.
+
+### Reviewed Implementation Slice B: P8-032B Chat tone and harmless small-talk cleanup
+
+Status: approved and implemented.
+
+#### Recorded Architecture Decision
+
+Harmless social small talk should not call OpenAI as the source of truth for routing, state, or actions.
+
+The approved direction to preserve for review:
+
+1. Current slice direction:
+   - implement a deterministic small-talk route for simple harmless turns such as `how are you?`, `thanks`, `are you there?`, `как дела?`, and `спасибо`;
+   - answer briefly and return the recruiter to the current sourcing context;
+   - preserve any existing draft search summary, pending clarification, prepared search, results, and workspace state unless an existing explicit reset/refinement rule applies;
+   - do not create or mutate a Search Brief only because of small talk;
+   - do not build a search, prepare runtime approval, call Tavily, call LinkedIn, or execute any tool.
+
+2. Agent architecture reason:
+   - a real sourcing agent should not call an LLM for every trivial control/small-talk turn;
+   - deterministic code owns safety, routing, state, approval, tool/action selection, and execution boundaries;
+   - LLM may help with language quality, but must not decide whether a message changes state or starts an action.
+
+3. Later direction:
+   - a future reviewed task may add a bounded LLM wording overlay for small-talk/greeting/unclear replies;
+   - that overlay may only rewrite the already selected deterministic message;
+   - it must not change facts, Search Brief fields, pending clarification, confirmation/refinement classification, approval, tool/action selection, execution mode, candidates, counts, or results;
+   - it must fall back to deterministic wording on missing config, timeout, validation failure, unsupported language, or unsafe output.
+
+4. Guardrail:
+   - OpenAI can improve wording later, but cannot become the authority for small-talk routing or action decisions.
+
+Compatibility with existing `P8-008`: greeting/onboarding already has an optional bounded LLM wording overlay after deterministic routing. `P8-032B` must not remove that approved path. The distinction is:
+
+- greeting/onboarding may continue using the existing bounded onboarding wording overlay after the backend has already selected the onboarding route;
+- harmless small talk should be deterministic in this slice and should not add a new OpenAI call;
+- unclear/noise and off-topic routing remain deterministic; any future wording overlay for them requires a separate reviewed task.
+
+#### Scope For Review
+
+This slice should cover the safest chat-tone fixes under `P8-032`:
+
+- `P8-017 Handle social small talk without harsh off-topic redirect`;
+- `P8-018 Make greeting onboarding wording more polite`;
+- `P8-019 Make unclear/noise response more polite`.
+
+It should not cover conversational search confirmation, post-search summary cleanup, next-iteration hiding, layout changes, multi-wave defaults, persistence, AI planner execution, or candidate workspace behavior.
+
+#### Proposed Steps For Review
+
+1. Add deterministic harmless-small-talk detection before generic off-topic/unclear routing:
+   - keep safety/prohibited-intent and explicit reset/control signals higher priority;
+   - keep greeting/near-empty onboarding as a separate route, not merged into small talk;
+   - do not swallow messages with sourcing/refinement signals, for example `thanks, add Kafka`;
+   - use conservative standalone/short-phrase matching; do not introduce broad multilingual NLU or fuzzy semantic matching;
+   - move or override the current `how are you` generic off-topic classification so harmless small talk no longer receives the harsh off-topic redirect;
+   - route weather/currency/restaurant/general factual prompts through the existing off-topic guardrail, not the small-talk route.
+
+2. Add small-talk response builder:
+   - brief friendly answer;
+   - if a pending clarification exists, repeat the current pending question;
+   - if a ready search summary exists, say it is still ready and ask whether to continue/refine in recruiter-facing terms;
+   - otherwise ask the recruiter to describe who they want to find.
+   - response envelope invariants for small talk:
+     - `brief_changed = false`;
+     - `stale_state_should_clear = false`;
+     - `clear_brief = false`;
+     - preserve current `state`, `normalized_brief`, `next_question`, and `can_build_plan` as derived from the existing draft brief;
+     - do not create a QueryPlan, runtime approval, search run, results, or workspace mutation;
+     - if a ready draft already exposes an existing `build_plan_action` affordance through current validation context, that is allowed only as preserved ready-state context, not as a new action caused by small talk.
+
+3. Update greeting/onboarding deterministic fallback wording:
+   - English should be more polite than bare `Hi.`;
+   - Russian should stay natural and concise;
+   - required search inputs remain role, main technology, location, and 1-3 stack signals.
+   - existing `P8-008` bounded onboarding overlay may still replace the deterministic fallback only within its approved limits;
+   - update fallback/unsafe-overlay tests that currently expect the old `Hi.` text.
+
+4. Update unclear/noise deterministic fallback wording:
+   - make the response polite and brief;
+   - prefer a concise apology such as `Sorry, I did not understand...`; do not force a repeated `Hello` prefix in every noise response;
+   - keep the meaning as `unclear_request`;
+   - no Search Brief extraction, planner, runtime, Tavily, or LinkedIn behavior should trigger.
+
+5. Preserve current LLM boundaries:
+   - keep existing bounded onboarding wording behavior where it already exists;
+   - do not add a new OpenAI call for small talk in this slice;
+   - document that a future bounded wording overlay can be reviewed later.
+
+6. Add no-network regression coverage:
+   - clean-state EN/RU small talk returns friendly response and no brief;
+   - draft brief is preserved after small talk;
+   - pending clarification is preserved and repeated after small talk;
+   - ready summary remains ready after small talk;
+   - small talk after a prepared search or after results does not clear frontend state through `stale_state_should_clear`;
+   - weather/currency stays off-topic;
+   - sourcing/refinement messages are not misclassified as small talk;
+   - greeting/near-empty still uses the existing onboarding path, not the small-talk path;
+   - unsafe/prohibited requests still refuse before small-talk handling;
+   - no recruiter LLM extraction, planner/runtime/Tavily execution, or workspace mutation happens because of small talk.
+
+7. Keep implementation surface narrow:
+   - likely code areas are `app/main.py`, `app/agent_messages.py`, and existing smoke tests;
+   - do not add new API fields, frontend state machines, database/storage, or route contracts unless a new review explicitly approves it;
+   - if frontend behavior needs a guard to avoid clearing prepared/results/workspace state, keep it targeted to the existing `stale_state_should_clear` contract.
+
+#### Acceptance Criteria For This Slice
+
+- `how are you?`, `thanks`, `are you there?`, `как дела?`, and `спасибо` no longer receive the generic off-topic redirect when they are standalone harmless small-talk turns.
+- The same phrases do not override sourcing/refinement intent when the message also contains recruiter/search signals.
+- Small-talk handling preserves existing draft/ready Search Brief state and returns `brief_changed = false`, `stale_state_should_clear = false`, and `clear_brief = false`.
+- Small-talk handling does not call recruiter-chat LLM extraction, OpenAI wording, planner, runtime, Tavily, LinkedIn, export, persistence, or candidate workspace mutation.
+- Greeting/near-empty onboarding still uses the existing deterministic onboarding route and approved `P8-008` bounded onboarding overlay behavior.
+- Deterministic EN/RU greeting fallback wording is more polite than the old bare `Hi.` / mechanical equivalent.
+- Deterministic EN/RU unclear/noise fallback wording is more polite while still clearly asking the recruiter to restate the sourcing request.
+- Existing off-topic guardrails for weather/currency/restaurant/news/general entertainment remain active and do not create or mutate a Search Brief.
+- Existing safety/prohibited handling still wins before small talk, greeting, off-topic, unclear/noise, Search Brief extraction, planner, or runtime.
+- No backend/API/search/scoring/location/filter/dedupe/export/candidate fact behavior changes.
+
+#### Implementation Notes
+
+- Added a deterministic harmless-small-talk route before generic off-topic/unclear handling, while keeping safety, reset, greeting/near-empty onboarding, and stack explanation routes higher priority.
+- Kept small talk deterministic: no recruiter-chat LLM extraction and no new OpenAI wording call for small-talk turns.
+- Preserved draft/ready search-summary state for small talk with `brief_changed = false`, `stale_state_should_clear = false`, and `clear_brief = false`.
+- Kept existing `P8-008` bounded onboarding overlay behavior for greeting/near-empty turns.
+- Updated deterministic EN/RU greeting fallback wording and EN/RU unclear/noise fallback wording to be more polite.
+- Added no-network smoke coverage for EN/RU clean-state small talk, draft/pending/ready preservation, refinement not swallowed by `thanks`, weather remaining off-topic, and no unintended LLM/planner/runtime/Tavily/workspace mutation from small talk.
 
 ### Non-Goals
 

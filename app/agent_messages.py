@@ -403,6 +403,7 @@ def recruiter_chat_onboarding_source_message(language: str) -> str:
         return (
             "\u041f\u0440\u0438\u0432\u0435\u0442. "
             "\u0420\u0430\u0441\u0441\u043a\u0430\u0436\u0438, "
+            "\u043f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, "
             "\u043a\u043e\u0433\u043e \u0438\u0449\u0435\u043c: "
             "\u0440\u043e\u043b\u044c, \u043e\u0441\u043d\u043e\u0432\u043d\u0430\u044f "
             "\u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f, "
@@ -411,7 +412,7 @@ def recruiter_chat_onboarding_source_message(language: str) -> str:
         )
 
     return (
-        "Hi. Tell me who we should find: role, main technology, location, "
+        "Hello. Tell me who we should find: role, main technology, location, "
         "and 1-3 stack signals."
     )
 
@@ -443,12 +444,11 @@ def recruiter_chat_draft_preserved_source_message(
     if normalized_brief.get("brief_status") == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
         if language == "ru":
             return (
-                "\u041f\u0440\u0438\u0432\u0435\u0442. "
                 "\u0422\u0435\u043a\u0443\u0449\u0430\u044f search summary "
                 "\u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d \u0438 "
                 "\u0433\u043e\u0442\u043e\u0432\u0430."
             )
-        return "Hi. The current search summary is still saved and ready."
+        return "Hello. The current search summary is still saved and ready."
 
     if next_question:
         if language == "ru":

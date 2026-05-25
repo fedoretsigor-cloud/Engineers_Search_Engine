@@ -53,6 +53,25 @@ def missing_location_brief() -> main.SearchBrief:
     )
 
 
+def ready_brief(stack: list[str] | None = None) -> main.SearchBrief:
+    selected_stack = stack or ["Spring", "Kafka"]
+    return main.SearchBrief(
+        source_text="Find Backend Developer Java in Ukraine with Spring and Kafka.",
+        brief_status="ready_for_planning",
+        role_family="Backend Developer",
+        technology="Java",
+        stack=selected_stack,
+        location="Ukraine",
+        seniority=None,
+        must_have=["Java"],
+        nice_to_have=selected_stack,
+        exclusions=[],
+        search_depth="standard",
+        profile_sources=["linkedin_public"],
+        assumptions=[],
+    )
+
+
 async def fake_recruiter_chat_llm(
     request: main.RecruiterChatTurnRequest,
 ) -> tuple[dict, list[dict[str, str]]]:
@@ -121,9 +140,68 @@ async def assert_onboarding_overlay_and_fallback() -> None:
     unsafe = await main.recruiter_chat_turn_response(
         chat_request("hello", language="en")
     )
-    assert unsafe["assistant_message"].startswith("Hi.")
+    assert unsafe["assistant_message"].startswith("Hello.")
     assert unsafe["wording_provenance"]["wording_mode"] == "deterministic_fallback"
     assert "999" not in unsafe["assistant_message"]
+
+
+async def assert_small_talk_route() -> None:
+    before_recruiter_llm = len(RECRUITER_LLM_CALLS)
+    before_wording_llm = len(WORDING_PAYLOADS)
+
+    clean_en = await main.recruiter_chat_turn_response(
+        chat_request("how are you?", language="en")
+    )
+    assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert clean_en["state"] == "needs_clarification"
+    assert clean_en["normalized_brief"] is None
+    assert clean_en["can_build_plan"] is False
+    assert clean_en["brief_changed"] is False
+    assert clean_en["stale_state_should_clear"] is False
+    assert clean_en["clear_brief"] is False
+    assert "This does not look like candidate search" not in clean_en["assistant_message"]
+    assert "ready to help" in clean_en["assistant_message"]
+
+    clean_ru = await main.recruiter_chat_turn_response(
+        chat_request("как дела?", language="ru")
+    )
+    assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert clean_ru["normalized_brief"] is None
+    assert clean_ru["brief_changed"] is False
+    assert clean_ru["stale_state_should_clear"] is False
+    assert "не про поиск кандидатов" not in clean_ru["assistant_message"]
+    assert "Я на связи" in clean_ru["assistant_message"]
+
+    pending = await main.recruiter_chat_turn_response(
+        chat_request("thanks", language="en", draft_brief=missing_stack_brief())
+    )
+    assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert pending["state"] == "needs_clarification"
+    assert pending["normalized_brief"]["stack"] == []
+    assert pending["brief_changed"] is False
+    assert pending["stale_state_should_clear"] is False
+    assert "Which Java stack signals" in pending["assistant_message"]
+
+    ready = await main.recruiter_chat_turn_response(
+        chat_request("are you there?", language="en", draft_brief=ready_brief())
+    )
+    assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert ready["state"] == "ready_for_planning"
+    assert ready["can_build_plan"] is True
+    assert ready["build_plan_action"]["endpoint"] == "/api/agent/query-plan"
+    assert ready["brief_changed"] is False
+    assert ready["stale_state_should_clear"] is False
+
+    refinement = await main.recruiter_chat_turn_response(
+        chat_request("thanks, add Kafka", language="en", draft_brief=ready_brief(["Spring"]))
+    )
+    assert refinement["brief_changed"] is True
+    assert refinement["stale_state_should_clear"] is True
+    assert refinement["normalized_brief"]["stack"] == ["Spring", "Kafka"]
 
 
 async def assert_off_topic_and_unclear_guardrails() -> None:
@@ -134,7 +212,7 @@ async def assert_off_topic_and_unclear_guardrails() -> None:
     assert len(RECRUITER_LLM_CALLS) == before
     assert noise["normalized_brief"] is None
     assert noise["can_build_plan"] is False
-    assert "Не понял запрос" in noise["assistant_message"]
+    assert "Извини, я не понял запрос" in noise["assistant_message"]
 
     weather = await main.recruiter_chat_turn_response(
         chat_request("какая погода?", language="ru")
@@ -303,6 +381,7 @@ async def run_smoke() -> None:
 
     try:
         await assert_onboarding_overlay_and_fallback()
+        await assert_small_talk_route()
         await assert_off_topic_and_unclear_guardrails()
         await assert_pending_russian_stack_answers()
         await assert_pending_location_answers_and_noise()

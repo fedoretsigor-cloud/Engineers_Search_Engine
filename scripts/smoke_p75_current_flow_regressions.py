@@ -438,7 +438,7 @@ async def assert_en_hardening_regressions() -> None:
         ),
         (
             "How are you?",
-            "sourcing",
+            "ready to help",
         ),
         (
             "Write me a poem.",
