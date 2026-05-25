@@ -1379,7 +1379,7 @@ function renderChatMessages() {
   if (!messages.length) {
     chatMessagesElement.innerHTML = `
       <article class="chat-message assistant-message">
-        <p>Describe who to find in natural language. I will prepare a search summary first.</p>
+        <p>Feel free to start the chat and describe who you are looking for. I will do my best to help you.</p>
       </article>
     `;
     return;
@@ -2502,7 +2502,7 @@ function resetChat() {
   clearAgentPlanData();
   clearWorkspaceState();
   chatInput.value = "";
-  chatStatusElement.textContent = "Describe who you want to find in Russian or English.";
+  chatStatusElement.textContent = "";
   planStatus.textContent = "Prepare search from the chat summary.";
   queryList.innerHTML = "";
   reportStatus.textContent = "Run a search to see the summary.";

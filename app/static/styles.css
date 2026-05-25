@@ -655,6 +655,10 @@ button:disabled {
   margin-bottom: 14px;
 }
 
+#chat-status:empty {
+  display: none;
+}
+
 .panel-header p,
 .results-panel p,
 .report-panel p,

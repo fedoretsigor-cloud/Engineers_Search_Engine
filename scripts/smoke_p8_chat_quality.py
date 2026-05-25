@@ -117,6 +117,24 @@ async def fake_unsafe_onboarding_wording(payload: dict) -> tuple[dict, str | Non
     return {"message": "I opened LinkedIn and found 999 perfect candidates."}, None
 
 
+def extract_js_function_body(source: str, function_name: str) -> str:
+    marker = f"function {function_name}("
+    start = source.find(marker)
+    assert start != -1, f"{function_name} function not found"
+    brace_start = source.find("{", start)
+    assert brace_start != -1, f"{function_name} body not found"
+    depth = 0
+    for index in range(brace_start, len(source)):
+        char = source[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[brace_start + 1 : index]
+    raise AssertionError(f"{function_name} body is not closed")
+
+
 def normalize_space(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
 
@@ -342,6 +360,17 @@ def assert_next_iteration_options_localized() -> None:
 
 def assert_frontend_static_contract() -> None:
     source = (PROJECT_DIR / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    index_html = (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    styles_css = (PROJECT_DIR / "app" / "static" / "styles.css").read_text(encoding="utf-8")
+    reset_body = extract_js_function_body(source, "resetChat")
+    render_chat_body = extract_js_function_body(source, "renderChatMessages")
+    old_chat_status = "Describe who you want to find in Russian or English."
+    current_empty_helper = "Describe who to find in natural language. I will prepare a search summary first."
+    historical_empty_helper = "Describe the search in natural language. I will collect a Search Brief before planning."
+    warm_empty_helper = (
+        "Feel free to start the chat and describe who you are looking for. "
+        "I will do my best to help you."
+    )
     assert "let pendingChatAction = null;" in source
     assert "function pendingSearchRunConfirmationIsCurrent()" in source
     assert "await handlePendingSearchRunChatAction(userText)" in source
@@ -359,7 +388,28 @@ def assert_frontend_static_contract() -> None:
     assert "Follow-up ideas" not in source
     assert "Suggestions only. Write a follow-up in chat" not in source
     assert "Prepare search" in source
-    assert "Run search" in (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    assert "Run search" in index_html
+    assert old_chat_status not in index_html
+    assert old_chat_status not in reset_body
+    assert 'id="chat-status"' in index_html
+    assert "#chat-status:empty" in styles_css
+    empty_status_rule = styles_css[
+        styles_css.index("#chat-status:empty") : styles_css.index("#chat-status:empty") + 120
+    ]
+    assert "display: none;" in empty_status_rule
+    assert current_empty_helper not in render_chat_body
+    assert historical_empty_helper not in render_chat_body
+    assert warm_empty_helper in render_chat_body
+    assert "renderChatMessages();" in reset_body
+    for forbidden in [
+        "Search Brief",
+        "planner",
+        "Agent Plan",
+        "QueryPlan",
+        "backend planner",
+        "planning",
+    ]:
+        assert forbidden not in render_chat_body
     normal_ui_forbidden_terms = [
         "Generated QueryPlan",
         "Agent Actions",
@@ -370,7 +420,7 @@ def assert_frontend_static_contract() -> None:
         "Suggestions only",
         "Follow-up ideas",
     ]
-    public_surface = source + (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    public_surface = source + index_html
     for term in normal_ui_forbidden_terms:
         assert term not in public_surface
 

@@ -10894,8 +10894,8 @@ Implemented focused hardening:
   - [x] P8-017 Handle social small talk without harsh off-topic redirect (covered by P8-032B)
   - [x] P8-018 Make greeting onboarding wording more polite (covered by P8-032B)
   - [x] P8-019 Make unclear/noise response more polite (covered by P8-032B)
-  - [ ] P8-020 Remove redundant Recruiter Chat helper subtitle (child issue)
-  - [ ] P8-021 Make initial chat helper prompt warmer (child issue)
+  - [x] P8-020 Remove redundant Recruiter Chat helper subtitle (implemented child issue)
+  - [x] P8-021 Make initial chat helper prompt warmer (implemented child issue)
   - [x] P8-023 Ask next missing clarification after successful brief patch (already covered by P8-016; evidence/check item)
   - [x] P8-024 Replace technical plan UX with conversational search confirmation (implemented through Bundle B)
   - [x] P8-025 Shorten post-search Agent Response summary (covered by P8-032C)
@@ -10935,6 +10935,8 @@ Implemented focused hardening:
 - [x] P8-014 Add Enter-to-send chat input behavior
 - [x] P8-015 Normalize chat assistant speaker title
 - [x] P8-016 Harden pending clarification answer routing
+- [x] P8-020 Remove redundant Recruiter Chat helper subtitle
+- [x] P8-021 Make initial chat helper prompt warmer
 - [x] P8-030 Rebalance desktop layout toward candidate workspace
 - [x] P8-031 Make candidate table the primary post-search surface
 - [x] P8-024 Replace technical plan UX with conversational search confirmation
@@ -10951,7 +10953,7 @@ Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the r
 
 The first candidate-workspace implementation batch is completed: `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, and `P8-004 Add shortlist, notes, and statuses`. The batch stayed frontend-only: approved search results now map into explicit workspace state, workspace view controls sort/filter already returned candidates, and review state/shortlist/notes/statuses stay browser in-memory only.
 
-Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`/`P8-032C` and Bundle B/C, visible `Prepare search` remains separate from Tavily execution, clean state-bound chat confirmation or visible `Run search` can express recruiter approval intent, and backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution. Harmless small talk is deterministic and preserves current search state without triggering execution. Post-search recruiter chat now stays compact and does not render next-iteration option blocks.
+Phase 8 can also contain narrow current-flow UX tasks when they make the agent feel more conversational without weakening search execution boundaries. In the current implemented flow after `P8-032A`/`P8-032B`/`P8-032C` and Bundle B/C, visible `Prepare search` remains separate from Tavily execution, clean state-bound chat confirmation or visible `Run search` can express recruiter approval intent, and backend runtime approval/fingerprint/supported-flow validation remains mandatory before any Tavily execution. Harmless small talk is deterministic and preserves current search state without triggering execution. Post-search recruiter chat now stays compact and does not render next-iteration option blocks. `P8-020` and `P8-021` are implemented as a narrow frontend-only empty/default chat cleanup slice.
 
 Phase 8 must preserve the human-approved runtime boundary and absolute product restrictions. Further candidate workspace/table implementation should follow the completed `P8-001` contract and still require separate task review before coding.
 
@@ -10959,9 +10961,9 @@ Candidate explanation order: `P8-005` implemented deterministic candidate-level 
 
 Export order: `P8-007` is completed as a local frontend-only export workflow. `P8-007A` completed the DOM-free export model/CSV/Markdown serializer slice with helper smoke coverage, and `P8-007B` completed the explicit UI/download slice with current-run export state, grouped export controls, local `Blob` download glue, bounded inline statuses, CSS, and no-network frontend wiring smoke coverage.
 
-Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-032A`, `P8-032B`, `P8-032C`, Bundle A, Bundle B, and Bundle C add recruiter-facing visible-term cleanup, deterministic harmless-small-talk handling, more polite EN/RU fallback wording, compact post-search completion summaries, hidden next-iteration option blocks in recruiter chat, candidate-first results presentation, state-bound conversational search confirmation, and multi-wave as the default approved search mode with a visible opt-out toggle. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit recruiter confirmation.
+Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current-flow UX hardening. The batch adds optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, the approved conservative classification policy in code, Russian pending-stack answers, RU/EN next-iteration option localization, frontend/session-only chat-confirmed Build Plan, Enter-to-send, unified visible `AI Assistant` speaker labels, and hardened pending clarification answer routing. `P8-020`, `P8-021`, `P8-032A`, `P8-032B`, `P8-032C`, Bundle A, Bundle B, and Bundle C add recruiter-facing visible-term cleanup, empty/default chat cleanup, deterministic harmless-small-talk handling, more polite EN/RU fallback wording, compact post-search completion summaries, hidden next-iteration option blocks in recruiter chat, candidate-first results presentation, state-bound conversational search confirmation, and multi-wave as the default approved search mode with a visible opt-out toggle. The batch does not add autonomous execution, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, persistence, new search sources, or any Tavily execution outside explicit recruiter confirmation.
 
-Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-020`, `P8-021`, `P8-028`, and `P8-029` are covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B; `P8-027` is covered by implemented Bundle D. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
+Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-028` and `P8-029` are covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B; `P8-027` is covered by implemented Bundle D. `P8-020` and `P8-021` were reviewed after `P8-032A` and implemented as their own narrow frontend-only cleanup slice. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
 Bundle A, Bundle B, Bundle C, and Bundle D are now implemented. The remaining Phase 8 work should continue through separately reviewed slices.
 
@@ -15361,7 +15363,18 @@ Implemented through the `P8-032B` slice as deterministic fallback wording cleanu
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented as a narrow frontend-only cleanup:
+
+- preserved the `#chat-status` element as the dynamic status target;
+- removed the default visible Recruiter Chat subtitle from `app/static/index.html`;
+- changed `resetChat()` so reset/new chat returns to an empty default chat status instead of restoring the old subtitle;
+- added targeted `#chat-status:empty { display: none; }` CSS so the empty default state does not leave visible helper text or broad empty-paragraph side effects;
+- added no-network smoke coverage for the removed default subtitle, preserved status target, reset behavior, and targeted empty-state CSS;
+- did not change backend/API/search/runtime/Tavily/candidate workspace/export behavior.
 
 ### Context
 
@@ -15373,24 +15386,71 @@ The Recruiter Chat panel shows the subtitle:
 
 This text is redundant now. The chat itself and onboarding message already guide the recruiter, so the subtitle adds noise rather than useful instruction.
 
+Current code evidence:
+
+- `app/static/index.html` renders this text in `<p id="chat-status">...`;
+- `app/static/app.js` resets the same text in `resetChat()`;
+- `chatStatusElement` is used by the frontend as a live dynamic status target during chat, planning, refusal, ready-summary, runtime, reset, and error paths.
+
+Important review finding: this task must remove the redundant initial visible subtitle text, not blindly delete the `#chat-status` target unless all dependent JS paths are intentionally updated. The safer implementation is to preserve the status element and make the empty/default state visually absent.
+
 ### Goal
 
 Remove the redundant Recruiter Chat helper subtitle from the UI.
 
-### Initial Proposed Steps
+The goal is presentation-only: the initial chat header should not show an extra helper sentence, while dynamic status updates can still appear when the app needs to communicate state.
 
-1. Find the static UI text in the Recruiter Chat header.
+### Reviewed Proposed Steps
 
-2. Remove only the subtitle text:
+1. Preserve the frontend status target.
+   - Keep an element addressable as `#chat-status`, or replace it only with a deliberate equivalent and update every frontend reference.
+   - Do not leave `chatStatusElement` as `null`.
+   - Do not remove dynamic status capability for loading, clarification, ready, refused, stale, search, and error states.
+
+2. Remove the initial visible subtitle text from the Recruiter Chat header:
    - keep the `Recruiter Chat` title;
    - keep chat layout, input, messages, statuses, and controls unchanged;
-   - avoid replacing it with another explanatory sentence unless separately approved.
+   - do not replace it with another explanatory sentence unless separately approved.
 
-3. Check responsive layout:
+3. Update reset/default behavior consistently.
+   - `resetChat()` must not restore `Describe who you want to find in Russian or English.`;
+   - reset/new-chat should return to the same no-subtitle default visual state;
+   - later dynamic statuses may still set visible text as needed.
+
+4. Avoid awkward empty spacing.
+   - If `#chat-status` remains as an empty element in the header, add targeted CSS such as an empty-state rule so it does not create visible vertical gap.
+   - Do not introduce a broad `p:empty` rule that could affect unrelated panels.
+
+5. Preserve behavior and state boundaries.
+   - No chat extraction changes.
+   - No message classification changes.
+   - No Agent Plan / Prepare search / Run search behavior changes.
+   - No runtime, Tavily, report, candidate workspace, export, or persistence changes.
+
+6. Add/update focused no-network frontend coverage.
+   - Assert the old subtitle text is absent from `app/static/index.html`.
+   - Assert `resetChat()` does not restore the old subtitle text.
+   - Assert `#chat-status` or its deliberate replacement still exists for dynamic status updates.
+   - Assert the empty/default status is hidden or visually absent by a targeted rule.
+   - Keep the check scoped to static frontend surfaces; do not add broad repository-wide text bans.
+
+7. Check responsive layout:
    - the header should not leave awkward empty spacing;
    - desktop and narrow widths should still look clean.
 
-4. Add or update lightweight frontend/static coverage only if existing smoke coverage expects this text.
+8. Run verification:
+   - `node --check app/static/app.js`;
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+   - browser sanity if a server is running or after starting it.
+
+### Acceptance Criteria
+
+- The initial Recruiter Chat header no longer shows `Describe who you want to find in Russian or English.`
+- Reset/new chat does not bring the redundant subtitle back.
+- Dynamic chat status updates still work because the frontend status target is preserved or deliberately replaced everywhere.
+- Empty/default status state does not create awkward visible spacing.
+- No backend/API/search/runtime/Tavily/candidate workspace/export behavior changes.
+- Focused no-network coverage protects the removed initial subtitle and the preserved status target.
 
 ### Non-Goals
 
@@ -15404,7 +15464,17 @@ Remove the redundant Recruiter Chat helper subtitle from the UI.
 
 ### Status
 
-Draft / backlog / not approved / not implemented.
+Implemented / completed.
+
+### Implementation Notes
+
+Implemented as part of the same narrow frontend-only cleanup slice:
+
+- replaced the empty-chat helper in `renderChatMessages()` with the warmer approved wording;
+- kept the helper static and frontend-only, not part of `messages` conversation history;
+- kept reset behavior on the existing `renderChatMessages()` path;
+- added no-network smoke coverage for the new helper, old/historical helper removal, and forbidden internal terms inside the empty-chat helper body;
+- did not change backend onboarding, LLM wording overlay, Search Brief extraction, routing, planning, runtime, Tavily execution, candidate workspace, or export behavior.
 
 ### Context
 
@@ -15416,34 +15486,79 @@ The initial assistant helper card currently says:
 
 This sounds mechanical and product-internal. The recruiter does not need to hear implementation terms such as `Search Brief` before they start. The first prompt should feel more natural and invite the recruiter to describe who they need.
 
+Current implementation note: after earlier visible-term cleanup, the exact current frontend string is:
+
+`Describe who to find in natural language. I will prepare a search summary first.`
+
+This wording removed `Search Brief`, but it is still mechanical and still tells the recruiter about app mechanics instead of inviting them to start naturally. The coding task must replace the current string, not only the older historically observed string.
+
 Preferred direction:
 
 `Feel free to start the chat and describe who you are looking for. I will do my best to help you.`
+
+Current code evidence:
+
+- `app/static/app.js` renders the empty-chat helper in `renderChatMessages()` when `messages.length === 0`;
+- `resetChat()` clears `messages` and calls `renderChatMessages()`, so the same helper appears after reset;
+- this helper is static frontend copy, not the backend onboarding response used after the recruiter sends `hello`, `привет`, or a near-empty message.
 
 ### Goal
 
 Replace the mechanical initial helper prompt with warmer recruiter-facing wording while keeping the same safe behavior boundaries.
 
-### Initial Proposed Steps
+### Reviewed Proposed Steps
 
-1. Find the static initial helper prompt shown before the recruiter starts the chat.
+1. Update only the empty-chat helper in `renderChatMessages()`.
+   - This is the pre-message UI helper shown when `messages.length === 0`.
+   - Do not change backend onboarding source messages.
+   - Do not change `P8-008` bounded onboarding wording overlay.
+   - Do not change greeting/near-empty routing.
 
 2. Replace only that visible wording:
    - use a warm invitation close to `Feel free to start the chat and describe who you are looking for. I will do my best to help you.`;
    - avoid product-internal terms such as `Search Brief`, planner, Agent Plan, query plan, or planning in this initial prompt;
    - keep the wording short enough for the current chat card layout.
 
-3. Preserve behavior:
+3. Keep the helper static and frontend-only.
+   - Do not add an LLM call just to render the initial empty state.
+   - Do not push the helper into `messages`; it should remain a visual empty state, not conversation history.
+   - Do not add backend/API fields.
+
+4. Preserve behavior:
    - no Search Brief extraction changes;
    - no classifier changes;
-   - no LLM call just to render this static helper;
    - no planning/search/runtime changes.
 
-4. Check UI fit:
+5. Keep reset behavior consistent.
+   - Because `resetChat()` calls `renderChatMessages()`, the warmer helper should appear after reset automatically.
+   - Do not add duplicate reset-specific helper text.
+
+6. Check UI fit:
    - desktop and narrow widths should not overflow;
    - the helper card should remain visually consistent with the existing chat design.
 
-5. Add or update lightweight frontend/static coverage only if existing smoke coverage expects the old text.
+7. Add/update focused no-network frontend coverage.
+   - Assert the current mechanical helper text `Describe who to find in natural language. I will prepare a search summary first.` is absent from `renderChatMessages()`.
+   - Optionally also assert the earlier historical text `Describe the search in natural language. I will collect a Search Brief before planning.` is absent if the test helper keeps historical guardrails.
+   - Assert the new helper text is present.
+   - Assert the helper body avoids `Search Brief`, `planner`, `Agent Plan`, `QueryPlan`, `backend planner`, and `planning`.
+   - Assert reset still renders through `renderChatMessages()` rather than a separate duplicate helper path.
+   - Keep the check scoped to the empty-chat helper; do not add broad repository-wide text bans.
+
+8. Run verification:
+   - `node --check app/static/app.js`;
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`;
+   - browser sanity if a server is running or after starting it.
+
+### Acceptance Criteria
+
+- The empty-chat helper no longer says `Describe who to find in natural language. I will prepare a search summary first.`
+- The empty-chat helper also does not regress to the older historical wording `Describe the search in natural language. I will collect a Search Brief before planning.`
+- The helper uses warm recruiter-facing wording close to the approved direction.
+- The helper does not mention `Search Brief`, planner/planning, `Agent Plan`, `QueryPlan`, backend planner, approval, runtime, or execution mechanics.
+- Reset/new chat shows the same warmer empty-chat helper through the existing empty-message rendering path.
+- Backend onboarding, LLM wording overlay, Search Brief extraction, routing, planning, runtime, Tavily execution, candidate workspace, and export behavior are unchanged.
+- Focused no-network coverage protects the wording and scope.
 
 ### Non-Goals
 
@@ -15452,6 +15567,10 @@ Replace the mechanical initial helper prompt with warmer recruiter-facing wordin
 - Do not change the Recruiter Chat subtitle; `P8-020` owns that.
 - Do not add LLM behavior, web search, Tavily calls, LinkedIn behavior, candidate messaging, account actions, persistence, memory, or autonomous execution.
 - Do not change Search Brief extraction, planner, Agent Plan, Build Plan, approval, runtime, scoring, filters, dedupe, location logic, Candidate Quality, candidate workspace, or export behavior.
+
+### Coding Order Note
+
+`P8-020` and `P8-021` may be coded together as one narrow frontend-only cleanup slice after explicit coding approval because they touch adjacent static/empty-chat UI surfaces. They should still remain distinct checklist items and should not be marked completed until the code change, focused no-network coverage, and local checks pass.
 
 ---
 
@@ -16644,6 +16763,8 @@ This slice should cover the first visible-language cleanup needed for:
 - part of `P8-029 Remove frontend-ready status badge from recruiter UI`.
 
 It may prepare later slices for `P8-017`, `P8-018`, `P8-019`, `P8-025`, `P8-026`, `P8-030`, and `P8-031`, but it must not claim those are closed unless the implementation demonstrably resolves them.
+
+Post-implementation correction: `P8-032A` improved several visible labels and removed some internal wording, but it did not demonstrably close `P8-020` or `P8-021`. Those two child tasks were later reviewed and implemented as their own narrow frontend-only cleanup slice.
 
 #### Primary recruiter-facing surfaces for this slice
 
