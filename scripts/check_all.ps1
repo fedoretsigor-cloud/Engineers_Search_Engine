@@ -140,5 +140,9 @@ Invoke-Check "P8.5 Workspace Refinement Suggestions smoke" {
     & $python scripts/smoke_p85_workspace_refinement_suggestions.py
 }
 
+Invoke-Check "Phase 8.75 No-Live UAT" {
+    & $python scripts/uat_phase_8_75_no_live.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

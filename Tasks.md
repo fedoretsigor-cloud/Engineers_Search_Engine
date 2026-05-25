@@ -17144,6 +17144,117 @@ If `quality_notes`, `limitations`, `suggested_next_actions`, or `next_iteration_
 
 ---
 
+## Phase 8.75 - Recruiter UAT & Acceptance Gate
+
+### Approved
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P8.75-001 Run recruiter UAT acceptance gate before persistence
+
+### Strategy note
+
+Phase 8.75 validates the current stateless AI Agent v0 flow before Phase 9 persistence. The gate covers recruiter chat, Search Brief extraction/refinement, planning/approval boundaries, runtime guardrails, Candidate Workspace, Phase 8.5 review aids, export, and a limited live Tavily sanity pass through the existing backend runtime path. It must not add persistence, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, autonomous execution, or new providers.
+
+---
+
+## Task: P8.75-001 Run recruiter UAT acceptance gate before persistence
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user through the `/goal` request to follow the Phase 8.75 UAT strategy until green, fix issues immediately, rerun failed cases, prepare the report, update docs, verify, commit, and push.
+
+### Context
+
+Phase 8.5 completed the first deterministic agentic review layer over the current Candidate Workspace. Before Phase 9 adds persistence/saved searches, the current stateless flow needs an acceptance gate so we do not persist an unstable recruiter experience.
+
+### Goal
+
+Create and run a recruiter UAT gate that covers the current AI Agent v0 flow end to end at two levels:
+
+- deterministic no-live acceptance checks for local/CI repeatability;
+- limited live Tavily checks through the existing backend runtime approval path.
+
+### Reviewed Steps
+
+1. Define Phase 8.75 contract and acceptance strategy.
+   - Add `docs/phase-8-75-uat-acceptance-gate.md`.
+   - Keep the scope focused on `Backend Developer + Java + Ukraine`.
+   - Explicitly preserve absolute product boundaries.
+
+2. Add deterministic no-live UAT runner.
+   - Add `scripts/uat_phase_8_75_no_live.py`.
+   - Cover at least 100 deterministic checks.
+   - Cover chat, Search Brief, Agent Plan, QueryPlan, runtime guardrails, static contracts, and workspace helper behavior.
+   - Disable live OpenAI/Tavily in the no-live runner.
+
+3. Add Candidate Workspace acceptance checks.
+   - Add `scripts/uat_phase_8_75_workspace_cases.js`.
+   - Cover mapping, view filtering/sorting, review state, candidate explanations, top-candidate recommendation, selected comparison, fit/gap, refinement guidance, and export helpers.
+   - Ensure helper outputs do not leak candidate ids, URLs, raw snippets, notes, brief patches, approval flags, or execution actions.
+
+4. Wire no-live UAT into the local regression baseline.
+   - Add the no-live UAT runner to `scripts/check_all.ps1`.
+   - Keep live Tavily out of CI.
+
+5. Add limited live UAT runner.
+   - Add `scripts/uat_phase_8_75_live.py`.
+   - Use only Agent Plan -> QueryPlan -> Agent Runtime prepare -> explicit approval -> Agent Runtime execute_approved.
+   - Report only aggregate counts/status metadata.
+   - Do not commit raw Tavily payloads, profile URLs, candidate URLs, screenshots, or secrets.
+
+6. Run UAT and fix issues.
+   - Run no-live UAT.
+   - Run live UAT after no-live is green.
+   - Fix any failed case immediately and rerun failed paths.
+
+7. Produce the final report and update project docs.
+   - Update `docs/phase-8-75-uat-report.md`.
+   - Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, `AGENTS.md`, and this task.
+
+### Acceptance Criteria
+
+- Phase 8.75 UAT plan exists.
+- No-live UAT passes with at least 100 deterministic checks.
+- No-live UAT is part of `scripts/check_all.ps1`.
+- Live UAT passes through the existing backend runtime approval path.
+- Report is green and includes no raw candidate URLs, raw Tavily payloads, screenshots, or secrets.
+- Phase 9 remains next, but starts only after this gate is green.
+- No persistence, database, direct web-search bypass, direct LinkedIn access/login/scraping, messaging, account actions, autonomous execution, or new providers are added.
+
+### Implementation Notes
+
+Implemented as a UAT gate slice:
+
+- added `docs/phase-8-75-uat-acceptance-gate.md`;
+- added `scripts/uat_phase_8_75_no_live.py`;
+- added `scripts/uat_phase_8_75_workspace_cases.js`;
+- added `scripts/uat_phase_8_75_live.py`;
+- wired no-live UAT into `scripts/check_all.ps1`;
+- produced `docs/phase-8-75-uat-report.md`;
+- final no-live UAT passed `326/326` checks;
+- final live UAT passed `30/30` checks across 2 approved backend-runtime executions;
+- kept live Tavily out of CI;
+- kept live report aggregate-only with no raw profile URLs/candidate URLs/raw Tavily payloads/secrets.
+
+### Non-Goals
+
+- Do not add database or persistence.
+- Do not add saved searches or saved candidates.
+- Do not broaden role/country/technology support.
+- Do not call Tavily directly outside the existing backend runtime path.
+- Do not open, fetch, inspect, scrape, or automate LinkedIn profiles.
+- Do not message candidates or perform account actions.
+- Do not add autonomous execution.
+
+---
+
 ## Phase 9 - Persistent Memory + Saved Searches
 
 ### Approved
