@@ -54,6 +54,8 @@
   const TOP_CANDIDATE_RECOMMENDATION_DEFAULT_LIMIT = 3;
   const SELECTED_CANDIDATE_COMPARISON_VERSION = "selected_candidate_comparison_v1";
   const SELECTED_CANDIDATE_COMPARISON_DEFAULT_LIMIT = 4;
+  const SELECTED_CANDIDATE_FIT_GAP_VERSION = "selected_candidate_fit_gap_v1";
+  const SELECTED_CANDIDATE_FIT_GAP_DEFAULT_LIMIT = 4;
   const CANDIDATE_EXPLANATION_WORDING_USE_CASE = "candidate_explanation";
   const CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION = "candidate_explanation_wording_request_v1";
   const CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE = "en";
@@ -1121,6 +1123,202 @@
       candidates: candidatesForOutput,
       shared_signals: buildComparisonSharedSignals(rows),
       differences: buildComparisonDifferences(rows, selected.length),
+    };
+  }
+
+  function fitGapLabels(reasons) {
+    return comparisonReasonLabels(reasons, "").slice(0, 4);
+  }
+
+  function addUniqueFitGapLabel(labels, label) {
+    const safeLabel = comparisonSafeText(label, "", 180);
+    if (safeLabel && !labels.includes(safeLabel)) {
+      labels.push(safeLabel);
+    }
+  }
+
+  function selectedFitGapRow(candidate, explanation, index) {
+    const positiveCodes = explanationCodes(explanation, "positive_signals");
+    const cautionCodes = explanationCodes(explanation, "cautions");
+    const stackTerms = directStackTerms(candidate || {});
+    const quality = candidate && candidate.has_quality_score ? qualityBucket(candidate.quality_score) : "";
+    const fitLabels = fitGapLabels(explanation && explanation.positive_signals);
+    if (candidate && candidate.has_quality_score && (quality === "high" || quality === "medium")) {
+      addUniqueFitGapLabel(fitLabels, `Quality score is ${quality}`);
+    }
+    if (candidate && candidate.location_group === "target") {
+      addUniqueFitGapLabel(fitLabels, "Target location signal is present");
+    }
+    if (stackTerms.length) {
+      addUniqueFitGapLabel(fitLabels, `Visible stack terms: ${uniqueStrings(stackTerms, 3).join(", ")}`);
+    }
+    if (hasPositiveRoleOrTechnologyEvidence(candidate || {})) {
+      addUniqueFitGapLabel(fitLabels, "Role or technology evidence is visible");
+    }
+    const displayIndex = Number.isFinite(Number(candidate && candidate.display_index))
+      ? Number(candidate.display_index)
+      : index + 1;
+    const displayName = comparisonSafeText(
+      candidate && candidate.display_name,
+      `Candidate ${displayIndex}`,
+      EXPORT_TEXT_LIMITS.candidate_name
+    );
+    const headline = comparisonSafeText(
+      (candidate && (candidate.headline || candidate.raw_title)) || "",
+      "No headline returned.",
+      EXPORT_TEXT_LIMITS.headline
+    );
+    const gapLabels = fitGapLabels(explanation && explanation.cautions);
+    if (candidate && candidate.location_group === "foreign" && !gapLabels.some((item) => /location/i.test(item))) {
+      gapLabels.unshift("Current location appears outside the target location");
+    }
+    comparisonReviewFlagLabels(candidate).forEach((label) => {
+      if (!gapLabels.includes(label)) {
+        gapLabels.push(label);
+      }
+    });
+
+    return {
+      _positive_codes: positiveCodes,
+      _caution_codes: cautionCodes,
+      _fit_markers: {
+        target_location: Boolean(candidate && candidate.location_group === "target"),
+        stack_confirmed: stackTerms.length > 0,
+        role_or_technology_visible: hasPositiveRoleOrTechnologyEvidence(candidate || {}),
+        quality_useful: quality === "high" || quality === "medium",
+      },
+      display_index: displayIndex,
+      display_name: displayName,
+      headline,
+      quality_score: candidate && candidate.has_quality_score ? candidate.quality_score : null,
+      quality_bucket: candidate && candidate.has_quality_score ? candidate.quality_bucket || qualityBucket(candidate.quality_score) : "",
+      fit_labels: fitLabels.slice(0, 5),
+      gap_labels: gapLabels.slice(0, 5),
+    };
+  }
+
+  function buildFitGapSharedFits(rows) {
+    if (rows.length < 2) {
+      return [];
+    }
+    const fits = [];
+    if (rows.every((row) => row._fit_markers.target_location)) {
+      fits.push("Target-location signal is present for all selected candidates");
+    }
+    if (rows.every((row) => row._fit_markers.stack_confirmed)) {
+      fits.push("Selected stack is visible for all selected candidates");
+    }
+    if (rows.every((row) => row._fit_markers.role_or_technology_visible)) {
+      fits.push("Role or technology evidence is visible for all selected candidates");
+    }
+    if (rows.every((row) => row._fit_markers.quality_useful)) {
+      fits.push("All selected candidates have high or medium returned quality signals");
+    }
+    return fits.slice(0, 4);
+  }
+
+  function buildFitGapSharedGaps(rows) {
+    if (rows.length < 2) {
+      return [];
+    }
+    const gaps = [];
+    if (rows.every((row) => row._caution_codes.has(EXPLANATION_REASON_CODES.SENIORITY_UNKNOWN))) {
+      gaps.push("Seniority is not visible for all selected candidates");
+    }
+    if (
+      rows.every(
+        (row) =>
+          row._caution_codes.has(EXPLANATION_REASON_CODES.STACK_QUERY_SOURCE_ONLY) ||
+          row._caution_codes.has(EXPLANATION_REASON_CODES.STACK_NOT_VISIBLE)
+      )
+    ) {
+      gaps.push("Selected stack is not confirmed in returned data for all selected candidates");
+    }
+    if (rows.every((row) => row._caution_codes.has(EXPLANATION_REASON_CODES.LOCATION_UNKNOWN_OR_WEAK))) {
+      gaps.push("Location needs manual review for all selected candidates");
+    }
+    if (rows.every((row) => row._caution_codes.has(EXPLANATION_REASON_CODES.LOCATION_FOREIGN_OR_MISMATCH))) {
+      gaps.push("Returned current-location data appears outside the target for all selected candidates");
+    }
+    if (rows.every((row) => row._caution_codes.has(EXPLANATION_REASON_CODES.PROFILE_HREF_MISSING_OR_UNSAFE))) {
+      gaps.push("Safe profile link is missing or not validated for all selected candidates");
+    }
+    if (rows.every((row) => row._caution_codes.has(EXPLANATION_REASON_CODES.REVIEW_FLAGS_PRESENT))) {
+      gaps.push("Review flags need attention for all selected candidates");
+    }
+    return gaps.slice(0, 4);
+  }
+
+  function buildFitGapSummary(rows, sharedFits, sharedGaps) {
+    if (rows.length < 2) {
+      return "Shortlist at least two visible candidates to explain fit and gaps.";
+    }
+    if (sharedFits.length && sharedGaps.length) {
+      return "Selected candidates share useful returned fit signals, with gaps that need manual review.";
+    }
+    if (sharedFits.length) {
+      return "Selected candidates share returned fit signals; compare individual gaps before narrowing the review.";
+    }
+    if (sharedGaps.length) {
+      return "Selected candidates share manual-review gaps; returned fit evidence is limited across the selected set.";
+    }
+    return "Selected candidates have mixed returned evidence; compare individual fit and gap labels before narrowing the review.";
+  }
+
+  function buildSelectedCandidateFitGapExplanation(candidates, reviewStateByCandidateId = {}, options = {}) {
+    const inputCandidates = arrayValue(candidates);
+    const maxCompared = Math.max(
+      2,
+      Math.min(
+        6,
+        Number.isFinite(Number(options.limit))
+          ? Number(options.limit)
+          : SELECTED_CANDIDATE_FIT_GAP_DEFAULT_LIMIT
+      )
+    );
+    const scope = stringValue(options.scope) || "visible_shortlisted_candidates";
+    const selected = [];
+
+    inputCandidates.forEach((candidate, index) => {
+      if (!candidate) {
+        return;
+      }
+      const reviewState = candidateReviewState(reviewStateByCandidateId, candidate.candidate_id);
+      if (reviewState.status === REVIEW_STATUSES.NOT_A_FIT || !isWorkspaceCandidateShortlisted(reviewState)) {
+        return;
+      }
+      const explanation = buildCandidateExplanation(candidate);
+      if (!explanation || explanation.source !== "deterministic_workspace_facts") {
+        return;
+      }
+      selected.push({
+        candidate,
+        explanation,
+        index,
+      });
+    });
+
+    const rows = selected
+      .slice(0, maxCompared)
+      .map((item) => selectedFitGapRow(item.candidate, item.explanation, item.index));
+    const sharedFits = buildFitGapSharedFits(rows);
+    const sharedGaps = buildFitGapSharedGaps(rows);
+    const candidateFitGaps = rows.map(({ _positive_codes, _caution_codes, _fit_markers, ...row }) => row);
+
+    return {
+      version: SELECTED_CANDIDATE_FIT_GAP_VERSION,
+      source: "deterministic_workspace_facts",
+      scope,
+      candidates_analyzed: inputCandidates.length,
+      selected_count: selected.length,
+      compared_count: rows.length,
+      ready: selected.length >= 2,
+      min_required: 2,
+      max_compared: maxCompared,
+      summary: buildFitGapSummary(rows, sharedFits, sharedGaps),
+      shared_fits: sharedFits,
+      shared_gaps: sharedGaps,
+      candidate_fit_gaps: candidateFitGaps,
     };
   }
 
@@ -2246,6 +2444,7 @@
     CANDIDATE_EXPLANATION_VERSION,
     TOP_CANDIDATE_RECOMMENDATION_VERSION,
     SELECTED_CANDIDATE_COMPARISON_VERSION,
+    SELECTED_CANDIDATE_FIT_GAP_VERSION,
     CANDIDATE_EXPLANATION_WORDING_USE_CASE,
     CANDIDATE_EXPLANATION_WORDING_REQUEST_VERSION,
     CANDIDATE_EXPLANATION_WORDING_TARGET_LANGUAGE,
@@ -2254,6 +2453,7 @@
     buildCandidateExplanation,
     buildTopCandidateRecommendation,
     buildSelectedCandidateComparison,
+    buildSelectedCandidateFitGapExplanation,
     buildCandidateExplanationRenderableReasons,
     buildCandidateExplanationWordingRequest,
     candidateExplanationRequestFingerprint,

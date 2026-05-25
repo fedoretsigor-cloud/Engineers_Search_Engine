@@ -133,7 +133,7 @@ The UI should keep candidate results as the primary surface. Agentic review outp
 1. `P8.5-001`: define this contract and guardrail smoke.
 2. `P8.5-002`: completed deterministic top-candidate recommendation from current visible workspace facts.
 3. `P8.5-003`: completed deterministic selected-candidate comparison over current visible shortlisted candidates.
-4. `P8.5-004`: add fit/gap explanation across selected candidates.
+4. `P8.5-004`: completed deterministic fit/gap explanation across current visible shortlisted candidates.
 5. `P8.5-005`: add non-executable guided next-refinement suggestions from workspace results.
 
 Each implementation task must be reviewed before coding and must preserve the boundaries above.
@@ -145,10 +145,11 @@ The local regression suite includes `scripts/smoke_p85_agentic_candidate_review_
 The smoke check verifies:
 
 - this contract exists;
-- `P8.5-001`, `P8.5-002`, and `P8.5-003` are marked completed;
+- `P8.5-001`, `P8.5-002`, `P8.5-003`, and `P8.5-004` are marked completed;
 - Phase 8.5 is recorded as the current active reviewed direction;
 - current workspace source-of-truth variables still exist;
 - deterministic candidate explanations remain available;
 - the contract preserves no-execution, no-LinkedIn, no-persistence, and bounded-LLM boundaries.
 - the deterministic top-candidate recommendation preserves visible-candidate scope, excludes `not_a_fit` and explicit foreign-location candidates, and does not leak profile URLs, URL-derived candidate ids, raw snippets, recruiter notes, or execution actions.
 - the deterministic selected-candidate comparison preserves visible-shortlisted scope, reuses shortlist state as the only selection source, treats foreign-location selections as cautions, and does not leak profile URLs, URL-derived candidate ids, raw snippets, recruiter notes, or execution actions.
+- the deterministic fit/gap explanation preserves visible-shortlisted scope, phrases missing evidence as not visible or needing manual review, treats foreign-location selections as cautions, and does not leak profile URLs, URL-derived candidate ids, raw snippets, recruiter notes, or execution actions.

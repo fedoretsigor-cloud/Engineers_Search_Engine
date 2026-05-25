@@ -17173,7 +17173,6 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ### Backlog
 
-- [ ] P8.5-004 Add fit/gap explanation across selected candidates
 - [ ] P8.5-005 Add guided next-refinement suggestions from workspace results
 
 ### In Progress
@@ -17183,6 +17182,7 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 - [x] P8.5-001 Define agentic candidate review contract
 - [x] P8.5-002 Add top-candidate recommendation from returned workspace facts
 - [x] P8.5-003 Add selected-candidate comparison
+- [x] P8.5-004 Add fit/gap explanation across selected candidates
 
 ### Strategy note
 
@@ -17623,6 +17623,145 @@ Implemented as a deterministic frontend/current-run workspace slice:
 - Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
 - Do not add a second selection mechanism beyond existing shortlist state.
 - Do not add profile opening, profile fetching, profile inspection, outreach, or account actions.
+
+---
+
+## Task: P8.5-004 Add fit/gap explanation across selected candidates
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user through the implementation goal after iterative review. This task remains deterministic, frontend/current-run only, and does not add backend calls, LLM calls, Tavily execution, LinkedIn behavior, persistence, or autonomous actions.
+
+### Context
+
+`P8.5-003` added selected-candidate comparison over current visible shortlisted candidates. The next layer should explain fit/gap patterns across those selected candidates in a recruiter-facing way without changing the facts, scores, or workflow state.
+
+The current implementation already has:
+
+- selected candidates defined by existing shortlist status;
+- `candidateWorkspace.buildSelectedCandidateComparison()` as the selected visible scope helper;
+- deterministic `candidateWorkspace.buildCandidateExplanation()` reason codes;
+- bounded returned workspace facts and no backend candidate workspace database.
+
+### Goal
+
+Add a deterministic fit/gap explanation across visible shortlisted candidates so the recruiter can understand why selected candidates look relevant and what needs manual review.
+
+This is advisory explanation only. It is not a hiring decision, not a new score, not a rerank, and not a search refinement action.
+
+### Deep Review Findings
+
+1. Fit/gap must reuse the selected comparison scope.
+   - Use current visible shortlisted candidates only.
+   - Do not add a second selection source.
+   - Require at least two selected candidates to render the explanation.
+
+2. Fit/gap must stay evidence-bounded.
+   - Use deterministic candidate explanation reason codes and returned workspace fields.
+   - Absence of returned evidence must be phrased as `not visible`, `unknown`, or `needs review`, not as proof that a candidate lacks a skill or attribute.
+   - Foreign/mismatched location must remain a caution, not a hidden rejection or verified location claim.
+
+3. Review state remains workflow state.
+   - Shortlist selects the comparison set.
+   - Review status may exclude `not_a_fit`.
+   - Recruiter notes must not be read, rendered, sent, summarized, or used.
+
+4. Output must be bounded and non-identifying beyond visible labels.
+   - Include safe display index/name/headline, fit labels, gap labels, and conservative group-level summary.
+   - Do not include `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, recruiter notes, emails, account ids, or URL-derived identifiers.
+
+5. The UI should add useful agentic guidance without burying the table.
+   - Render a compact fit/gap review block near selected comparison.
+   - Keep Candidate Results as the primary surface.
+   - Do not add action buttons or executable next steps in this task.
+
+6. Verification must assert boundary preservation.
+   - Add no-network smoke coverage for helper behavior, UI wiring, no forbidden fields, no notes, and no forbidden APIs.
+   - Ensure the task does not change search execution, runtime approval, scoring, filters, dedupe, location logic, export, or candidate facts.
+
+### Reviewed Steps
+
+1. Add deterministic fit/gap helper.
+   - Add `buildSelectedCandidateFitGapExplanation(candidates, reviewStateByCandidateId, options)` to `app/static/candidate_workspace.js`.
+   - Source must be `deterministic_workspace_facts`.
+   - Scope must be `visible_shortlisted_candidates`.
+   - Return `version`, `source`, `scope`, `ready`, `selected_count`, `candidates_analyzed`, `summary`, `shared_fits`, `shared_gaps`, and `candidate_fit_gaps`.
+
+2. Reuse selected-candidate rules.
+   - Use candidates whose current review status is `shortlisted`.
+   - Use current visible candidates only.
+   - Exclude candidates marked `not_a_fit`.
+   - Cap analyzed candidates to a small deterministic limit.
+   - Do not use recruiter notes.
+
+3. Build fit labels from deterministic reasons.
+   - Fit labels may include high/medium quality, target-location signal, visible selected stack, visible role/technology evidence, and stable profile identity.
+   - Keep labels conservative and derived from returned facts.
+
+4. Build gap labels from deterministic cautions.
+   - Gap labels may include unknown/foreign location, selected stack not visible or query-source-only, missing/unknown seniority, missing/unsafe profile href, review flags, and quality penalties.
+   - Wording must say returned data is missing/uncertain, not that the candidate lacks a skill or is invalid.
+
+5. Build group-level explanation.
+   - `shared_fits` should capture fit patterns common to selected candidates.
+   - `shared_gaps` should capture common manual-review gaps.
+   - `summary` should be a compact explanation of the selected group, not a final recommendation.
+
+6. Render the fit/gap block.
+   - Add `renderSelectedCandidateFitGapExplanation()` in `app/static/app.js`.
+   - Render below selected comparison only when the helper is ready.
+   - Show compact candidate fit/gap cards plus shared fit/gap lists.
+
+7. Add styling.
+   - Reuse the existing agent-review style system.
+   - Keep responsive layout and avoid hiding the candidate list.
+
+8. Add no-network verification.
+   - Add `scripts/smoke_p85_selected_candidate_fit_gap.py`.
+   - Assert selected scope, bounded fit/gap output, cautious missing-evidence wording, foreign-location caution, no URL/raw-note leakage, UI wiring, and no forbidden APIs.
+   - Wire the smoke into `scripts/check_all.ps1`.
+
+9. Update documentation/status after implementation.
+   - Move `P8.5-004` to Done.
+   - Update `ProjectStatus.md`, `Roadmap.md`, `README.md`, `AGENTS.md`, and the Phase 8.5 contract with the completed deterministic frontend-only fit/gap slice.
+
+### Acceptance Criteria
+
+- The workspace shows fit/gap explanation for two or more current visible shortlisted candidates.
+- Fit/gap output is derived from current-run frontend workspace facts and deterministic candidate explanations.
+- Missing evidence is described as not visible/unknown/needs review, not as proof of absence.
+- Foreign/mismatched location stays a caution.
+- Candidate Results remain the primary surface.
+- No backend endpoint, LLM call, Tavily call, direct web-search call, LinkedIn automation/opening, candidate messaging, account action, persistence, or new provider is added.
+- Candidate facts, quality score, scoring, filters, dedupe, location logic, export, Search Brief, QueryPlan, runtime approval, and search execution remain unchanged.
+- No recruiter notes, URLs, normalized URLs, URL-derived candidate ids, raw snippets/content, raw Tavily payloads, emails, or account identifiers appear in the fit/gap model.
+- A focused no-network smoke check covers helper behavior and UI wiring and is included in `scripts/check_all.ps1`.
+
+### Implementation Notes
+
+Implemented as a deterministic frontend/current-run workspace slice:
+
+- added `candidateWorkspace.buildSelectedCandidateFitGapExplanation()` in `app/static/candidate_workspace.js`;
+- added `renderSelectedCandidateFitGapExplanation()` in `app/static/app.js`;
+- added compact fit/gap CSS in `app/static/styles.css`;
+- added `scripts/smoke_p85_selected_candidate_fit_gap.py`;
+- wired the smoke into `scripts/check_all.ps1`;
+- fit/gap scope is current visible candidates with review status `shortlisted`;
+- the helper uses deterministic candidate explanation reasons plus bounded deterministic markers so capped reason lists do not accidentally hide visible role/technology fit;
+- missing evidence is phrased as not visible / needs manual review, not as proof that the candidate lacks a skill;
+- foreign/mismatched location remains a caution;
+- fit/gap output excludes `candidate_id`, profile URLs, normalized URLs, raw snippets/content, raw Tavily payloads, recruiter notes, and account identifiers;
+- no backend route, OpenAI/LLM call, Tavily call, profile-opening automation, storage, scoring mutation, filtering mutation, export change, runtime approval change, or search execution change was added.
+
+### Non-Goals
+
+- Do not implement guided next-refinement suggestions in this task.
+- Do not add LLM-assisted fit/gap analysis.
+- Do not add backend persistence, saved searches, saved candidates, or cross-session memory.
+- Do not add a new score, ranking, shortlist source, or candidate selection mechanism.
+- Do not add executable next-step buttons, search refinement execution, profile opening, profile fetching, profile inspection, outreach, or account actions.
 
 ---
 

@@ -132,5 +132,9 @@ Invoke-Check "P8.5 Selected Candidate Comparison smoke" {
     & $python scripts/smoke_p85_selected_candidate_comparison.py
 }
 
+Invoke-Check "P8.5 Selected Candidate Fit/Gap smoke" {
+    & $python scripts/smoke_p85_selected_candidate_fit_gap.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."

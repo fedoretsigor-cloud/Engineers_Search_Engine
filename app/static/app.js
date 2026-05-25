@@ -818,6 +818,82 @@ function renderSelectedCandidateComparison() {
   `;
 }
 
+function renderSelectedCandidateFitGapExplanation() {
+  if (!candidateWorkspace.buildSelectedCandidateFitGapExplanation || !visibleWorkspaceCandidates.length) {
+    return "";
+  }
+
+  const fitGap = candidateWorkspace.buildSelectedCandidateFitGapExplanation(
+    visibleWorkspaceCandidates,
+    workspaceReviewStateByCandidateId,
+    {
+      limit: 4,
+      scope: "visible_shortlisted_candidates",
+    }
+  );
+
+  if (
+    !fitGap ||
+    fitGap.source !== "deterministic_workspace_facts" ||
+    !fitGap.ready ||
+    !fitGap.candidate_fit_gaps.length
+  ) {
+    return "";
+  }
+
+  return `
+    <section class="workspace-agent-review workspace-fit-gap-review" aria-label="Selected candidate fit and gap explanation">
+      <div class="workspace-agent-review-header">
+        <div>
+          <span>Agent review</span>
+          <strong>Fit and gaps</strong>
+        </div>
+        <p>Based on visible shortlisted candidates.</p>
+      </div>
+      <p class="workspace-fit-gap-summary">${escapeHtml(fitGap.summary)}</p>
+      <div class="workspace-comparison-summary">
+        <div>
+          <span>Shared fit</span>
+          ${renderRecommendationList(fitGap.shared_fits, "No fit signal is shared by all selected candidates.")}
+        </div>
+        <div>
+          <span>Shared gaps</span>
+          ${renderRecommendationList(fitGap.shared_gaps, "No common manual-review gap across all selected candidates.")}
+        </div>
+      </div>
+      <div class="workspace-selected-comparison-grid">
+        ${fitGap.candidate_fit_gaps
+          .map((candidate) => {
+            const quality = candidate.quality_score === null ? "n/a" : candidate.quality_score;
+            return `
+              <article class="workspace-comparison-card workspace-fit-gap-card">
+                <div class="workspace-agent-review-candidate">
+                  <span>#${escapeHtml(candidate.display_index)}</span>
+                  <div>
+                    <strong>${escapeHtml(candidate.display_name)}</strong>
+                    <p>${escapeHtml(candidate.headline)}</p>
+                  </div>
+                  <small>${escapeHtml(quality)} ${escapeHtml(candidate.quality_bucket || "")}</small>
+                </div>
+                <div class="workspace-agent-review-reasons workspace-comparison-lists">
+                  <div>
+                    <span>Fit</span>
+                    ${renderRecommendationList(candidate.fit_labels, "Returned fit signals are limited.")}
+                  </div>
+                  <div>
+                    <span>Gaps</span>
+                    ${renderRecommendationList(candidate.gap_labels, "No major gap selected.")}
+                  </div>
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkspaceCandidate(candidate) {
   const reviewState =
     workspaceReviewStateByCandidateId[candidate.candidate_id] ||
@@ -967,6 +1043,7 @@ function renderWorkspaceResults(report = null) {
     ${renderWorkspaceToolbar()}
     ${renderTopCandidateRecommendation()}
     ${renderSelectedCandidateComparison()}
+    ${renderSelectedCandidateFitGapExplanation()}
     ${
       visibleWorkspaceCandidates.length
         ? `<section class="candidate-workspace-list">${visibleWorkspaceCandidates
