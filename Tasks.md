@@ -17350,6 +17350,743 @@ Implemented as a UI-level UAT gate slice:
 
 ---
 
+## Phase 8.8 - Recruiter Concern Backlog before Persistence
+
+### Approved
+
+### Backlog
+
+- [ ] P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
+- [ ] P8.8-002 Add bounded LLM pending-action intent classifier
+- [ ] P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
+- [ ] P8.8-004 Add evidence gate against hallucinated Search Brief readiness
+- [ ] P8.8-005 Add bounded small-talk intent and wording consistency
+- [ ] P8.8-006 Add bounded LLM conversational wording layer
+- [ ] P8.8-007 Hide technical search preparation panels from recruiter UI
+
+### In Progress
+
+### Done
+
+### Strategy note
+
+Phase 8.8 collects recruiter-facing conversation concerns observed after the Phase 8.75.1 UI conversation UX gate and before Phase 9 persistence. This phase is a concern backlog and review lane, not automatic coding approval.
+
+Strategic direction: Phase 8.8 should move the product toward an LLM-first conversation intent layer. The LLM should become the main intelligence layer for understanding recruiter intent in context, while backend/runtime validation remains the authority layer for facts, state, tools, approval, and execution.
+
+Phase 8.8 tasks should improve how the AI Agent understands and responds to real recruiter messages while preserving the same hard boundaries:
+
+- no autonomous execution;
+- no direct web-search bypass;
+- no direct LinkedIn access/login/scraping;
+- no candidate messaging;
+- no account actions;
+- no persistence/database work unless a later Phase 9 task explicitly approves it;
+- no country/technology/role expansion unless separately reviewed.
+
+The default pattern for Phase 8.8 is narrow, bounded, current-flow UX hardening: classify intent, improve wording, preserve state, and only then let the existing Search Brief / Agent Plan / runtime approval path continue.
+
+Do not solve this by endlessly expanding deterministic phrase allowlists. Deterministic logic may remain for hard safety guardrails, cheap obvious fast paths, and backend validation, but the intended direction is to use bounded LLM intent recognition for flexible human language such as `Confirm`, `I told you the role - dentist`, and natural refinement/rejection replies.
+
+LLM-first does not mean trusting model-produced ready state. Search Brief readiness must remain evidence-grounded: nonsense/noise such as `ямчмч` must not become `ready_for_planning` just because an LLM or adapter produced a complete-looking draft.
+
+Small talk should also be handled as an intent, not as a growing deterministic phrase list. Natural messages such as `How are you?`, `Hello`, and `What's up` should not produce inconsistent behavior where one route is friendly and another falls into generic unclear wording.
+
+For recruiter-facing conversation, LLM should own the safe wording layer where it adds natural variation and politeness. Backend still owns intent validation, state, facts, Search Brief fields, actions, approval, and execution.
+
+The default recruiter-facing UI should not expose technical preparation controls while the product is moving toward chat-led agent behavior. Internal state may still exist, but visible flow should be simpler: chat asks for confirmation, search runs through the existing approved path, and results become the main workspace.
+
+## Task: P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+
+### Context
+
+The UI currently handles messages such as `The plumber` as generic unclear/noise input. It can also mishandle a follow-up such as `I told you the role - dentist` by treating `dentist` as a normal candidate-search clarification and asking for the next missing field, for example `What target location should the search use?`
+
+That is not ideal: the assistant did understand enough to know the requested role is outside the current IT/software sourcing scope. A clearly non-IT role should block the normal Search Brief clarification path and receive a scoped unsupported-role answer.
+
+Hardcoding every possible non-IT profession would be brittle and incomplete. The better direction is a bounded LLM classifier that can recognize clear non-IT role requests across English/Russian/mixed wording, while having no authority to build a Search Brief, generate a QueryPlan, or execute search.
+
+### Goal
+
+Add a bounded pre-extraction classifier for gray-zone recruiter chat messages so the assistant can distinguish:
+
+- IT/software candidate-search intent;
+- clearly non-IT candidate-search intent;
+- harmless off-topic input;
+- unclear/noisy input;
+- prohibited input.
+
+For clearly non-IT roles, the assistant should answer with a scoped unsupported-role message instead of generic unclear wording.
+
+Example direction:
+
+```text
+Sorry, I can help with IT/software candidate search in this version. "Plumber" is outside the supported search scope. Tell me an IT role, main technology, location, and 1-3 stack signals.
+```
+
+### Proposed Steps
+
+1. Define the classifier contract.
+   - Input must be bounded to the latest user message plus minimal language/context metadata.
+   - Output must be JSON only.
+   - Proposed output fields:
+
+```json
+{
+  "intent": "candidate_search | small_talk | off_topic | unclear | prohibited",
+  "role_domain": "it_software | non_it | unknown",
+  "unsupported_role_label": "plumber",
+  "confidence": "high | medium | low"
+}
+```
+
+2. Keep deterministic guardrails first.
+   - Prohibited requests still win before any LLM classifier.
+   - Greeting/small-talk/onboarding routes stay deterministic.
+   - Obvious off-topic and obvious noise can stay deterministic.
+   - Pending clarification answers should stay field-specific where possible, so `сантехника` during a pending location question still gets the field-specific location response.
+
+3. Run the LLM classifier only for gray-zone clean-state messages.
+   - Examples: `The plumber`, `dentist`, `найди стоматолога`, `ищу электрика`, `find mechanical engineer`.
+   - Also run it for gray-zone follow-up messages that claim to provide the role, for example `I told you the role - dentist`.
+   - Avoid calling it for already-supported obvious Java/Ukraine requests.
+   - Avoid calling it when deterministic routing already has a safe answer.
+   - If the classifier returns high-confidence `non_it`, do not continue to Search Brief extraction and do not ask for the next missing field such as location or stack.
+
+4. Add conservative validation and fallback.
+   - Accept `non_it` only with high confidence and a short safe role label.
+   - If the classifier is missing, invalid, low confidence, wrong language, or unsafe, fall back to the current deterministic unclear/off-topic flow.
+   - Do not expose classifier internals to the user.
+
+5. Add user-facing unsupported-role wording.
+   - EN/RU messages should say the current version helps with IT/software candidate search.
+   - If the requested role label is safe, include it as quoted user-facing context.
+   - Do not imply the product supports that non-IT role.
+   - Do not mention backend planner, QueryPlan, runtime, Tavily, approval, classifier, or OpenAI.
+
+6. Add regression coverage.
+   - No-network tests with monkeypatched classifier output for `plumber`, `dentist`, Russian equivalents, and ambiguous inputs.
+   - Add a multi-turn regression for:
+
+```text
+User: The plumber
+Assistant: unsupported non-IT role message
+User: I told you the role - dentist
+Assistant: unsupported non-IT role message
+```
+
+   - Explicitly assert the assistant does not ask `What target location should the search use?` or any equivalent next Search Brief field question after a high-confidence non-IT role.
+   - Ensure `data engineer` is not classified as non-IT.
+   - Ensure `mechanical engineer` is treated as unsupported or unclear, not as current supported Java/Ukraine baseline.
+   - Ensure prohibited requests still refuse before classifier.
+   - Ensure deterministic Java/Ukraine requests still reach normal Search Brief extraction.
+
+7. Add UI UAT cases.
+   - Extend the Phase 8.75.1 UI simulated-user runner or add a Phase 8.8 runner slice.
+   - Include polite non-IT role messages and verify no executable search controls become enabled.
+   - Include the observed follow-up case `I told you the role - dentist` and verify the UI does not move into location/stack clarification.
+
+### Acceptance Criteria
+
+- Clearly non-IT role requests do not fall into generic unclear wording.
+- Clearly non-IT role follow-ups do not advance the Search Brief flow to the next missing field.
+- IT/software-ish requests are not accidentally blocked as non-IT.
+- Unsupported role handling is bounded, polite, and localized.
+- The classifier cannot change Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, or results.
+- No Tavily/search/runtime execution is triggered by classifier-only responses.
+- No raw LLM payloads, raw model responses, candidate URLs, profile URLs, or secrets are logged or committed.
+- The task remains separate from Phase 9 persistence.
+
+### Non-Goals
+
+- Building a general recruiting assistant for all professions.
+- Expanding supported search beyond the reviewed Java/Ukraine baseline.
+- Replacing Search Brief extraction with a free-form classifier.
+- Running Tavily, opening LinkedIn, scraping, messaging candidates, or acting on accounts.
+- Adding persistence, sessions, saved searches, or database state.
+
+---
+
+## Task: P8.8-002 Add bounded LLM pending-action intent classifier
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+
+### Context
+
+The current frontend can ask the recruiter to `confirm`, but a user message like `Confirm` is not necessarily recognized by the deterministic pending-action parser. When that happens, the message falls through to generic recruiter-chat extraction and can produce `Sorry, I did not understand the request`.
+
+Adding more and more phrases such as `confirm`, `confirmed`, `I confirm`, `подтверждаю`, etc. is not the right long-term direction. The AI Agent should understand pending-action replies through an LLM intent classifier in the current conversation/action context.
+
+### Goal
+
+Add a bounded LLM classifier for messages sent while a pending action exists, especially the `start_search` confirmation action.
+
+The classifier should understand recruiter replies such as:
+
+- `Confirm`
+- `Confirmed`
+- `Yes, confirm`
+- `I confirm`
+- `да, подтверждаю`
+- `подтверждаю запуск`
+- `не, хочу изменить`
+- `wait, change Spring to Kafka`
+
+and map them to a small validated intent set.
+
+### Proposed Contract
+
+Input should be bounded to:
+
+- latest user message;
+- pending action type, for example `start_search`;
+- opaque current action/search summary identity metadata;
+- language hint;
+- no candidate records, raw results, URLs, or raw tool payloads.
+
+Output must be JSON only:
+
+```json
+{
+  "intent": "confirm | refine | reject | unclear",
+  "confidence": "high | medium | low"
+}
+```
+
+### Proposed Steps
+
+1. Define classifier placement.
+   - Run only when the UI/backend has a current pending action.
+   - Start with `start_search` confirmation.
+   - Keep deterministic safety refusals ahead of this classifier.
+
+2. Add strict validation.
+   - Accept only known intents.
+   - Require high confidence for `confirm`.
+   - Treat low/invalid output as `unclear`.
+   - Do not trust any LLM-returned action payload, endpoint, Search Brief, QueryPlan, approval, or execution instruction.
+
+3. Route outcomes.
+   - `confirm` continues through the existing safe runtime path only.
+   - `refine` sends the message through the normal Search Brief refinement path.
+   - `reject` clears the pending action and preserves the current Search Brief.
+   - `unclear` asks a short clarification such as: `Do you want me to start the search, or change the search summary?`
+
+4. Preserve backend authority.
+   - LLM may classify intent only.
+   - Runtime execution still requires existing current-state checks, fingerprints, supported flow validation, and backend-owned approval path.
+   - LLM must not change facts, filters, scoring, dedupe, location logic, execution mode, candidates, results, or approval state.
+
+5. Add tests.
+   - `Confirm` after an Agent Plan/search-ready prompt starts the existing confirmed-search path.
+   - Natural EN/RU confirm phrases map to `confirm`.
+   - Natural refinement phrases map to `refine` and do not run search.
+   - Ambiguous replies ask for clarification.
+   - Prohibited replies still refuse before classifier.
+
+### Acceptance Criteria
+
+- `Confirm` works in the exact UI state where the assistant asked the recruiter to confirm.
+- The fix is not implemented by expanding a hardcoded phrase list as the primary intelligence mechanism.
+- The classifier cannot execute search directly.
+- Existing runtime approval/fingerprint/current-state checks remain mandatory.
+- No raw LLM payloads, model responses, candidate URLs, profile URLs, or secrets are logged or committed.
+
+### Non-Goals
+
+- Autonomous execution.
+- Free-form LLM tool use.
+- Replacing backend runtime approval.
+- Persisting pending-action state.
+- Adding new search providers or broad role/country support.
+
+---
+
+## Task: P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+
+### Context
+
+`P8.8-001` and `P8.8-002` are focused slices: non-IT role-domain recognition and pending-action confirmation/refinement recognition. After those are reviewed, the next direction is to make LLM intent recognition the normal intelligence layer for ambiguous recruiter replies, instead of relying on a growing set of deterministic phrase checks.
+
+### Goal
+
+Route ambiguous recruiter messages through a bounded LLM-first intent layer while keeping deterministic hard safety and backend validation as the authority layer.
+
+This layer should help classify natural recruiter replies into stable application intents such as:
+
+- provide or update Search Brief fields;
+- confirm pending action;
+- reject pending action;
+- refine current brief;
+- ask a harmless off-topic question;
+- provide unclear/noisy text;
+- request prohibited behavior;
+- ask a supported meta/explanation question.
+
+### Proposed Steps
+
+1. Define the unified intent taxonomy.
+   - Reuse the narrower outputs from `P8.8-001` and `P8.8-002` where possible.
+   - Keep output small and application-owned.
+   - Do not allow the LLM to return arbitrary actions.
+
+2. Define LLM-first routing boundaries.
+   - Deterministic hard safety guardrails still run first.
+   - Backend validation remains final authority.
+   - Existing Search Brief extraction/refinement/runtime paths remain the only state-changing paths.
+
+3. Add a bounded model payload.
+   - Include latest user message and minimal current conversation/action state.
+   - Exclude candidate records, profile URLs, raw search results, raw tool payloads, secrets, and long chat history unless separately reviewed.
+
+4. Add validation/fallback.
+   - Invalid/low-confidence output falls back to deterministic safe handling.
+   - Ambiguous intent asks one short clarification question.
+   - No hidden execution or direct search is allowed.
+
+5. Add observability without sensitive data.
+   - Use safe provenance metadata such as `llm_intent_used`, `intent`, `confidence`, and fallback reason.
+   - Do not log raw prompts/responses by default.
+
+6. Add broad no-network and UI UAT coverage.
+   - Confirm/refine/reject examples in EN/RU/mixed wording.
+   - Non-IT role examples.
+   - IT-ish examples that must not be blocked.
+   - Off-topic and unclear examples.
+   - Prohibited examples that bypass the LLM route and refuse safely.
+
+### Acceptance Criteria
+
+- Ambiguous recruiter replies are interpreted through a bounded LLM intent layer, not primarily by expanding hardcoded phrase allowlists.
+- The LLM can classify intent but cannot mutate Search Brief, QueryPlan, runtime approval, execution mode, candidates, counts, or results directly.
+- Backend validation and current safe runtime path remain mandatory for execution.
+- The user-facing chat becomes more natural for real recruiter language without weakening hard product restrictions.
+
+### Non-Goals
+
+- Full autonomous agent loop.
+- Unbounded free-form chat.
+- Direct web search, LinkedIn access/login/scraping, candidate messaging, or account actions.
+- Persistence/database changes.
+- New supported countries/technologies/roles.
+
+---
+
+## Task: P8.8-004 Add evidence gate against hallucinated Search Brief readiness
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+
+### Context
+
+The current flow can still let a nonsense or noisy message fall through to Search Brief extraction. In an observed UI case:
+
+```text
+User: вываываы
+Assistant: Извини, я не понял запрос...
+User: ямчмч
+Assistant: Я понял поиск. Проверь summary. Если все верно, подтверди, и я начну поиск.
+```
+
+That is wrong. A nonsense message must not produce a ready search. Even with an LLM-first intent layer, the backend must not trust a complete-looking Search Brief unless the user evidence contains enough explicit sourcing signals.
+
+This must not be solved by hardcoding the exact observed noisy strings. The goal is a general evidence-grounding rule: a ready Search Brief must be supported by user-provided sourcing evidence or a previously valid current draft, not by model inference alone.
+
+### Goal
+
+Add an evidence gate that prevents hallucinated or weakly grounded `ready_for_planning` Search Briefs from being accepted.
+
+The gate should sit after LLM/Search Brief extraction and before the response can become `ready_for_planning`.
+
+### Proposed Steps
+
+1. Define evidence requirements for Search Brief readiness.
+   - Current Java/Ukraine flow should require user-visible evidence for:
+     - target role / IT role intent;
+     - main technology;
+     - target location;
+     - at least one supported stack signal.
+   - Evidence can come from the current turn plus existing valid draft context, but not from unsupported/noisy text alone.
+   - Existing draft context can count only when it is current, valid, and not stale after an unrelated/noisy turn.
+   - Clean-state nonsense/noise cannot create a ready brief, even if an LLM or adapter returns complete-looking fields.
+
+2. Add an evidence assessment helper.
+   - Input: latest user text, combined user text, existing draft brief, extracted draft, normalized brief.
+   - Track whether each required field is grounded in explicit user text, a valid pending-answer context, or an existing valid draft.
+   - Differentiate clean-state initial extraction, pending clarification answer, valid refinement, and unrelated/noisy text.
+   - Output:
+
+```json
+{
+  "ready_evidence": "sufficient | insufficient",
+  "missing_evidence": ["role_family", "technology", "location", "stack"],
+  "reason": "no_sourcing_signal | noisy_latest_turn | unsupported_role | weak_llm_only_field"
+}
+```
+
+3. Gate `ready_for_planning`.
+   - If normalized brief is ready but evidence is insufficient, downgrade response to `needs_clarification`.
+   - Prefer a polite unclear/noise answer when the latest message is nonsense.
+   - Prefer one field-specific clarification only when there is real partial sourcing evidence.
+   - Do not build or refresh an Agent Plan from an insufficient-evidence brief.
+   - Clear or mark stale any pending executable action/proposed action that depended on the rejected ready state.
+   - Do not show `Я понял поиск` / `I understood the search` for nonsense.
+
+4. Integrate with Phase 8.8 LLM intent tasks.
+   - `P8.8-001` can identify non-IT roles before extraction.
+   - `P8.8-003` can classify ambiguous/noisy messages.
+   - This task is the backend safety net after extraction.
+   - If classifier and evidence gate disagree, choose the safer non-ready state.
+
+5. Add regression coverage.
+   - No-network backend tests:
+
+```text
+User: вываываы
+Assistant: unclear/noise
+User: ямчмч
+Assistant: unclear/noise
+NOT: ready_for_planning
+NOT: Я понял поиск / I understood the search
+```
+
+   - Test that a real valid request still becomes ready:
+
+```text
+Find Backend Developer in Ukraine, Java, Spring.
+```
+
+   - Test that partial valid requests still ask the correct missing-field question.
+   - Test that previous valid draft context can still be refined by meaningful follow-up, but not by nonsense.
+   - Assert the fix is not matching only the exact observed noisy strings.
+
+6. Add UI UAT coverage.
+   - Add the observed two-turn noise scenario to the UI simulated-user suite or Phase 8.8 runner.
+   - Assert no executable search controls become enabled.
+   - Assert no ready/search-confirmation message appears.
+
+### Acceptance Criteria
+
+- Nonsense/noise cannot produce `ready_for_planning`.
+- A complete-looking LLM/Search Brief draft is rejected or downgraded when user evidence is insufficient.
+- Valid Java/Ukraine requests still work.
+- Partial valid requests still ask useful clarifying questions.
+- Meaningful refinements of an existing valid draft still work.
+- Noise after a valid draft does not silently mutate the draft or enable a new executable search.
+- The fix is not implemented by hardcoding exact gibberish strings as the primary protection.
+- The gate cannot change QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, counts, or results.
+- No raw LLM payloads, model responses, candidate URLs, profile URLs, or secrets are logged or committed.
+
+### Non-Goals
+
+- Replacing the LLM intent layer.
+- Replacing Search Brief extraction.
+- Expanding supported roles/countries/technologies.
+- Autonomous execution.
+- Persistence/database work.
+
+---
+
+## Task: P8.8-005 Add bounded small-talk intent and wording consistency
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog from observed UI behavior. This task is not approved for coding yet.
+
+### Context
+
+Observed UI behavior:
+
+```text
+User: How are you?
+Assistant: I'm here and ready to help. Tell me who we should find: role, main technology, location, and 1-3 stack signals.
+
+User: How are you?
+Assistant: I'm here and ready to help. Tell me who we should find: role, main technology, location, and 1-3 stack signals.
+
+User: Hello
+Assistant: Hello! Please let me know the details of the position we need to fill: the role, the main technology, the location, and 1 to 3 key stack signals.
+
+User: Whats up
+Assistant: Sorry, I did not understand the request. I can help with candidate search: tell me the role, main technology, location, and 1-3 stack signals.
+```
+
+This feels inconsistent. `How are you?` and `Hello` are treated as harmless conversational turns, while `What's up` falls into unclear/noise wording. The problem is not one missing hardcoded phrase. The problem is that small talk, greeting, harmless meta-chat, unclear input, and sourcing intent are not routed through one coherent bounded intent layer.
+
+### Goal
+
+Handle harmless small talk through a bounded small-talk intent so the chat feels like one AI Agent conversation, while preserving the existing product boundaries.
+
+Small talk should:
+
+- answer briefly and naturally in the user's language;
+- optionally steer back to candidate search;
+- preserve any current Search Brief, Agent Plan, pending action, and results;
+- never create or mutate a Search Brief;
+- never trigger planning, approval, search, Tavily, LinkedIn, candidate messaging, persistence, or account actions.
+
+### Proposed Steps
+
+1. Define small-talk intent in the Phase 8.8 intent taxonomy.
+   - Include `small_talk` separately from `greeting`, `off_topic`, `unclear`, `noise`, `candidate_search`, `confirm`, `refine`, and `prohibited`.
+   - Treat messages like `How are you?`, `Hello`, `What's up`, and normal RU equivalents as harmless conversation intent.
+   - Do not solve by adding each phrase to a deterministic allowlist as the main mechanism.
+
+2. Define routing placement.
+   - Hard safety/prohibited guardrails still run first.
+   - If there is a pending action, preserve it unless the classifier confidently returns confirm/reject/refine through `P8.8-002`.
+   - If there is an existing draft/ready brief, preserve it and do not mark it stale for harmless small talk.
+   - If there is no draft, return a small-talk response plus a short invitation to describe the candidate search.
+
+3. Define bounded small-talk wording.
+   - Match the user's language.
+   - Keep response short.
+   - Allow mild variation so repeated small-talk turns do not repeat the exact same sentence.
+   - Do not claim personal feelings, external activity, tool activity, search execution, LinkedIn access, candidate review, or hidden work.
+   - Do not mention backend planner, QueryPlan, runtime, Tavily, OpenAI, approval, or fingerprints.
+
+4. Use LLM-first handling only inside safe boundaries.
+   - For gray-zone harmless conversational input, bounded LLM intent classification may decide `small_talk`.
+   - Optional LLM wording may produce only the assistant text.
+   - LLM output must not change facts, brief fields, proposed actions, approval state, executable flags, counts, candidates, results, filters, scoring, dedupe, or location logic.
+   - Invalid/low-confidence/unsafe output falls back to deterministic safe small-talk or unclear wording.
+
+5. Add backend tests.
+   - `How are you?` returns small-talk response and does not call Search Brief extraction.
+   - Repeated `How are you?` does not repeat an awkward identical response if LLM wording is available, and still remains safe with deterministic fallback.
+   - `Hello` remains friendly and safe.
+   - `What's up` is not treated as unclear/noise.
+   - RU equivalents are handled in RU.
+   - Existing ready brief plus small talk preserves the ready brief and pending action.
+   - Existing pending confirmation plus small talk does not accidentally start search.
+
+6. Add UI UAT coverage.
+   - Run the exact observed sequence.
+   - Assert no generic unclear message for harmless small talk.
+   - Assert no executable search controls are newly enabled by small talk.
+   - Assert current draft/ready state is preserved when appropriate.
+
+### Acceptance Criteria
+
+- Harmless small talk does not fall into generic unclear/noise wording.
+- Repeated small-talk messages do not feel like a broken loop.
+- The fix is not implemented by expanding a hardcoded phrase list as the main mechanism.
+- Small talk cannot create or mutate Search Brief, Agent Plan, proposed action, approval state, execution state, candidates, counts, or results.
+- Existing valid search context is preserved through harmless small talk.
+- No raw LLM payloads, raw model responses, candidate URLs, profile URLs, or secrets are logged or committed.
+
+### Non-Goals
+
+- Building an unbounded general chatbot.
+- Answering arbitrary real-world questions such as live weather, exchange rates, or news.
+- Autonomous execution.
+- Direct web-search by the agent outside the approved backend pipeline.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Persistence/database work.
+
+---
+
+## Task: P8.8-006 Add bounded LLM conversational wording layer
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog from the agreed direction that recruiter-facing conversation should use LLM for natural language where safe. This task is not approved for coding yet.
+
+### Context
+
+The product should feel like an AI Agent, not a form validator with many hardcoded response strings. If the recruiter greets the assistant ten times, the assistant should be able to answer politely with natural variation while still steering back to the product goal: finding candidates.
+
+Current behavior mixes deterministic replies and narrow LLM wording overlays. That creates repetitive or inconsistent responses:
+
+- repeated `How are you?` can produce identical wording;
+- `Hello` can sound more natural because it goes through onboarding wording;
+- `What's up` can fall into generic unclear wording;
+- the assistant can sound like it is exposing internal workflow instead of guiding the recruiter.
+
+The intended direction is not to let LLM control the product. The intended direction is:
+
+```text
+user message -> bounded intent/state decision -> backend validation -> bounded LLM wording -> validated assistant text
+```
+
+### Goal
+
+Add a bounded LLM conversational wording layer for safe recruiter-chat message types so the assistant can respond naturally, vary wording, and gently guide the recruiter toward candidate search without changing any backend-owned facts or actions.
+
+The layer should apply only after backend has already decided the safe message type and state.
+
+Initial eligible message types:
+
+- greeting/onboarding;
+- harmless small talk;
+- unclear/noise fallback;
+- off-topic-but-harmless redirect;
+- unsupported non-IT role response after `P8.8-001`;
+- pending-action clarification after `P8.8-002`;
+- Search Brief ready confirmation prompt wording, without changing action metadata.
+
+### Proposed Steps
+
+1. Define the conversational wording contract.
+   - Input: message type, language, latest user message, compact current state, deterministic source message, and a short list of allowed meaning points.
+   - Optional input: previous visible assistant message and small counters such as `greeting_count` or `small_talk_count` to reduce repetition.
+   - Exclude full chat history by default.
+   - Exclude candidate records, profile URLs, raw search results, raw Tavily/OpenAI payloads, secrets, and raw tool outputs.
+
+2. Define strict field boundaries.
+   - LLM may replace only the visible assistant message text for eligible conversational message types.
+   - LLM may not change Search Brief fields, normalized facts, proposed actions, approval state, executable flags, fingerprints, planner mode, filters, scoring, dedupe, location logic, candidates, counts, results, or runtime state.
+   - LLM may not create a QueryPlan, trigger Tavily, open LinkedIn, message candidates, or act on accounts.
+
+3. Define style requirements.
+   - Match the user's language.
+   - Keep responses concise.
+   - Be polite and natural.
+   - Avoid repeating the exact same sentence across repeated safe conversational turns.
+   - Softly guide back to candidate search when appropriate.
+   - Do not mention backend planner, QueryPlan, runtime, Tavily, OpenAI, approval internals, fingerprints, or hidden tools.
+   - Do not claim emotions, external activity, candidate review, LinkedIn access, or search execution.
+
+4. Define validation and fallback.
+   - Validate output shape, language, length, forbidden terms, forbidden internal concepts, and fact/action drift.
+   - If invalid, low quality, unsafe, too long, wrong language, or unavailable, use deterministic fallback.
+   - Record safe provenance such as `wording_mode`, `message_type`, `fallback_reason`, and `model`, without raw prompt/response logging.
+
+5. Keep latency controlled.
+   - Use a small bounded payload.
+   - Use a short timeout suitable for chat UX.
+   - Do not wait on LLM wording when a deterministic answer is already enough for hard safety refusal.
+   - Add timing metadata/logging only as safe aggregate stage durations, never raw messages or payloads.
+
+6. Add tests for variation and safety.
+   - Repeated greetings produce acceptable non-identical wording when LLM wording is available.
+   - Repeated small talk is polite and steers back to candidate search.
+   - Invalid LLM output falls back safely.
+   - LLM output cannot change Search Brief state or enable search.
+   - Existing draft/ready brief and pending action are preserved.
+   - RU/EN language matching works.
+
+7. Add UI UAT coverage.
+   - Simulate repeated greetings and small-talk messages.
+   - Assert the assistant stays polite, concise, and recruiter-focused.
+   - Assert no generic unclear message appears for harmless conversational turns.
+   - Assert no search controls become enabled from wording alone.
+
+### Acceptance Criteria
+
+- Safe recruiter-chat conversational responses can use LLM wording for natural variation.
+- Repeated greetings/small talk do not look like a static hardcoded loop.
+- The assistant still gently guides the recruiter toward candidate search.
+- LLM wording cannot mutate facts, Search Brief, Agent Plan, proposed actions, approval, execution, candidates, counts, results, filters, scoring, dedupe, or location logic.
+- Deterministic fallback remains available for every eligible message type.
+- Latency is bounded and measurable without logging raw prompts, responses, candidate URLs, profile URLs, or secrets.
+- The task does not add persistence, new search providers, direct web-search bypass, LinkedIn access/login/scraping, candidate messaging, autonomous execution, or account actions.
+
+### Non-Goals
+
+- Building an unbounded general chatbot.
+- Allowing LLM to decide execution or mutate backend state.
+- Replacing backend validation, evidence gates, or runtime approval.
+- Answering arbitrary live factual questions such as weather, currency rates, or news.
+- Adding database/persistence or memory.
+
+---
+
+## Task: P8.8-007 Hide technical search preparation panels from recruiter UI
+
+### Status
+
+Draft / not approved / not implemented.
+
+Approval note: added to Phase 8.8 backlog from observed UI clutter. This task is not approved for coding yet.
+
+### Context
+
+The current frontend can show technical preparation blocks such as:
+
+- `Search summary` with `Ready` / `Expand`;
+- `Search steps` with active count / `Expand`;
+- `LinkedIn profiles only`, `Location filter`, `Multi-wave` controls;
+- `Prepare search` / `Run search` buttons;
+- `Search details` / `Search details are ready: 10 queries prepared`.
+
+For the current AI Agent direction, this is too technical for the recruiter-facing surface. The user should not need to understand internal preparation panels, query counts, backend plan steps, or filters before seeing results. The chat should carry confirmation, and the candidate results workspace should be the primary output.
+
+### Goal
+
+Temporarily hide the technical search-preparation UI from the recruiter-facing frontend while preserving the existing backend/runtime/search path.
+
+This is a small frontend-only cleanup task.
+
+### Proposed Steps
+
+1. Identify the visible technical controls.
+   - Locate the current DOM/rendering for Search summary, Search steps, search-option checkboxes, prepare/run buttons, and Search details.
+   - Confirm which pieces are purely presentation and which pieces are still required for frontend state.
+
+2. Hide the recruiter-facing technical panels.
+   - Remove or visually hide the technical preparation cards from the normal recruiter UI.
+   - Do not expose `Ready`, active step counts, query-prepared counts, or internal `Expand` controls.
+   - Do not show `LinkedIn profiles only`, `Location filter`, or `Multi-wave` as primary visible controls in this cleanup.
+
+3. Preserve the safe execution path.
+   - Keep chat-confirmed search as the recruiter-facing approval path.
+   - Do not remove backend runtime prepare/execute logic.
+   - Do not remove fingerprints, approval checks, planner data, multi-wave defaults, filters, scoring, dedupe, or location logic.
+   - Do not create any direct search execution path.
+
+4. Keep results visible.
+   - Candidate results and compact completion summary should remain the primary post-search surface.
+   - If search is not ready/running yet, avoid replacing the hidden panels with another technical placeholder.
+
+5. Add a narrow UI check.
+   - After ready Search Brief / prepared search state, assert the technical blocks are not visible.
+   - Assert chat-confirmed search still reaches the existing safe runtime path.
+   - Assert candidate results still render after approved search.
+
+### Acceptance Criteria
+
+- Recruiter UI no longer shows the technical Search summary/Search steps/Search details preparation panels by default.
+- Recruiter UI no longer shows the technical `Prepare search` / `Run search` button block as the main path.
+- Recruiter UI no longer shows low-level `LinkedIn profiles only`, `Location filter`, or `Multi-wave` controls in the main flow.
+- Chat remains the primary confirmation path for starting the search.
+- Existing backend planner/runtime/search behavior is unchanged.
+- Candidate results remain visible after an approved search.
+- No new backend endpoints, persistence, search providers, direct web-search bypass, LinkedIn access/login/scraping, candidate messaging, autonomous execution, or account actions are added.
+
+### Non-Goals
+
+- Redesigning the whole layout.
+- Removing backend search preparation state.
+- Removing multi-wave behavior.
+- Changing query generation, filtering, scoring, dedupe, location logic, or candidate workspace behavior.
+- Adding persistence/database work.
+
+---
+
 ## Phase 9 - Persistent Memory + Saved Searches
 
 ### Approved
