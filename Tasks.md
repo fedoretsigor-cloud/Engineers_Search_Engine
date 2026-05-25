@@ -17173,7 +17173,6 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ### Backlog
 
-- [ ] P8.5-001 Define agentic candidate review contract
 - [ ] P8.5-002 Add top-candidate recommendation from returned workspace facts
 - [ ] P8.5-003 Add selected-candidate comparison
 - [ ] P8.5-004 Add fit/gap explanation across selected candidates
@@ -17183,9 +17182,159 @@ Phase 9 is where database/persistence becomes useful. It should not be pulled in
 
 ### Done
 
+- [x] P8.5-001 Define agentic candidate review contract
+
 ### Strategy note
 
 Phase 8.5 should make the completed Phase 8 workspace feel like a fuller AI Agent experience before persistence or provider expansion. The agent may analyze already returned candidate facts, summarize tradeoffs, compare candidates selected by the recruiter, and propose next search refinements. It must not execute searches autonomously, call Tavily, open LinkedIn, scrape, message candidates, persist data, or add new providers.
+
+---
+
+## Task: P8.5-001 Define agentic candidate review contract
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the user in the implementation goal after deep review. This is a contract-first task with a documentation contract and no-network regression check. It intentionally does not add a new agent runtime, LLM call, backend endpoint, Tavily execution, LinkedIn behavior, persistence, or UI action.
+
+### Context
+
+Phase 8 created the current Candidate Workspace from approved search results:
+
+- `latestWorkspaceRun` is the current run context;
+- `workspaceCandidates` is the full current result set;
+- `visibleWorkspaceCandidates` is the current sorted/filtered view;
+- `workspaceReviewStateByCandidateId` stores current-run review status, shortlist, and notes;
+- `candidateWorkspace.buildCandidateExplanation()` creates deterministic candidate explanations grounded only in returned workspace facts;
+- candidate explanation LLM wording is already bounded by `P8-006` / `P8-006.1` and must not become a general candidate-analysis loophole.
+
+Phase 8.5 should make the workspace feel more agentic, but only over already returned workspace facts. It must not turn the agent into an autonomous search actor.
+
+### Goal
+
+Define the Agentic Candidate Review v0 contract before implementing recommendation/comparison/refinement behavior.
+
+The first supported shape is:
+
+`approved search results -> current Candidate Workspace -> user asks for review/comparison/refinement help -> agent analyzes already returned workspace facts -> agent shows non-executable guidance`
+
+### Deep Review Findings
+
+1. The current source of truth is frontend current-run workspace state, not a backend candidate workspace database.
+   - There is no backend-owned candidate workspace fact store yet.
+   - Backend fact truth/persistence belongs to later reviewed work.
+
+2. Agentic review must not reuse search/runtime approval mechanics as a shortcut.
+   - It is analysis over returned facts, not a search action.
+   - It must not call Tavily, Build Plan, Run Search, Agent Runtime execution, or any provider.
+
+3. Review state is workflow state, not candidate evidence.
+   - Review status and shortlist may guide user workflow.
+   - Recruiter notes remain local/private and must not be sent to backend/LLM in Phase 8.5 v0.
+   - Review state must not change candidate facts, score, fit, explanation reason codes, or export facts.
+
+4. Any future LLM-assisted candidate review must be bounded separately.
+   - `P8.5-001` itself adds no LLM call.
+   - Later LLM-assisted slices need an explicit payload, validation, fallback, provenance, prompt/data separation, and no-fact-mutation contract.
+
+5. The first agentic review tasks should preserve the current Java/Ukraine narrow product path.
+   - Do not add new countries, technologies, providers, or profile evidence intake.
+   - Manual profile evidence intake belongs to Phase 10.
+   - Persistence/saved searches belong to Phase 9.
+
+### Reviewed Steps
+
+1. Define the Phase 8.5 source-of-truth boundary.
+   - Inputs are only already returned current-run workspace facts.
+   - Current frontend state is authoritative for v0 display/selection state.
+   - No hidden external enrichment is allowed.
+
+2. Define allowed agentic review outputs.
+   - Top-candidate recommendation from returned facts.
+   - Selected-candidate comparison.
+   - Fit/gap explanation across selected candidates.
+   - Guided next-refinement suggestions from workspace results.
+   - All outputs are advisory and non-executable.
+
+3. Define forbidden behavior.
+   - No autonomous execution.
+   - No Tavily calls.
+   - No direct web-search bypass.
+   - No LinkedIn login, scraping, browser automation, profile opening, restriction bypass, or messaging.
+   - No account actions.
+   - No persistence, saved searches, saved candidates, or memory.
+   - No new search providers.
+
+4. Define LLM boundaries for later slices.
+   - No LLM call in this task.
+   - Future LLM review must use backend-owned prompts and strict payload/output validation.
+   - LLM may only synthesize wording from allowlisted current-run facts.
+   - LLM must not change candidate facts, score, ranking source, review state, notes, shortlist, filters, export, Search Brief, QueryPlan, approval state, or execution actions.
+   - Invalid/missing/unsafe LLM output must fall back to deterministic analysis.
+
+5. Define allowed future bounded facts.
+   - Candidate display label/name already visible to the recruiter.
+   - Existing quality score/bucket.
+   - Role/technology/stack/location/seniority display and fit/status values.
+   - Selected/missing stack terms.
+   - Review flag codes/labels/severity.
+   - Query source ids/categories.
+   - Deterministic candidate explanation summary/reason codes/reason labels.
+   - Current-run selection/order context.
+
+6. Define forbidden future LLM payload fields.
+   - Profile URLs, normalized URLs, URL-derived candidate ids, emails, account ids, raw Tavily payloads, raw `raw_content`, raw snippets/content, raw query text, browser storage state, recruiter notes, prompt rules supplied by the frontend, model/provider controls, API keys, runtime approval state, fingerprints used for execution, and any account/action instruction.
+
+7. Define state and UI boundaries.
+   - Phase 8.5 state is current-run browser/session state only.
+   - New successful approved search clears derived agentic review state.
+   - Sorting/filtering may change visible context but must not mutate candidates.
+   - Future UI should keep candidates as the primary surface and show analysis as a review aid.
+
+8. Define implementation order.
+   - `P8.5-001`: contract and guardrail smoke only.
+   - `P8.5-002`: deterministic top-candidate recommendation from returned facts.
+   - `P8.5-003`: selected-candidate comparison.
+   - `P8.5-004`: fit/gap explanation across selected candidates.
+   - `P8.5-005`: non-executable guided refinement suggestions.
+
+9. Add no-network verification.
+   - Assert the contract exists.
+   - Assert the task is completed.
+   - Assert the contract preserves the no-execution/no-LinkedIn/no-persistence boundaries.
+   - Assert the contract references current workspace source-of-truth variables and deterministic candidate explanations.
+   - Wire the smoke check into `scripts/check_all.ps1`.
+
+### Acceptance Criteria
+
+- `docs/phase-8-5-agentic-candidate-review-contract.md` exists and defines the v0 contract.
+- `P8.5-001` is completed in `Tasks.md`.
+- Phase 8.5 is documented as the current active reviewed direction after the `P8-032` parent closeout.
+- The contract clearly separates current-run workspace facts from future backend persistence.
+- The contract allows agentic review only over already returned workspace facts.
+- The contract forbids Tavily, direct web search, LinkedIn access/login/scraping/automation, messaging, account actions, persistence, and autonomous execution.
+- The contract defines LLM boundaries for later reviewed tasks without adding an LLM call in this task.
+- No product behavior, backend route, search execution, candidate facts, Candidate Quality, scoring, filters, dedupe, export, or runtime behavior changes in this task.
+- `scripts/check_all.ps1` includes the P8.5 contract smoke check.
+
+### Implementation Notes
+
+Implemented as a docs-and-guardrail slice:
+
+- added `docs/phase-8-5-agentic-candidate-review-contract.md`;
+- added `scripts/smoke_p85_agentic_candidate_review_contract.py`;
+- wired the smoke into `scripts/check_all.ps1`;
+- updated `Tasks.md`, `ProjectStatus.md`, `Roadmap.md`, `README.md`, and `AGENTS.md` to record the contract and next direction;
+- did not change frontend runtime behavior, backend APIs, search execution, Tavily, LinkedIn boundaries, candidate facts, scoring, filters, dedupe, export, persistence, memory, or account actions.
+
+### Non-Goals
+
+- Do not implement top-candidate recommendation in this task.
+- Do not implement selected-candidate comparison in this task.
+- Do not implement fit/gap analysis in this task.
+- Do not implement guided refinement suggestions in this task.
+- Do not add an LLM call, backend endpoint, Agent Runtime action, Tavily call, provider call, LinkedIn access, persistence, or new search scope.
 
 ---
 

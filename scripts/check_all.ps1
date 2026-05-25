@@ -120,5 +120,9 @@ Invoke-Check "P8 Candidate Explanation Wording smoke" {
     & $python scripts/smoke_p8_candidate_explanation_wording.py
 }
 
+Invoke-Check "P8.5 Agentic Candidate Review Contract smoke" {
+    & $python scripts/smoke_p85_agentic_candidate_review_contract.py
+}
+
 Write-Host ""
 Write-Host "All local regression checks passed."
