@@ -43,31 +43,162 @@ def ready_brief() -> main.SearchBrief:
     )
 
 
+def brief_missing_technology_with_stack() -> main.SearchBrief:
+    return main.SearchBrief(
+        source_text="Find Backend Developer in Ukraine with AWS.",
+        brief_status="needs_clarification",
+        role_family="Backend Developer",
+        technology=None,
+        stack=["AWS"],
+        location="Ukraine",
+        must_have=[],
+        nice_to_have=["AWS"],
+        search_depth="standard",
+        profile_sources=["linkedin_public"],
+        missing_fields=["technology"],
+        clarifying_questions=["What is the main programming technology?"],
+    )
+
+
 async def fake_recruiter_intent(
     request: main.RecruiterChatIntentRequest,
 ) -> tuple[dict, str | None]:
     INTENT_CALLS.append(request.latest_message)
     text = request.latest_message.lower()
+    if "role family" in text:
+        return {
+            "intent": "unclear",
+            "role_domain": "unknown",
+            "role_support_status": "unknown",
+            "pending_action_intent": "unclear",
+            "field_intent": "field_explanation",
+            "field": "role_family",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
+    if "stack" in text and "mean" in text:
+        return {
+            "intent": "unclear",
+            "role_domain": "unknown",
+            "role_support_status": "unknown",
+            "pending_action_intent": "unclear",
+            "field_intent": "field_explanation",
+            "field": "stack",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
+    if request.pending_field == "technology" and text.strip() == "aws":
+        return {
+            "intent": "candidate_search",
+            "role_domain": "unknown",
+            "role_support_status": "unknown",
+            "pending_action_intent": "unclear",
+            "field_intent": "repeats_existing_value",
+            "field": "stack",
+            "answered_field": "stack",
+            "field_value": "AWS",
+            "field_reason_code": "repeated_stack_value",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
+    if request.pending_action_type == "start_search" and "update" in text:
+        return {
+            "intent": "unclear",
+            "role_domain": "unknown",
+            "role_support_status": "unknown",
+            "pending_action_intent": "refine",
+            "pending_action_reason_code": "wants_to_update_before_search",
+            "field_intent": "unclear",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
+    if request.pending_action_type == "start_search" and text.strip() == "great":
+        return {
+            "intent": "small_talk",
+            "role_domain": "unknown",
+            "role_support_status": "unknown",
+            "pending_action_intent": "unclear",
+            "pending_action_reason_code": "positive_acknowledgement_not_confirmation",
+            "field_intent": "unclear",
+            "unsupported_role_label": None,
+            "confidence": "medium",
+            "response_language": "en",
+        }, None
     if "what" in text and "up" in text:
         return {
             "intent": "small_talk",
             "role_domain": "unknown",
+            "role_support_status": "unknown",
             "pending_action_intent": "unclear",
+            "field_intent": "unclear",
             "unsupported_role_label": None,
             "confidence": "high",
+        }, None
+    if "qa automation" in text:
+        return {
+            "intent": "candidate_search",
+            "role_domain": "it_software",
+            "role_support_status": "unsupported",
+            "role_label": "QA Automation",
+            "role_reason_code": "unsupported_it_role",
+            "is_profession_like": True,
+            "java_programmer_role": False,
+            "pending_action_intent": "unclear",
+            "field_intent": "unclear",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
+    if text.strip() == "analyst":
+        return {
+            "intent": "candidate_search",
+            "role_domain": "ambiguous",
+            "role_support_status": "ambiguous",
+            "role_label": "Analyst",
+            "role_reason_code": "ambiguous_role_like_phrase",
+            "is_profession_like": True,
+            "java_programmer_role": None,
+            "pending_action_intent": "unclear",
+            "field_intent": "unclear",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
+    if text.strip() == "banana":
+        return {
+            "intent": "unclear",
+            "role_domain": "unknown",
+            "role_support_status": "noise",
+            "role_label": None,
+            "role_reason_code": "not_a_role_request",
+            "is_profession_like": False,
+            "java_programmer_role": False,
+            "pending_action_intent": "unclear",
+            "field_intent": "noise",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
         }, None
     if "data engineer" in text:
         return {
             "intent": "candidate_search",
             "role_domain": "it_software",
+            "role_support_status": "unknown",
             "pending_action_intent": "unclear",
+            "field_intent": "unclear",
             "unsupported_role_label": None,
             "confidence": "high",
         }, None
     return {
         "intent": "unclear",
         "role_domain": "unknown",
+        "role_support_status": "unknown",
         "pending_action_intent": "unclear",
+        "field_intent": "unclear",
         "unsupported_role_label": None,
         "confidence": "high",
     }, None
@@ -210,6 +341,60 @@ async def assert_small_talk_uses_safe_wording() -> None:
     assert preserved["stale_state_should_clear"] is False
 
 
+async def assert_llm_role_classifier_handles_java_scope_edges() -> None:
+    qa = await main.recruiter_chat_turn_response(chat_request("QA Automation", "en"))
+    assert qa["state"] == "needs_clarification"
+    assert qa["normalized_brief"] is None
+    assert qa["can_build_plan"] is False
+    assert "java programmer" in qa["assistant_message"].lower()
+    assert "did not understand" not in qa["assistant_message"].lower()
+
+    analyst = await main.recruiter_chat_turn_response(chat_request("Analyst", "en"))
+    assert analyst["state"] == "needs_clarification"
+    assert analyst["normalized_brief"] is None
+    assert analyst["can_build_plan"] is False
+    assert "ambiguous" in analyst["assistant_message"].lower()
+    assert "java programmer" in analyst["assistant_message"].lower()
+
+    noise = await main.recruiter_chat_turn_response(chat_request("banana", "en"))
+    assert noise["state"] == "needs_clarification"
+    assert noise["normalized_brief"] is None
+    assert noise["can_build_plan"] is False
+    assert "does not look like" in noise["assistant_message"].lower()
+
+
+async def assert_field_explanations_preserve_brief_state() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("What role family means?", "en", draft_brief=ready_brief())
+    )
+    assert response["state"] == "ready_for_planning"
+    assert response["can_build_plan"] is True
+    assert response["brief_changed"] is False
+    assert response["stale_state_should_clear"] is False
+    assert "broad type of role" in response["assistant_message"].lower()
+
+    stack = await main.recruiter_chat_turn_response(
+        chat_request("What does stack mean?", "en", draft_brief=ready_brief())
+    )
+    assert stack["state"] == "ready_for_planning"
+    assert stack["brief_changed"] is False
+    assert "1-3 signals" in stack["assistant_message"].lower()
+
+
+async def assert_pending_field_answer_classifier_blocks_wrong_field() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("AWS", "en", draft_brief=brief_missing_technology_with_stack())
+    )
+    assert response["state"] == "needs_clarification"
+    assert response["can_build_plan"] is False
+    assert response["brief_changed"] is False
+    assert response["stale_state_should_clear"] is False
+    assert "main programming technology" in response["assistant_message"].lower()
+    assert "java" in response["assistant_message"].lower()
+    assert response["normalized_brief"]["stack"] == ["AWS"]
+    assert response["normalized_brief"]["technology"] is None
+
+
 async def assert_pending_action_intent_endpoint() -> None:
     confirm = await main.classify_recruiter_chat_intent(
         main.RecruiterChatIntentRequest(
@@ -233,6 +418,30 @@ async def assert_pending_action_intent_endpoint() -> None:
         )
     )
     assert refine["pending_action_intent"] == "refine"
+
+    general_update = await main.classify_recruiter_chat_intent(
+        main.RecruiterChatIntentRequest(
+            latest_message="I want to update",
+            language="en",
+            context_type="pending_action",
+            pending_action_type="start_search",
+            current_brief_status="ready_for_planning",
+        )
+    )
+    assert general_update["pending_action_intent"] == "refine"
+    assert general_update["pending_action_reason_code"] == "wants_to_update_before_search"
+
+    vague_ack = await main.classify_recruiter_chat_intent(
+        main.RecruiterChatIntentRequest(
+            latest_message="great",
+            language="en",
+            context_type="pending_action",
+            pending_action_type="start_search",
+            current_brief_status="ready_for_planning",
+        )
+    )
+    assert vague_ack["pending_action_intent"] == "unclear"
+    assert vague_ack["pending_action_reason_code"] == "positive_acknowledgement_not_confirmation"
 
 
 def assert_frontend_phase_88_contract() -> None:
@@ -279,6 +488,9 @@ async def run_smoke() -> None:
         await assert_evidence_gate_blocks_hallucinated_ready()
         await assert_valid_request_still_reaches_ready()
         await assert_small_talk_uses_safe_wording()
+        await assert_llm_role_classifier_handles_java_scope_edges()
+        await assert_field_explanations_preserve_brief_state()
+        await assert_pending_field_answer_classifier_blocks_wrong_field()
         await assert_pending_action_intent_endpoint()
         assert_frontend_phase_88_contract()
     finally:

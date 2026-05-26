@@ -109,7 +109,9 @@ class RecruiterChatIntentRequest(BaseModel):
     language: str | None = None
     context_type: str | None = None
     pending_action_type: str | None = None
+    pending_field: str | None = None
     current_brief_status: str | None = None
+    current_brief: SearchBrief | None = None
 
 
 class AgentRuntimeApproval(BaseModel):

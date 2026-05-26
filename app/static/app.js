@@ -1316,26 +1316,56 @@ function isSearchRunRefinementRequest(text) {
   return SEARCH_RUN_REFINEMENTS.has(normalizeChatCommandText(text));
 }
 
+function isGenericSearchRunRefinementRequest(text) {
+  const normalizedText = normalizeChatCommandText(text);
+  return (
+    /\b(update|change|edit|modify|adjust)\b/.test(normalizedText) &&
+    !/\b(spring|kafka|aws|hibernate|java|ukraine|backend)\b/.test(normalizedText)
+  );
+}
+
 function isSearchRunAmbiguousReply(text) {
   return SEARCH_RUN_AMBIGUOUS_REPLIES.has(normalizeChatCommandText(text));
 }
 
+function chatMessageResponseLanguage(text) {
+  if (/[\u0400-\u04FF]/.test(text || "")) {
+    return "ru";
+  }
+  if (/[A-Za-z]/.test(text || "")) {
+    return "en";
+  }
+  return currentChatLanguage;
+}
+
 function fallbackPendingSearchRunIntent(text) {
+  const responseLanguage = chatMessageResponseLanguage(text);
   if (isSearchRunConfirmation(text)) {
-    return "confirm";
+    return { intent: "confirm", reasonCode: "deterministic_confirm", responseLanguage };
   }
   if (isSearchRunRefinementRequest(text)) {
-    return "refine";
+    return { intent: "refine", reasonCode: "deterministic_refine", responseLanguage };
+  }
+  if (isGenericSearchRunRefinementRequest(text)) {
+    return {
+      intent: "refine",
+      reasonCode: "generic_update_before_search",
+      responseLanguage,
+    };
   }
   if (isSearchRunAmbiguousReply(text)) {
-    return "unclear";
+    return { intent: "unclear", reasonCode: "deterministic_ambiguous", responseLanguage };
   }
-  return "unclear";
+  return { intent: "unclear", reasonCode: "deterministic_unclear", responseLanguage };
 }
 
 async function classifyPendingSearchRunIntent(userText) {
   if (!pendingChatAction || pendingChatAction.type !== "start_search") {
-    return "unclear";
+    return {
+      intent: "unclear",
+      reasonCode: "no_pending_action",
+      responseLanguage: chatMessageResponseLanguage(userText),
+    };
   }
 
   try {
@@ -1359,7 +1389,13 @@ async function classifyPendingSearchRunIntent(userText) {
 
     const intent = String(data.pending_action_intent || "unclear");
     if (["confirm", "refine", "reject", "unclear"].includes(intent)) {
-      return intent;
+      return {
+        intent,
+        reasonCode: String(data.pending_action_reason_code || ""),
+        responseLanguage: ["en", "ru"].includes(data.response_language)
+          ? data.response_language
+          : chatMessageResponseLanguage(userText),
+      };
     }
   } catch (_error) {
     return fallbackPendingSearchRunIntent(userText);
@@ -2629,14 +2665,18 @@ async function ensureSearchReadyForConfirmedRun() {
 }
 
 async function handlePendingSearchRunChatAction(userText) {
-  const pendingIntent = await classifyPendingSearchRunIntent(userText);
+  const pendingIntentDecision = await classifyPendingSearchRunIntent(userText);
+  const pendingIntent = pendingIntentDecision.intent || "unclear";
+  const pendingReasonCode = pendingIntentDecision.reasonCode || "";
+  const pendingResponseLanguage =
+    pendingIntentDecision.responseLanguage || chatMessageResponseLanguage(userText);
   const cleanConfirmation = pendingIntent === "confirm";
   if (!pendingSearchRunConfirmationIsCurrent()) {
     if (cleanConfirmation && pendingChatAction?.type === "start_search") {
       messages.push({ role: "user", content: userText, localOnly: true });
       clearPendingChatAction();
       appendSearchConfirmationReply(
-        currentChatLanguage === "ru"
+        pendingResponseLanguage === "ru"
           ? "\u041f\u043e\u0438\u0441\u043a\u043e\u0432\u0430\u044f \u0441\u0432\u043e\u0434\u043a\u0430 \u0438\u0437\u043c\u0435\u043d\u0438\u043b\u0430\u0441\u044c. \u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438 \u0442\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u043e\u0438\u0441\u043a \u0435\u0449\u0435 \u0440\u0430\u0437."
           : "The search summary changed. Confirm the current search again before I start it.",
         AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
@@ -2651,6 +2691,25 @@ async function handlePendingSearchRunChatAction(userText) {
   }
 
   if (pendingIntent === "refine") {
+    if (
+      pendingReasonCode === "wants_to_update_before_search" ||
+      pendingReasonCode === "generic_update_before_search" ||
+      isGenericSearchRunRefinementRequest(userText)
+    ) {
+      messages.push({ role: "user", content: userText, localOnly: true });
+      clearPendingChatAction();
+      clearRuntimeApproval();
+      appendSearchConfirmationReply(
+        pendingResponseLanguage === "ru"
+          ? "\u041a\u043e\u043d\u0435\u0447\u043d\u043e. \u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0432 search summary?"
+          : "Sure. What would you like to update in the search summary?",
+        AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+      );
+      renderChatMessages();
+      updateActionState();
+      chatInput.focus();
+      return true;
+    }
     clearPendingChatAction();
     clearRuntimeApproval();
     updateActionState();
@@ -2662,7 +2721,7 @@ async function handlePendingSearchRunChatAction(userText) {
     clearPendingChatAction();
     clearRuntimeApproval();
     appendSearchConfirmationReply(
-      currentChatLanguage === "ru"
+      pendingResponseLanguage === "ru"
         ? "\u041e\u043a, \u043f\u043e\u0438\u0441\u043a \u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u044e. \u0421\u0432\u043e\u0434\u043a\u0430 \u043e\u0441\u0442\u0430\u0435\u0442\u0441\u044f \u0433\u043e\u0442\u043e\u0432\u043e\u0439."
         : "Ok, I will not start the search. The current summary stays ready."
     );
@@ -2676,7 +2735,7 @@ async function handlePendingSearchRunChatAction(userText) {
   if (pendingIntent === "unclear") {
     messages.push({ role: "user", content: userText, localOnly: true });
     appendSearchConfirmationReply(
-      currentChatLanguage === "ru"
+      pendingResponseLanguage === "ru"
         ? "\u0425\u043e\u0447\u0435\u0448\u044c, \u0447\u0442\u043e\u0431\u044b \u044f \u043d\u0430\u0447\u0430\u043b \u044d\u0442\u043e\u0442 \u043f\u043e\u0438\u0441\u043a, \u0438\u043b\u0438 \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u043d\u0443\u0436\u043d\u043e \u0447\u0442\u043e-\u0442\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c?"
         : "Do you want me to start this search, or should we change something first?",
       AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
@@ -2694,7 +2753,7 @@ async function handlePendingSearchRunChatAction(userText) {
   messages.push({ role: "user", content: userText, localOnly: true });
   clearPendingChatAction();
   appendSearchConfirmationReply(
-    currentChatLanguage === "ru"
+    pendingResponseLanguage === "ru"
       ? "\u041f\u043e\u043d\u044f\u043b. \u041d\u0430\u0447\u0438\u043d\u0430\u044e \u043f\u043e\u0438\u0441\u043a \u043f\u043e \u0442\u0435\u043a\u0443\u0449\u0435\u0439 \u0441\u0432\u043e\u0434\u043a\u0435."
       : "Confirmed. Starting the search from the current summary."
   );
@@ -2707,7 +2766,7 @@ async function handlePendingSearchRunChatAction(userText) {
     const readyToRun = await ensureSearchReadyForConfirmedRun();
     if (!readyToRun) {
       appendSearchConfirmationReply(
-        currentChatLanguage === "ru"
+        pendingResponseLanguage === "ru"
           ? "\u041d\u0435 \u0441\u043c\u043e\u0433 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u0438\u0442\u044c \u043f\u043e\u0438\u0441\u043a. \u041f\u0440\u043e\u0432\u0435\u0440\u044c \u0441\u0432\u043e\u0434\u043a\u0443 \u0438 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438 \u0441\u043d\u043e\u0432\u0430."
           : "I could not safely prepare this search. Review the summary and confirm again.",
         AGENT_MESSAGE_TYPES.SYSTEM_ERROR

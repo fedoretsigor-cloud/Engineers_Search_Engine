@@ -17356,11 +17356,6 @@ Implemented as a UI-level UAT gate slice:
 
 ### Backlog
 
-- [ ] P8.8-008 Add bounded LLM Java-programmer role classifier
-- [ ] P8.8-009 Add bounded LLM Search Brief field-explanation intent
-- [ ] P8.8-010 Add bounded LLM pending-field answer classifier
-- [ ] P8.8-011 Improve bounded LLM pending-action refinement intent
-
 ### In Progress
 
 ### Done
@@ -17372,6 +17367,10 @@ Implemented as a UI-level UAT gate slice:
 - [x] P8.8-006 Add bounded LLM conversational wording layer
 - [x] P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
 - [x] P8.8-007 Hide technical search preparation panels from recruiter UI
+- [x] P8.8-008 Add bounded LLM Java-programmer role classifier
+- [x] P8.8-009 Add bounded LLM Search Brief field-explanation intent
+- [x] P8.8-010 Add bounded LLM pending-field answer classifier
+- [x] P8.8-011 Improve bounded LLM pending-action refinement intent
 
 ### Strategy note
 
@@ -18106,7 +18105,11 @@ This is a small frontend-only cleanup task.
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
+
+Review note: implement through the shared bounded recruiter-chat intent contract, not as a separate free-form role catalog and not as another hardcoded profession list. The LLM may classify role meaning, but backend validation remains the authority for supported flow, Search Brief readiness, planning, and execution.
+
+Implementation result: the bounded recruiter-chat intent contract now classifies Java-programmer role support, unsupported IT/software roles, ambiguous role-like phrases, and noise. Backend validation still owns Search Brief readiness, planning, and execution boundaries.
 
 ### Context
 
@@ -18254,7 +18257,11 @@ Noise:
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
+
+Review note: implement through the shared bounded recruiter-chat intent contract. The LLM should classify that the recruiter asks for a Search Brief field explanation; backend-owned deterministic definitions must remain the source of truth.
+
+Implementation result: the shared intent contract now classifies Search Brief field-explanation questions and routes them to backend-owned deterministic explanations while preserving the current brief state.
 
 ### Context
 
@@ -18395,7 +18402,11 @@ Optional LLM wording may rephrase only after backend selects the safe meaning.
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
+
+Review note: implement through the shared bounded recruiter-chat intent contract. The LLM may classify whether the answer addresses the pending field, another field, a repeated value, or a field explanation; backend validators must own any Search Brief mutation.
+
+Implementation result: pending-field context is now passed to the classifier, repeated/different-field answers are explained without mutating the brief, and deterministic pending-field handlers keep priority over role classification.
 
 ### Context
 
@@ -18539,7 +18550,11 @@ Allowed fields:
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
+
+Review note: implement by strengthening the existing bounded pending-action intent path. General update/change/edit intent during search confirmation should become `refine` without executing search; concrete change requests should still flow into the normal Search Brief refinement path.
+
+Implementation result: pending search confirmation now consumes classifier reason codes, treats general update/change/edit intent as a safe refinement request, asks what to update, and still lets concrete changes flow into the normal Search Brief refinement path.
 
 ### Context
 
