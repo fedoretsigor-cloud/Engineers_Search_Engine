@@ -236,7 +236,10 @@ from app.search_validation import (
     normalize_structured_search_request,
 )
 from app.search_execution import (
+    PHASE9_PROVIDER_ORDER,
     TAVILY_SEARCH_URL,
+    provider_breakdown_from_query_results,
+    run_provider_expansion_query_plan,
     run_multi_wave_query_plan_core,
     run_query_plan_wave,
     run_query_slot,
@@ -960,6 +963,10 @@ def normalize_tavily_result(result: dict) -> dict:
         "raw_title": raw_title,
         "raw_content": raw_content,
         "tavily_score": result.get("score"),
+        "provider": result.get("provider"),
+        "provider_query_id": result.get("provider_query_id"),
+        "provider_page": result.get("page"),
+        "provider_rank": result.get("rank"),
         "matched_fields": [],
         "missing_required_fields": [],
         "score": 0,
@@ -986,6 +993,9 @@ def choose_more_complete_result(current_result: dict, candidate_result: dict) ->
 def query_source_from_result(query_result: dict) -> dict:
     return {
         "id": query_result["query_id"],
+        "provider": query_result.get("provider", "tavily"),
+        "provider_query_id": query_result.get("provider_query_id"),
+        "provider_page": query_result.get("provider_page"),
         "category": query_result["category"],
         "role_phrase": query_result.get("role_phrase"),
         "uses_stack": query_result.get("uses_stack", []),
@@ -1004,7 +1014,22 @@ def wave_source_from_result(query_result: dict) -> dict:
 
 
 def append_unique_query_source(query_sources: list[dict], query_source: dict) -> None:
-    if any(source["id"] == query_source["id"] for source in query_sources):
+    query_source_key = (
+        query_source.get("id"),
+        query_source.get("provider", "tavily"),
+        query_source.get("provider_query_id"),
+        query_source.get("provider_page"),
+    )
+    if any(
+        (
+            source.get("id"),
+            source.get("provider", "tavily"),
+            source.get("provider_query_id"),
+            source.get("provider_page"),
+        )
+        == query_source_key
+        for source in query_sources
+    ):
         return
 
     query_sources.append(query_source)
@@ -1163,6 +1188,9 @@ def build_deduped_results_and_report(
     for query_result in query_results:
         contribution = {
             "id": query_result["query_id"],
+            "provider": query_result.get("provider", "tavily"),
+            "provider_query_id": query_result.get("provider_query_id"),
+            "provider_page": query_result.get("provider_page"),
             "category": query_result["category"],
             "raw": 0,
             "filtered": 0,
@@ -1214,6 +1242,7 @@ def build_deduped_results_and_report(
                     "normalized_url": normalized_url,
                     "result": normalized_result,
                     "query_sources": [query_source],
+                    "provider_sources": [query_source],
                     "wave_sources": [wave_source] if wave_source else [],
                     "location_signals": [location_signal] if location_signal else [],
                 }
@@ -1223,6 +1252,10 @@ def build_deduped_results_and_report(
                     normalized_result,
                 )
                 append_unique_query_source(current_item["query_sources"], query_source)
+                append_unique_query_source(
+                    current_item["provider_sources"],
+                    query_source,
+                )
                 if wave_source:
                     append_unique_wave_source(current_item["wave_sources"], wave_source)
                 if location_signal:
@@ -1318,6 +1351,7 @@ def build_deduped_results_and_report(
                 "normalized_url": normalized_url,
                 "result": candidate["result"],
                 "query_sources": candidate["query_sources"],
+                "provider_sources": candidate.get("provider_sources", []),
                 "location_signal_status": candidate["location_signal_status"],
                 "location_signal_terms": candidate["location_signal_terms"],
                 "header_location_text": candidate["header_location_text"],
@@ -1370,6 +1404,17 @@ def build_deduped_results_and_report(
             ],
             "location_filter_report": location_filter_report,
             "query_contribution": query_contribution,
+            "provider_breakdown": provider_breakdown_from_query_results(
+                query_contribution
+            ),
+            "providers": [
+                provider
+                for provider in PHASE9_PROVIDER_ORDER
+                if any(
+                    contribution.get("provider") == provider
+                    for contribution in query_contribution
+                )
+            ],
         },
     )
 
@@ -6286,6 +6331,55 @@ async def run_multi_wave_query_plan(
     )
 
 
+async def run_phase9_provider_expansion(query_plan: dict) -> list[dict]:
+    return await run_provider_expansion_query_plan(query_plan)
+
+
+async def extend_query_results_with_phase9_providers(
+    query_plan: dict,
+    query_results: list[dict],
+) -> list[dict]:
+    try:
+        provider_query_results = await run_phase9_provider_expansion(query_plan)
+    except Exception:
+        logger.warning("Phase 9 provider expansion failed.", exc_info=True)
+        provider_query_results = []
+
+    if not provider_query_results:
+        return query_results
+
+    return [*query_results, *provider_query_results]
+
+
+def mark_multi_provider_report(
+    query_plan: dict,
+    report: dict,
+    query_results: list[dict],
+    *,
+    base_mode: str,
+) -> dict:
+    providers = report.get("providers") or []
+    provider_breakdown = report.get("provider_breakdown") or {}
+    report.update(
+        {
+            "provider_mode": "multi_provider",
+            "base_mode": base_mode,
+            "mode": base_mode,
+            "query_plan_queries": len(query_plan.get("queries", [])),
+            "query_attempts": len(query_results),
+            "queries_total": len(query_results),
+            "providers": providers,
+            "provider_breakdown": provider_breakdown,
+            "provider_limits": {
+                "serper_pages": 1,
+                "serpapi_google_pages": 5,
+                "serpapi_bing_pages": 5,
+            },
+        }
+    )
+    return report
+
+
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
@@ -6460,10 +6554,20 @@ async def execute_single_wave_structured_search_response(
     execution_approval: dict,
 ) -> dict:
     query_results = await run_query_plan_wave(query_plan)
+    query_results = await extend_query_results_with_phase9_providers(
+        query_plan,
+        query_results,
+    )
     successful_queries = sum(1 for result in query_results if result["ok"])
     deduped_results, report = build_deduped_results_and_report(
         query_plan,
         query_results,
+    )
+    report = mark_multi_provider_report(
+        query_plan,
+        report,
+        query_results,
+        base_mode="single_wave",
     )
     agent_response = build_agent_response(
         query_plan,
@@ -6504,6 +6608,51 @@ async def execute_multi_wave_structured_search_response(
     deduped_results, report, query_results = await run_multi_wave_query_plan(
         query_plan,
         settings,
+    )
+    base_multi_wave_report = report
+    query_results = await extend_query_results_with_phase9_providers(
+        query_plan,
+        query_results,
+    )
+    deduped_results, report = build_deduped_results_and_report(
+        query_plan,
+        query_results,
+        include_wave_sources=True,
+    )
+    report.update(
+        {
+            "experimental": True,
+            "multi_wave_settings": settings,
+            "waves_run": base_multi_wave_report.get("waves_run"),
+            "planned_max_waves": base_multi_wave_report.get(
+                "planned_max_waves",
+                settings["max_waves"],
+            ),
+            "stop_reason": base_multi_wave_report.get("stop_reason"),
+            "unique_profiles_per_wave": base_multi_wave_report.get(
+                "unique_profiles_per_wave",
+                [],
+            ),
+            "new_unique_profiles_per_wave": base_multi_wave_report.get(
+                "new_unique_profiles_per_wave",
+                [],
+            ),
+            "cumulative_unique_profiles": base_multi_wave_report.get(
+                "cumulative_unique_profiles",
+                [],
+            ),
+            "duplicates_across_waves": base_multi_wave_report.get(
+                "duplicates_across_waves",
+                0,
+            ),
+            "wave_reports": base_multi_wave_report.get("wave_reports", []),
+        }
+    )
+    report = mark_multi_provider_report(
+        query_plan,
+        report,
+        query_results,
+        base_mode="multi_wave",
     )
     agent_response = build_agent_response(
         query_plan,
@@ -6816,11 +6965,21 @@ async def structured_search(request: StructuredSearchRequest) -> dict:
         }
 
     query_results = await run_query_plan_wave(query_plan)
+    query_results = await extend_query_results_with_phase9_providers(
+        query_plan,
+        query_results,
+    )
 
     successful_queries = sum(1 for result in query_results if result["ok"])
     deduped_results, report = build_deduped_results_and_report(
         query_plan,
         query_results,
+    )
+    report = mark_multi_provider_report(
+        query_plan,
+        report,
+        query_results,
+        base_mode="single_wave",
     )
     agent_response = build_agent_response(
         query_plan,
@@ -6889,6 +7048,51 @@ async def structured_search_multi_wave(
     deduped_results, report, query_results = await run_multi_wave_query_plan(
         query_plan,
         settings,
+    )
+    base_multi_wave_report = report
+    query_results = await extend_query_results_with_phase9_providers(
+        query_plan,
+        query_results,
+    )
+    deduped_results, report = build_deduped_results_and_report(
+        query_plan,
+        query_results,
+        include_wave_sources=True,
+    )
+    report.update(
+        {
+            "experimental": True,
+            "multi_wave_settings": settings,
+            "waves_run": base_multi_wave_report.get("waves_run"),
+            "planned_max_waves": base_multi_wave_report.get(
+                "planned_max_waves",
+                settings["max_waves"],
+            ),
+            "stop_reason": base_multi_wave_report.get("stop_reason"),
+            "unique_profiles_per_wave": base_multi_wave_report.get(
+                "unique_profiles_per_wave",
+                [],
+            ),
+            "new_unique_profiles_per_wave": base_multi_wave_report.get(
+                "new_unique_profiles_per_wave",
+                [],
+            ),
+            "cumulative_unique_profiles": base_multi_wave_report.get(
+                "cumulative_unique_profiles",
+                [],
+            ),
+            "duplicates_across_waves": base_multi_wave_report.get(
+                "duplicates_across_waves",
+                0,
+            ),
+            "wave_reports": base_multi_wave_report.get("wave_reports", []),
+        }
+    )
+    report = mark_multi_provider_report(
+        query_plan,
+        report,
+        query_results,
+        base_mode="multi_wave",
     )
     agent_response = build_agent_response(
         query_plan,

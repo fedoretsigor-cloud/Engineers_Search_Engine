@@ -116,7 +116,7 @@ Future Phase 8.5 LLM payloads must not include:
 - execution fingerprints;
 - account/action instructions.
 
-If a later task wants to use raw snippets, pasted profile evidence, resume text, notes, or richer profile evidence, that requires a separate reviewed contract. Manual pasted profile evidence belongs to Phase 10, not Phase 8.5 v0.
+If a later task wants to use raw snippets, pasted profile evidence, resume text, notes, or richer profile evidence, that requires a separate reviewed contract. Manual pasted profile evidence belongs to Phase 11, not Phase 8.5 v0.
 
 ## State And UI Boundary
 
@@ -146,7 +146,7 @@ The smoke check verifies:
 
 - this contract exists;
 - `P8.5-001`, `P8.5-002`, `P8.5-003`, `P8.5-004`, and `P8.5-005` are marked completed;
-- Phase 8.5 is recorded as the current active reviewed direction;
+- Phase 8.5 is recorded as a completed reviewed direction before Phase 9 multi-provider expansion and Phase 10 persistence;
 - current workspace source-of-truth variables still exist;
 - deterministic candidate explanations remain available;
 - the contract preserves no-execution, no-LinkedIn, no-persistence, and bounded-LLM boundaries.

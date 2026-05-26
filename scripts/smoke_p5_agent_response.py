@@ -133,11 +133,16 @@ async def forbidden_openai_call(*args, **kwargs):
     raise AssertionError("P5-006 Agent Response must not call OpenAI/LLM.")
 
 
+async def no_phase9_provider_expansion(*args, **kwargs):
+    return []
+
+
 async def run_smoke() -> None:
     original_tavily_key = os.environ.get("TAVILY_API_KEY")
     original_openai_key = os.environ.get("OPENAI_API_KEY")
     original_openai_model = os.environ.get("OPENAI_MODEL")
     original_run_query_plan_wave = main.run_query_plan_wave
+    original_provider_expansion = main.run_phase9_provider_expansion
     original_chat_llm = main.run_openai_json_recruiter_chat
     original_planner_llm = main.run_openai_json_planner
     original_wording_llm = main.run_openai_json_agent_wording
@@ -146,6 +151,7 @@ async def run_smoke() -> None:
     os.environ.pop("OPENAI_API_KEY", None)
     os.environ.pop("OPENAI_MODEL", None)
     main.run_query_plan_wave = fake_run_query_plan_wave
+    main.run_phase9_provider_expansion = no_phase9_provider_expansion
     main.run_openai_json_recruiter_chat = forbidden_openai_call
     main.run_openai_json_planner = forbidden_openai_call
     main.run_openai_json_agent_wording = forbidden_openai_call
@@ -206,6 +212,7 @@ async def run_smoke() -> None:
 
     finally:
         main.run_query_plan_wave = original_run_query_plan_wave
+        main.run_phase9_provider_expansion = original_provider_expansion
         main.run_openai_json_recruiter_chat = original_chat_llm
         main.run_openai_json_planner = original_planner_llm
         main.run_openai_json_agent_wording = original_wording_llm

@@ -1,4 +1,9 @@
+from __future__ import annotations
+
+import asyncio
 import os
+import time
+from typing import Any
 
 import httpx
 from fastapi import HTTPException
@@ -7,6 +12,124 @@ from app.agent_messages import runtime_tool_unavailable_source_message
 
 
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
+SERPER_SEARCH_URL = "https://google.serper.dev/search"
+SERPAPI_SEARCH_URL = "https://serpapi.com/search.json"
+
+SEARCH_PROVIDER_TAVILY = "tavily"
+SEARCH_PROVIDER_SERPER = "serper"
+SEARCH_PROVIDER_SERPAPI_GOOGLE = "serpapi_google"
+SEARCH_PROVIDER_SERPAPI_BING = "serpapi_bing"
+PHASE9_EXTRA_PROVIDERS = [
+    SEARCH_PROVIDER_SERPER,
+    SEARCH_PROVIDER_SERPAPI_GOOGLE,
+    SEARCH_PROVIDER_SERPAPI_BING,
+]
+PHASE9_PROVIDER_ORDER = [
+    SEARCH_PROVIDER_TAVILY,
+    *PHASE9_EXTRA_PROVIDERS,
+]
+PHASE9_SERPAPI_PAGE_LIMIT = 5
+PHASE9_PROVIDER_TIMEOUT_SECONDS = 20
+PHASE9_PROVIDER_MAX_CONCURRENCY = 4
+
+
+def provider_result(
+    *,
+    provider: str,
+    query_slot: dict,
+    title: Any,
+    url: Any,
+    snippet: Any = "",
+    rank: Any = None,
+    page: int = 1,
+) -> dict:
+    return {
+        "provider": provider,
+        "provider_query_id": query_slot["id"],
+        "query_text": query_slot["query"],
+        "title": str(title or "").strip(),
+        "url": str(url or "").strip(),
+        "content": str(snippet or "").strip(),
+        "snippet": str(snippet or "").strip(),
+        "rank": rank,
+        "page": page,
+    }
+
+
+def _bounded_provider_error(message: str) -> str:
+    text = str(message or "Provider request failed.").strip()
+    if len(text) > 180:
+        text = f"{text[:177]}..."
+    return text
+
+
+def _provider_query_result(
+    query_slot: dict,
+    provider: str,
+    *,
+    ok: bool,
+    raw_results: list[dict] | None = None,
+    page: int | None = None,
+    response_time: float | None = None,
+    error: str | None = None,
+) -> dict:
+    provider_query_id = (
+        f"{provider}:{query_slot['id']}:p{page}"
+        if page is not None
+        else f"{provider}:{query_slot['id']}"
+    )
+    return {
+        "query_id": query_slot["id"],
+        "provider_query_id": provider_query_id,
+        "provider": provider,
+        "provider_page": page,
+        "category": query_slot["category"],
+        "role_phrase": query_slot.get("role_phrase"),
+        "uses_stack": query_slot.get("uses_stack", []),
+        "query": query_slot["query"],
+        "ok": ok,
+        "raw_results": raw_results or [],
+        "raw_count": len(raw_results or []),
+        "response_time": response_time,
+        "usage": None,
+        "request_id": None,
+        "error": error,
+    }
+
+
+def provider_unavailable_result(query_slot: dict, provider: str, message: str) -> dict:
+    return _provider_query_result(
+        query_slot,
+        provider,
+        ok=False,
+        raw_results=[],
+        error=_bounded_provider_error(message),
+    )
+
+
+async def _post_json(
+    url: str,
+    *,
+    headers: dict[str, str],
+    json_payload: dict[str, Any],
+) -> tuple[dict, float]:
+    start = time.perf_counter()
+    async with httpx.AsyncClient(timeout=PHASE9_PROVIDER_TIMEOUT_SECONDS) as client:
+        response = await client.post(url, headers=headers, json=json_payload)
+        response.raise_for_status()
+    return response.json(), round(time.perf_counter() - start, 3)
+
+
+async def _get_json(
+    url: str,
+    *,
+    params: dict[str, Any],
+) -> tuple[dict, float]:
+    start = time.perf_counter()
+    async with httpx.AsyncClient(timeout=PHASE9_PROVIDER_TIMEOUT_SECONDS) as client:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+    return response.json(), round(time.perf_counter() - start, 3)
 
 
 async def run_tavily_query(query: str, max_results: int) -> dict:
@@ -62,6 +185,9 @@ async def run_query_slot(query_slot: dict) -> dict:
     except HTTPException as exc:
         return {
             "query_id": query_slot["id"],
+            "provider_query_id": f"{SEARCH_PROVIDER_TAVILY}:{query_slot['id']}",
+            "provider": SEARCH_PROVIDER_TAVILY,
+            "provider_page": None,
             "category": query_slot["category"],
             "role_phrase": query_slot.get("role_phrase"),
             "uses_stack": query_slot.get("uses_stack", []),
@@ -78,6 +204,9 @@ async def run_query_slot(query_slot: dict) -> dict:
     raw_results = tavily_data.get("results", [])
     return {
         "query_id": query_slot["id"],
+        "provider_query_id": f"{SEARCH_PROVIDER_TAVILY}:{query_slot['id']}",
+        "provider": SEARCH_PROVIDER_TAVILY,
+        "provider_page": None,
         "category": query_slot["category"],
         "role_phrase": query_slot.get("role_phrase"),
         "uses_stack": query_slot.get("uses_stack", []),
@@ -90,6 +219,261 @@ async def run_query_slot(query_slot: dict) -> dict:
         "request_id": tavily_data.get("request_id"),
         "error": None,
     }
+
+
+async def run_serper_query_slot(query_slot: dict) -> dict:
+    api_key = os.getenv("SERPER_API_KEY")
+    if not api_key:
+        return provider_unavailable_result(
+            query_slot,
+            SEARCH_PROVIDER_SERPER,
+            "SERPER_API_KEY is not configured.",
+        )
+
+    payload = {
+        "q": query_slot["query"],
+        "num": query_slot["max_results"],
+        "page": 1,
+    }
+    try:
+        data, response_time = await _post_json(
+            SERPER_SEARCH_URL,
+            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+            json_payload=payload,
+        )
+    except httpx.HTTPStatusError as exc:
+        return provider_unavailable_result(
+            query_slot,
+            SEARCH_PROVIDER_SERPER,
+            f"Serper request failed with status {exc.response.status_code}.",
+        )
+    except httpx.HTTPError:
+        return provider_unavailable_result(
+            query_slot,
+            SEARCH_PROVIDER_SERPER,
+            "Serper search is unavailable.",
+        )
+
+    raw_organic = data.get("organic", [])
+    raw_results = [
+        provider_result(
+            provider=SEARCH_PROVIDER_SERPER,
+            query_slot=query_slot,
+            title=item.get("title"),
+            url=item.get("link"),
+            snippet=item.get("snippet"),
+            rank=item.get("position"),
+            page=1,
+        )
+        for item in raw_organic
+        if isinstance(item, dict)
+    ]
+    result = _provider_query_result(
+        query_slot,
+        SEARCH_PROVIDER_SERPER,
+        ok=True,
+        raw_results=raw_results,
+        page=1,
+        response_time=response_time,
+    )
+    result["usage"] = {
+        "credits": data.get("credits"),
+        "organic_count": len(raw_organic),
+    }
+    return result
+
+
+def _serpapi_params(query_slot: dict, provider: str, page: int, api_key: str) -> dict:
+    params: dict[str, Any] = {
+        "api_key": api_key,
+        "q": query_slot["query"],
+        "num": query_slot["max_results"],
+        "output": "json",
+    }
+    if provider == SEARCH_PROVIDER_SERPAPI_GOOGLE:
+        params.update(
+            {
+                "engine": "google",
+                "start": (page - 1) * query_slot["max_results"],
+                "google_domain": "google.com",
+                "hl": "en",
+                "gl": "ua",
+            }
+        )
+    else:
+        params.update(
+            {
+                "engine": "bing",
+                "first": (page - 1) * query_slot["max_results"] + 1,
+                "cc": "UA",
+            }
+        )
+    return params
+
+
+async def run_serpapi_query_slot_page(
+    query_slot: dict,
+    provider: str,
+    page: int,
+) -> dict:
+    api_key = os.getenv("SERPAPI_API_KEY")
+    if not api_key:
+        return provider_unavailable_result(
+            query_slot,
+            provider,
+            "SERPAPI_API_KEY is not configured.",
+        )
+
+    try:
+        data, response_time = await _get_json(
+            SERPAPI_SEARCH_URL,
+            params=_serpapi_params(query_slot, provider, page, api_key),
+        )
+    except httpx.HTTPStatusError as exc:
+        return _provider_query_result(
+            query_slot,
+            provider,
+            ok=False,
+            page=page,
+            error=_bounded_provider_error(
+                f"SerpApi request failed with status {exc.response.status_code}."
+            ),
+        )
+    except httpx.HTTPError:
+        return _provider_query_result(
+            query_slot,
+            provider,
+            ok=False,
+            page=page,
+            error=_bounded_provider_error("SerpApi search is unavailable."),
+        )
+
+    raw_organic = data.get("organic_results", [])
+    raw_results = [
+        provider_result(
+            provider=provider,
+            query_slot=query_slot,
+            title=item.get("title"),
+            url=item.get("link"),
+            snippet=item.get("snippet"),
+            rank=item.get("position"),
+            page=page,
+        )
+        for item in raw_organic
+        if isinstance(item, dict)
+    ]
+    result = _provider_query_result(
+        query_slot,
+        provider,
+        ok=True,
+        raw_results=raw_results,
+        page=page,
+        response_time=response_time,
+    )
+    result["request_id"] = data.get("search_metadata", {}).get("id")
+    result["usage"] = {
+        "organic_count": len(raw_organic),
+        "page": page,
+    }
+    return result
+
+
+async def run_serpapi_query_slot(query_slot: dict, provider: str) -> list[dict]:
+    if not os.getenv("SERPAPI_API_KEY"):
+        return [
+            provider_unavailable_result(
+                query_slot,
+                provider,
+                "SERPAPI_API_KEY is not configured.",
+            )
+        ]
+
+    return [
+        await run_serpapi_query_slot_page(query_slot, provider, page)
+        for page in range(1, PHASE9_SERPAPI_PAGE_LIMIT + 1)
+    ]
+
+
+async def _run_limited(coroutines: list) -> list:
+    semaphore = asyncio.Semaphore(PHASE9_PROVIDER_MAX_CONCURRENCY)
+
+    async def run_one(coro):
+        async with semaphore:
+            return await coro
+
+    return await asyncio.gather(*(run_one(coro) for coro in coroutines))
+
+
+async def run_provider_expansion_query_plan(query_plan: dict) -> list[dict]:
+    provider_runs = []
+    for query_slot in query_plan["queries"]:
+        provider_runs.append(run_serper_query_slot(query_slot))
+        provider_runs.append(
+            run_serpapi_query_slot(query_slot, SEARCH_PROVIDER_SERPAPI_GOOGLE)
+        )
+        provider_runs.append(
+            run_serpapi_query_slot(query_slot, SEARCH_PROVIDER_SERPAPI_BING)
+        )
+
+    if not provider_runs:
+        return []
+
+    provider_results = await _run_limited(provider_runs)
+    flattened: list[dict] = []
+    for item in provider_results:
+        if isinstance(item, list):
+            flattened.extend(item)
+        else:
+            flattened.append(item)
+    return flattened
+
+
+def provider_breakdown_from_query_results(query_results: list[dict]) -> dict:
+    breakdown: dict[str, dict] = {}
+    for query_result in query_results:
+        provider = query_result.get("provider") or SEARCH_PROVIDER_TAVILY
+        provider_report = breakdown.setdefault(
+            provider,
+            {
+                "query_attempts": 0,
+                "queries_succeeded": 0,
+                "queries_failed": 0,
+                "raw_total": 0,
+                "displayed": 0,
+                "new_unique_profiles": 0,
+                "duplicates": 0,
+                "pages_reviewed": 0,
+                "errors": [],
+                "latency_seconds": 0,
+            },
+        )
+        provider_report["query_attempts"] += 1
+        provider_report["raw_total"] += int(
+            query_result.get("raw_count") or query_result.get("raw") or 0
+        )
+        provider_report["displayed"] += int(query_result.get("filtered") or 0)
+        provider_report["new_unique_profiles"] += int(
+            query_result.get("new_unique_profiles") or 0
+        )
+        provider_report["duplicates"] += int(query_result.get("duplicates") or 0)
+        if query_result.get("ok"):
+            provider_report["queries_succeeded"] += 1
+        else:
+            provider_report["queries_failed"] += 1
+            if query_result.get("error"):
+                provider_report["errors"].append(
+                    _bounded_provider_error(query_result["error"])
+                )
+        if query_result.get("provider_page"):
+            provider_report["pages_reviewed"] += 1
+        if query_result.get("response_time"):
+            provider_report["latency_seconds"] = round(
+                provider_report["latency_seconds"]
+                + float(query_result.get("response_time") or 0),
+                3,
+            )
+
+    return breakdown
 
 
 async def run_query_plan_wave(

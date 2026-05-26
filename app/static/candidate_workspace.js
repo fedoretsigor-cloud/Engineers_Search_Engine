@@ -1821,7 +1821,7 @@
 
   function defaultWorkspaceViewState() {
     return {
-      sort_mode: SORT_MODES.ORIGINAL,
+      sort_mode: SORT_MODES.QUALITY_DESC,
       quality_filter: QUALITY_FILTERS.ALL,
       stack_filter: STACK_FILTERS.ALL,
       review_flag_filter: REVIEW_FLAG_FILTERS.ALL,

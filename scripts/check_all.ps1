@@ -100,6 +100,10 @@ Invoke-Check "P8 Candidate Primary Surface smoke" {
     & $python scripts/smoke_p8_candidate_primary_surface.py
 }
 
+Invoke-Check "P8.9 UI Polish smoke" {
+    & $python scripts/smoke_p89_ui_polish.py
+}
+
 Invoke-Check "P8 Query Contribution Hidden smoke" {
     & $python scripts/smoke_p8_query_contribution_hidden.py
 }
@@ -142,6 +146,10 @@ Invoke-Check "P8.5 Selected Candidate Fit/Gap smoke" {
 
 Invoke-Check "P8.5 Workspace Refinement Suggestions smoke" {
     & $python scripts/smoke_p85_workspace_refinement_suggestions.py
+}
+
+Invoke-Check "P9 Multi-Provider Search smoke" {
+    & $python scripts/smoke_p9_multi_provider_search.py
 }
 
 Invoke-Check "Phase 8.75 No-Live UAT" {

@@ -76,6 +76,10 @@ async def fake_run_query_plan_wave(
     ]
 
 
+async def no_phase9_provider_expansion(*args, **kwargs):
+    return []
+
+
 def assert_successful_runtime_execution(response: dict) -> dict:
     assert response["ok"] is True
     assert response["runtime_state"] == "observed"
@@ -109,6 +113,7 @@ def run_smoke() -> None:
     client = TestClient(main.app)
     previous_env = {key: os.environ.get(key) for key in ENV_KEYS_TO_RESTORE}
     original_run_query_plan_wave = main.run_query_plan_wave
+    original_provider_expansion = main.run_phase9_provider_expansion
     original_write_structured_search_snapshot = main.write_structured_search_snapshot
     original_single_wrapper = main.execute_single_wave_structured_search_response
     original_multi_wrapper = main.execute_multi_wave_structured_search_response
@@ -122,6 +127,7 @@ def run_smoke() -> None:
         os.environ.pop("OPENAI_API_KEY", None)
         os.environ.pop("OPENAI_MODEL", None)
         main.run_query_plan_wave = fake_run_query_plan_wave
+        main.run_phase9_provider_expansion = no_phase9_provider_expansion
         main.write_structured_search_snapshot = fake_write_structured_search_snapshot
 
         single_response = run_prepare_execute(client)
@@ -139,6 +145,7 @@ def run_smoke() -> None:
         assert multi_result["report"]["wave_reports"]
     finally:
         main.run_query_plan_wave = original_run_query_plan_wave
+        main.run_phase9_provider_expansion = original_provider_expansion
         main.write_structured_search_snapshot = original_write_structured_search_snapshot
         for key, value in previous_env.items():
             if value is None:

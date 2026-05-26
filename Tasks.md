@@ -10948,7 +10948,7 @@ Implemented focused hardening:
 
 ### Current Phase 8 strategy note
 
-Phase 8 is the current active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`.
+Phase 8 became the active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`. Phase 8, Phase 8.5, Phase 8.75, Phase 8.8, Phase 8.9, and Phase 9 are now completed; the current active direction is Phase 10 persistence/saved searches.
 
 `P8-001 Define candidate workspace contract` is completed as a docs-only contract task in `docs/phase-8-candidate-workspace-contract.md`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
 
@@ -10966,7 +10966,7 @@ Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current
 
 Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-028` and `P8-029` are covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B; `P8-027` is covered by implemented Bundle D. `P8-020` and `P8-021` were reviewed after `P8-032A` and implemented as their own narrow frontend-only cleanup slice. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
-Bundle A, Bundle B, Bundle C, Bundle D, and the `P8-032` parent umbrella are now implemented. The next reviewed direction is Phase 8.5 agentic candidate review from already returned workspace facts.
+Bundle A, Bundle B, Bundle C, Bundle D, and the `P8-032` parent umbrella are now implemented. Phase 8.5, Phase 8.75, Phase 8.8, Phase 8.9, and Phase 9 are also completed; the next reviewed direction is Phase 10 persistence/saved searches.
 
 ---
 
@@ -11594,7 +11594,7 @@ Not included:
 - autonomous execution;
 - outreach or account actions.
 
-Candidate-level agent explanations belong to `P8-005`. Bounded LLM wording contract/implementation for candidate explanations belongs to `P8-006`/`P8-006.1`. Export belongs to `P8-007`. Persistence/memory/saved searches belong to Phase 9.
+Candidate-level agent explanations belong to `P8-005`. Bounded LLM wording contract/implementation for candidate explanations belongs to `P8-006`/`P8-006.1`. Export belongs to `P8-007`. Persistence/memory/saved searches belong to Phase 10.
 
 ### Review State Contract
 
@@ -11818,7 +11818,7 @@ Phase 8 should turn approved search results into a recruiter working artifact. B
 - which candidate facts come from the approved backend search result;
 - which state belongs to the workspace UI;
 - what stays session-only in Phase 8;
-- what remains deferred to Phase 9;
+- what remains deferred to Phase 10;
 - which product boundaries remain absolute.
 
 ### Goal
@@ -11840,7 +11840,7 @@ The contract defines:
 - browser in-memory frontend/session-only workspace state;
 - v0 review statuses: `new`, `reviewing`, `shortlisted`, `not_a_fit`;
 - `review_status` as the workflow source of truth and `shortlisted` as derived convenience state;
-- shortlist/notes/statuses as in-memory local/session state until Phase 9, reset by default on a fresh approved search or page reload;
+- shortlist/notes/statuses as in-memory local/session state until Phase 10, reset by default on a fresh approved search or page reload;
 - candidate table/list, responsive hybrid layout, detail drawer, shortlist view, notes/status controls, query/wave source details, and later export boundaries;
 - sorting/filtering boundaries;
 - candidate-level agent explanation boundaries;
@@ -11852,11 +11852,11 @@ The contract defines:
 
 Shortlist, notes, and statuses in Phase 8 are browser in-memory session/local UI state only.
 
-No database, browser storage, persistence, saved searches, saved candidates, memory, cross-session continuation, authentication, or user accounts are added in `P8-001`. Persistent memory and saved searches remain Phase 9.
+No database, browser storage, persistence, saved searches, saved candidates, memory, cross-session continuation, authentication, or user accounts are added in `P8-001`. Persistent memory and saved searches remain Phase 10.
 
 `review_status` is the source of truth for candidate review workflow state. `shortlisted` is derived from `review_status == "shortlisted"` and must not become independent state.
 
-Each approved search creates a new local workspace run by default. `workspace_run_id` needs a per-run component, because QueryPlan fingerprint alone does not distinguish two approved runs of the same plan. Carrying notes/status/shortlist across runs belongs to Phase 9 unless a later reviewed Phase 8 task defines a narrow local-only exception.
+Each approved search creates a new local workspace run by default. `workspace_run_id` needs a per-run component, because QueryPlan fingerprint alone does not distinguish two approved runs of the same plan. Carrying notes/status/shortlist across runs belongs to Phase 10 unless a later reviewed Phase 8 task defines a narrow local-only exception.
 
 Visible public profile URLs may remain manual user-click links only after safe `http`/`https` LinkedIn profile URL validation. The agent/app must not automatically open LinkedIn, log in, automate, scrape, bypass restrictions, or perform account actions.
 
@@ -11887,7 +11887,7 @@ No local code checks were required because this task changed only documentation.
 
 - `docs/phase-8-candidate-workspace-contract.md` exists.
 - Candidate facts and recruiter UI workspace state are separated.
-- Shortlist, notes, and statuses are explicitly session/local UI state until Phase 9.
+- Shortlist, notes, and statuses are explicitly session/local UI state until Phase 10.
 - Session/local UI state is in-memory in Phase 8 v0; browser/backend persistence is out of scope.
 - `workspace_run_id` requires a per-run component and cannot rely only on QueryPlan fingerprint.
 - `review_status` source-of-truth and derived `shortlisted` semantics are documented.
@@ -13728,7 +13728,7 @@ Do not wire the download action before helper serialization tests pass. If imple
 
 ### Critical Review Notes
 
-- This task should not turn export into Phase 9 persistence. The durable artifact is the local file the recruiter explicitly downloads.
+- This task should not turn export into Phase 10 persistence. The durable artifact is the local file the recruiter explicitly downloads.
 - Export source semantics must be clear before coding: `visible` means current view state, `all` means original approved-result order, and `shortlisted` means derived current in-memory review state over all workspace candidates in original order, ignoring current filters.
 - Export must not be a blind data dump. Use an explicit field allowlist.
 - Candidate text, query text, snippets, and recruiter notes remain untrusted even though they are local.
@@ -17159,7 +17159,7 @@ If `quality_notes`, `limitations`, `suggested_next_actions`, or `next_iteration_
 
 ### Strategy note
 
-Phase 8.75 validates the current stateless AI Agent v0 flow before Phase 9 persistence. The gate covers recruiter chat, Search Brief extraction/refinement, planning/approval boundaries, runtime guardrails, Candidate Workspace, Phase 8.5 review aids, export, and a limited live Tavily sanity pass through the existing backend runtime path. Phase 8.75.1 adds real frontend simulated-user conversation UX coverage for positive, negative, incomplete, noisy, off-topic, prohibited, refinement, confirmation, and post-search behavior. It must not add persistence, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, autonomous execution, or new providers.
+Phase 8.75 validates the current stateless AI Agent v0 flow before Phase 9 multi-provider expansion and Phase 10 persistence. The gate covers recruiter chat, Search Brief extraction/refinement, planning/approval boundaries, runtime guardrails, Candidate Workspace, Phase 8.5 review aids, export, and a limited live Tavily sanity pass through the existing backend runtime path. Phase 8.75.1 adds real frontend simulated-user conversation UX coverage for positive, negative, incomplete, noisy, off-topic, prohibited, refinement, confirmation, and post-search behavior. It must not add persistence, direct web-search bypass, direct LinkedIn access/login/scraping, candidate messaging, account actions, autonomous execution, or new providers.
 
 ---
 
@@ -17173,7 +17173,7 @@ Approval note: approved by the user through the `/goal` request to follow the Ph
 
 ### Context
 
-Phase 8.5 completed the first deterministic agentic review layer over the current Candidate Workspace. Before Phase 9 adds persistence/saved searches, the current stateless flow needs an acceptance gate so we do not persist an unstable recruiter experience.
+Phase 8.5 completed the first deterministic agentic review layer over the current Candidate Workspace. Before Phase 10 adds persistence/saved searches, the current stateless flow needs an acceptance gate so we do not persist an unstable recruiter experience.
 
 ### Goal
 
@@ -17226,7 +17226,7 @@ Create and run a recruiter UAT gate that covers the current AI Agent v0 flow end
 - No-live UAT is part of `scripts/check_all.ps1`.
 - Live UAT passes through the existing backend runtime approval path.
 - Report is green and includes no raw candidate URLs, raw Tavily payloads, screenshots, or secrets.
-- Phase 9 remains next, but starts only after this gate is green.
+- Historical gate condition was satisfied before Phase 9 implementation started.
 - No persistence, database, direct web-search bypass, direct LinkedIn access/login/scraping, messaging, account actions, autonomous execution, or new providers are added.
 
 ### Implementation Notes
@@ -17324,7 +17324,7 @@ Create and run a UI-level conversation UX UAT gate that drives the real frontend
 - No live Tavily/OpenAI calls are made by this UI runner.
 - No raw candidate/profile URLs, screenshots, raw Tavily/OpenAI payloads, or secrets are committed.
 - Full local regression checks pass.
-- Phase 9 remains next and starts only after this gate is green.
+- Historical gate condition was satisfied before Phase 9 implementation started.
 
 ### Implementation Notes
 
@@ -17340,7 +17340,7 @@ Implemented as a UI-level UAT gate slice:
 
 ### Non-Goals
 
-- Phase 9 persistence/database implementation.
+- Phase 10 persistence/database implementation.
 - New search providers.
 - New country or role support.
 - Live Tavily/OpenAI stress testing.
@@ -17360,6 +17360,19 @@ Implemented as a UI-level UAT gate slice:
 
 ### Done
 
+- [x] P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
+- [x] P8.8-002 Add bounded LLM pending-action intent classifier
+- [x] P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
+- [x] P8.8-004 Add evidence gate against hallucinated Search Brief readiness
+- [x] P8.8-005 Add bounded small-talk intent and wording consistency
+- [x] P8.8-006 Add bounded LLM conversational wording layer
+- [x] P8.8-007 Hide technical search preparation panels from recruiter UI
+- [x] P8.8-008 Add bounded LLM Java-programmer role classifier
+- [x] P8.8-009 Add bounded LLM Search Brief field-explanation intent
+- [x] P8.8-010 Add bounded LLM pending-field answer classifier
+- [x] P8.8-011 Improve bounded LLM pending-action refinement intent
+- [x] P8.8-012 Add bounded LLM pending-hypothesis confirmation intent
+- [x] P8.8-013 Add bounded LLM pending-update field selection flow
 - [x] P8.8-014 Reduce recruiter chat latency with fast intent-first routing
 - [x] P8.8-015 Handle restart/start-over intent during pending recruiter chat flows
 - [x] P8.8-016 Suppress redundant post-update Search Summary confirmation bubble
@@ -17371,23 +17384,10 @@ Implemented as a UI-level UAT gate slice:
 - [x] P8.8-022 Move candidate diagnostic badges and expandable details out of primary row
 - [x] P8.8-023 Add fixed-height paginated candidate results area
 - [x] P8.8-024 Rebalance screen layout around compact chat and primary results workspace
-- [x] P8.8-004 Add evidence gate against hallucinated Search Brief readiness
-- [x] P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
-- [x] P8.8-002 Add bounded LLM pending-action intent classifier
-- [x] P8.8-005 Add bounded small-talk intent and wording consistency
-- [x] P8.8-006 Add bounded LLM conversational wording layer
-- [x] P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
-- [x] P8.8-007 Hide technical search preparation panels from recruiter UI
-- [x] P8.8-008 Add bounded LLM Java-programmer role classifier
-- [x] P8.8-009 Add bounded LLM Search Brief field-explanation intent
-- [x] P8.8-010 Add bounded LLM pending-field answer classifier
-- [x] P8.8-011 Improve bounded LLM pending-action refinement intent
-- [x] P8.8-012 Add bounded LLM pending-hypothesis confirmation intent
-- [x] P8.8-013 Add bounded LLM pending-update field selection flow
 
 ### Strategy note
 
-Phase 8.8 collects recruiter-facing conversation concerns observed after the Phase 8.75.1 UI conversation UX gate and before Phase 9 persistence. This phase was reviewed and implemented as a bounded current-flow hardening slice.
+Phase 8.8 collects recruiter-facing conversation concerns observed after the Phase 8.75.1 UI conversation UX gate and before Phase 9 multi-provider expansion / Phase 10 persistence. This phase was reviewed and implemented as a bounded current-flow hardening slice.
 
 Strategic direction: Phase 8.8 should move the product toward an LLM-first conversation intent layer. The LLM should become the main intelligence layer for understanding recruiter intent in context, while backend/runtime validation remains the authority layer for facts, state, tools, approval, and execution.
 
@@ -17398,7 +17398,7 @@ Phase 8.8 tasks should improve how the AI Agent understands and responds to real
 - no direct LinkedIn access/login/scraping;
 - no candidate messaging;
 - no account actions;
-- no persistence/database work unless a later Phase 9 task explicitly approves it;
+- no persistence/database work unless a later Phase 10 task explicitly approves it;
 - no country/technology/role expansion unless separately reviewed.
 
 The default pattern for Phase 8.8 is narrow, bounded, current-flow UX hardening: classify intent, improve wording, preserve state, and only then let the existing Search Brief / Agent Plan / runtime approval path continue.
@@ -17535,7 +17535,7 @@ Assistant: unsupported non-IT role message
 - The classifier cannot change Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, or results.
 - No Tavily/search/runtime execution is triggered by classifier-only responses.
 - No raw LLM payloads, raw model responses, candidate URLs, profile URLs, or secrets are logged or committed.
-- The task remains separate from Phase 9 persistence.
+- The task remains separate from Phase 10 persistence.
 
 ### Non-Goals
 
@@ -18753,7 +18753,7 @@ The LLM must not return Search Brief patches, arbitrary field values, QueryPlan 
    - The system needs a backend-owned or backend-reconstructable hypothesis such as `role_family = Backend Developer`, `technology = Java`.
    - The hypothesis must include only allowed Search Brief fields.
    - If the frontend carries the hypothesis context, it must be treated as untrusted and validated/fingerprinted before use.
-   - For this v0, reconstructing the hypothesis from the previous backend assistant question plus prior recruiter evidence is acceptable and avoids adding persistence before Phase 9.
+   - For this v0, reconstructing the hypothesis from the previous backend assistant question plus prior recruiter evidence is acceptable and avoids adding persistence before Phase 10.
    - The hypothesis must be one-turn scoped: after confirm/reject/refine/unclear handling, do not keep silently reusing it.
 
 2. Extend bounded recruiter-chat intent classification.
@@ -18876,7 +18876,7 @@ The LLM must not return arbitrary patches, QueryPlan changes, execution instruct
    - After `no, I want to update` / `I want to update`, store that the assistant is waiting for an update target.
    - This state must be short-lived and cleared on reset, successful patch, cancel, stale summary, or new confirmed search.
    - If state is carried by frontend, backend must treat it as untrusted context.
-   - For this v0, the pending-update state is browser-session UI state only; Phase 9 persistence must not be introduced here.
+   - For this v0, the pending-update state is browser-session UI state only; Phase 10 persistence must not be introduced here.
    - The pending state should be tied to the current Search Brief / Agent Plan identity where possible so stale update prompts cannot mutate a changed summary.
 
 2. Extend bounded recruiter-chat intent classification.
@@ -19989,26 +19989,516 @@ Create a cleaner screen-level layout:
 
 ---
 
-## Phase 9 - Persistent Memory + Saved Searches
+## Phase 8.9 - Recruiter UI Polish Backlog before Persistence
 
 ### Approved
 
 ### Backlog
 
-- [ ] P9-001 Choose persistence approach
-- [ ] P9-002 Save chat sessions and Search Briefs
-- [ ] P9-003 Save search runs, QueryPlans, reports, and snapshots metadata
-- [ ] P9-004 Save candidates, shortlist, notes, and statuses
-- [ ] P9-005 Add saved searches and resume workflow
-- [ ] P9-006 Add agent memory boundaries and privacy rules
+### In Progress
+
+### Done
+
+- [x] P8.9-001 Remove stale assistant thinking bubble after real assistant/progress response
+- [x] P8.9-002 Make Candidate Results table match compact recruiter review layout
+- [x] P8.9-003 Match Candidate Results panel height to Recruiter Chat panel
+
+### Strategy note
+
+Phase 8.9 collects small recruiter-facing UI polish issues observed after Phase 8.8 and before Phase 9 multi-provider expansion / Phase 10 persistence. These tasks should stay narrow, frontend-first where possible, and must not change backend search semantics, runtime approval, Tavily execution, LLM authority boundaries, candidate facts, scoring, filtering, dedupe, location logic, persistence, or account behavior.
+
+---
+
+## Task: P8.9-001 Remove stale assistant thinking bubble after real assistant/progress response
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the explicit Phase 8.9 execution goal using the `review-develop-push` workflow.
+
+### Context
+
+Observed UI behavior after a recruiter confirms a ready search:
+
+```text
+You: confirmed
+AI Assistant: Thinking...
+AI Assistant: Confirmed. Starting the search from the current summary.
+```
+
+This is confusing because the assistant is shown as both still thinking and already starting the search.
+
+This is a UX bug in the `immediate user-message echo / assistant thinking state` behavior from `P8.8-018`: the pending assistant thinking bubble should be replaced or removed as soon as the first real assistant/progress response is rendered.
+
+### Goal
+
+Keep the recruiter chat state unambiguous:
+
+- show `Thinking...` only while the assistant/backend response is actually pending;
+- remove or replace the transient thinking bubble before rendering the real assistant/progress response;
+- keep long-running search progress out of duplicate chat bubbles where practical;
+- preserve all backend/runtime/search safety boundaries.
+
+### Proposed Steps
+
+1. Audit the current transient thinking message lifecycle.
+   - Inspect `app/static/app.js` chat submit and pending-action paths added in `P8.8-018`.
+   - Identify how the transient thinking message is marked, stored, rendered, and removed.
+   - Confirm that transient thinking messages are excluded from `chatMessagesForBackend()`.
+
+2. Add a single clear/replace path for transient assistant thinking.
+   - Before appending any real assistant response, progress response, safe fallback, or error response, remove the active thinking message for the current interaction.
+   - If the UI uses message ids or interaction versions, bind the thinking message to the same interaction so stale cleanup is safe.
+
+3. Apply the cleanup to all relevant chat flows.
+   - Normal `/api/recruiter-chat/turn` response.
+   - Pending start-search confirmation path.
+   - Pending update/refine path.
+   - Pending field-answer path.
+   - Error/fallback path.
+   - Reset/start-over path.
+
+4. Keep search execution progress visually separate from thinking.
+   - `Confirmed. Starting the search from the current summary.` can remain as the chat confirmation.
+   - If search is still running after confirmation, use a dedicated search/result status surface instead of leaving a second `Thinking...` chat bubble.
+   - Do not add streaming or autonomous execution.
+
+5. Preserve stale-response safety.
+   - If a newer interaction supersedes an older one, remove stale thinking messages without attaching old assistant responses to new user messages.
+   - Preserve existing `interactionVersion` protections.
+
+6. Add regression coverage.
+   - Delayed normal chat response: thinking appears while pending and disappears when the answer appears.
+   - Delayed pending search confirmation: `Thinking...` disappears before `Confirmed. Starting...` renders.
+   - Error path: thinking disappears and a safe error/fallback message appears.
+   - Reset/start-over path: stale thinking bubbles are cleared.
+   - `chatMessagesForBackend()` does not include transient thinking messages.
+
+7. Add browser sanity after implementation.
+   - Confirm a ready search from the UI.
+   - Verify the user sees their message immediately.
+   - Verify only one assistant state remains after the real response appears.
+   - Verify no duplicate `Thinking...` bubble remains during search start.
+
+### Acceptance Criteria
+
+- `Thinking...` is visible only while a response is pending.
+- The transient thinking bubble is removed or replaced before the first real assistant/progress response renders.
+- The ready-search confirmation flow does not show both `Thinking...` and `Confirmed. Starting...` at the same time.
+- Normal chat, pending confirmation, update/refine, error, and reset flows all clear stale thinking messages.
+- Transient thinking messages are never sent to backend chat history.
+- Search Brief, Agent Plan, QueryPlan, runtime approval, Tavily execution, candidates, counts, scoring, filtering, dedupe, location logic, persistence, and LLM authority boundaries are unchanged.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Streaming assistant tokens.
+- Redesigning the whole chat UI.
+- Changing backend response semantics.
+- Changing search execution, Tavily calls, QueryPlan generation, scoring, filtering, dedupe, or location logic.
+- Letting LLM mutate state or execute actions.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.9-002 Make Candidate Results table match compact recruiter review layout
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the explicit Phase 8.9 execution goal using the `review-develop-push` workflow.
+
+### Context
+
+The desired recruiter-facing results view should look closer to a compact review table:
+
+- `Candidate Results` is the main wide block on the right.
+- Results render as a table, not large candidate cards.
+- The primary visible columns are `Score`, `Name`, `Role`, `Location`, `Stack`, `Source`, and `Status`.
+- Score is shown as a green pill such as `99%`.
+- Candidates are sorted from higher score to lower score by default.
+- 5-10 rows are visible in the results area, with the rest handled through scroll and/or pagination.
+- Extra controls/details stay out of the primary view.
+- The top of the block shows a short summary such as `47 candidates - 40 queries - 15.7s`.
+- Rows use subtle zebra/active highlighting similar to the user-provided visual reference.
+
+This should be a small frontend/CSS slice. Backend behavior should be touched only if an existing response field must be mapped more cleanly for display.
+
+### Goal
+
+Make Candidate Results easier to scan as a recruiter:
+
+- show the returned people immediately in a dense table;
+- preserve the current compact-chat / results-dominant layout;
+- keep details and diagnostics out of the main row;
+- keep result data grounded in already returned backend/workspace facts;
+- avoid changing search execution or candidate scoring semantics.
+
+### Proposed Steps
+
+1. Review the current Candidate Results rendering.
+   - Inspect `app/static/app.js`, `app/static/candidate_workspace.js`, `app/static/index.html`, and `app/static/styles.css`.
+   - Identify the current primary results component and any selectors used by smoke/browser tests.
+   - Confirm how score, name, role, location, stack, source, status, query counts, and runtime duration are currently available.
+
+2. Define the compact table data model.
+   - Use existing workspace candidate fields only.
+   - Columns: `Score`, `Name`, `Role`, `Location`, `Stack`, `Source`, `Status`.
+   - Score display should be a rounded green pill, for example `99%`.
+   - Role/location/stack/source/status should use existing normalized/display values.
+   - Do not expose profile URLs, raw snippets, diagnostic query metadata, or internal ids in the primary row.
+
+3. Define default ordering.
+   - Sort by candidate score from highest to lowest by default.
+   - Preserve stable ordering for candidates with equal score.
+   - Do not change backend scoring, candidate quality calculation, dedupe, filters, or location logic.
+   - If the existing workspace order must remain available internally, keep that as state/helper behavior outside the primary view.
+
+4. Build the table layout.
+   - Replace the primary visible candidate cards with a compact table-like layout.
+   - Keep `Candidate Results` as the dominant wide right-side block.
+   - Render the top summary as a short line, for example `47 candidates - 40 queries - 15.7s`.
+   - Use zebra/active row styling close to the provided reference, without overloading the page visually.
+   - Keep text readable and prevent overflow in narrow columns.
+
+5. Keep the visible result area bounded.
+   - Show roughly 5-10 rows at a time depending on viewport height.
+   - Use the existing pagination/bounded-height behavior from `P8.8-023` where possible.
+   - Avoid a long full-page scroll through all candidates.
+   - Avoid infinite scroll.
+
+6. Keep non-primary controls/details out of the main view.
+   - Preserve the Phase 8.8 decision to hide sort/filter/export controls, agentic guidance, row-level review controls, diagnostic badges, and expandable details from the primary recruiter view.
+   - Do not reintroduce those blocks while implementing the table.
+   - If helper state remains in code, it should not dominate the primary UI.
+
+7. Preserve product and safety boundaries.
+   - Frontend/CSS-only by default.
+   - No backend API contract changes unless strictly necessary for display mapping.
+   - No Search Brief, Agent Plan, QueryPlan, runtime approval, Tavily execution, scoring, filtering, dedupe, location logic, candidate facts, LLM authority, persistence, or account behavior changes.
+
+8. Add verification.
+   - Update or add frontend smoke coverage for table columns, score pill, default score-desc ordering, compact summary line, bounded row area, and hidden primary controls/details.
+   - Run `scripts/check_all.ps1`.
+   - Use browser sanity to verify desktop layout, row readability, pagination/scroll behavior, and narrow viewport fallback.
+
+### Acceptance Criteria
+
+- `Candidate Results` appears as the main wide results block.
+- Results render as a compact table-like view, not primary large cards.
+- Visible columns are `Score`, `Name`, `Role`, `Location`, `Stack`, `Source`, and `Status`.
+- Score is displayed as a green percentage pill.
+- Candidates are sorted by score descending by default, with stable tie behavior.
+- The top summary line is short and recruiter-facing, for example `47 candidates - 40 queries - 15.7s`.
+- Only 5-10 candidates are visible at once in the bounded result area, with the rest reachable through existing scroll/pagination behavior.
+- Primary sort/filter/export controls, agentic guidance, row-level review controls, diagnostic badges, and expandable details remain hidden from the primary view.
+- Text does not overflow or overlap on desktop or narrow viewport.
+- No backend/runtime/search/Tavily/LLM/persistence behavior changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Full application redesign.
+- Changing recruiter chat behavior.
+- Changing Search Brief extraction or refinement.
+- Changing candidate scoring, filters, dedupe, location logic, query generation, runtime approval, or Tavily execution.
+- Adding new candidate facts or new search providers.
+- Reintroducing primary sort/filter/export/review/diagnostic controls.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.9-003 Match Candidate Results panel height to Recruiter Chat panel
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the explicit Phase 8.9 execution goal using the `review-develop-push` workflow.
+
+### Context
+
+The current desktop layout can show `Candidate Results` as a taller block than `Recruiter Chat`. In the observed screen, the right results panel extends lower than the left chat panel, which makes the two-column workspace feel visually unbalanced and increases page-level scrolling.
+
+The desired desktop behavior:
+
+- left `Recruiter Chat` and right `Candidate Results` should have aligned top and bottom edges;
+- `Candidate Results` should use the same visible panel height as `Recruiter Chat`;
+- candidate rows should scroll or paginate inside the results panel instead of making the whole right panel taller.
+
+This should complement `P8.9-002`, which changes the internal Candidate Results presentation to a compact table.
+
+### Goal
+
+Make the primary workspace feel like one balanced two-column screen:
+
+- compact chat panel on the left;
+- results panel on the right with the same panel height;
+- internal results scrolling/pagination inside the right panel;
+- no unnecessary page-level vertical growth from candidate rows.
+
+### Proposed Steps
+
+1. Review current two-column layout sizing.
+   - Inspect `app/static/index.html` and `app/static/styles.css` around the recruiter chat shell and candidate results panel.
+   - Identify which element controls the visible height of `Recruiter Chat`.
+   - Identify which element currently allows `Candidate Results` to grow beyond the chat panel.
+
+2. Define a shared desktop panel-height rule.
+   - Use a shared responsive height or max-height for the left chat panel and right candidate results panel.
+   - Prefer viewport-relative sizing with sensible min/max bounds.
+   - Keep both panels aligned at the top and bottom on desktop.
+   - Avoid brittle pixel-only sizing if content or viewport changes.
+
+3. Move overflow into internal areas.
+   - Candidate rows should scroll or paginate inside the `Candidate Results` panel.
+   - Chat messages should keep their existing internal scroll behavior.
+   - The whole page should not need to grow just because many candidates exist.
+
+4. Preserve compact results behavior.
+   - Coordinate with `P8.9-002` table layout.
+   - The summary/header line should remain visible at the top of the results panel.
+   - The bounded candidate row area should use remaining panel space.
+
+5. Preserve responsive behavior.
+   - On narrow/mobile screens, panels can stack vertically.
+   - Do not force equal heights on mobile if it hurts readability.
+   - Avoid horizontal overflow or text overlap.
+
+6. Preserve product and safety boundaries.
+   - Frontend/CSS-only by default.
+   - Do not change backend API contracts, Search Brief extraction, Agent Plan, QueryPlan, runtime approval, Tavily execution, scoring, filtering, dedupe, location logic, candidate facts, LLM authority, persistence, or account behavior.
+
+7. Add verification.
+   - Browser sanity on desktop: `Recruiter Chat` and `Candidate Results` have matching visible panel heights.
+   - Post-search sanity: candidate rows scroll/paginate inside the results panel.
+   - Empty-state sanity: panels still align when there are no candidates.
+   - Narrow viewport sanity: stacked layout remains readable with no overflow.
+   - Run `scripts/check_all.ps1` after implementation.
+
+### Acceptance Criteria
+
+- On desktop, `Recruiter Chat` and `Candidate Results` panels have aligned top and bottom edges.
+- `Candidate Results` does not grow taller than the chat panel because of candidate rows.
+- Candidate rows are accessible through internal scroll/pagination inside the results panel.
+- The results header/summary remains visible and readable.
+- Empty-state and post-search states both keep the balanced two-column layout.
+- Narrow/mobile layout remains readable and does not force awkward equal heights.
+- No backend/runtime/search/Tavily/LLM/persistence behavior changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Full application redesign.
+- Changing Candidate Results table content beyond what `P8.9-002` owns.
+- Changing recruiter chat logic or message behavior.
+- Changing candidate scoring, filters, dedupe, location logic, query generation, runtime approval, or Tavily execution.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Phase 9 - Multi-Provider Search Expansion
+
+### Approved
+
+### Backlog
 
 ### In Progress
 
 ### Done
 
+- [x] P9-001 Define four-provider search contract and provider result schema
+- [x] P9-002 Add Serper provider behind approved backend runtime execution
+- [x] P9-003 Add SerpApi Google 5-page review provider
+- [x] P9-004 Add SerpApi Bing 5-page review provider
+- [x] P9-005 Add approved four-provider orchestration after Tavily baseline
+- [x] P9-006 Add cross-provider normalization, dedupe, provenance, and merge reporting
+- [x] P9-007 Add provider failure handling, cost/latency limits, and no-secret logging
+- [x] P9-008 Add multi-provider UAT and baseline comparison
+
 ### Current Phase 9 strategy note
 
-Phase 9 is where database/persistence becomes useful. It should not be pulled into Phase 5 unless separately approved, because the immediate goal is to stabilize one Java/Ukraine agent flow first.
+Phase 9 expands the approved backend search pipeline from Tavily-only to a four-provider search run:
+
+- Tavily through the existing approved runtime path;
+- Serper;
+- SerpApi Google with 5 pages reviewed;
+- SerpApi Bing with 5 pages reviewed.
+
+At search start, the approved runtime should execute all four provider paths under the same human-approved search action, collect as many candidate results as practical within explicit limits, normalize provider outputs into one candidate shape, then dedupe candidates across providers before Candidate Quality and the recruiter-facing Candidate Results surface.
+
+This phase must not become a direct web-search bypass. All providers must run only inside the backend provider abstraction, through the existing approval/runtime boundary, with provider provenance, cost/latency limits, failure handling, no-secret logging, and the existing prohibitions: no LinkedIn login/access automation, no scraping, no candidate messaging, no account actions, and no autonomous execution.
+
+---
+
+## Task: P9-001 Define four-provider search contract and provider result schema
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the explicit Phase 9 execution goal using the `review-develop-push` workflow.
+
+### Context
+
+The current approved search flow is Tavily-backed. The next search-quality step is to run a broader provider set for the same approved Search Brief:
+
+- Tavily;
+- Serper;
+- SerpApi Google, reviewing 5 pages;
+- SerpApi Bing, reviewing 5 pages.
+
+The recruiter expectation is simple: once search is approved, the system should try all four backend provider methods, collect the maximum practical number of public candidate-profile results, remove duplicates, and show one unified Candidate Results table.
+
+### Goal
+
+Define the Phase 9 provider contract before implementation:
+
+- which providers run;
+- how page limits work;
+- how provider results normalize into candidates;
+- how dedupe works across providers;
+- how provider provenance is preserved;
+- how partial failures/cost/latency are handled;
+- how the existing approval/runtime boundary remains intact.
+
+### Proposed Steps
+
+1. Define the Phase 9 execution boundary.
+   - A recruiter-approved search triggers the existing backend runtime path.
+   - Phase 9 must not add direct frontend calls to Serper/SerpApi.
+   - Phase 9 must not add direct web-search agent behavior outside backend execution.
+   - Provider execution remains tied to the current Search Brief, QueryPlan, runtime approval, and fingerprints.
+
+2. Define the four-provider run shape.
+   - Tavily remains the existing baseline provider.
+   - Serper runs as an additional backend provider.
+   - SerpApi Google runs with a reviewed 5-page limit.
+   - SerpApi Bing runs with a reviewed 5-page limit.
+   - The first implementation may run providers sequentially for safety/observability; parallelism can be a later optimization if limits and failures are clear.
+
+3. Define provider query inputs.
+   - Reuse the existing QueryPlan/query-wave output where possible.
+   - Do not let provider adapters invent new recruiter criteria.
+   - Provider-specific query formatting is allowed only as a deterministic adapter layer.
+   - Keep the supported baseline focused on `Backend Developer + Java + Ukraine` unless a later reviewed task expands scope.
+
+4. Define provider result schema.
+   - Standardize fields such as `provider`, `provider_query_id`, `query_text`, `title`, `url`, `snippet`, `rank`, `page`, and raw provider count metadata.
+   - Keep raw provider payloads out of frontend and persistent logs.
+   - Capture enough provider provenance for debugging and aggregate reports.
+
+5. Define candidate normalization.
+   - Map provider results into the existing candidate normalization pipeline.
+   - Preserve LinkedIn/public-profile URL validation and normalized LinkedIn URL dedupe.
+   - Do not create candidate facts from provider claims beyond bounded title/snippet/url evidence already used by the current pipeline.
+
+6. Define cross-provider dedupe.
+   - Deduplicate candidates after all provider paths complete.
+   - Use normalized LinkedIn URL as the primary dedupe key.
+   - Keep provider-source metadata so a deduped candidate can show which providers/queries found it.
+   - Preserve existing query/source metadata semantics where possible.
+
+7. Define counts and reporting.
+   - Report per-provider raw counts, filtered counts, deduped/new counts, failure counts, and latency.
+   - Report total unique candidates after cross-provider dedupe.
+   - Keep recruiter-facing summary compact; keep diagnostics collapsed/internal unless a later UI task exposes them.
+
+8. Define failure and limit behavior.
+   - One provider failure must not fail the whole approved search if other providers succeeded.
+   - Provider failures should be bounded and visible in backend report metadata.
+   - Add explicit timeout, page, result, and cost limits.
+   - Never log provider API keys, secrets, raw full payloads, profile URLs in CI artifacts, or sensitive raw data.
+
+9. Define verification plan.
+   - No-live unit/smoke coverage for provider schema, page limits, normalization, dedupe, and failure behavior.
+   - Live local-only provider sanity with existing keys after implementation.
+   - Baseline comparison against Tavily-only results and multi-provider merged results.
+   - Verify no frontend direct provider calls, no LinkedIn login/scraping, no candidate messaging, no account actions.
+
+### Acceptance Criteria
+
+- Phase 9 contract defines Tavily, Serper, SerpApi Google 5-page, and SerpApi Bing 5-page provider roles.
+- The approved runtime/search boundary remains the only execution path.
+- Provider results have a normalized backend-owned schema.
+- Cross-provider dedupe is defined around normalized LinkedIn URL with provider provenance retained.
+- Counts/reporting include per-provider and merged unique-candidate metrics.
+- Failure/cost/latency/no-secret logging behavior is defined before provider coding.
+- The contract explicitly forbids direct web-search bypass, LinkedIn login/access automation, scraping, candidate messaging, account actions, and autonomous execution.
+
+### Non-Goals
+
+- Implementing provider API calls in this task.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Expanding countries, technologies, or role scope.
+- Changing Candidate Quality scoring semantics.
+- Changing frontend Candidate Results UI beyond provider/count display needs.
+- Storing raw provider payloads.
+- LinkedIn login/access automation, scraping, candidate messaging, account actions, or autonomous execution.
+
+---
+
+## Tasks: P9-002 through P9-008 Phase 9 implementation batch
+
+### Status
+
+Implemented / completed.
+
+Approval note: approved by the explicit Phase 9 execution goal using the `review-develop-push` workflow.
+
+### Implementation Notes
+
+- Added Serper, SerpApi Google, and SerpApi Bing provider adapters in the backend search execution layer.
+- Tavily remains the baseline provider and all extra providers run only after an approved backend runtime/search execution path starts.
+- SerpApi Google and SerpApi Bing use the reviewed 5-page limit.
+- Provider outputs normalize to the same bounded title/url/snippet evidence shape before entering the existing LinkedIn URL validation, location filtering, Candidate Quality, and dedupe pipeline.
+- Cross-provider dedupe remains based on normalized public LinkedIn profile URL.
+- Deduped candidates retain `provider_sources` plus existing query/source metadata.
+- Reports now include provider breakdown, query attempts, provider limits, and merged unique candidate counts.
+- Provider failures are bounded per provider/query and do not fail the whole approved search if another provider succeeds.
+- Added no-live regression coverage in `scripts/smoke_p9_multi_provider_search.py` and wired it into `scripts/check_all.ps1`.
+
+### Safety Notes
+
+- No frontend direct calls to Serper or SerpApi.
+- No direct web-search agent bypass.
+- No LinkedIn login/access automation/scraping.
+- No candidate messaging.
+- No account actions.
+- No autonomous execution.
+- No persistence/database changes.
+- No raw provider payloads or API keys are logged by the provider adapter.
+
+---
+
+## Phase 10 - Persistent Memory + Saved Searches
+
+### Approved
+
+### Backlog
+
+- [ ] P10-001 Choose persistence approach
+- [ ] P10-002 Save chat sessions and Search Briefs
+- [ ] P10-003 Save search runs, QueryPlans, reports, and snapshots metadata
+- [ ] P10-004 Save candidates, shortlist, notes, and statuses
+- [ ] P10-005 Add saved searches and resume workflow
+- [ ] P10-006 Add agent memory boundaries and privacy rules
+
+### In Progress
+
+### Done
+
+### Current Phase 10 strategy note
+
+Phase 10 is where database/persistence becomes useful. It should not be pulled into earlier phases unless separately approved, because the immediate goal is to stabilize the approved multi-provider search flow first.
 
 ---
 
@@ -20084,8 +20574,8 @@ The first supported shape is:
 
 5. The first agentic review tasks should preserve the current Java/Ukraine narrow product path.
    - Do not add new countries, technologies, providers, or profile evidence intake.
-   - Manual profile evidence intake belongs to Phase 10.
-   - Persistence/saved searches belong to Phase 9.
+   - Manual profile evidence intake belongs to Phase 11.
+   - Persistence/saved searches belong to Phase 10.
 
 ### Reviewed Steps
 
@@ -20154,7 +20644,7 @@ The first supported shape is:
 
 - `docs/phase-8-5-agentic-candidate-review-contract.md` exists and defines the v0 contract.
 - `P8.5-001` is completed in `Tasks.md`.
-- Phase 8.5 is documented as the current active reviewed direction after the `P8-032` parent closeout.
+- Phase 8.5 is documented as a completed reviewed direction after the `P8-032` parent closeout, before Phase 8.75/8.8, Phase 9 multi-provider search, and Phase 10 persistence.
 - The contract clearly separates current-run workspace facts from future backend persistence.
 - The contract allows agentic review only over already returned workspace facts.
 - The contract forbids Tavily, direct web search, LinkedIn access/login/scraping/automation, messaging, account actions, persistence, and autonomous execution.
@@ -20749,17 +21239,17 @@ Implemented as a deterministic frontend/current-run workspace slice:
 
 ---
 
-## Phase 10 - Manual Candidate Evidence Intake
+## Phase 11 - Manual Candidate Evidence Intake
 
 ### Approved
 
 ### Backlog
 
-- [ ] P10-001 Define manual evidence intake contract and safety boundaries
-- [ ] P10-002 Add paste-in profile evidence input for a selected candidate
-- [ ] P10-003 Compare pasted evidence against the current Search Brief and workspace candidate
-- [ ] P10-004 Produce structured fit, gap, contradiction, and confidence summary
-- [ ] P10-005 Add no-storage/no-logging/privacy handling for pasted profile text unless Phase 9 explicitly allows persistence
+- [ ] P11-001 Define manual evidence intake contract and safety boundaries
+- [ ] P11-002 Add paste-in profile evidence input for a selected candidate
+- [ ] P11-003 Compare pasted evidence against the current Search Brief and workspace candidate
+- [ ] P11-004 Produce structured fit, gap, contradiction, and confidence summary
+- [ ] P11-005 Add no-storage/no-logging/privacy handling for pasted profile text unless Phase 10 explicitly allows persistence
 
 ### In Progress
 
@@ -20771,17 +21261,17 @@ This phase is for user-provided evidence only: the recruiter may manually open a
 
 ---
 
-## Phase 11 - Resume Upload & Fit Analysis
+## Phase 12 - Resume Upload & Fit Analysis
 
 ### Approved
 
 ### Backlog
 
-- [ ] P11-001 Define resume upload contract, supported file types, and privacy boundaries
-- [ ] P11-002 Add resume parser/intake with safe size and content limits
-- [ ] P11-003 Analyze resume evidence against the active Search Brief and target stack
-- [ ] P11-004 Produce structured fit summary with strengths, gaps, risks, and follow-up questions
-- [ ] P11-005 Define retention, deletion, masking, and logging rules aligned with Phase 9
+- [ ] P12-001 Define resume upload contract, supported file types, and privacy boundaries
+- [ ] P12-002 Add resume parser/intake with safe size and content limits
+- [ ] P12-003 Analyze resume evidence against the active Search Brief and target stack
+- [ ] P12-004 Produce structured fit summary with strengths, gaps, risks, and follow-up questions
+- [ ] P12-005 Define retention, deletion, masking, and logging rules aligned with Phase 10
 
 ### In Progress
 
@@ -20790,31 +21280,6 @@ This phase is for user-provided evidence only: the recruiter may manually open a
 ### Strategy note
 
 Resume/CV data is sensitive. The first reviewed version should be explicit about whether resumes are session-only or persisted, what is logged, how contact details are handled, how deletion works, and how analysis provenance is shown. The agent may analyze and summarize; it must not contact the candidate, enrich the resume through hidden external searches, or perform account actions.
-
----
-
-## Phase 12 - Multi-Provider Search
-
-### Approved
-
-### Backlog
-
-- [ ] P12-001 Define search-provider abstraction and provider result contract
-- [ ] P12-002 Add Serper provider behind approval-gated runtime execution
-- [ ] P12-003 Add SerpApi Google provider behind approval-gated runtime execution
-- [ ] P12-004 Add SerpApi Bing provider behind approval-gated runtime execution
-- [ ] P12-005 Add cross-provider dedupe, provenance, cost/latency limits, and failure handling
-- [ ] P12-006 Define provider-selection policy and user-visible execution review
-
-### In Progress
-
-### Done
-
-### Strategy note
-
-Provider expansion should be a separate reviewed phase, not a quick bypass around the existing backend pipeline. Serper, SerpApi Google, and SerpApi Bing should run only through an approved provider abstraction, explicit user approval, visible provider provenance, cost/latency controls, and cross-provider dedupe. This phase must preserve the no-autonomous-execution rule and must not introduce direct LinkedIn login, scraping, messaging, or account actions.
-
----
 
 ## Task: P5-007.1 Sync Phase 5 docs and tighten Agent Plan guardrail
 
@@ -22593,7 +23058,7 @@ Add explicit frontend state for:
 - Tool-calling agent runtime относится к Phase 6.
 - Agent conversation wording layer относится к Phase 7.
 - Candidate workspace, shortlist, notes/statuses и export workflow относятся к Phase 8.
-- Persistent memory/database, saved searches, saved sessions/runs/candidates и long-term memory относятся к Phase 9.
+- Persistent memory/database, saved searches, saved sessions/runs/candidates и long-term memory относятся к Phase 10.
 - Multi-source search beyond Tavily, private/personal data sources, candidate outreach и account actions не входят в Phase 4; outreach/account actions запрещены absolute product boundaries.
 - `P4-001` approved: все 10 шагов AI Agent Foundation contract согласованы как постановка задачи; кодинг требует отдельного явного approval.
 

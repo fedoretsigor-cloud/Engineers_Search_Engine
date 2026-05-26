@@ -464,25 +464,40 @@ function renderWorkspaceToolbar() {
     return "";
   }
 
-  const runLabel = latestWorkspaceRun.run_context?.execution_mode || "search";
-  const queryCount = latestWorkspaceRun.run_context?.query_count || 0;
+  const report = latestWorkspaceRun.report || {};
+  const queryCount =
+    report.query_attempts ||
+    report.queries_total ||
+    latestWorkspaceRun.run_context?.query_count ||
+    0;
   const candidateCount = latestWorkspaceRun.total_candidates || workspaceCandidates.length || 0;
+  const duration = workspaceRunDurationLabel(report);
+  const summaryParts = [
+    `${candidateCount} ${pluralize(candidateCount, "candidate", "candidates")}`,
+    `${queryCount} ${pluralize(queryCount, "query", "queries")}`,
+  ];
+  if (duration) {
+    summaryParts.push(duration);
+  }
 
   return `
     <section class="candidate-workspace-toolbar candidate-workspace-summary" aria-label="Candidate results summary">
-      <div class="candidate-workspace-meta">
-        <div>
-          <span>Candidate Results</span>
-          <strong>${escapeHtml(candidateCount)} unique ${escapeHtml(
-            pluralize(candidateCount, "candidate", "candidates")
-          )}</strong>
-        </div>
-        <p>${escapeHtml(displayValue(runLabel))}, ${escapeHtml(queryCount)} ${escapeHtml(
-          pluralize(queryCount, "query", "queries")
-        )}</p>
-      </div>
+      <p>${escapeHtml(summaryParts.join(" - "))}</p>
     </section>
   `;
+}
+
+function workspaceRunDurationLabel(report = {}) {
+  const directDuration = Number(report.duration_seconds || report.elapsed_seconds || 0);
+  if (Number.isFinite(directDuration) && directDuration > 0) {
+    return `${directDuration.toFixed(1)}s`;
+  }
+  const providerBreakdown = report.provider_breakdown || {};
+  const providerDuration = Object.values(providerBreakdown).reduce(
+    (total, item) => total + Number(item?.latency_seconds || 0),
+    0
+  );
+  return providerDuration > 0 ? `${providerDuration.toFixed(1)}s` : "";
 }
 
 function renderWorkspaceProfileLink(candidate = {}) {
@@ -950,36 +965,66 @@ function renderWorkspaceRefinementSuggestions() {
   `;
 }
 
+function workspaceCandidateStatus(candidate) {
+  if (!candidate.has_quality_score) {
+    return "Needs review";
+  }
+  if (candidate.quality_score >= 70) {
+    return "Strong match";
+  }
+  if (candidate.quality_score >= 40) {
+    return "Review";
+  }
+  return "Weak match";
+}
+
 function renderWorkspaceCandidate(candidate) {
   const selectedStack = candidate.selected_stack_terms_found.length
     ? candidate.selected_stack_terms_found.join(", ")
     : displayValue(candidate.stack_fit);
-  const qualityDisplay = candidate.has_quality_score ? candidate.quality_score : "n/a";
+  const qualityDisplay = candidate.has_quality_score ? `${candidate.quality_score}%` : "n/a";
   const roleDisplay = candidate.raw?.result?.role_display || candidate.headline || candidate.raw_title;
   const sourceDisplay = candidate.source || "linkedin";
+  const statusDisplay = workspaceCandidateStatus(candidate);
 
   return `
-    <article class="result-item candidate-card candidate-result-row workspace-candidate-row" data-candidate-id="${escapeHtml(
+    <tr class="candidate-result-row workspace-candidate-row" data-candidate-id="${escapeHtml(
       candidate.candidate_id
     )}">
-      <div class="candidate-row-main">
-        <div class="candidate-score candidate-score-pill" aria-label="Quality score">
-          <span>Score</span>
-          <strong>${escapeHtml(qualityDisplay)}</strong>
-        </div>
-        <div class="candidate-identity candidate-row-identity">
-          <h3>${escapeHtml(candidate.display_name)}</h3>
-          <p>${escapeHtml(candidate.headline || candidate.raw_title || "No headline returned.")}</p>
-          <div class="candidate-row-link">
-            ${renderWorkspaceProfileLink(candidate)}
-          </div>
-        </div>
-        ${renderWorkspaceRowField("Role", roleDisplay)}
-        ${renderWorkspaceRowField("Location", candidate.location_status)}
-        ${renderWorkspaceRowField("Stack", selectedStack)}
-        ${renderWorkspaceRowField("Source", sourceDisplay)}
-      </div>
-    </article>
+      <td><span class="candidate-score-table-pill">${escapeHtml(qualityDisplay)}</span></td>
+      <td>
+        <strong>${escapeHtml(candidate.display_name)}</strong>
+        <span>${escapeHtml(candidate.headline || candidate.raw_title || "No headline returned.")}</span>
+      </td>
+      <td>${escapeHtml(displayValue(roleDisplay, "N/A"))}</td>
+      <td>${escapeHtml(displayValue(candidate.location_status, "N/A"))}</td>
+      <td>${escapeHtml(displayValue(selectedStack, "N/A"))}</td>
+      <td>${escapeHtml(displayValue(sourceDisplay, "N/A"))}</td>
+      <td>${escapeHtml(statusDisplay)}</td>
+    </tr>
+  `;
+}
+
+function renderWorkspaceCandidateTable(candidates = []) {
+  return `
+    <section class="candidate-workspace-list candidate-workspace-page" aria-label="Candidate results table">
+      <table class="candidate-results-table">
+        <thead>
+          <tr>
+            <th scope="col">Score</th>
+            <th scope="col">Name</th>
+            <th scope="col">Role</th>
+            <th scope="col">Location</th>
+            <th scope="col">Stack</th>
+            <th scope="col">Source</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${candidates.map(renderWorkspaceCandidate).join("")}
+        </tbody>
+      </table>
+    </section>
   `;
 }
 
@@ -1017,9 +1062,7 @@ function renderWorkspaceResults(report = null) {
     ${renderSelectedCandidateFitGapExplanation()}
     ${
       visibleWorkspaceCandidates.length
-        ? `<section class="candidate-workspace-list candidate-workspace-page">${pagination.pageCandidates
-            .map(renderWorkspaceCandidate)
-            .join("")}</section>
+        ? `${renderWorkspaceCandidateTable(pagination.pageCandidates)}
           ${renderWorkspacePaginationControls(pagination)}`
         : `<div class="workspace-empty-state">No candidates match current view filters. Reset filters to show all candidates.</div>`
     }
@@ -2843,6 +2886,7 @@ function handlePostResultsFollowUp(userText) {
 }
 
 function appendSearchConfirmationReply(content, messageType = AGENT_MESSAGE_TYPES.BRIEF_SUMMARY) {
+  clearAssistantThinkingMessage();
   messages.push(
     typedChatMessage(
       {
