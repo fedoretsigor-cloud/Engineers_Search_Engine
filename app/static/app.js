@@ -1215,6 +1215,71 @@ function pendingSearchRunConfirmationIsCurrent() {
   );
 }
 
+function currentSearchSummaryUpdateIdentity(field = null) {
+  const actionIdentity = currentBuildPlanActionIdentity();
+  const briefIdentity =
+    currentAgentPlan?.brief_fingerprint ||
+    (normalizedBrief
+      ? JSON.stringify({
+          role_family: normalizedBrief.role_family || null,
+          technology: normalizedBrief.technology || null,
+          stack: normalizedBrief.stack || [],
+          location: normalizedBrief.location || null,
+          seniority: normalizedBrief.seniority || null,
+          search_depth: normalizedBrief.search_depth || null,
+        })
+      : null);
+
+  if (!briefIdentity) {
+    return null;
+  }
+
+  return {
+    ...(actionIdentity || {}),
+    type: field ? "update_search_summary_field" : "update_search_summary",
+    briefFingerprint: briefIdentity,
+    field,
+  };
+}
+
+function setPendingSearchSummaryUpdateAction() {
+  const actionIdentity = currentSearchSummaryUpdateIdentity();
+  pendingChatAction = actionIdentity
+    ? {
+        ...actionIdentity,
+        createdAt: Date.now(),
+      }
+    : null;
+}
+
+function setPendingSearchSummaryUpdateFieldAction(field) {
+  const actionIdentity = currentSearchSummaryUpdateIdentity(field);
+  pendingChatAction = actionIdentity
+    ? {
+        ...actionIdentity,
+        createdAt: Date.now(),
+      }
+    : null;
+}
+
+function pendingSearchSummaryUpdateIsCurrent() {
+  if (
+    !pendingChatAction ||
+    !["update_search_summary", "update_search_summary_field"].includes(
+      pendingChatAction.type
+    )
+  ) {
+    return false;
+  }
+
+  const actionIdentity = currentSearchSummaryUpdateIdentity(pendingChatAction.field || null);
+  return Boolean(
+    actionIdentity &&
+      pendingChatAction.briefFingerprint === actionIdentity.briefFingerprint &&
+      pendingChatAction.field === actionIdentity.field
+  );
+}
+
 function normalizeChatCommandText(text) {
   return String(text || "")
     .trim()
@@ -1336,6 +1401,121 @@ function chatMessageResponseLanguage(text) {
     return "en";
   }
   return currentChatLanguage;
+}
+
+const SEARCH_SUMMARY_UPDATE_FIELD_LABELS = {
+  role_family: "role",
+  technology: "technology",
+  stack: "stack",
+  location: "location",
+  seniority: "seniority",
+  search_depth: "search depth",
+  profile_sources: "profile sources",
+};
+
+function pendingUpdateFieldQuestion(field, language = currentChatLanguage) {
+  if (field === "location") {
+    return language === "ru"
+      ? "\u041a\u0430\u043a\u0443\u044e \u043b\u043e\u043a\u0430\u0446\u0438\u044e \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c?"
+      : "What location should I use?";
+  }
+  if (field === "stack") {
+    return language === "ru"
+      ? "\u041a\u0430\u043a\u0438\u0435 1-3 stack signals \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c?"
+      : "Which 1-3 stack signals should I use?";
+  }
+  if (field === "technology") {
+    return language === "ru"
+      ? "\u041a\u0430\u043a\u0443\u044e \u043e\u0441\u043d\u043e\u0432\u043d\u0443\u044e \u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044e \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c? \u0412 \u0442\u0435\u043a\u0443\u0449\u0435\u043c flow \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044f Java."
+      : "What main technology should I use? The current flow supports Java.";
+  }
+  if (field === "role_family") {
+    return language === "ru"
+      ? "\u041a\u0430\u043a\u0443\u044e \u0446\u0435\u043b\u0435\u0432\u0443\u044e \u0440\u043e\u043b\u044c \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c?"
+      : "What target role should I use?";
+  }
+  return language === "ru"
+    ? "\u041a\u0430\u043a\u043e\u0435 \u043f\u043e\u043b\u0435 \u0432 search summary \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c?"
+    : "Which search summary field should I update?";
+}
+
+function fallbackPendingSearchSummaryUpdateIntent(text) {
+  const normalizedText = normalizeChatCommandText(text);
+  const responseLanguage = chatMessageResponseLanguage(text);
+  if (["cancel", "stop", "nevermind", "never mind", "\u043e\u0442\u043c\u0435\u043d\u0430", "\u0441\u0442\u043e\u043f"].includes(normalizedText)) {
+    return { intent: "cancel", field: null, responseLanguage };
+  }
+
+  const fieldPatterns = [
+    ["role_family", /\b(role|role family|position)\b/],
+    ["technology", /\b(technology|main technology|language)\b/],
+    ["stack", /\b(stack|spring|kafka|aws|hibernate|docker|kubernetes)\b/],
+    ["location", /\b(location|country|city|place)\b/],
+    ["seniority", /\b(seniority|level|senior|middle|junior|lead)\b/],
+    ["search_depth", /\b(depth|search depth|deep|standard)\b/],
+  ];
+  for (const [field, pattern] of fieldPatterns) {
+    if (pattern.test(normalizedText)) {
+      return { intent: "select_field", field, responseLanguage };
+    }
+  }
+
+  if (pendingChatAction?.type === "update_search_summary_field") {
+    return {
+      intent: "provide_value",
+      field: pendingChatAction.field,
+      responseLanguage,
+    };
+  }
+
+  return { intent: "unclear", field: null, responseLanguage };
+}
+
+async function classifyPendingSearchSummaryUpdateIntent(userText) {
+  if (!pendingSearchSummaryUpdateIsCurrent()) {
+    return {
+      intent: "unclear",
+      field: null,
+      responseLanguage: chatMessageResponseLanguage(userText),
+    };
+  }
+
+  const isFieldValue = pendingChatAction.type === "update_search_summary_field";
+  try {
+    const response = await fetch(RECRUITER_CHAT_INTENT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latest_message: userText,
+        language: currentChatLanguage,
+        context_type: isFieldValue ? "pending_update_value" : "pending_update",
+        pending_update_field: isFieldValue ? pendingChatAction.field : null,
+        current_brief_status: chatState,
+        current_brief: normalizedBrief,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      return fallbackPendingSearchSummaryUpdateIntent(userText);
+    }
+
+    const intent = String(data.pending_update_intent || "unclear");
+    if (["select_field", "provide_value", "cancel", "unclear"].includes(intent)) {
+      return {
+        intent,
+        field: data.field || data.answered_field || pendingChatAction.field || null,
+        responseLanguage: ["en", "ru"].includes(data.response_language)
+          ? data.response_language
+          : chatMessageResponseLanguage(userText),
+      };
+    }
+  } catch (_error) {
+    return fallbackPendingSearchSummaryUpdateIntent(userText);
+  }
+
+  return fallbackPendingSearchSummaryUpdateIntent(userText);
 }
 
 function fallbackPendingSearchRunIntent(text) {
@@ -2665,6 +2845,10 @@ async function ensureSearchReadyForConfirmedRun() {
 }
 
 async function handlePendingSearchRunChatAction(userText) {
+  if (!pendingChatAction || pendingChatAction.type !== "start_search") {
+    return false;
+  }
+
   const pendingIntentDecision = await classifyPendingSearchRunIntent(userText);
   const pendingIntent = pendingIntentDecision.intent || "unclear";
   const pendingReasonCode = pendingIntentDecision.reasonCode || "";
@@ -2699,6 +2883,7 @@ async function handlePendingSearchRunChatAction(userText) {
       messages.push({ role: "user", content: userText, localOnly: true });
       clearPendingChatAction();
       clearRuntimeApproval();
+      setPendingSearchSummaryUpdateAction();
       appendSearchConfirmationReply(
         pendingResponseLanguage === "ru"
           ? "\u041a\u043e\u043d\u0435\u0447\u043d\u043e. \u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0432 search summary?"
@@ -2784,6 +2969,86 @@ async function handlePendingSearchRunChatAction(userText) {
   }
 }
 
+async function handlePendingSearchSummaryUpdateAction(userText) {
+  if (
+    !pendingChatAction ||
+    !["update_search_summary", "update_search_summary_field"].includes(
+      pendingChatAction.type
+    )
+  ) {
+    return false;
+  }
+
+  if (!pendingSearchSummaryUpdateIsCurrent()) {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    clearPendingChatAction();
+    appendSearchConfirmationReply(
+      chatMessageResponseLanguage(userText) === "ru"
+        ? "\u0422\u0435\u043a\u0443\u0449\u0430\u044f search summary \u0438\u0437\u043c\u0435\u043d\u0438\u043b\u0430\u0441\u044c. \u041d\u0430\u043f\u0438\u0448\u0438, \u0447\u0442\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c, \u0435\u0449\u0435 \u0440\u0430\u0437."
+        : "The current search summary changed. Tell me what to update again.",
+      AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+    );
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  const updateDecision = await classifyPendingSearchSummaryUpdateIntent(userText);
+  const updateIntent = updateDecision.intent || "unclear";
+  const responseLanguage =
+    updateDecision.responseLanguage || chatMessageResponseLanguage(userText);
+
+  if (updateIntent === "cancel") {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    clearPendingChatAction();
+    appendSearchConfirmationReply(
+      responseLanguage === "ru"
+        ? "\u041e\u043a, \u043e\u0441\u0442\u0430\u0432\u043b\u044f\u044e \u0442\u0435\u043a\u0443\u0449\u0443\u044e search summary \u0431\u0435\u0437 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0439."
+        : "Ok, I will keep the current search summary unchanged.",
+      AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+    );
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  if (
+    pendingChatAction.type === "update_search_summary" &&
+    updateIntent === "select_field" &&
+    updateDecision.field
+  ) {
+    const selectedField = String(updateDecision.field);
+    messages.push({ role: "user", content: userText, localOnly: true });
+    setPendingSearchSummaryUpdateFieldAction(selectedField);
+    appendSearchConfirmationReply(
+      pendingUpdateFieldQuestion(selectedField, responseLanguage),
+      AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+    );
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  if (pendingChatAction.type === "update_search_summary") {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    appendSearchConfirmationReply(
+      responseLanguage === "ru"
+        ? "\u0427\u0442\u043e \u0438\u043c\u0435\u043d\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c: role, technology, stack, location, seniority \u0438\u043b\u0438 depth?"
+        : "Which field should I update: role, technology, stack, location, seniority, or depth?",
+      AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
+    );
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
+  return false;
+}
+
 async function handlePendingBuildPlanChatAction(userText) {
   if (!pendingBuildPlanActionIsCurrent()) {
     clearPendingChatAction();
@@ -2851,6 +3116,10 @@ async function sendChatTurn(userText) {
     return;
   }
 
+  if (await handlePendingSearchSummaryUpdateAction(userText)) {
+    return;
+  }
+
   if (isPostResultsFollowUpMessage(userText)) {
     handlePostResultsFollowUp(userText);
     chatInput.focus();
@@ -2858,6 +3127,10 @@ async function sendChatTurn(userText) {
   }
 
   const requestVersion = interactionVersion;
+  const pendingUpdateFieldForRequest =
+    pendingChatAction?.type === "update_search_summary_field"
+      ? pendingChatAction.field
+      : null;
   messages.push({ role: "user", content: userText });
   renderChatMessages();
   chatRequestInFlight = true;
@@ -2873,6 +3146,8 @@ async function sendChatTurn(userText) {
       body: JSON.stringify({
         messages: chatMessagesForBackend(),
         draft_brief: draftBrief,
+        language: currentChatLanguage,
+        pending_update_field: pendingUpdateFieldForRequest,
       }),
     });
     const data = await response.json();
@@ -2886,6 +3161,13 @@ async function sendChatTurn(userText) {
     }
 
     updateChatStateFromResponse(data);
+    if (
+      pendingUpdateFieldForRequest &&
+      (data.brief_changed ||
+        (data.brief_patch && data.brief_patch.requires_clarification !== true))
+    ) {
+      clearPendingChatAction();
+    }
   } catch (error) {
     if (requestVersion !== interactionVersion) {
       return;

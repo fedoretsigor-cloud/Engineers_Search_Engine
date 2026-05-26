@@ -100,6 +100,7 @@ class RecruiterChatTurnRequest(BaseModel):
     draft_brief: SearchBrief | None = None
     language: str | None = None
     planner_mode: str | None = None
+    pending_update_field: str | None = None
 
 
 class RecruiterChatIntentRequest(BaseModel):
@@ -110,6 +111,8 @@ class RecruiterChatIntentRequest(BaseModel):
     context_type: str | None = None
     pending_action_type: str | None = None
     pending_field: str | None = None
+    pending_update_field: str | None = None
+    pending_hypothesis: dict[str, Any] | None = None
     current_brief_status: str | None = None
     current_brief: SearchBrief | None = None
 

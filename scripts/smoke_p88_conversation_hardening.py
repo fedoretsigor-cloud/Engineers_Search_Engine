@@ -444,12 +444,103 @@ async def assert_pending_action_intent_endpoint() -> None:
     assert vague_ack["pending_action_reason_code"] == "positive_acknowledgement_not_confirmation"
 
 
+async def assert_pending_hypothesis_confirmation_completes_brief() -> None:
+    initial = await main.recruiter_chat_turn_response(
+        chat_request("Java dev in Ukraine with Spring", "en")
+    )
+    assert initial["state"] == "needs_clarification"
+    assert "Backend Developer with Java" in initial["assistant_message"]
+
+    confirmed = await main.recruiter_chat_turn_response(
+        main.RecruiterChatTurnRequest(
+            language="en",
+            messages=[
+                main.RecruiterChatMessage(
+                    role="user",
+                    content="Java dev in Ukraine with Spring",
+                ),
+                main.RecruiterChatMessage(
+                    role="assistant",
+                    content=initial["assistant_message"],
+                ),
+                main.RecruiterChatMessage(role="user", content="yes"),
+            ],
+        )
+    )
+    assert confirmed["state"] == "ready_for_planning"
+    assert confirmed["can_build_plan"] is True
+    assert confirmed["normalized_brief"]["role_family"] == "Backend Developer"
+    assert confirmed["normalized_brief"]["technology"] == "Java"
+    assert confirmed["normalized_brief"]["location"] == "Ukraine"
+    assert confirmed["normalized_brief"]["stack"] == ["Spring"]
+
+    unsupported_yes = await main.recruiter_chat_turn_response(chat_request("yes", "en"))
+    assert unsupported_yes["state"] == "needs_clarification"
+    assert unsupported_yes["can_build_plan"] is False
+    assert unsupported_yes["normalized_brief"] is None
+
+
+async def assert_pending_update_intent_and_field_value_flow() -> None:
+    field = await main.classify_recruiter_chat_intent(
+        main.RecruiterChatIntentRequest(
+            latest_message="location",
+            language="en",
+            context_type="pending_update",
+            current_brief_status="ready_for_planning",
+            current_brief=ready_brief(),
+        )
+    )
+    assert field["pending_update_intent"] == "select_field"
+    assert field["field"] == "location"
+
+    value = await main.classify_recruiter_chat_intent(
+        main.RecruiterChatIntentRequest(
+            latest_message="Kyiv",
+            language="en",
+            context_type="pending_update_value",
+            pending_update_field="location",
+            current_brief_status="ready_for_planning",
+            current_brief=ready_brief(),
+        )
+    )
+    assert value["pending_update_intent"] == "provide_value"
+    assert value["field"] == "location"
+
+    updated_stack = await main.recruiter_chat_turn_response(
+        main.RecruiterChatTurnRequest(
+            language="en",
+            draft_brief=ready_brief(),
+            pending_update_field="stack",
+            messages=[main.RecruiterChatMessage(role="user", content="Kafka")],
+        )
+    )
+    assert updated_stack["state"] == "ready_for_planning"
+    assert updated_stack["normalized_brief"]["stack"] == ["Kafka"]
+    assert updated_stack["brief_changed"] is True
+
+    unsupported_location = await main.recruiter_chat_turn_response(
+        main.RecruiterChatTurnRequest(
+            language="en",
+            draft_brief=ready_brief(),
+            pending_update_field="location",
+            messages=[main.RecruiterChatMessage(role="user", content="Germany")],
+        )
+    )
+    assert unsupported_location["state"] == "ready_for_planning"
+    assert unsupported_location["brief_changed"] is False
+    assert "supports only Ukraine" in unsupported_location["assistant_message"]
+
+
 def assert_frontend_phase_88_contract() -> None:
     source = (PROJECT_DIR / "app" / "static" / "app.js").read_text(encoding="utf-8")
     index_html = (PROJECT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
     styles = (PROJECT_DIR / "app" / "static" / "styles.css").read_text(encoding="utf-8")
     assert 'const RECRUITER_CHAT_INTENT_ENDPOINT = "/api/recruiter-chat/intent";' in source
     assert "async function classifyPendingSearchRunIntent" in source
+    assert "async function classifyPendingSearchSummaryUpdateIntent" in source
+    assert "function setPendingSearchSummaryUpdateAction" in source
+    assert "pending_update_field: pendingUpdateFieldForRequest" in source
+    assert "context_type: isFieldValue ? \"pending_update_value\" : \"pending_update\"" in source
     assert "pending_action_type: \"start_search\"" in source
     assert "pendingIntent === \"confirm\"" in source
     assert "pendingIntent === \"refine\"" in source
@@ -492,6 +583,8 @@ async def run_smoke() -> None:
         await assert_field_explanations_preserve_brief_state()
         await assert_pending_field_answer_classifier_blocks_wrong_field()
         await assert_pending_action_intent_endpoint()
+        await assert_pending_hypothesis_confirmation_completes_brief()
+        await assert_pending_update_intent_and_field_value_flow()
         assert_frontend_phase_88_contract()
     finally:
         main.run_openai_json_recruiter_chat = original_chat_llm

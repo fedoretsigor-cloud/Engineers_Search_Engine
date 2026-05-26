@@ -17371,6 +17371,8 @@ Implemented as a UI-level UAT gate slice:
 - [x] P8.8-009 Add bounded LLM Search Brief field-explanation intent
 - [x] P8.8-010 Add bounded LLM pending-field answer classifier
 - [x] P8.8-011 Improve bounded LLM pending-action refinement intent
+- [x] P8.8-012 Add bounded LLM pending-hypothesis confirmation intent
+- [x] P8.8-013 Add bounded LLM pending-update field selection flow
 
 ### Strategy note
 
@@ -17408,6 +17410,8 @@ Implementation result:
 - safe chat message types can use bounded LLM wording with deterministic fallback and validation;
 - frontend pending search confirmation uses the bounded intent endpoint before running the existing runtime-approved search path;
 - frontend hides recruiter-facing technical preparation panels by default while keeping the underlying state/runtime path intact;
+- backend handles one-turn pending hypothesis confirmation for the observed `Java dev in Ukraine with Spring` -> `yes` flow by applying only backend-owned validated `Backend Developer + Java` values;
+- frontend/backend handle pending-update field selection so `I want to update` -> `location` asks for the new location instead of treating `location` as a fresh role/noise request;
 - `scripts/smoke_p88_conversation_hardening.py` was added to the local regression baseline.
 
 ## Task: P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
@@ -18667,6 +18671,251 @@ The LLM must not return Search Brief patches, field values, QueryPlan changes, e
 - Expanding supported roles, technologies, countries, or providers.
 - LinkedIn login/access/scraping, candidate messaging, or account actions.
 - Persistence/database work.
+
+---
+
+## Task: P8.8-012 Add bounded LLM pending-hypothesis confirmation intent
+
+### Status
+
+Approved / implemented.
+
+Review note: implement this as a backend-reconstructable pending hypothesis from the previous backend assistant question and prior recruiter message. Do not trust model-produced field values and do not introduce persistence. The LLM classifies only the reply intent; backend applies only the validated `Backend Developer + Java` hypothesis when the current conversation context proves it exists.
+
+Implementation note: implemented via a bounded `pending_hypothesis_intent` contract, deterministic safe fallback, backend reconstruction from the previous assistant hypothesis question plus prior recruiter evidence, and no-network regression coverage in `scripts/smoke_p88_conversation_hardening.py`.
+
+### Context
+
+Observed UI behavior:
+
+```text
+User: Java dev in Ukraine with Spring
+Assistant: I see location and Java stack signals, but I still need the target role and main technology before planning. Are we looking for Backend Developer with Java?
+User: yes
+Assistant: What role family should the search target?
+```
+
+This is not acceptable. The assistant asked a concrete confirmation question with an implied safe hypothesis:
+
+- `role_family = Backend Developer`
+- `technology = Java`
+
+When the recruiter answers `yes`, the system should treat that as confirmation of the pending hypothesis and complete the missing fields instead of asking for the same role family again.
+
+### Goal
+
+Add bounded LLM intent recognition for recruiter replies to assistant-generated Search Brief hypotheses.
+
+The LLM should understand whether the latest recruiter reply confirms, rejects, changes, or does not answer the current pending hypothesis. The LLM must not produce or mutate Search Brief facts directly.
+
+### Proposed Contract
+
+The backend owns the pending hypothesis and the allowed fields it can apply. The LLM only classifies the recruiter reply in context.
+
+Example bounded output:
+
+```json
+{
+  "pending_hypothesis_intent": "confirm",
+  "confidence": "high",
+  "reason_code": "confirms_backend_developer_java_hypothesis"
+}
+```
+
+Allowed `pending_hypothesis_intent` values:
+
+- `confirm`
+- `reject`
+- `refine`
+- `unclear`
+
+The LLM must not return Search Brief patches, arbitrary field values, QueryPlan changes, execution instructions, filters, scoring changes, tool calls, or candidate actions.
+
+### Proposed Steps
+
+1. Define the pending-hypothesis state contract.
+   - The system needs a backend-owned or backend-reconstructable hypothesis such as `role_family = Backend Developer`, `technology = Java`.
+   - The hypothesis must include only allowed Search Brief fields.
+   - If the frontend carries the hypothesis context, it must be treated as untrusted and validated/fingerprinted before use.
+   - For this v0, reconstructing the hypothesis from the previous backend assistant question plus prior recruiter evidence is acceptable and avoids adding persistence before Phase 9.
+   - The hypothesis must be one-turn scoped: after confirm/reject/refine/unclear handling, do not keep silently reusing it.
+
+2. Extend bounded recruiter-chat intent classification.
+   - Add pending-hypothesis reply classification to the existing Phase 8.8 intent layer.
+   - Classify `yes`, `correct`, `that is right`, `да`, `верно`, etc. as `confirm` only when there is an active pending hypothesis.
+   - Classify `no`, `not backend`, `different role`, etc. as `reject` or `refine`.
+   - Keep standalone vague `yes` outside pending-hypothesis context as normal unclear or pending-action logic.
+
+3. Apply only backend-owned hypothesis values.
+   - On high-confidence `confirm`, backend applies only the validated pending hypothesis.
+   - LLM output cannot provide field values.
+   - Search Brief validation still decides whether the brief becomes `ready_for_planning`.
+
+4. Preserve safe conversation behavior.
+   - If `confirm` completes the brief, show the normal ready summary / next step.
+   - If the answer is `reject` or `refine`, ask what role/technology should change.
+   - If the answer is `unclear`, ask a concise clarification.
+
+5. Add no-network regression coverage.
+   - `Java dev in Ukraine with Spring` -> assistant asks Backend Developer with Java hypothesis.
+   - `yes` after that hypothesis -> applies `role_family = Backend Developer`, `technology = Java`.
+   - `yes` without active hypothesis -> does not invent fields.
+   - `no` after hypothesis -> does not apply fields and asks for correction.
+   - `QA Automation` or unsupported role replies do not get coerced into Backend Developer.
+
+6. Add browser/UI sanity after implementation.
+   - Reproduce the exact observed flow.
+   - Verify `yes` does not produce `What role family should the search target?`.
+   - Verify no Tavily/search execution happens from this confirmation alone.
+
+### Acceptance Criteria
+
+- The observed `Java dev in Ukraine with Spring` -> `yes` flow no longer loops on `role_family`.
+- `yes` confirms only an active backend-owned pending hypothesis.
+- Backend applies only validated hypothesis fields; LLM never writes Search Brief values directly.
+- Search execution still requires the existing explicit human-approved runtime path.
+- Unsupported/ambiguous role flows remain protected.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Letting LLM directly patch Search Brief state.
+- Adding autonomous execution.
+- Executing Tavily/search from a hypothesis confirmation.
+- Expanding supported countries, technologies, providers, or search sources.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Persistence/database work.
+
+---
+
+## Task: P8.8-013 Add bounded LLM pending-update field selection flow
+
+### Status
+
+Approved / implemented.
+
+Review note: implement this as short-lived frontend/session pending-update state plus backend-validated untrusted context. LLM classification can select the intended field, but Search Brief values must still go through backend patch/validation logic. Do not add persistence or direct Search Brief mutation by LLM.
+
+Implementation note: implemented via bounded `pending_update_intent`, short-lived frontend pending-update state tied to current brief identity, backend `pending_update_field` validation, existing patch application, and no-network regression coverage in `scripts/smoke_p88_conversation_hardening.py`.
+
+### Context
+
+Observed UI behavior:
+
+```text
+Assistant: I understood the task: find Backend Developer profiles with Java in Ukraine, stack: Spring. If this is correct, confirm and I will start the search.
+User: no, I want to update
+Assistant: Sure. What would you like to update in the search summary?
+User: location
+Assistant: That does not look like a candidate-search role request...
+```
+
+The first step is correct: `no, I want to update` should not execute search and should ask what to update.
+
+The second step is wrong. After the assistant asks what to update, the one-word answer `location` should be interpreted as selecting a Search Brief field to edit, not as a fresh candidate-search request or unsupported role/noise.
+
+### Goal
+
+Add a bounded pending-update field selection flow.
+
+When the system is waiting for the recruiter to say what should be updated, the LLM should classify whether the latest message selects a Search Brief field, gives a direct replacement value, cancels the update, or is unclear. The LLM must not mutate Search Brief state directly.
+
+### Proposed Contract
+
+The backend owns the pending update state and the allowed fields. The LLM only classifies the recruiter reply in that context.
+
+Example bounded output:
+
+```json
+{
+  "pending_update_intent": "select_field",
+  "field": "location",
+  "confidence": "high",
+  "reason_code": "selected_location_field"
+}
+```
+
+Allowed `pending_update_intent` values:
+
+- `select_field`
+- `provide_value`
+- `cancel`
+- `unclear`
+
+Allowed fields:
+
+- `role_family`
+- `technology`
+- `stack`
+- `location`
+- `seniority`
+- `search_depth`
+- `profile_sources`
+
+The LLM must not return arbitrary patches, QueryPlan changes, execution instructions, filters, scoring changes, tool calls, or candidate actions.
+
+### Proposed Steps
+
+1. Define frontend/backend pending-update state.
+   - After `no, I want to update` / `I want to update`, store that the assistant is waiting for an update target.
+   - This state must be short-lived and cleared on reset, successful patch, cancel, stale summary, or new confirmed search.
+   - If state is carried by frontend, backend must treat it as untrusted context.
+   - For this v0, the pending-update state is browser-session UI state only; Phase 9 persistence must not be introduced here.
+   - The pending state should be tied to the current Search Brief / Agent Plan identity where possible so stale update prompts cannot mutate a changed summary.
+
+2. Extend bounded recruiter-chat intent classification.
+   - Add pending-update context to the shared Phase 8.8 intent contract.
+   - Classify one-word field names like `location`, `stack`, `role`, `technology`, and Russian equivalents as `select_field` only when pending-update state is active.
+   - Classify direct values like `Ukraine`, `Spring`, `Java`, or `Backend Developer` as `provide_value` only when enough context exists to validate them safely.
+   - Classify cancel phrases as `cancel`.
+
+3. Route selected fields safely.
+   - If user selects `location`, ask `What location should I use?`.
+   - If user selects `stack`, ask for 1-3 stack signals.
+   - If user selects `technology`, ask for the main technology.
+   - If user selects `role_family`, ask for the target role.
+   - Do not run search.
+
+4. Apply only backend-validated patches.
+   - Field selection alone does not mutate Search Brief facts.
+   - Replacement values go through existing deterministic/backend validation and patch logic.
+   - Unsupported values, such as unsupported future locations, must be explained rather than silently applied.
+
+5. Preserve language and UX consistency.
+   - Prefer latest user message language for short follow-up questions.
+   - Avoid generic role/noise fallback while pending-update state is active.
+   - If the user says `location`, do not answer with `That does not look like a candidate-search role request`.
+
+6. Add no-network regression coverage.
+   - pending update + `location` -> asks for location.
+   - pending update + `stack` -> asks for stack signals.
+   - pending update + `technology` -> asks for main technology.
+   - pending update + `role` -> asks for target role.
+   - same words without pending-update state do not invent an update flow.
+   - pending update + `cancel` clears pending update state.
+
+7. Add browser/UI sanity after implementation.
+   - Reproduce the exact observed flow.
+   - Verify `location` routes to a location follow-up question.
+   - Verify no Tavily/search execution happens during field selection.
+
+### Acceptance Criteria
+
+- `no, I want to update` followed by `location` asks for the new location instead of generic unsupported/noise wording.
+- Field selection is context-bound to active pending-update state.
+- LLM classifies intent/field only; backend owns state, allowed fields, validation, and patch application.
+- Search execution still requires the existing explicit human-approved runtime path.
+- Unsupported/ambiguous values remain protected.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Letting LLM directly patch Search Brief state.
+- Executing Tavily/search from update field selection.
+- Adding persistence/database state.
+- Expanding supported countries, technologies, providers, or search sources.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Autonomous execution.
 
 ---
 

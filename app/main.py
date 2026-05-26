@@ -321,6 +321,14 @@ RECRUITER_PENDING_INTENT_CONFIRM = "confirm"
 RECRUITER_PENDING_INTENT_REFINE = "refine"
 RECRUITER_PENDING_INTENT_REJECT = "reject"
 RECRUITER_PENDING_INTENT_UNCLEAR = "unclear"
+RECRUITER_HYPOTHESIS_INTENT_CONFIRM = "confirm"
+RECRUITER_HYPOTHESIS_INTENT_REJECT = "reject"
+RECRUITER_HYPOTHESIS_INTENT_REFINE = "refine"
+RECRUITER_HYPOTHESIS_INTENT_UNCLEAR = "unclear"
+RECRUITER_UPDATE_INTENT_SELECT_FIELD = "select_field"
+RECRUITER_UPDATE_INTENT_PROVIDE_VALUE = "provide_value"
+RECRUITER_UPDATE_INTENT_CANCEL = "cancel"
+RECRUITER_UPDATE_INTENT_UNCLEAR = "unclear"
 RECRUITER_FIELD_INTENT_FIELD_EXPLANATION = "field_explanation"
 RECRUITER_FIELD_INTENT_NOT_FIELD_EXPLANATION = "not_field_explanation"
 RECRUITER_FIELD_INTENT_ANSWERS_PENDING_FIELD = "answers_pending_field"
@@ -1540,6 +1548,10 @@ def recruiter_intent_default_response(
     java_programmer_role: bool | None = None,
     pending_action_intent: str = RECRUITER_PENDING_INTENT_UNCLEAR,
     pending_action_reason_code: str | None = None,
+    pending_hypothesis_intent: str = RECRUITER_HYPOTHESIS_INTENT_UNCLEAR,
+    pending_hypothesis_reason_code: str | None = None,
+    pending_update_intent: str = RECRUITER_UPDATE_INTENT_UNCLEAR,
+    pending_update_reason_code: str | None = None,
     field_intent: str = RECRUITER_FIELD_INTENT_UNCLEAR,
     field: str | None = None,
     answered_field: str | None = None,
@@ -1562,6 +1574,10 @@ def recruiter_intent_default_response(
         "java_programmer_role": java_programmer_role,
         "pending_action_intent": pending_action_intent,
         "pending_action_reason_code": pending_action_reason_code,
+        "pending_hypothesis_intent": pending_hypothesis_intent,
+        "pending_hypothesis_reason_code": pending_hypothesis_reason_code,
+        "pending_update_intent": pending_update_intent,
+        "pending_update_reason_code": pending_update_reason_code,
         "field_intent": field_intent,
         "field": field,
         "answered_field": answered_field,
@@ -1610,6 +1626,18 @@ def validate_recruiter_intent_output(
         RECRUITER_PENDING_INTENT_REFINE,
         RECRUITER_PENDING_INTENT_REJECT,
         RECRUITER_PENDING_INTENT_UNCLEAR,
+    }
+    allowed_hypothesis_intents = {
+        RECRUITER_HYPOTHESIS_INTENT_CONFIRM,
+        RECRUITER_HYPOTHESIS_INTENT_REJECT,
+        RECRUITER_HYPOTHESIS_INTENT_REFINE,
+        RECRUITER_HYPOTHESIS_INTENT_UNCLEAR,
+    }
+    allowed_update_intents = {
+        RECRUITER_UPDATE_INTENT_SELECT_FIELD,
+        RECRUITER_UPDATE_INTENT_PROVIDE_VALUE,
+        RECRUITER_UPDATE_INTENT_CANCEL,
+        RECRUITER_UPDATE_INTENT_UNCLEAR,
     }
     allowed_field_intents = {
         RECRUITER_FIELD_INTENT_FIELD_EXPLANATION,
@@ -1661,6 +1689,24 @@ def validate_recruiter_intent_output(
         llm_output.get("pending_action_reason_code"),
         max_length=64,
     )
+    pending_hypothesis_intent = (
+        normalize_text_value(llm_output.get("pending_hypothesis_intent"))
+        or RECRUITER_HYPOTHESIS_INTENT_UNCLEAR
+    )
+    pending_hypothesis_reason_code = safe_classifier_text_value(
+        llm_output.get("pending_hypothesis_reason_code")
+        or llm_output.get("hypothesis_reason_code"),
+        max_length=64,
+    )
+    pending_update_intent = (
+        normalize_text_value(llm_output.get("pending_update_intent"))
+        or RECRUITER_UPDATE_INTENT_UNCLEAR
+    )
+    pending_update_reason_code = safe_classifier_text_value(
+        llm_output.get("pending_update_reason_code")
+        or llm_output.get("update_reason_code"),
+        max_length=64,
+    )
     field_intent = (
         normalize_text_value(llm_output.get("field_intent"))
         or normalize_text_value(llm_output.get("field_explanation_intent"))
@@ -1694,6 +1740,10 @@ def validate_recruiter_intent_output(
         return None, "llm_intent_unknown_role_support_status"
     if pending_action_intent not in allowed_pending_intents:
         return None, "llm_intent_unknown_pending_action_intent"
+    if pending_hypothesis_intent not in allowed_hypothesis_intents:
+        return None, "llm_intent_unknown_pending_hypothesis_intent"
+    if pending_update_intent not in allowed_update_intents:
+        return None, "llm_intent_unknown_pending_update_intent"
     if field_intent not in allowed_field_intents:
         return None, "llm_intent_unknown_field_intent"
     if confidence not in allowed_confidence:
@@ -1709,6 +1759,8 @@ def validate_recruiter_intent_output(
         return None, "llm_intent_missing_role_label"
     if field_intent == RECRUITER_FIELD_INTENT_FIELD_EXPLANATION and not field:
         return None, "llm_intent_missing_field_explanation_field"
+    if pending_update_intent == RECRUITER_UPDATE_INTENT_SELECT_FIELD and not field:
+        return None, "llm_intent_missing_pending_update_field"
     if field_intent in {
         RECRUITER_FIELD_INTENT_ANSWERS_PENDING_FIELD,
         RECRUITER_FIELD_INTENT_ANSWERS_DIFFERENT_FIELD,
@@ -1726,6 +1778,10 @@ def validate_recruiter_intent_output(
         java_programmer_role=java_programmer_role,
         pending_action_intent=pending_action_intent,
         pending_action_reason_code=pending_action_reason_code,
+        pending_hypothesis_intent=pending_hypothesis_intent,
+        pending_hypothesis_reason_code=pending_hypothesis_reason_code,
+        pending_update_intent=pending_update_intent,
+        pending_update_reason_code=pending_update_reason_code,
         field_intent=field_intent,
         field=field,
         answered_field=answered_field,
@@ -1743,7 +1799,7 @@ def recruiter_chat_intent_system_prompt() -> str:
         "You classify a recruiter's latest message for a human-approved IT sourcing "
         "assistant. Return one JSON object only. You may classify intent, role meaning, "
         "Search Brief field questions, pending-field answers, and pending-action reply "
-        "intent. You must not build search briefs, create "
+        "intent, pending-hypothesis replies, and pending-update replies. You must not build search briefs, create "
         "queries, browse, search, access LinkedIn, message candidates, execute tools, "
         "or act on accounts."
     )
@@ -1763,6 +1819,10 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
                 "java_programmer_role": "true | false | null",
                 "pending_action_intent": "confirm | refine | reject | unclear",
                 "pending_action_reason_code": "bounded short reason code or null",
+                "pending_hypothesis_intent": "confirm | reject | refine | unclear",
+                "pending_hypothesis_reason_code": "bounded short reason code or null",
+                "pending_update_intent": "select_field | provide_value | cancel | unclear",
+                "pending_update_reason_code": "bounded short reason code or null",
                 "field_intent": (
                     "field_explanation | not_field_explanation | answers_pending_field | "
                     "answers_different_field | repeats_existing_value | unsupported_value | "
@@ -1782,6 +1842,8 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
                 "context_type": request.context_type,
                 "pending_action_type": request.pending_action_type,
                 "pending_field": request.pending_field,
+                "pending_update_field": request.pending_update_field,
+                "pending_hypothesis": request.pending_hypothesis,
                 "current_brief_status": request.current_brief_status,
                 "current_brief": clean_search_brief_dict(request.current_brief),
                 "supported_scope": (
@@ -1802,6 +1864,12 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
                 "For pending action start_search, classify change/refinement requests as refine and no/not now as reject.",
                 "For pending action start_search, classify general update/edit/change intent such as 'I want to update' as refine, even without a concrete field value.",
                 "Do not classify vague positive acknowledgements such as 'great' as confirm unless the message clearly asks to run or start the search.",
+                "For context pending_hypothesis, classify yes/correct/right as pending_hypothesis_intent confirm only when pending_hypothesis is present.",
+                "For context pending_hypothesis, classify no/not that/different as reject or refine. Do not invent field values.",
+                "For context pending_update, classify allowed Search Brief field names as pending_update_intent select_field and set field.",
+                "For context pending_update_value, classify replacement values only as provide_value; backend validation will apply or reject them.",
+                "For context pending_update or pending_update_value, classify cancel/stop/never mind as pending_update_intent cancel.",
+                "Do not use pending_update_intent or pending_hypothesis_intent outside their matching context.",
                 "Use unclear when confidence is low.",
                 "Prefer the latest user message language for response_language when it is clearly English or Russian.",
                 "Return JSON only.",
@@ -2101,6 +2169,109 @@ def deterministic_pending_action_intent(text: str, pending_action_type: str | No
     return RECRUITER_PENDING_INTENT_UNCLEAR
 
 
+def deterministic_pending_hypothesis_intent(
+    text: str,
+    pending_hypothesis: dict | None,
+) -> str:
+    if not pending_hypothesis:
+        return RECRUITER_HYPOTHESIS_INTENT_UNCLEAR
+
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return RECRUITER_HYPOTHESIS_INTENT_UNCLEAR
+
+    confirmation_phrases = {
+        "yes",
+        "y",
+        "ok",
+        "okay",
+        "correct",
+        "right",
+        "exactly",
+        "that is correct",
+        "yes correct",
+        "yes that is right",
+        "да",
+        "ок",
+        "окей",
+        "верно",
+        "правильно",
+        "да верно",
+        "да правильно",
+        "подтверждаю",
+    }
+    if normalized_text in confirmation_phrases:
+        return RECRUITER_HYPOTHESIS_INTENT_CONFIRM
+
+    rejection_phrases = {
+        "no",
+        "nope",
+        "not that",
+        "wrong",
+        "different",
+        "нет",
+        "не то",
+        "неверно",
+        "не правильно",
+        "другая",
+        "другое",
+    }
+    if normalized_text in rejection_phrases:
+        return RECRUITER_HYPOTHESIS_INTENT_REJECT
+
+    if re.search(r"\b(change|update|edit|instead|actually)\b", normalized_text):
+        return RECRUITER_HYPOTHESIS_INTENT_REFINE
+    if re.search(r"измен|помен|вместо|на самом деле", normalized_text, flags=re.IGNORECASE):
+        return RECRUITER_HYPOTHESIS_INTENT_REFINE
+
+    return RECRUITER_HYPOTHESIS_INTENT_UNCLEAR
+
+
+def deterministic_pending_update_intent(
+    text: str,
+    context_type: str | None,
+    pending_update_field: str | None,
+) -> tuple[str, str | None]:
+    if context_type not in {"pending_update", "pending_update_value"} and not pending_update_field:
+        return RECRUITER_UPDATE_INTENT_UNCLEAR, None
+
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return RECRUITER_UPDATE_INTENT_UNCLEAR, None
+
+    cancel_phrases = {
+        "cancel",
+        "stop",
+        "nevermind",
+        "never mind",
+        "no changes",
+        "отмена",
+        "стоп",
+        "не надо",
+        "без изменений",
+    }
+    if normalized_text in cancel_phrases:
+        return RECRUITER_UPDATE_INTENT_CANCEL, None
+
+    if pending_update_field or context_type == "pending_update_value":
+        return RECRUITER_UPDATE_INTENT_PROVIDE_VALUE, pending_update_field
+
+    field_patterns = [
+        ("role_family", r"\b(role|role family|position|job title)\b|роль|позици"),
+        ("technology", r"\b(technology|main technology|language|programming language)\b|технолог"),
+        ("stack", r"\b(stack|spring|kafka|aws|hibernate|docker|kubernetes|postgresql|microservices|rest)\b|стек"),
+        ("location", r"\b(location|country|city|place)\b|локац|город|страна"),
+        ("seniority", r"\b(seniority|level|senior|middle|junior|lead)\b|уров|сеньор|мидл|джун"),
+        ("search_depth", r"\b(depth|search depth|deep|standard)\b|глубин"),
+        ("profile_sources", r"\b(source|sources|profile source|linkedin)\b|источник"),
+    ]
+    for field_name, pattern in field_patterns:
+        if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+            return RECRUITER_UPDATE_INTENT_SELECT_FIELD, field_name
+
+    return RECRUITER_UPDATE_INTENT_UNCLEAR, None
+
+
 def deterministic_recruiter_intent(
     request: RecruiterChatIntentRequest,
     *,
@@ -2111,6 +2282,15 @@ def deterministic_recruiter_intent(
         text,
         request.pending_action_type,
     )
+    pending_hypothesis_intent = deterministic_pending_hypothesis_intent(
+        text,
+        request.pending_hypothesis,
+    )
+    pending_update_intent, pending_update_field = deterministic_pending_update_intent(
+        text,
+        request.context_type,
+        request.pending_update_field,
+    )
     unsupported_role_label = deterministic_non_it_role_label(text)
 
     if detect_recruiter_chat_prohibited_requests(text):
@@ -2118,6 +2298,9 @@ def deterministic_recruiter_intent(
             intent=RECRUITER_INTENT_PROHIBITED,
             role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
             pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
             confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             fallback_reason=fallback_reason,
         )
@@ -2131,8 +2314,32 @@ def deterministic_recruiter_intent(
             is_profession_like=True,
             java_programmer_role=False,
             pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
             confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             unsupported_role_label=unsupported_role_label,
+            fallback_reason=fallback_reason,
+        )
+
+    if pending_hypothesis_intent != RECRUITER_HYPOTHESIS_INTENT_UNCLEAR:
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_CANDIDATE_SEARCH,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    if pending_update_intent != RECRUITER_UPDATE_INTENT_UNCLEAR:
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_CANDIDATE_SEARCH,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             fallback_reason=fallback_reason,
         )
 
@@ -2141,6 +2348,9 @@ def deterministic_recruiter_intent(
             intent=RECRUITER_INTENT_CANDIDATE_SEARCH,
             role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
             pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
             confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             fallback_reason=fallback_reason,
         )
@@ -2149,6 +2359,10 @@ def deterministic_recruiter_intent(
         return recruiter_intent_default_response(
             intent=RECRUITER_INTENT_SMALL_TALK,
             role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
             confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             fallback_reason=fallback_reason,
         )
@@ -2157,6 +2371,10 @@ def deterministic_recruiter_intent(
         return recruiter_intent_default_response(
             intent=RECRUITER_INTENT_OFF_TOPIC,
             role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
             confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             fallback_reason=fallback_reason,
         )
@@ -2165,6 +2383,10 @@ def deterministic_recruiter_intent(
         return recruiter_intent_default_response(
             intent=RECRUITER_INTENT_UNCLEAR,
             role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
             confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
             fallback_reason=fallback_reason,
         )
@@ -2204,6 +2426,9 @@ def deterministic_recruiter_intent(
         is_profession_like=is_profession_like,
         java_programmer_role=java_programmer_role,
         pending_action_intent=pending_action_intent,
+        pending_hypothesis_intent=pending_hypothesis_intent,
+        pending_update_intent=pending_update_intent,
+        field=pending_update_field,
         confidence=RECRUITER_INTENT_CONFIDENCE_MEDIUM,
         fallback_reason=fallback_reason,
     )
@@ -2214,6 +2439,12 @@ def should_use_recruiter_intent_classifier(
 ) -> bool:
     text = request.latest_message
     if request.context_type == "pending_action" or request.pending_action_type:
+        return True
+    if request.context_type == "pending_hypothesis" or request.pending_hypothesis:
+        return True
+    if request.context_type in {"pending_update", "pending_update_value"}:
+        return True
+    if request.pending_update_field:
         return True
     if request.context_type == "pending_field" or request.pending_field:
         return True
@@ -4477,6 +4708,325 @@ def pending_clarification_unrecognized_answer_message(field: str, language: str)
     return recruiter_chat_unclear_request_message(language)
 
 
+def latest_user_and_prior_context(
+    messages: list[RecruiterChatMessage],
+) -> tuple[int | None, RecruiterChatMessage | None, RecruiterChatMessage | None]:
+    latest_user_index: int | None = None
+    for index in range(len(messages) - 1, -1, -1):
+        role = (normalize_text_value(messages[index].role) or "").lower()
+        if role in {"user", "recruiter"}:
+            latest_user_index = index
+            break
+
+    if latest_user_index is None:
+        return None, None, None
+
+    prior_assistant: RecruiterChatMessage | None = None
+    prior_user: RecruiterChatMessage | None = None
+    for index in range(latest_user_index - 1, -1, -1):
+        role = (normalize_text_value(messages[index].role) or "").lower()
+        if prior_assistant is None and role == "assistant":
+            prior_assistant = messages[index]
+            continue
+        if prior_assistant is not None and role in {"user", "recruiter"}:
+            prior_user = messages[index]
+            break
+
+    return latest_user_index, prior_assistant, prior_user
+
+
+def is_backend_java_hypothesis_question(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+    return bool(
+        "backend developer" in normalized_text
+        and "java" in normalized_text
+        and (
+            "are we looking" in normalized_text
+            or "looking for" in normalized_text
+            or "should the search target" in normalized_text
+            or "ищем" in normalized_text
+        )
+    )
+
+
+def extract_pending_backend_java_hypothesis(
+    request: RecruiterChatTurnRequest,
+    language: str,
+) -> dict | None:
+    _, prior_assistant, prior_user = latest_user_and_prior_context(request.messages)
+    if prior_assistant is None or prior_user is None:
+        return None
+    if not is_backend_java_hypothesis_question(prior_assistant.content):
+        return None
+
+    prior_user_text = prior_user.content
+    hints = deterministic_chat_brief_hints(prior_user_text)
+    if hints.get("technology") != "Java" or hints.get("location") != "Ukraine":
+        return None
+    if not hints.get("stack"):
+        return None
+
+    ambiguity = detect_recruiter_chat_ambiguity_or_contradiction(
+        prior_user_text,
+        language,
+    )
+    if not ambiguity or ambiguity.get("code") != "missing_role_or_technology":
+        return None
+
+    stack = list(hints.get("stack") or [])[:3]
+    return {
+        "source_text": prior_user_text,
+        "role_family": "Backend Developer",
+        "technology": "Java",
+        "stack": stack,
+        "location": "Ukraine",
+        "must_have": ["Java"],
+        "nice_to_have": stack,
+        "search_depth": hints.get("search_depth") or SEARCH_DEPTH_STANDARD,
+        "profile_sources": hints.get("profile_sources")
+        or [PROFILE_SOURCE_LINKEDIN_PUBLIC],
+    }
+
+
+def build_pending_hypothesis_confirmation_response(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    pending_hypothesis: dict,
+) -> dict:
+    try:
+        candidate_brief = SearchBrief(
+            source_text=pending_hypothesis["source_text"],
+            brief_status=SEARCH_BRIEF_STATUS_READY_FOR_PLANNING,
+            role_family=pending_hypothesis["role_family"],
+            technology=pending_hypothesis["technology"],
+            stack=pending_hypothesis.get("stack") or [],
+            location=pending_hypothesis["location"],
+            must_have=pending_hypothesis.get("must_have") or ["Java"],
+            nice_to_have=pending_hypothesis.get("nice_to_have") or [],
+            search_depth=pending_hypothesis.get("search_depth") or SEARCH_DEPTH_STANDARD,
+            profile_sources=pending_hypothesis.get("profile_sources")
+            or [PROFILE_SOURCE_LINKEDIN_PUBLIC],
+        )
+    except ValidationError as exc:
+        errors = [
+            {
+                "field": f"pending_hypothesis.{'.'.join(str(part) for part in error.get('loc', [])) or 'value'}",
+                "message": "I could not safely confirm that search hypothesis. Please restate the role, main technology, location, and 1-3 stack signals.",
+            }
+            for error in exc.errors()
+        ]
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            validation_errors=errors,
+            planner_mode=planner_mode,
+        )
+
+    candidate_response = search_brief_validation_response(candidate_brief)
+    normalized_brief = candidate_response["normalized_brief"]
+    validation_errors = candidate_response["errors"]
+    next_question = one_clarifying_question(normalized_brief, language)
+    state = RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION
+    ok = not validation_errors
+    if ok and normalized_brief["brief_status"] == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        state = RECRUITER_CHAT_STATE_READY_FOR_PLANNING
+
+    existing_payload = normalized_brief_state_payload(
+        current_brief_context_for_language(request.draft_brief, language)["normalized_brief"]
+    )
+    candidate_payload = normalized_brief_state_payload(normalized_brief)
+    brief_changed = existing_payload != candidate_payload
+
+    return build_recruiter_chat_response(
+        ok=ok,
+        state=state,
+        language=language,
+        normalized_brief=normalized_brief,
+        validation_errors=validation_errors,
+        next_question=next_question,
+        planner_mode=planner_mode,
+        brief_changed=brief_changed,
+        stale_state_should_clear=brief_changed,
+    )
+
+
+def pending_hypothesis_reject_message(language: str) -> str:
+    if language == "ru":
+        return "Понял. Уточни целевую роль и основную технологию для поиска."
+    return "Understood. Tell me the target role and main technology for the search."
+
+
+def pending_hypothesis_unclear_message(language: str) -> str:
+    if language == "ru":
+        return "Подтверди, пожалуйста: ищем Backend Developer с Java, или нужно изменить роль/технологию?"
+    return "Please confirm: are we looking for Backend Developer with Java, or should we change the role/technology?"
+
+
+def pending_update_field_question(field: str, language: str) -> str:
+    if field == "location":
+        if language == "ru":
+            return "Какую локацию использовать?"
+        return "What location should I use?"
+    if field == "stack":
+        if language == "ru":
+            return "Какие 1-3 stack signals использовать?"
+        return "Which 1-3 stack signals should I use?"
+    if field == "technology":
+        if language == "ru":
+            return "Какую основную технологию использовать? В текущем flow поддерживается Java."
+        return "What main technology should I use? The current flow supports Java."
+    if field == "role_family":
+        if language == "ru":
+            return "Какую целевую роль использовать? Например, Backend Developer."
+        return "What target role should I use? For example, Backend Developer."
+    if field == "seniority":
+        if language == "ru":
+            return "Какой seniority использовать: Junior, Middle, Senior или Lead?"
+        return "What seniority should I use: Junior, Middle, Senior, or Lead?"
+    if field == "search_depth":
+        if language == "ru":
+            return "Какую глубину поиска использовать: standard или deep?"
+        return "What search depth should I use: standard or deep?"
+    if language == "ru":
+        return "Какое поле в search summary нужно изменить?"
+    return "Which search summary field should I update?"
+
+
+def pending_update_cancel_message(language: str) -> str:
+    if language == "ru":
+        return "Ок, оставляю текущую search summary без изменений."
+    return "Ok, I will keep the current search summary unchanged."
+
+
+def pending_update_unknown_field_message(language: str) -> str:
+    if language == "ru":
+        return "Укажи поле, которое нужно изменить: role, technology, stack, location, seniority или depth."
+    return "Tell me which field to update: role, technology, stack, location, seniority, or depth."
+
+
+def pending_update_field_patch_from_message(
+    field: str,
+    text: str,
+    language: str,
+) -> tuple[dict | None, str | None]:
+    if field == "location":
+        location = deterministic_chat_brief_hints(text).get("location")
+        if location:
+            return build_brief_patch(
+                source_message=text,
+                operations=[
+                    {
+                        "operation": BRIEF_PATCH_SET_LOCATION,
+                        "field": "location",
+                        "value": location,
+                    }
+                ],
+                requires_clarification=False,
+            ), None
+        if any(operation.get("field") == "location" for operation in unsupported_refinement_operations(text)):
+            return None, pending_location_unsupported_answer_message(language)
+        return None, pending_clarification_unrecognized_answer_message("location", language)
+
+    if field == "stack":
+        stack_terms = java_stack_terms_in_text(text)
+        if stack_terms:
+            return build_brief_patch(
+                source_message=text,
+                operations=[
+                    {
+                        "operation": BRIEF_PATCH_REPLACE_STACK,
+                        "field": "stack",
+                        "values": stack_terms[:3],
+                    }
+                ],
+                requires_clarification=False,
+            ), None
+        unsupported_stack = [
+            operation
+            for operation in unsupported_refinement_operations(text)
+            if operation.get("field") in {"stack", "technology"}
+        ]
+        if unsupported_stack:
+            return build_brief_patch(
+                source_message=text,
+                operations=unsupported_stack,
+                requires_clarification=True,
+            ), None
+        return None, pending_clarification_unrecognized_answer_message("stack", language)
+
+    if field == "technology":
+        if explicit_java_technology_signal(text):
+            return build_brief_patch(
+                source_message=text,
+                operations=[
+                    {
+                        "operation": BRIEF_PATCH_RECONFIRM_FIELD,
+                        "field": "technology",
+                        "value": "Java",
+                    }
+                ],
+                requires_clarification=False,
+            ), None
+        if any(operation.get("field") == "technology" for operation in unsupported_refinement_operations(text)):
+            return None, unsupported_patch_message(language)
+        return None, pending_update_field_question("technology", language)
+
+    if field == "role_family":
+        if explicit_backend_role_signal(text):
+            return build_brief_patch(
+                source_message=text,
+                operations=[
+                    {
+                        "operation": BRIEF_PATCH_RECONFIRM_FIELD,
+                        "field": "role_family",
+                        "value": "Backend Developer",
+                    }
+                ],
+                requires_clarification=False,
+            ), None
+        if any(operation.get("field") == "role_family" for operation in unsupported_refinement_operations(text)):
+            return None, unsupported_patch_message(language)
+        return None, pending_update_field_question("role_family", language)
+
+    if field == "seniority":
+        seniority = detected_seniority_value(text)
+        if seniority:
+            return build_brief_patch(
+                source_message=text,
+                operations=[
+                    {
+                        "operation": BRIEF_PATCH_SET_SENIORITY,
+                        "field": "seniority",
+                        "value": seniority,
+                    }
+                ],
+                requires_clarification=False,
+            ), None
+        return None, pending_update_field_question("seniority", language)
+
+    if field == "search_depth":
+        search_depth = detected_search_depth_value(text)
+        if search_depth:
+            return build_brief_patch(
+                source_message=text,
+                operations=[
+                    {
+                        "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,
+                        "field": "search_depth",
+                        "value": search_depth,
+                    }
+                ],
+                requires_clarification=False,
+            ), None
+        return None, pending_update_field_question("search_depth", language)
+
+    return None, pending_update_unknown_field_message(language)
+
+
 async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dict:
     language = recruiter_chat_language(request)
     planner_mode = request.planner_mode or RECRUITER_CHAT_DEFAULT_PLANNER_MODE
@@ -4573,6 +5123,101 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             language,
             planner_mode,
             recruiter_chat_stack_explanation_message(language),
+        )
+
+    pending_update_field = normalize_recruiter_search_brief_field(
+        request.pending_update_field
+    )
+    if request.pending_update_field and not pending_update_field:
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            pending_update_unknown_field_message(language),
+        )
+
+    if pending_update_field:
+        if not request.draft_brief:
+            return build_recruiter_chat_response(
+                ok=True,
+                state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+                language=language,
+                assistant_message=refinement_requires_initial_brief_message(language),
+                planner_mode=planner_mode,
+            )
+
+        pending_update_patch, pending_update_message = (
+            pending_update_field_patch_from_message(
+                pending_update_field,
+                latest_user_text,
+                language,
+            )
+        )
+        if pending_update_patch is not None:
+            return build_recruiter_chat_refinement_response(
+                request,
+                language,
+                planner_mode,
+                pending_update_patch,
+                chat_text,
+            )
+
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            pending_update_message or pending_update_field_question(
+                pending_update_field,
+                language,
+            ),
+        )
+
+    pending_hypothesis = extract_pending_backend_java_hypothesis(request, language)
+    if pending_hypothesis:
+        hypothesis_intent_request = RecruiterChatIntentRequest(
+            latest_message=latest_user_text,
+            language=language,
+            context_type="pending_hypothesis",
+            pending_hypothesis=pending_hypothesis,
+            current_brief_status=(
+                current_brief_validation_context(request.draft_brief)
+                .get("normalized_brief")
+                or {}
+            ).get("brief_status"),
+            current_brief=request.draft_brief,
+        )
+        hypothesis_decision = await classify_recruiter_chat_intent_response(
+            hypothesis_intent_request
+        )
+        hypothesis_intent = hypothesis_decision.get("pending_hypothesis_intent")
+        hypothesis_confidence = hypothesis_decision.get("confidence")
+        if hypothesis_confidence in {
+            RECRUITER_INTENT_CONFIDENCE_HIGH,
+            RECRUITER_INTENT_CONFIDENCE_MEDIUM,
+        }:
+            if hypothesis_intent == RECRUITER_HYPOTHESIS_INTENT_CONFIRM:
+                return build_pending_hypothesis_confirmation_response(
+                    request,
+                    language,
+                    planner_mode,
+                    pending_hypothesis,
+                )
+            if hypothesis_intent in {
+                RECRUITER_HYPOTHESIS_INTENT_REJECT,
+                RECRUITER_HYPOTHESIS_INTENT_REFINE,
+            }:
+                return build_recruiter_chat_preserve_current_brief_response(
+                    request,
+                    language,
+                    planner_mode,
+                    pending_hypothesis_reject_message(language),
+                )
+
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            pending_hypothesis_unclear_message(language),
         )
 
     current_pending_field = pending_clarification_field(request, language)
