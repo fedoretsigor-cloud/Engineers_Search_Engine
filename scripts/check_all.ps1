@@ -112,6 +112,10 @@ Invoke-Check "P8 Conversational Search Confirmation smoke" {
     & $python scripts/smoke_p8_conversational_search_confirmation.py
 }
 
+Invoke-Check "P8.8 Conversation Hardening smoke" {
+    & $python scripts/smoke_p88_conversation_hardening.py
+}
+
 Invoke-Check "P8 Multi-wave Default smoke" {
     & $python scripts/smoke_p8_multi_wave_default.py
 }

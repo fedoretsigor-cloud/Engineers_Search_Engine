@@ -142,8 +142,8 @@ async def forbidden_planner_llm(*args, **kwargs):
     raise AssertionError("AI planner OpenAI runner must not be called by P7.5 smoke.")
 
 
-async def forbidden_wording_llm(*args, **kwargs):
-    raise AssertionError("Agent wording OpenAI runner must not be called by P7.5 smoke.")
+async def no_live_wording_llm(*args, **kwargs):
+    return None, "p75_no_live_wording_disabled"
 
 
 async def forbidden_single_wave_execution(*args, **kwargs):
@@ -671,7 +671,7 @@ async def run_async_smoke() -> None:
 
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_llm
     main.run_openai_json_planner = forbidden_planner_llm
-    main.run_openai_json_agent_wording = forbidden_wording_llm
+    main.run_openai_json_agent_wording = no_live_wording_llm
     main.execute_single_wave_structured_search_response = forbidden_single_wave_execution
     main.execute_multi_wave_structured_search_response = forbidden_multi_wave_execution
     try:

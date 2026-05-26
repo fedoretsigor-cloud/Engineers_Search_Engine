@@ -211,6 +211,7 @@ from app.schemas import (
     CandidateExplanationWordingRequest,
     ExecutionApproval,
     MultiWaveStructuredSearchRequest,
+    RecruiterChatIntentRequest,
     RecruiterChatMessage,
     RecruiterChatTurnRequest,
     SearchBrief,
@@ -296,11 +297,30 @@ STATIC_DIR = BASE_DIR / "static"
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS = 1200
 OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS = 3000
+OPENAI_RECRUITER_INTENT_MAX_COMPLETION_TOKENS = 500
 RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_RULE_BASED
 RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
 RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
 RECRUITER_CHAT_STATE_REFUSED = "refused"
 RECRUITER_CHAT_ALLOWED_MESSAGE_ROLES = {"assistant", "recruiter", "user"}
+RECRUITER_INTENT_CANDIDATE_SEARCH = "candidate_search"
+RECRUITER_INTENT_SMALL_TALK = "small_talk"
+RECRUITER_INTENT_OFF_TOPIC = "off_topic"
+RECRUITER_INTENT_UNCLEAR = "unclear"
+RECRUITER_INTENT_PROHIBITED = "prohibited"
+RECRUITER_ROLE_DOMAIN_IT_SOFTWARE = "it_software"
+RECRUITER_ROLE_DOMAIN_NON_IT = "non_it"
+RECRUITER_ROLE_DOMAIN_UNKNOWN = "unknown"
+RECRUITER_PENDING_INTENT_CONFIRM = "confirm"
+RECRUITER_PENDING_INTENT_REFINE = "refine"
+RECRUITER_PENDING_INTENT_REJECT = "reject"
+RECRUITER_PENDING_INTENT_UNCLEAR = "unclear"
+RECRUITER_INTENT_CONFIDENCE_HIGH = "high"
+RECRUITER_INTENT_CONFIDENCE_MEDIUM = "medium"
+RECRUITER_INTENT_CONFIDENCE_LOW = "low"
+RECRUITER_INTENT_PROMPT_VERSION = "phase_8_8_recruiter_intent_prompt_v0"
+RECRUITER_INTENT_VALIDATOR_VERSION = "phase_8_8_recruiter_intent_validator_v0"
+RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION = "recruiter_chat_conversation"
 RECRUITER_CHAT_PROHIBITED_RULES = [
     {
         "code": "direct_web_search_bypass",
@@ -1413,6 +1433,244 @@ def normalized_chat_control_text(text: str) -> str:
     return compact_spaces(cleaned_text)
 
 
+def safe_unsupported_role_label(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    label = compact_spaces(value)
+    if not label or len(label) > 48:
+        return None
+    if re.search(r"https?://|www\.|@|[<>]", label, flags=re.IGNORECASE):
+        return None
+    return label
+
+
+def deterministic_non_it_role_label(text: str) -> str | None:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return None
+    if re.search(r"\bdata engineer\b|\bsoftware engineer\b|\bbackend\b|\bdeveloper\b", normalized_text):
+        return None
+    if explicit_java_technology_signal(normalized_text) or java_stack_terms_in_text(normalized_text):
+        return None
+
+    non_it_patterns = [
+        (r"\bplumber\b|сантехник", "plumber"),
+        (r"\bdentist\b|стоматолог", "dentist"),
+        (r"\belectrician\b|электрик", "electrician"),
+        (r"\bmechanical engineer\b", "mechanical engineer"),
+        (r"\baccountant\b|бухгалтер", "accountant"),
+        (r"\blawyer\b|юрист", "lawyer"),
+        (r"\bdoctor\b|врач", "doctor"),
+    ]
+    for pattern, label in non_it_patterns:
+        if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+            return label
+    return None
+
+
+def recruiter_intent_default_response(
+    *,
+    intent: str = RECRUITER_INTENT_UNCLEAR,
+    role_domain: str = RECRUITER_ROLE_DOMAIN_UNKNOWN,
+    pending_action_intent: str = RECRUITER_PENDING_INTENT_UNCLEAR,
+    confidence: str = RECRUITER_INTENT_CONFIDENCE_LOW,
+    unsupported_role_label: str | None = None,
+    source: str = "deterministic_fallback",
+    fallback_reason: str | None = None,
+) -> dict:
+    response = {
+        "ok": True,
+        "intent": intent,
+        "role_domain": role_domain,
+        "pending_action_intent": pending_action_intent,
+        "confidence": confidence,
+        "unsupported_role_label": unsupported_role_label,
+        "source": source,
+        "prompt_version": RECRUITER_INTENT_PROMPT_VERSION,
+        "validator_version": RECRUITER_INTENT_VALIDATOR_VERSION,
+    }
+    if fallback_reason:
+        response["fallback_reason"] = fallback_reason
+    return response
+
+
+def validate_recruiter_intent_output(
+    llm_output: dict | None,
+) -> tuple[dict | None, str | None]:
+    if not isinstance(llm_output, dict):
+        return None, "llm_intent_wrong_shape"
+
+    allowed_intents = {
+        RECRUITER_INTENT_CANDIDATE_SEARCH,
+        RECRUITER_INTENT_SMALL_TALK,
+        RECRUITER_INTENT_OFF_TOPIC,
+        RECRUITER_INTENT_UNCLEAR,
+        RECRUITER_INTENT_PROHIBITED,
+    }
+    allowed_role_domains = {
+        RECRUITER_ROLE_DOMAIN_IT_SOFTWARE,
+        RECRUITER_ROLE_DOMAIN_NON_IT,
+        RECRUITER_ROLE_DOMAIN_UNKNOWN,
+    }
+    allowed_pending_intents = {
+        RECRUITER_PENDING_INTENT_CONFIRM,
+        RECRUITER_PENDING_INTENT_REFINE,
+        RECRUITER_PENDING_INTENT_REJECT,
+        RECRUITER_PENDING_INTENT_UNCLEAR,
+    }
+    allowed_confidence = {
+        RECRUITER_INTENT_CONFIDENCE_HIGH,
+        RECRUITER_INTENT_CONFIDENCE_MEDIUM,
+        RECRUITER_INTENT_CONFIDENCE_LOW,
+    }
+
+    intent = normalize_text_value(llm_output.get("intent")) or RECRUITER_INTENT_UNCLEAR
+    role_domain = (
+        normalize_text_value(llm_output.get("role_domain"))
+        or RECRUITER_ROLE_DOMAIN_UNKNOWN
+    )
+    pending_action_intent = (
+        normalize_text_value(llm_output.get("pending_action_intent"))
+        or RECRUITER_PENDING_INTENT_UNCLEAR
+    )
+    confidence = (
+        normalize_text_value(llm_output.get("confidence"))
+        or RECRUITER_INTENT_CONFIDENCE_LOW
+    )
+    unsupported_role_label = safe_unsupported_role_label(
+        llm_output.get("unsupported_role_label")
+    )
+
+    if intent not in allowed_intents:
+        return None, "llm_intent_unknown_intent"
+    if role_domain not in allowed_role_domains:
+        return None, "llm_intent_unknown_role_domain"
+    if pending_action_intent not in allowed_pending_intents:
+        return None, "llm_intent_unknown_pending_action_intent"
+    if confidence not in allowed_confidence:
+        return None, "llm_intent_unknown_confidence"
+    if role_domain == RECRUITER_ROLE_DOMAIN_NON_IT and not unsupported_role_label:
+        return None, "llm_intent_missing_safe_role_label"
+
+    return recruiter_intent_default_response(
+        intent=intent,
+        role_domain=role_domain,
+        pending_action_intent=pending_action_intent,
+        confidence=confidence,
+        unsupported_role_label=unsupported_role_label,
+        source="llm_assisted",
+    ), None
+
+
+def recruiter_chat_intent_system_prompt() -> str:
+    return (
+        "You classify a recruiter's latest message for a human-approved IT sourcing "
+        "assistant. Return one JSON object only. You may classify intent, role domain, "
+        "and pending-action reply intent. You must not build search briefs, create "
+        "queries, browse, search, access LinkedIn, message candidates, execute tools, "
+        "or act on accounts."
+    )
+
+
+def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> str:
+    return json.dumps(
+        {
+            "task": "Classify only the latest recruiter message.",
+            "required_output": {
+                "intent": "candidate_search | small_talk | off_topic | unclear | prohibited",
+                "role_domain": "it_software | non_it | unknown",
+                "pending_action_intent": "confirm | refine | reject | unclear",
+                "unsupported_role_label": "short safe role label or null",
+                "confidence": "high | medium | low",
+            },
+            "latest_message": request.latest_message,
+            "language_hint": request.language,
+            "context": {
+                "context_type": request.context_type,
+                "pending_action_type": request.pending_action_type,
+                "current_brief_status": request.current_brief_status,
+                "supported_scope": (
+                    "IT/software sourcing; current implemented baseline is "
+                    "Backend Developer, Java, Ukraine."
+                ),
+            },
+            "rules": [
+                "Classify clear non-IT professions such as plumber or dentist as candidate_search plus non_it.",
+                "Do not classify Data Engineer, Software Engineer, Backend Developer, or Java Developer as non_it.",
+                "For pending action start_search, classify confirmations such as Confirm, yes, or Russian equivalents as confirm.",
+                "For pending action start_search, classify change/refinement requests as refine and no/not now as reject.",
+                "Use unclear when confidence is low.",
+                "Return JSON only.",
+            ],
+            "hard_boundaries": [
+                "No autonomous execution.",
+                "No direct web-search bypass.",
+                "No LinkedIn login, scraping, or restriction bypass.",
+                "No candidate messaging.",
+                "No account actions.",
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+async def run_openai_json_recruiter_intent(
+    request: RecruiterChatIntentRequest,
+) -> tuple[dict | None, str | None]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("OPENAI_MODEL")
+    if not api_key or not model:
+        return None, AGENT_WORDING_FALLBACK_NOT_CONFIGURED
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": recruiter_chat_intent_system_prompt()},
+            {"role": "user", "content": recruiter_chat_intent_user_prompt(request)},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": OPENAI_RECRUITER_INTENT_MAX_COMPLETION_TOKENS,
+        "response_format": {"type": "json_object"},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=AGENT_WORDING_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                os.getenv("OPENAI_CHAT_COMPLETIONS_URL", OPENAI_CHAT_COMPLETIONS_URL),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+    except httpx.TimeoutException:
+        return None, "openai_intent_timeout"
+    except httpx.HTTPStatusError as exc:
+        return None, f"openai_intent_http_{exc.response.status_code}"
+    except httpx.HTTPError:
+        return None, "openai_intent_request_failed"
+
+    data = response.json()
+    content = (
+        data.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content")
+    )
+    if not content:
+        return None, "openai_intent_empty_content"
+
+    try:
+        parsed_content = json.loads(content)
+    except json.JSONDecodeError:
+        return None, "openai_intent_invalid_json"
+    if not isinstance(parsed_content, dict):
+        return None, "openai_intent_wrong_shape"
+
+    return parsed_content, None
+
+
 def is_greeting_only_chat_message(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     if not normalized_text:
@@ -1545,6 +1803,10 @@ def detect_recruiter_chat_small_talk_intent(text: str) -> bool:
 
     small_talk_phrases = {
         "how are you",
+        "what s up",
+        "whats up",
+        "what is up",
+        "sup",
         "how s it going",
         "are you there",
         "you there",
@@ -1571,6 +1833,216 @@ def detect_recruiter_chat_small_talk_intent(text: str) -> bool:
         r"^(спасибо|спс|благодарю) (большое|за помощь)$",
     ]
     return text_matches_any_pattern(normalized_text, gratitude_patterns)
+
+
+def deterministic_pending_action_intent(text: str, pending_action_type: str | None) -> str:
+    if pending_action_type != "start_search":
+        return RECRUITER_PENDING_INTENT_UNCLEAR
+
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return RECRUITER_PENDING_INTENT_UNCLEAR
+
+    confirmation_phrases = {
+        "confirm",
+        "confirmed",
+        "i confirm",
+        "yes confirm",
+        "yes confirmed",
+        "yes",
+        "y",
+        "ok",
+        "okay",
+        "go ahead",
+        "proceed",
+        "run it",
+        "run search",
+        "start",
+        "start search",
+        "да",
+        "ок",
+        "окей",
+        "подтверждаю",
+        "да подтверждаю",
+        "подтверждаю запуск",
+        "запускай",
+        "старт",
+    }
+    if normalized_text in confirmation_phrases:
+        return RECRUITER_PENDING_INTENT_CONFIRM
+
+    if re.search(r"\b(confirm|confirmed)\b", normalized_text):
+        return RECRUITER_PENDING_INTENT_CONFIRM
+    if re.search(r"подтвержд|запускай|старт", normalized_text, flags=re.IGNORECASE):
+        return RECRUITER_PENDING_INTENT_CONFIRM
+
+    rejection_phrases = {
+        "no",
+        "not now",
+        "stop",
+        "cancel",
+        "нет",
+        "не сейчас",
+        "отмена",
+        "стоп",
+    }
+    if normalized_text in rejection_phrases:
+        return RECRUITER_PENDING_INTENT_REJECT
+
+    if re.search(r"\b(change|refine|edit|adjust|replace|add|remove|without|wait)\b", normalized_text):
+        return RECRUITER_PENDING_INTENT_REFINE
+    if re.search(r"измени|поменяй|уточни|добавь|убери|без|подожди", normalized_text, flags=re.IGNORECASE):
+        return RECRUITER_PENDING_INTENT_REFINE
+
+    return RECRUITER_PENDING_INTENT_UNCLEAR
+
+
+def deterministic_recruiter_intent(
+    request: RecruiterChatIntentRequest,
+    *,
+    fallback_reason: str | None = None,
+) -> dict:
+    text = request.latest_message
+    pending_action_intent = deterministic_pending_action_intent(
+        text,
+        request.pending_action_type,
+    )
+    unsupported_role_label = deterministic_non_it_role_label(text)
+
+    if detect_recruiter_chat_prohibited_requests(text):
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_PROHIBITED,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    if unsupported_role_label:
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_CANDIDATE_SEARCH,
+            role_domain=RECRUITER_ROLE_DOMAIN_NON_IT,
+            pending_action_intent=pending_action_intent,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            unsupported_role_label=unsupported_role_label,
+            fallback_reason=fallback_reason,
+        )
+
+    if pending_action_intent != RECRUITER_PENDING_INTENT_UNCLEAR:
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_CANDIDATE_SEARCH,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    if detect_recruiter_chat_small_talk_intent(text) or is_greeting_only_chat_message(text):
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_SMALL_TALK,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    if detect_recruiter_chat_off_topic_intent(text):
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_OFF_TOPIC,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    if detect_recruiter_chat_unclear_request(text):
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_UNCLEAR,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    role_domain = RECRUITER_ROLE_DOMAIN_UNKNOWN
+    if has_sourcing_or_recruiter_context_signal(text):
+        role_domain = (
+            RECRUITER_ROLE_DOMAIN_IT_SOFTWARE
+            if (
+                explicit_backend_role_signal(text)
+                or explicit_java_technology_signal(text)
+                or java_stack_terms_in_text(text)
+            )
+            else RECRUITER_ROLE_DOMAIN_UNKNOWN
+        )
+
+    return recruiter_intent_default_response(
+        intent=(
+            RECRUITER_INTENT_CANDIDATE_SEARCH
+            if has_sourcing_or_recruiter_context_signal(text)
+            else RECRUITER_INTENT_UNCLEAR
+        ),
+        role_domain=role_domain,
+        pending_action_intent=pending_action_intent,
+        confidence=RECRUITER_INTENT_CONFIDENCE_MEDIUM,
+        fallback_reason=fallback_reason,
+    )
+
+
+def should_use_recruiter_intent_classifier(
+    request: RecruiterChatIntentRequest,
+) -> bool:
+    text = request.latest_message
+    if request.context_type == "pending_action" or request.pending_action_type:
+        return True
+    if detect_recruiter_chat_prohibited_requests(text):
+        return False
+    if explicit_backend_role_signal(text) and explicit_java_technology_signal(text):
+        return False
+    if deterministic_non_it_role_label(text):
+        return True
+    normalized_text = normalized_chat_control_text(text)
+    return bool(
+        normalized_text
+        and (
+            detect_recruiter_chat_small_talk_intent(text)
+            or detect_recruiter_chat_unclear_request(text)
+            or detect_recruiter_chat_off_topic_intent(text)
+            or re.search(r"\b(role|told you|i said)\b|роль|говорил|сказал", normalized_text)
+            or not has_sourcing_or_recruiter_context_signal(text)
+        )
+    )
+
+
+async def classify_recruiter_chat_intent_response(
+    request: RecruiterChatIntentRequest,
+) -> dict:
+    deterministic_fast_path = deterministic_recruiter_intent(request)
+    if deterministic_fast_path["confidence"] == RECRUITER_INTENT_CONFIDENCE_HIGH:
+        return deterministic_fast_path
+
+    if not should_use_recruiter_intent_classifier(request):
+        deterministic_fast_path["fallback_reason"] = "classifier_not_needed"
+        return deterministic_fast_path
+
+    llm_output, error = await run_openai_json_recruiter_intent(request)
+    if error or llm_output is None:
+        return deterministic_recruiter_intent(
+            request,
+            fallback_reason=error or "openai_intent_empty_output",
+        )
+
+    validated_output, validation_error = validate_recruiter_intent_output(llm_output)
+    if validation_error or validated_output is None:
+        return deterministic_recruiter_intent(
+            request,
+            fallback_reason=validation_error or "llm_intent_invalid",
+        )
+
+    if validated_output["confidence"] == RECRUITER_INTENT_CONFIDENCE_LOW:
+        return deterministic_recruiter_intent(
+            request,
+            fallback_reason="llm_intent_low_confidence",
+        )
+
+    return validated_output
 
 
 def detect_recruiter_chat_unclear_request(text: str) -> bool:
@@ -2732,6 +3204,8 @@ def build_recruiter_chat_preserve_current_brief_response(
     language: str,
     planner_mode: str,
     assistant_message: str,
+    wording_provenance: dict | None = None,
+    llm_warnings: list[str] | None = None,
 ) -> dict:
     context = current_brief_context_for_language(request.draft_brief, language)
     return build_recruiter_chat_response(
@@ -2745,6 +3219,8 @@ def build_recruiter_chat_preserve_current_brief_response(
         assistant_message=assistant_message,
         brief_changed=False,
         stale_state_should_clear=False,
+        wording_provenance=wording_provenance,
+        llm_warnings=llm_warnings,
     )
 
 
@@ -2833,6 +3309,177 @@ def recruiter_chat_unclear_request_message(language: str) -> str:
     )
 
 
+def recruiter_chat_unsupported_role_message(language: str, role_label: str | None) -> str:
+    role_context = f' "{role_label}"' if role_label else ""
+    if language == "ru":
+        return (
+            f"Текущая версия помогает с IT/software candidate search;{role_context} "
+            "вне поддерживаемой области. Напиши IT-роль, основную технологию, "
+            "локацию и 1-3 сигнала стека."
+        )
+    return (
+        f'This version helps with IT/software candidate search;{role_context} '
+        "is outside the supported search scope. Tell me an IT role, main "
+        "technology, location, and 1-3 stack signals."
+    )
+
+
+def recruiter_chat_conversation_wording_payload(
+    *,
+    message_type: str,
+    language: str,
+    latest_user_text: str,
+    deterministic_message: str,
+    request: RecruiterChatTurnRequest,
+) -> dict:
+    context = current_brief_validation_context(request.draft_brief)
+    normalized_brief = context.get("normalized_brief") or {}
+    payload = {
+        "wording_use_case": RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION,
+        "message_type": message_type,
+        "language": language,
+        "latest_user_message": latest_user_text[:500],
+        "deterministic_message": deterministic_message,
+        "current_search_state": normalized_brief.get("brief_status") or "none",
+        "allowed_meaning": [
+            "Answer only the current safe chat turn.",
+            "Preserve the current search summary and pending action state.",
+            "Gently guide the recruiter back to candidate search when useful.",
+        ],
+        "forbidden_claims": [
+            "search started",
+            "results exist",
+            "LinkedIn opened or inspected",
+            "candidate messaging",
+            "approval bypass",
+            "autonomous execution",
+        ],
+        "hard_boundaries": agent_wording_hard_boundaries(),
+    }
+    payload["allowed_numbers"] = sorted(
+        agent_wording_allowed_numbers(payload) | {"1", "3"}
+    )
+    return payload
+
+
+def recruiter_chat_conversation_wording_has_disallowed_visible_content(text: str) -> bool:
+    disallowed_patterns = [
+        r"\bbuild\s+plan\b",
+        r"\bprepare\s+search\b",
+        r"\bsearch\s+plan\b",
+        r"\bqueryplan\b",
+        r"\bbackend\s+planner\b",
+        r"\bfingerprint\b",
+        r"\bruntime\b",
+        r"\bapproval\b",
+        r"\btavily\b",
+        r"\bopenai\b",
+        r"\blinkedin\b.{0,40}\b(opened|viewed|visited|checked|inspected)\b",
+    ]
+    return any(re.search(pattern, text or "", re.IGNORECASE) for pattern in disallowed_patterns)
+
+
+def validate_recruiter_chat_conversation_wording_output(
+    llm_output: dict,
+    *,
+    language: str,
+    allowed_numbers: set[str],
+) -> tuple[str | None, list[str], str | None]:
+    validated_output, error = validate_agent_wording_output(
+        llm_output,
+        language=language,
+        allowed_numbers=allowed_numbers,
+        wording_use_case=RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION,
+        existing_limitation_kinds=set(),
+    )
+    if error:
+        return None, [], error
+
+    message = validated_output["message"]
+    if len(message) > 360:
+        return None, [], "llm_output_too_long"
+    if "\n" in message or "\r" in message:
+        return None, [], "llm_output_multiline_not_allowed"
+    if recruiter_chat_conversation_wording_has_disallowed_visible_content(message):
+        return None, [], "llm_output_conversation_disallowed_visible_content"
+    return message, validated_output.get("warnings") or [], None
+
+
+async def apply_llm_wording_to_recruiter_chat_conversation(
+    *,
+    request: RecruiterChatTurnRequest,
+    language: str,
+    latest_user_text: str,
+    deterministic_message: str,
+    message_type: str,
+) -> tuple[str, dict[str, str], list[str]]:
+    if not agent_wording_has_openai_config():
+        return (
+            deterministic_message,
+            build_agent_wording_provenance(
+                message_type=message_type,
+                language=language,
+                wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+                fallback_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+                no_call_reason=AGENT_WORDING_FALLBACK_NOT_CONFIGURED,
+            ),
+            [],
+        )
+
+    payload = recruiter_chat_conversation_wording_payload(
+        message_type=message_type,
+        language=language,
+        latest_user_text=latest_user_text,
+        deterministic_message=deterministic_message,
+        request=request,
+    )
+    model = normalize_text_value(os.getenv("OPENAI_MODEL") or "") or None
+    llm_output, error = await run_openai_json_agent_wording(payload)
+    if error or llm_output is None:
+        return (
+            deterministic_message,
+            build_agent_wording_provenance(
+                message_type=message_type,
+                language=language,
+                wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+                fallback_reason=error or "openai_conversation_wording_failed",
+                model=model,
+            ),
+            [],
+        )
+
+    message, warnings, validation_error = (
+        validate_recruiter_chat_conversation_wording_output(
+            llm_output,
+            language=language,
+            allowed_numbers=set(payload["allowed_numbers"]),
+        )
+    )
+    if validation_error or not message:
+        return (
+            deterministic_message,
+            build_agent_wording_provenance(
+                message_type=message_type,
+                language=language,
+                wording_mode=AGENT_WORDING_MODE_DETERMINISTIC_FALLBACK,
+                fallback_reason=validation_error or "llm_output_invalid",
+                model=model,
+            ),
+            [],
+        )
+
+    return (
+        message,
+        build_agent_wording_provenance(
+            message_type=message_type,
+            language=language,
+            wording_mode=AGENT_WORDING_MODE_LLM_ASSISTED,
+            model=model,
+        ),
+        warnings,
+    )
+
+
 def recruiter_chat_stack_explanation_message(language: str) -> str:
     if language == "ru":
         return (
@@ -2913,6 +3560,92 @@ def current_brief_context_for_language(
     if normalized_brief:
         context["next_question"] = one_clarifying_question(normalized_brief, language)
     return context
+
+
+def search_brief_readiness_evidence(
+    *,
+    normalized_brief: dict,
+    latest_user_text: str,
+    user_text: str,
+    existing_brief: SearchBrief | None,
+) -> dict:
+    if normalized_brief.get("brief_status") != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        return {"ready_evidence": "sufficient", "missing_evidence": [], "reason": None}
+
+    existing_context = current_brief_validation_context(existing_brief)
+    existing_normalized = existing_context.get("normalized_brief") or {}
+    existing_is_ready = (
+        existing_context.get("ok")
+        and existing_normalized.get("brief_status") == SEARCH_BRIEF_STATUS_READY_FOR_PLANNING
+    )
+    if (
+        existing_is_ready
+        and normalized_brief_state_payload(existing_normalized)
+        == normalized_brief_state_payload(normalized_brief)
+    ):
+        return {
+            "ready_evidence": "sufficient",
+            "missing_evidence": [],
+            "reason": "unchanged_existing_ready_brief",
+        }
+
+    combined_user_text = f"{user_text}\n{latest_user_text}"
+    existing_payload = normalized_brief_state_payload(existing_normalized)
+    candidate_payload = normalized_brief_state_payload(normalized_brief)
+
+    field_evidence = {
+        "role_family": explicit_backend_role_signal(combined_user_text),
+        "technology": explicit_java_technology_signal(combined_user_text),
+        "location": explicit_ukraine_location_signal(combined_user_text),
+        "stack": bool(deterministic_chat_brief_hints(combined_user_text).get("stack")),
+    }
+    if existing_is_ready:
+        for field_name in field_evidence:
+            if existing_payload.get(field_name) == candidate_payload.get(field_name):
+                field_evidence[field_name] = True
+
+    missing_evidence = [
+        field_name
+        for field_name in ("role_family", "technology", "location", "stack")
+        if not field_evidence[field_name]
+    ]
+    latest_has_sourcing_signal = has_sourcing_or_recruiter_context_signal(latest_user_text)
+    latest_is_noise = detect_recruiter_chat_unclear_request(latest_user_text)
+
+    if missing_evidence:
+        reason = "weak_llm_only_field"
+        if latest_is_noise and not latest_has_sourcing_signal:
+            reason = "noisy_latest_turn"
+        elif not has_sourcing_or_recruiter_context_signal(combined_user_text):
+            reason = "no_sourcing_signal"
+        return {
+            "ready_evidence": "insufficient",
+            "missing_evidence": missing_evidence,
+            "reason": reason,
+        }
+
+    return {"ready_evidence": "sufficient", "missing_evidence": [], "reason": None}
+
+
+def downgraded_brief_for_insufficient_evidence(
+    normalized_brief: dict,
+    missing_evidence: list[str],
+) -> dict:
+    downgraded = dict(normalized_brief)
+    downgraded["brief_status"] = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
+    downgraded["missing_fields"] = missing_evidence
+    downgraded["clarifying_questions"] = []
+    if "role_family" in missing_evidence:
+        downgraded["role_family"] = None
+    if "technology" in missing_evidence:
+        downgraded["technology"] = None
+        downgraded["must_have"] = []
+    if "location" in missing_evidence:
+        downgraded["location"] = None
+    if "stack" in missing_evidence:
+        downgraded["stack"] = []
+        downgraded["nice_to_have"] = []
+    return downgraded
 
 
 def refinement_requires_initial_brief_message(language: str) -> str:
@@ -3468,20 +4201,175 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             recruiter_chat_stack_explanation_message(language),
         )
 
-    if detect_recruiter_chat_small_talk_intent(latest_user_text):
+    intent_request = RecruiterChatIntentRequest(
+        latest_message=latest_user_text,
+        language=language,
+        context_type="recruiter_chat",
+        current_brief_status=(
+            current_brief_validation_context(request.draft_brief)
+            .get("normalized_brief")
+            or {}
+        ).get("brief_status"),
+    )
+    intent_decision = None
+    if (
+        not pending_clarification_field(request, language)
+        and should_use_recruiter_intent_classifier(intent_request)
+    ):
+        intent_decision = await classify_recruiter_chat_intent_response(intent_request)
+
+    if (
+        intent_decision
+        and intent_decision.get("role_domain") == RECRUITER_ROLE_DOMAIN_NON_IT
+        and intent_decision.get("confidence") == RECRUITER_INTENT_CONFIDENCE_HIGH
+    ):
+        deterministic_message = recruiter_chat_unsupported_role_message(
+            language,
+            intent_decision.get("unsupported_role_label"),
+        )
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="unsupported_non_it_role",
+            )
+        )
         return build_recruiter_chat_preserve_current_brief_response(
             request,
             language,
             planner_mode,
-            recruiter_chat_small_talk_message(request, latest_user_text, language),
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
+        )
+
+    if (
+        intent_decision
+        and intent_decision.get("intent") == RECRUITER_INTENT_SMALL_TALK
+        and intent_decision.get("confidence") in {
+            RECRUITER_INTENT_CONFIDENCE_HIGH,
+            RECRUITER_INTENT_CONFIDENCE_MEDIUM,
+        }
+    ):
+        deterministic_message = recruiter_chat_small_talk_message(
+            request,
+            latest_user_text,
+            language,
+        )
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="small_talk",
+            )
+        )
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
+        )
+
+    if (
+        intent_decision
+        and intent_decision.get("intent") == RECRUITER_INTENT_OFF_TOPIC
+        and intent_decision.get("confidence") in {
+            RECRUITER_INTENT_CONFIDENCE_HIGH,
+            RECRUITER_INTENT_CONFIDENCE_MEDIUM,
+        }
+    ):
+        deterministic_message = recruiter_chat_off_topic_message(language)
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="off_topic",
+            )
+        )
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
+        )
+
+    if (
+        intent_decision
+        and intent_decision.get("intent") == RECRUITER_INTENT_UNCLEAR
+        and intent_decision.get("confidence") == RECRUITER_INTENT_CONFIDENCE_HIGH
+        and not (request.draft_brief and is_refinement_like_chat_message(latest_user_text))
+    ):
+        deterministic_message = recruiter_chat_unclear_request_message(language)
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="unclear",
+            )
+        )
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
+        )
+
+    if detect_recruiter_chat_small_talk_intent(latest_user_text):
+        deterministic_message = recruiter_chat_small_talk_message(
+            request,
+            latest_user_text,
+            language,
+        )
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="small_talk",
+            )
+        )
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
         )
 
     if detect_recruiter_chat_off_topic_intent(latest_user_text):
+        deterministic_message = recruiter_chat_off_topic_message(language)
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="off_topic",
+            )
+        )
         return build_recruiter_chat_preserve_current_brief_response(
             request,
             language,
             planner_mode,
-            recruiter_chat_off_topic_message(language),
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
         )
 
     if request.draft_brief:
@@ -3548,11 +4436,23 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     if detect_recruiter_chat_unclear_request(latest_user_text) and not (
         request.draft_brief and is_refinement_like_chat_message(latest_user_text)
     ):
+        deterministic_message = recruiter_chat_unclear_request_message(language)
+        assistant_message, wording_provenance, llm_warnings = (
+            await apply_llm_wording_to_recruiter_chat_conversation(
+                request=request,
+                language=language,
+                latest_user_text=latest_user_text,
+                deterministic_message=deterministic_message,
+                message_type="unclear",
+            )
+        )
         return build_recruiter_chat_preserve_current_brief_response(
             request,
             language,
             planner_mode,
-            recruiter_chat_unclear_request_message(language),
+            assistant_message,
+            wording_provenance,
+            llm_warnings,
         )
 
     ambiguity = detect_recruiter_chat_ambiguity_or_contradiction(latest_user_text, language)
@@ -3596,6 +4496,53 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     brief_changed = normalized_brief_state_payload(
         current_brief_context_for_language(request.draft_brief, language)["normalized_brief"]
     ) != normalized_brief_state_payload(normalized_brief)
+
+    readiness_evidence = search_brief_readiness_evidence(
+        normalized_brief=normalized_brief,
+        latest_user_text=latest_user_text,
+        user_text=user_text,
+        existing_brief=request.draft_brief,
+    )
+    if readiness_evidence["ready_evidence"] == "insufficient":
+        missing_evidence = readiness_evidence.get("missing_evidence") or []
+        if (
+            readiness_evidence.get("reason") in {"noisy_latest_turn", "no_sourcing_signal"}
+            and not has_sourcing_or_recruiter_context_signal(user_text)
+        ):
+            deterministic_message = recruiter_chat_unclear_request_message(language)
+            assistant_message, wording_provenance, llm_warnings = (
+                await apply_llm_wording_to_recruiter_chat_conversation(
+                    request=request,
+                    language=language,
+                    latest_user_text=latest_user_text,
+                    deterministic_message=deterministic_message,
+                    message_type="unclear",
+                )
+            )
+            return build_recruiter_chat_preserve_current_brief_response(
+                request,
+                language,
+                planner_mode,
+                assistant_message,
+                wording_provenance,
+                llm_warnings,
+            )
+
+        downgraded_brief = downgraded_brief_for_insufficient_evidence(
+            normalized_brief,
+            missing_evidence,
+        )
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=downgraded_brief,
+            validation_errors=[],
+            next_question=one_clarifying_question(downgraded_brief, language),
+            planner_mode=planner_mode,
+            brief_changed=brief_changed,
+            stale_state_should_clear=brief_changed,
+        )
 
     if validation_errors:
         return build_recruiter_chat_response(
@@ -4079,6 +5026,12 @@ def validate_search_brief_endpoint(request: SearchBrief) -> dict:
 
 async def create_recruiter_chat_turn(request: RecruiterChatTurnRequest) -> dict:
     return await recruiter_chat_turn_response(request)
+
+
+async def classify_recruiter_chat_intent(
+    request: RecruiterChatIntentRequest,
+) -> dict:
+    return await classify_recruiter_chat_intent_response(request)
 
 
 async def create_agent_plan(request: AgentPlanRequest) -> dict:
@@ -4714,6 +5667,7 @@ app.include_router(
             validate_structured_search=validate_structured_search,
             validate_search_brief_endpoint=validate_search_brief_endpoint,
             create_recruiter_chat_turn=create_recruiter_chat_turn,
+            classify_recruiter_chat_intent=classify_recruiter_chat_intent,
             create_agent_plan=create_agent_plan,
             get_agent_tools=get_agent_tools,
             create_query_plan=create_query_plan,

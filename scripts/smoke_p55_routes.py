@@ -21,6 +21,7 @@ def expected_route_specs() -> list[tuple[str, str, str]]:
         ("POST", "/api/structured-search/validate", "validate_structured_search"),
         ("POST", "/api/search-brief/validate", "validate_search_brief_endpoint"),
         ("POST", "/api/recruiter-chat/turn", "create_recruiter_chat_turn"),
+        ("POST", "/api/recruiter-chat/intent", "classify_recruiter_chat_intent"),
         ("POST", "/api/agent/plan", "create_agent_plan"),
         ("GET", "/api/agent/tools", "get_agent_tools"),
         ("POST", "/api/query-plan", "create_query_plan"),
@@ -59,6 +60,7 @@ def assert_main_compatibility(main_module) -> None:
         "validate_structured_search",
         "validate_search_brief_endpoint",
         "create_recruiter_chat_turn",
+        "classify_recruiter_chat_intent",
         "create_agent_plan",
         "get_agent_tools",
         "create_query_plan",
@@ -71,6 +73,7 @@ def assert_main_compatibility(main_module) -> None:
         "search",
         "run_query_plan_wave",
         "run_openai_json_recruiter_chat",
+        "run_openai_json_recruiter_intent",
         "run_openai_json_planner",
         "run_openai_json_agent_wording",
     ]
@@ -132,6 +135,21 @@ def assert_no_network_http_routes(main_module) -> None:
     assert query_plan_payload["ok"] is True
     assert len(query_plan_payload["query_plan"]["queries"]) == 10
     assert query_plan_payload["plan_fingerprint"]
+
+    intent_response = client.post(
+        "/api/recruiter-chat/intent",
+        json={
+            "latest_message": "Confirm",
+            "language": "en",
+            "context_type": "pending_action",
+            "pending_action_type": "start_search",
+            "current_brief_status": "ready_for_planning",
+        },
+    )
+    assert intent_response.status_code == 200
+    intent_payload = intent_response.json()
+    assert intent_payload["ok"] is True
+    assert intent_payload["pending_action_intent"] == "confirm"
 
     legacy_search_response = client.post(
         "/api/search",

@@ -92,11 +92,41 @@ async def fake_recruiter_chat_llm(
     }, []
 
 
+async def fake_recruiter_intent_llm(
+    request: main.RecruiterChatIntentRequest,
+) -> tuple[dict, str | None]:
+    text = request.latest_message.lower()
+    if "how are you" in text or "what" in text and "up" in text or "thanks" in text:
+        intent = "small_talk"
+    elif "weather" in text or "погод" in text:
+        intent = "off_topic"
+    elif "долр" in text or "zzzz" in text:
+        intent = "unclear"
+    else:
+        intent = "candidate_search"
+    return {
+        "intent": intent,
+        "role_domain": "unknown",
+        "pending_action_intent": "unclear",
+        "unsupported_role_label": None,
+        "confidence": "high",
+    }, None
+
+
 async def fake_onboarding_wording(payload: dict) -> tuple[dict, str | None]:
     WORDING_PAYLOADS.append(payload)
-    assert payload["wording_use_case"] == "recruiter_chat_onboarding"
+    assert payload["wording_use_case"] in {
+        "recruiter_chat_onboarding",
+        main.RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION,
+    }
     assert "messages" not in payload
     assert "transcript" not in payload
+    if payload["wording_use_case"] == main.RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION:
+        return {
+            "message": payload["deterministic_message"],
+            "warnings": [],
+            "limitations": [],
+        }, None
     if payload["language"] == "ru":
         return {
             "message": (
@@ -171,7 +201,7 @@ async def assert_small_talk_route() -> None:
         chat_request("how are you?", language="en")
     )
     assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
-    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm + 1
     assert clean_en["state"] == "needs_clarification"
     assert clean_en["normalized_brief"] is None
     assert clean_en["can_build_plan"] is False
@@ -185,7 +215,7 @@ async def assert_small_talk_route() -> None:
         chat_request("как дела?", language="ru")
     )
     assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
-    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm + 2
     assert clean_ru["normalized_brief"] is None
     assert clean_ru["brief_changed"] is False
     assert clean_ru["stale_state_should_clear"] is False
@@ -196,7 +226,7 @@ async def assert_small_talk_route() -> None:
         chat_request("thanks", language="en", draft_brief=missing_stack_brief())
     )
     assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
-    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm + 3
     assert pending["state"] == "needs_clarification"
     assert pending["normalized_brief"]["stack"] == []
     assert pending["brief_changed"] is False
@@ -207,7 +237,7 @@ async def assert_small_talk_route() -> None:
         chat_request("are you there?", language="en", draft_brief=ready_brief())
     )
     assert len(RECRUITER_LLM_CALLS) == before_recruiter_llm
-    assert len(WORDING_PAYLOADS) == before_wording_llm
+    assert len(WORDING_PAYLOADS) == before_wording_llm + 4
     assert ready["state"] == "ready_for_planning"
     assert ready["can_build_plan"] is True
     assert ready["build_plan_action"]["endpoint"] == "/api/agent/query-plan"
@@ -432,8 +462,10 @@ async def run_smoke() -> None:
         "OPENAI_MODEL": os.environ.get("OPENAI_MODEL"),
     }
     original_chat_llm = main.run_openai_json_recruiter_chat
+    original_intent_llm = main.run_openai_json_recruiter_intent
     original_wording_llm = main.run_openai_json_agent_wording
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_llm
+    main.run_openai_json_recruiter_intent = fake_recruiter_intent_llm
 
     try:
         await assert_onboarding_overlay_and_fallback()
@@ -445,6 +477,7 @@ async def run_smoke() -> None:
         assert_frontend_static_contract()
     finally:
         main.run_openai_json_recruiter_chat = original_chat_llm
+        main.run_openai_json_recruiter_intent = original_intent_llm
         main.run_openai_json_agent_wording = original_wording_llm
         for key, value in original_env.items():
             if value is None:

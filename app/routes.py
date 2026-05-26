@@ -14,6 +14,7 @@ from app.schemas import (
     AgentRuntimeTurnRequest,
     CandidateExplanationWordingRequest,
     MultiWaveStructuredSearchRequest,
+    RecruiterChatIntentRequest,
     RecruiterChatTurnRequest,
     SearchBrief,
     SearchRequest,
@@ -28,6 +29,10 @@ class RouteDependencies:
     validate_structured_search: Callable[[StructuredSearchRequest], dict]
     validate_search_brief_endpoint: Callable[[SearchBrief], dict]
     create_recruiter_chat_turn: Callable[[RecruiterChatTurnRequest], Awaitable[dict]]
+    classify_recruiter_chat_intent: Callable[
+        [RecruiterChatIntentRequest],
+        Awaitable[dict],
+    ]
     create_agent_plan: Callable[[AgentPlanRequest], Awaitable[dict]]
     get_agent_tools: Callable[[], dict]
     create_query_plan: Callable[[StructuredSearchRequest], dict]
@@ -71,6 +76,12 @@ def create_router(deps: RouteDependencies, static_dir: Path) -> APIRouter:
         request: RecruiterChatTurnRequest,
     ) -> dict:
         return await deps.create_recruiter_chat_turn(request)
+
+    @router.post("/api/recruiter-chat/intent")
+    async def classify_recruiter_chat_intent(
+        request: RecruiterChatIntentRequest,
+    ) -> dict:
+        return await deps.classify_recruiter_chat_intent(request)
 
     @router.post("/api/agent/plan")
     async def create_agent_plan(request: AgentPlanRequest) -> dict:

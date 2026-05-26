@@ -43,6 +43,7 @@ def assert_frontend_confirmation_path() -> None:
     source = (PROJECT_DIR / "app" / "static" / "app.js").read_text(encoding="utf-8")
     assert "let searchConfirmationInFlight = false;" in source
     assert "function currentSearchRunConfirmationIdentity()" in source
+    assert 'const RECRUITER_CHAT_INTENT_ENDPOINT = "/api/recruiter-chat/intent";' in source
     assert 'type: "start_search"' in source
     assert "runAction: currentRunSearchAction()" in source
     assert "executionMode: currentRunSearchExecutionMode()" in source
@@ -51,6 +52,7 @@ def assert_frontend_confirmation_path() -> None:
     assert "SEARCH_RUN_CONFIRMATIONS" in source
     assert "SEARCH_RUN_REFINEMENTS" in source
     assert "SEARCH_RUN_AMBIGUOUS_REPLIES" in source
+    assert "async function classifyPendingSearchRunIntent" in source
 
     send_body = extract_js_function_body(source, "sendChatTurn")
     assert "await handlePendingSearchRunChatAction(userText)" in send_body
@@ -64,8 +66,9 @@ def assert_frontend_confirmation_path() -> None:
     assert "await ensureSearchReadyForConfirmedRun()" in confirmation_body
     assert "await runStructuredSearch()" in confirmation_body
     assert 'fetch("/api/recruiter-chat/turn"' not in confirmation_body
-    assert "isSearchRunAmbiguousReply(userText)" in confirmation_body
-    assert "isSearchRunRefinementRequest(userText)" in confirmation_body
+    assert "pendingIntent === \"unclear\"" in confirmation_body
+    assert "pendingIntent === \"refine\"" in confirmation_body
+    assert "pendingIntent === \"reject\"" in confirmation_body
 
     run_body = extract_js_function_body(source, "runStructuredSearch")
     assert "fetch(AGENT_RUNTIME_TURN_ENDPOINT" in run_body

@@ -78,6 +78,10 @@ body {
   box-shadow: var(--shadow);
 }
 
+.recruiter-hidden-technical {
+  display: none !important;
+}
+
 .results-panel {
   border-color: rgba(45, 212, 191, 0.34);
 }

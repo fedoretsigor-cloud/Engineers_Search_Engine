@@ -102,6 +102,16 @@ class RecruiterChatTurnRequest(BaseModel):
     planner_mode: str | None = None
 
 
+class RecruiterChatIntentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    latest_message: str = Field(..., min_length=1)
+    language: str | None = None
+    context_type: str | None = None
+    pending_action_type: str | None = None
+    current_brief_status: str | None = None
+
+
 class AgentRuntimeApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

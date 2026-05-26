@@ -24,6 +24,7 @@ const candidateWorkspace = window.CandidateWorkspace;
 const PRIMARY_BUILD_PLAN_MODE = "rule_based";
 const AGENT_PLAN_ENDPOINT = "/api/agent/plan";
 const AGENT_QUERY_PLAN_ENDPOINT = "/api/agent/query-plan";
+const RECRUITER_CHAT_INTENT_ENDPOINT = "/api/recruiter-chat/intent";
 const AGENT_RUNTIME_TURN_ENDPOINT = "/api/agent/runtime/turn";
 const CANDIDATE_EXPLANATION_WORDING_ENDPOINT = "/api/candidate-workspace/explanation-wording";
 const AGENT_ACTION_BUILD_QUERY_PLAN = "build_query_plan";
@@ -1319,6 +1320,54 @@ function isSearchRunAmbiguousReply(text) {
   return SEARCH_RUN_AMBIGUOUS_REPLIES.has(normalizeChatCommandText(text));
 }
 
+function fallbackPendingSearchRunIntent(text) {
+  if (isSearchRunConfirmation(text)) {
+    return "confirm";
+  }
+  if (isSearchRunRefinementRequest(text)) {
+    return "refine";
+  }
+  if (isSearchRunAmbiguousReply(text)) {
+    return "unclear";
+  }
+  return "unclear";
+}
+
+async function classifyPendingSearchRunIntent(userText) {
+  if (!pendingChatAction || pendingChatAction.type !== "start_search") {
+    return "unclear";
+  }
+
+  try {
+    const response = await fetch(RECRUITER_CHAT_INTENT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latest_message: userText,
+        language: currentChatLanguage,
+        context_type: "pending_action",
+        pending_action_type: "start_search",
+        current_brief_status: chatState,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      return fallbackPendingSearchRunIntent(userText);
+    }
+
+    const intent = String(data.pending_action_intent || "unclear");
+    if (["confirm", "refine", "reject", "unclear"].includes(intent)) {
+      return intent;
+    }
+  } catch (_error) {
+    return fallbackPendingSearchRunIntent(userText);
+  }
+
+  return fallbackPendingSearchRunIntent(userText);
+}
+
 function readyBriefChatStatus(options = {}) {
   const includePending = options.includePending !== false;
   if (includePending && agentPlanRequestInFlight) {
@@ -2580,7 +2629,8 @@ async function ensureSearchReadyForConfirmedRun() {
 }
 
 async function handlePendingSearchRunChatAction(userText) {
-  const cleanConfirmation = isSearchRunConfirmation(userText);
+  const pendingIntent = await classifyPendingSearchRunIntent(userText);
+  const cleanConfirmation = pendingIntent === "confirm";
   if (!pendingSearchRunConfirmationIsCurrent()) {
     if (cleanConfirmation && pendingChatAction?.type === "start_search") {
       messages.push({ role: "user", content: userText, localOnly: true });
@@ -2600,14 +2650,21 @@ async function handlePendingSearchRunChatAction(userText) {
     return false;
   }
 
-  if (isSearchRunRefinementRequest(userText)) {
+  if (pendingIntent === "refine") {
+    clearPendingChatAction();
+    clearRuntimeApproval();
+    updateActionState();
+    return false;
+  }
+
+  if (pendingIntent === "reject") {
     messages.push({ role: "user", content: userText, localOnly: true });
     clearPendingChatAction();
     clearRuntimeApproval();
     appendSearchConfirmationReply(
       currentChatLanguage === "ru"
-        ? "\u041e\u043a, \u043f\u043e\u0438\u0441\u043a \u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u044e. \u041d\u0430\u043f\u0438\u0448\u0438, \u0447\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0432 \u0441\u0432\u043e\u0434\u043a\u0435."
-        : "Ok, I will not start the search. Tell me what to change in the summary."
+        ? "\u041e\u043a, \u043f\u043e\u0438\u0441\u043a \u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u044e. \u0421\u0432\u043e\u0434\u043a\u0430 \u043e\u0441\u0442\u0430\u0435\u0442\u0441\u044f \u0433\u043e\u0442\u043e\u0432\u043e\u0439."
+        : "Ok, I will not start the search. The current summary stays ready."
     );
     chatStatusElement.textContent = readyBriefChatStatus({ includePending: false });
     renderChatMessages();
@@ -2616,7 +2673,7 @@ async function handlePendingSearchRunChatAction(userText) {
     return true;
   }
 
-  if (isSearchRunAmbiguousReply(userText)) {
+  if (pendingIntent === "unclear") {
     messages.push({ role: "user", content: userText, localOnly: true });
     appendSearchConfirmationReply(
       currentChatLanguage === "ru"

@@ -17356,21 +17356,21 @@ Implemented as a UI-level UAT gate slice:
 
 ### Backlog
 
-- [ ] P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
-- [ ] P8.8-002 Add bounded LLM pending-action intent classifier
-- [ ] P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
-- [ ] P8.8-004 Add evidence gate against hallucinated Search Brief readiness
-- [ ] P8.8-005 Add bounded small-talk intent and wording consistency
-- [ ] P8.8-006 Add bounded LLM conversational wording layer
-- [ ] P8.8-007 Hide technical search preparation panels from recruiter UI
-
 ### In Progress
 
 ### Done
 
+- [x] P8.8-004 Add evidence gate against hallucinated Search Brief readiness
+- [x] P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
+- [x] P8.8-002 Add bounded LLM pending-action intent classifier
+- [x] P8.8-005 Add bounded small-talk intent and wording consistency
+- [x] P8.8-006 Add bounded LLM conversational wording layer
+- [x] P8.8-003 Route ambiguous recruiter replies through LLM-first intent layer
+- [x] P8.8-007 Hide technical search preparation panels from recruiter UI
+
 ### Strategy note
 
-Phase 8.8 collects recruiter-facing conversation concerns observed after the Phase 8.75.1 UI conversation UX gate and before Phase 9 persistence. This phase is a concern backlog and review lane, not automatic coding approval.
+Phase 8.8 collects recruiter-facing conversation concerns observed after the Phase 8.75.1 UI conversation UX gate and before Phase 9 persistence. This phase was reviewed and implemented as a bounded current-flow hardening slice.
 
 Strategic direction: Phase 8.8 should move the product toward an LLM-first conversation intent layer. The LLM should become the main intelligence layer for understanding recruiter intent in context, while backend/runtime validation remains the authority layer for facts, state, tools, approval, and execution.
 
@@ -17396,13 +17396,23 @@ For recruiter-facing conversation, LLM should own the safe wording layer where i
 
 The default recruiter-facing UI should not expose technical preparation controls while the product is moving toward chat-led agent behavior. Internal state may still exist, but visible flow should be simpler: chat asks for confirmation, search runs through the existing approved path, and results become the main workspace.
 
+Implementation result:
+
+- backend added a bounded `/api/recruiter-chat/intent` classifier endpoint for pending-action intent and gray-zone recruiter chat intent;
+- backend added a post-extraction evidence gate so hallucinated or weakly grounded ready Search Briefs are downgraded before planning;
+- backend added scoped unsupported non-IT role handling without expanding supported sourcing scope;
+- safe chat message types can use bounded LLM wording with deterministic fallback and validation;
+- frontend pending search confirmation uses the bounded intent endpoint before running the existing runtime-approved search path;
+- frontend hides recruiter-facing technical preparation panels by default while keeping the underlying state/runtime path intact;
+- `scripts/smoke_p88_conversation_hardening.py` was added to the local regression baseline.
+
 ## Task: P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 
@@ -17517,9 +17527,9 @@ Assistant: unsupported non-IT role message
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 
@@ -17616,9 +17626,9 @@ Output must be JSON only:
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 
@@ -17692,9 +17702,9 @@ This layer should help classify natural recruiter replies into stable applicatio
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog at the user's request. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 
@@ -17810,9 +17820,9 @@ Find Backend Developer in Ukraine, Java, Spring.
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog from observed UI behavior. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 
@@ -17911,9 +17921,9 @@ Small talk should:
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog from the agreed direction that recruiter-facing conversation should use LLM for natural language where safe. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 
@@ -18019,9 +18029,9 @@ Initial eligible message types:
 
 ### Status
 
-Draft / not approved / not implemented.
+Approved / implemented.
 
-Approval note: added to Phase 8.8 backlog from observed UI clutter. This task is not approved for coding yet.
+Approval note: approved through the user's Phase 8.8 `/goal` request and implemented as part of the bounded conversation hardening slice.
 
 ### Context
 

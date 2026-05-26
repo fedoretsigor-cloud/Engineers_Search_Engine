@@ -20,11 +20,13 @@ def main() -> None:
     styles_css = STYLES_CSS.read_text(encoding="utf-8")
 
     results_panel_index = index_html.find('class="results-panel"')
-    report_panel_index = index_html.find('class="report-panel"')
+    report_panel_index = index_html.find("report-panel")
     if results_panel_index == -1 or report_panel_index == -1:
         raise AssertionError("Expected both results and report panels")
     if results_panel_index > report_panel_index:
         raise AssertionError("Candidate results panel must render before search summary")
+    if 'class="report-panel recruiter-hidden-technical"' not in index_html:
+        raise AssertionError("Search summary report panel should be hidden from recruiter-facing flow")
 
     require(index_html, "<h2>Candidate Results</h2>", "primary candidate heading")
     require(app_js, "<span>Candidate Results</span>", "candidate toolbar heading")
