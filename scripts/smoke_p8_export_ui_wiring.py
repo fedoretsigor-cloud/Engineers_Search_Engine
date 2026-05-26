@@ -41,12 +41,6 @@ def main() -> None:
     require(app_js, 'scope: candidateWorkspace.normalizeExportScope("visible")', "default visible scope")
     require(app_js, 'format: candidateWorkspace.normalizeExportFormat("csv")', "default CSV format")
     require(app_js, "workspaceExportState = defaultWorkspaceExportState();", "export state reset")
-    require(app_js, 'data-workspace-export-control="scope"', "export scope control")
-    require(app_js, 'data-workspace-export-control="format"', "export format control")
-    require(app_js, 'data-workspace-export-action="download"', "export action")
-    require(app_js, 'data-workspace-export-status', "export status target")
-    require(app_js, 'role="status"', "accessible status role")
-    require(app_js, 'aria-live="polite"', "polite live region")
     require(app_js, 'event.target.closest("[data-workspace-export-control]")', "delegated export controls")
     require(app_js, 'event.target.closest("[data-workspace-export-action]")', "delegated export actions")
     require(app_js, "recomputeVisibleWorkspaceCandidates()", "click-time visible recompute helper")
@@ -63,7 +57,10 @@ def main() -> None:
     require(app_js, 'setWorkspaceExportStatus("No candidates to export for selected scope.")', "zero-candidate bounded status")
     require(app_js, 'setWorkspaceExportStatus("Export failed. Try again.")', "failure bounded status")
     require(app_js, "clearWorkspaceExportStatus(false);", "stale status clear without forced rerender")
-    require(app_js, "candidate-workspace-export", "grouped export block markup")
+
+    render_results = extract_function(app_js, "renderWorkspaceResults")
+    if "renderWorkspaceExportBlock()" in render_results:
+        raise AssertionError("Primary candidate results view should not render export block")
 
     export_function = extract_function(app_js, "triggerWorkspaceExportDownload")
     forbidden_export_terms = [
@@ -83,11 +80,6 @@ def main() -> None:
     if "renderWorkspaceResults(" in input_function:
         raise AssertionError("Note input handler must not rerender the full workspace")
     require(input_function, "clearWorkspaceExportStatus(false);", "note input stale status clear")
-
-    require(styles_css, ".candidate-workspace-export", "export block CSS")
-    require(styles_css, ".candidate-workspace-export-controls", "export controls CSS")
-    require(styles_css, ".candidate-workspace-export-status", "export status CSS")
-    require(styles_css, ".workspace-export-button", "export button CSS")
 
     print("P8 export UI wiring smoke passed")
 

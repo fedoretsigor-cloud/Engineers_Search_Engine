@@ -308,6 +308,7 @@ RECRUITER_INTENT_SMALL_TALK = "small_talk"
 RECRUITER_INTENT_OFF_TOPIC = "off_topic"
 RECRUITER_INTENT_UNCLEAR = "unclear"
 RECRUITER_INTENT_PROHIBITED = "prohibited"
+RECRUITER_INTENT_RESTART = "restart"
 RECRUITER_ROLE_DOMAIN_IT_SOFTWARE = "it_software"
 RECRUITER_ROLE_DOMAIN_NON_IT = "non_it"
 RECRUITER_ROLE_DOMAIN_AMBIGUOUS = "ambiguous"
@@ -1607,6 +1608,7 @@ def validate_recruiter_intent_output(
         RECRUITER_INTENT_OFF_TOPIC,
         RECRUITER_INTENT_UNCLEAR,
         RECRUITER_INTENT_PROHIBITED,
+        RECRUITER_INTENT_RESTART,
     }
     allowed_role_domains = {
         RECRUITER_ROLE_DOMAIN_IT_SOFTWARE,
@@ -1810,7 +1812,7 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
         {
             "task": "Classify only the latest recruiter message.",
             "required_output": {
-                "intent": "candidate_search | small_talk | off_topic | unclear | prohibited",
+                "intent": "candidate_search | small_talk | off_topic | unclear | prohibited | restart",
                 "role_domain": "it_software | non_it | ambiguous | unknown",
                 "role_support_status": "supported | unsupported | ambiguous | noise | unknown",
                 "role_label": "short safe role/profession label or null",
@@ -1870,6 +1872,7 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
                 "For context pending_update_value, classify replacement values only as provide_value; backend validation will apply or reject them.",
                 "For context pending_update or pending_update_value, classify cancel/stop/never mind as pending_update_intent cancel.",
                 "Do not use pending_update_intent or pending_hypothesis_intent outside their matching context.",
+                "Classify clear start-over, restart, reset, clear current search, or begin-again requests as intent restart. This is state-management only and must not execute search.",
                 "Use unclear when confidence is low.",
                 "Prefer the latest user message language for response_language when it is clearly English or Russian.",
                 "Return JSON only.",
@@ -2010,7 +2013,7 @@ def explicit_ukraine_location_signal(text: str) -> bool:
 
 def detect_recruiter_chat_reset_intent(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
-    return normalized_text in {
+    if normalized_text in {
         "start over",
         "reset",
         "clear",
@@ -2021,7 +2024,15 @@ def detect_recruiter_chat_reset_intent(text: str) -> bool:
         "начать заново",
         "сброс",
         "новый поиск",
-    }
+    }:
+        return True
+    return bool(
+        re.search(
+            r"\b(start|begin|try|do)\s+(again|over|from scratch)\b|\bclear\s+(this|current)\s+(search|brief|summary)\b",
+            normalized_text,
+            flags=re.IGNORECASE,
+        )
+    )
 
 
 def detect_recruiter_chat_explanation_intent(text: str) -> bool:
@@ -2296,6 +2307,18 @@ def deterministic_recruiter_intent(
     if detect_recruiter_chat_prohibited_requests(text):
         return recruiter_intent_default_response(
             intent=RECRUITER_INTENT_PROHIBITED,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            pending_action_intent=pending_action_intent,
+            pending_hypothesis_intent=pending_hypothesis_intent,
+            pending_update_intent=pending_update_intent,
+            field=pending_update_field,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            fallback_reason=fallback_reason,
+        )
+
+    if detect_recruiter_chat_reset_intent(text):
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_RESTART,
             role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
             pending_action_intent=pending_action_intent,
             pending_hypothesis_intent=pending_hypothesis_intent,
@@ -4103,6 +4126,23 @@ def recruiter_chat_reset_message(language: str) -> str:
     return "The current search summary is cleared. Tell me the new sourcing request."
 
 
+def build_recruiter_chat_restart_response(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+) -> dict:
+    return build_recruiter_chat_response(
+        ok=True,
+        state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+        language=language,
+        assistant_message=recruiter_chat_reset_message(language),
+        planner_mode=planner_mode,
+        brief_changed=bool(request.draft_brief),
+        stale_state_should_clear=False,
+        clear_brief=True,
+    )
+
+
 def patch_validation_error(field: str, code: str, message: str) -> dict[str, str]:
     return {
         "field": field,
@@ -5070,16 +5110,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         )
 
     if detect_recruiter_chat_reset_intent(latest_user_text):
-        return build_recruiter_chat_response(
-            ok=True,
-            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
-            language=language,
-            assistant_message=recruiter_chat_reset_message(language),
-            planner_mode=planner_mode,
-            brief_changed=bool(request.draft_brief),
-            stale_state_should_clear=True,
-            clear_brief=True,
-        )
+        return build_recruiter_chat_restart_response(request, language, planner_mode)
 
     if is_greeting_only_chat_message(latest_user_text):
         onboarding_message, wording_provenance, llm_warnings = (
@@ -5189,6 +5220,12 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         hypothesis_decision = await classify_recruiter_chat_intent_response(
             hypothesis_intent_request
         )
+        if (
+            hypothesis_decision.get("intent") == RECRUITER_INTENT_RESTART
+            and hypothesis_decision.get("confidence")
+            in {RECRUITER_INTENT_CONFIDENCE_HIGH, RECRUITER_INTENT_CONFIDENCE_MEDIUM}
+        ):
+            return build_recruiter_chat_restart_response(request, language, planner_mode)
         hypothesis_intent = hypothesis_decision.get("pending_hypothesis_intent")
         hypothesis_confidence = hypothesis_decision.get("confidence")
         if hypothesis_confidence in {
@@ -5236,6 +5273,14 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     intent_decision = None
     if should_use_recruiter_intent_classifier(intent_request):
         intent_decision = await classify_recruiter_chat_intent_response(intent_request)
+
+    if (
+        intent_decision
+        and intent_decision.get("intent") == RECRUITER_INTENT_RESTART
+        and intent_decision.get("confidence")
+        in {RECRUITER_INTENT_CONFIDENCE_HIGH, RECRUITER_INTENT_CONFIDENCE_MEDIUM}
+    ):
+        return build_recruiter_chat_restart_response(request, language, planner_mode)
 
     if (
         intent_decision

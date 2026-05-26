@@ -227,7 +227,6 @@ def assert_static_wiring() -> None:
     require(app_js, "function renderTopCandidateRecommendation()", "UI renderer")
     require(app_js, "visibleWorkspaceCandidates", "visible candidate scope")
     require(app_js, "Based on current visible candidates.", "visible-scope wording")
-    require(app_js, "${renderTopCandidateRecommendation()}", "renderer insertion")
     require(app_js, "workspace-agent-review", "review block markup")
 
     require(styles_css, ".workspace-agent-review", "review block CSS")

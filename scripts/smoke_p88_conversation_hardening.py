@@ -104,6 +104,17 @@ async def fake_recruiter_intent(
             "confidence": "high",
             "response_language": "en",
         }, None
+    if "start again" in text or "start over" in text or "restart" in text:
+        return {
+            "intent": "restart",
+            "role_domain": "unknown",
+            "role_support_status": "unknown",
+            "pending_action_intent": "unclear",
+            "field_intent": "unclear",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }, None
     if request.pending_action_type == "start_search" and "update" in text:
         return {
             "intent": "unclear",
@@ -443,6 +454,18 @@ async def assert_pending_action_intent_endpoint() -> None:
     assert vague_ack["pending_action_intent"] == "unclear"
     assert vague_ack["pending_action_reason_code"] == "positive_acknowledgement_not_confirmation"
 
+    restart = await main.classify_recruiter_chat_intent(
+        main.RecruiterChatIntentRequest(
+            latest_message="ok, can we start again?",
+            language="en",
+            context_type="pending_action",
+            pending_action_type="start_search",
+            current_brief_status="ready_for_planning",
+        )
+    )
+    assert restart["intent"] == "restart"
+    assert restart["confidence"] == "high"
+
 
 async def assert_pending_hypothesis_confirmation_completes_brief() -> None:
     initial = await main.recruiter_chat_turn_response(
@@ -530,6 +553,18 @@ async def assert_pending_update_intent_and_field_value_flow() -> None:
     assert unsupported_location["brief_changed"] is False
     assert "supports only Ukraine" in unsupported_location["assistant_message"]
 
+    restarted = await main.recruiter_chat_turn_response(
+        main.RecruiterChatTurnRequest(
+            language="en",
+            draft_brief=ready_brief(),
+            messages=[main.RecruiterChatMessage(role="user", content="ok, can we start again?")],
+        )
+    )
+    assert restarted["state"] == "needs_clarification"
+    assert restarted["clear_brief"] is True
+    assert restarted["stale_state_should_clear"] is False
+    assert restarted["normalized_brief"] is None
+
 
 def assert_frontend_phase_88_contract() -> None:
     source = (PROJECT_DIR / "app" / "static" / "app.js").read_text(encoding="utf-8")
@@ -544,6 +579,14 @@ def assert_frontend_phase_88_contract() -> None:
     assert "pending_action_type: \"start_search\"" in source
     assert "pendingIntent === \"confirm\"" in source
     assert "pendingIntent === \"refine\"" in source
+    assert "pendingIntent === \"restart\"" in source
+    assert "updateIntent === \"restart\"" in source
+    assert "appendOutgoingUserMessage" in source
+    assert "appendAssistantThinkingMessage" in source
+    assert "clearAssistantThinkingMessage" in source
+    assert "Updating search summary..." not in source
+    assert "data-workspace-page-action" in source
+    assert "workspacePaginationState" in source
     assert "recruiter-hidden-technical" in index_html
     assert ".recruiter-hidden-technical" in styles
     assert "display: none !important;" in styles

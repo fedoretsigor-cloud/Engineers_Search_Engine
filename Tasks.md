@@ -17360,6 +17360,17 @@ Implemented as a UI-level UAT gate slice:
 
 ### Done
 
+- [x] P8.8-014 Reduce recruiter chat latency with fast intent-first routing
+- [x] P8.8-015 Handle restart/start-over intent during pending recruiter chat flows
+- [x] P8.8-016 Suppress redundant post-update Search Summary confirmation bubble
+- [x] P8.8-017 Route explicit update/refine intent directly to update flow
+- [x] P8.8-018 Add immediate user-message echo and assistant thinking state
+- [x] P8.8-019 Hide candidate workspace sort/filter/export controls from primary view for now
+- [x] P8.8-020 Hide suggested first review and review guidance from primary candidate view
+- [x] P8.8-021 Move review status and shortlist controls out of primary candidate row
+- [x] P8.8-022 Move candidate diagnostic badges and expandable details out of primary row
+- [x] P8.8-023 Add fixed-height paginated candidate results area
+- [x] P8.8-024 Rebalance screen layout around compact chat and primary results workspace
 - [x] P8.8-004 Add evidence gate against hallucinated Search Brief readiness
 - [x] P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
 - [x] P8.8-002 Add bounded LLM pending-action intent classifier
@@ -17413,6 +17424,11 @@ Implementation result:
 - backend handles one-turn pending hypothesis confirmation for the observed `Java dev in Ukraine with Spring` -> `yes` flow by applying only backend-owned validated `Backend Developer + Java` values;
 - frontend/backend handle pending-update field selection so `I want to update` -> `location` asks for the new location instead of treating `location` as a fresh role/noise request;
 - `scripts/smoke_p88_conversation_hardening.py` was added to the local regression baseline.
+
+Follow-up implementation result:
+
+- `P8.8-014` through `P8.8-018` are approved and implemented. Chat now avoids the misleading default `Updating search summary...` status, echoes the user's message immediately, shows a local assistant thinking state, routes explicit update/refine replies through the update flow, suppresses redundant post-update Search Summary bubbles, and treats restart/start-over intent as bounded state management without clearing existing candidate results.
+- `P8.8-019` through `P8.8-024` are approved and implemented. The primary candidate workspace now hides sort/filter/export controls, agentic guidance blocks, row-level status/shortlist controls, diagnostic badges, and expandable diagnostic details from the main recruiter view; the results area is fixed-height and paginated; and the screen layout gives the compact chat panel less width while making Candidate Results the dominant workspace.
 
 ## Task: P8.8-001 Add bounded LLM role-domain classifier before Search Brief extraction
 
@@ -18916,6 +18932,1060 @@ The LLM must not return arbitrary patches, QueryPlan changes, execution instruct
 - Expanding supported countries, technologies, providers, or search sources.
 - LinkedIn login/access/scraping, candidate messaging, or account actions.
 - Autonomous execution.
+
+---
+
+## Task: P8.8-014 Reduce recruiter chat latency with fast intent-first routing
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI behavior:
+
+```text
+Assistant: Hello! Please let me know the details of the role we need to fill...
+User: jedaszsf
+Assistant: I am sorry, but I did not quite understand your request...
+```
+
+Even though the recruiter is only chatting or sending unclear/noisy text before a Search Brief exists, the top status can show:
+
+```text
+Updating search summary...
+```
+
+This is misleading and makes the UI feel slower. The frontend currently treats every chat send as if it might update the Search Summary, before the backend has classified the message. The backend can also do more work than needed for harmless small talk, unclear text, off-topic text, or obvious noise.
+
+### Goal
+
+Make the recruiter chat feel responsive while preserving the LLM-first conversation direction.
+
+Ordinary chat, greetings, unclear/noisy text, harmless off-topic messages, and unsupported-role replies should not look like Search Summary updates. Heavy Search Brief extraction should run only when the message has a plausible sourcing intent or when the current conversation state requires it.
+
+### Proposed Steps
+
+1. Fix the frontend in-flight status.
+   - Do not show `Updating search summary...` on every chat send by default.
+   - Use a neutral short state such as `Reading your message...`, or hide the status entirely for ordinary chat turns.
+   - Show `Updating search summary...` only when the frontend/backend already knows a Search Brief update is being attempted or when the backend response confirms the Search Brief changed.
+   - Do not mention Search Summary for greeting, small-talk, unclear, off-topic, noise, unsupported-role, or prohibited turns.
+
+2. Add fast intent-first routing before heavy Search Brief extraction.
+   - Keep deterministic hard safety guardrails first.
+   - Use the existing `/api/recruiter-chat/intent` capability or an equivalent bounded fast classifier for messages without clear sourcing evidence.
+   - If the fast route classifies the turn as `small_talk`, `off_topic`, `unclear`, `noise`, `unsupported`, or `prohibited`, answer safely without running heavy Search Brief extraction.
+   - If the message has plausible sourcing intent, continue through the existing Search Brief extraction/refinement path.
+
+3. Keep LLM payloads compact.
+   - Send the latest user message plus minimal state needed for intent/wording.
+   - Do not send raw candidate records, URLs, search results, Tavily payloads, OpenAI raw payloads, secrets, or long chat history by default.
+   - Use current Search Brief summary state only when the current turn needs it.
+
+4. Bound latency and fallback.
+   - Use short timeouts for intent/wording calls appropriate for chat UX.
+   - Fall back deterministically when the LLM call times out, fails validation, or returns low-confidence output.
+   - Keep longer processing only for real sourcing/Search Brief turns.
+
+5. Preserve state and execution boundaries.
+   - No Search Brief mutation unless the backend validates a real update.
+   - No Agent Plan, QueryPlan, Tavily/runtime prepare, runtime execution, LinkedIn access, candidate messaging, account actions, or persistence from latency-only routing.
+   - LLM may classify intent or improve wording only; backend remains the authority for facts, state, actions, approval, and execution.
+
+6. Add safe latency instrumentation.
+   - Record only stage durations such as `frontend_inflight_ms`, `intent_ms`, `wording_ms`, `brief_extraction_ms`, and `total_ms`.
+   - Do not log raw user messages, raw prompts, raw model responses, candidate/profile URLs, raw Tavily/OpenAI payloads, or secrets.
+
+7. Add no-network regression coverage.
+   - Greeting/small talk/noise does not show or imply Search Summary update wording.
+   - Obvious non-search turns do not call heavy Search Brief extraction.
+   - Valid sourcing messages still reach the existing Search Brief ready flow.
+   - Pending action confirm/refine/update flows still work.
+   - Timeout/fallback path returns a safe response and does not mutate Search Brief state.
+
+8. Add UI sanity coverage after implementation.
+   - Reproduce the observed `Hello` -> noise/garbage chat sequence.
+   - Verify the visible status is neutral or hidden, not `Updating search summary...`.
+   - Verify valid recruiter search input still shows appropriate progress when the Search Brief is actually updated.
+
+### Acceptance Criteria
+
+- Ordinary chat/noise no longer shows `Updating search summary...`.
+- Search Summary status appears only when a Search Brief update is actually in progress or completed.
+- Non-search turns avoid heavy Search Brief extraction where safe to do so.
+- LLM remains available for bounded intent and wording, but latency is bounded by timeout/fallback.
+- Existing supported Java/Ukraine sourcing flow still works.
+- Existing pending action / pending update / pending hypothesis flows still work.
+- No backend execution boundary changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Replacing Search Brief extraction.
+- Adding autonomous execution.
+- Adding persistence, database state, saved searches, or memory.
+- Adding new countries, technologies, providers, or broad role support.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Logging raw prompts, raw LLM responses, raw user messages, raw search payloads, candidate URLs, profile URLs, or secrets.
+
+---
+
+## Task: P8.8-015 Handle restart/start-over intent during pending recruiter chat flows
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI behavior:
+
+```text
+User: ok, can we start again?
+Assistant: What target location should the search use?
+```
+
+This is wrong. In that moment the assistant appears to be waiting for a pending Search Brief field such as location, so the message is routed as if the recruiter had answered the pending clarification. But `can we start again?` is a restart/start-over intent, not a location answer.
+
+The AI Agent should understand that the recruiter wants to restart the current chat/search setup. It should clear the relevant transient pending state and ask for a fresh search description instead of continuing the previous clarification loop.
+
+### Goal
+
+Add bounded restart/start-over intent handling for recruiter chat, especially while a pending clarification, pending update, pending hypothesis, or pending search confirmation is active.
+
+The user-facing behavior should be simple:
+
+```text
+Sure, let's start over. Who should we look for?
+```
+
+or in Russian:
+
+```text
+Конечно, начнем заново. Кого ищем?
+```
+
+### Proposed Steps
+
+1. Define restart intent in the bounded chat intent taxonomy.
+   - Add an application-owned intent such as `restart_search_setup` or `start_over`.
+   - Treat it as a state-management intent, not as a Search Brief field value.
+   - Do not implement this primarily by endlessly expanding phrase allowlists; use bounded LLM intent recognition for natural wording such as `can we start again?`, `start over`, `let's restart`, `начнем заново`, or `давай сначала`.
+
+2. Define when restart intent is allowed.
+   - Allow it during pending clarification, pending update, pending hypothesis, pending search confirmation, and clean pre-search chat state.
+   - If a search has already produced candidate results, do not delete or hide existing results automatically; ask or clearly state that the current results remain visible until a new search is run.
+   - Do not treat vague acknowledgements like `ok` alone as restart intent.
+
+3. Define exactly what gets reset.
+   - Clear transient chat pending state: pending clarification, pending update, pending hypothesis, pending action, stale Agent Plan / proposed action, prepared QueryPlan, and readiness flags tied to the old draft.
+   - Reset the current draft Search Brief only after restart intent is accepted with sufficient confidence.
+   - Do not clear downloaded files, saved data, persisted records, external accounts, or candidate results unless a later explicit task defines that behavior.
+
+4. Preserve backend authority.
+   - LLM may classify only the restart intent and confidence.
+   - Backend/frontend owned state transition performs the reset.
+   - LLM cannot create Search Brief values, QueryPlans, approvals, runtime execution instructions, filters, scoring changes, candidates, or result mutations.
+
+5. Add safe wording.
+   - The assistant should acknowledge restart briefly and invite a fresh candidate-search request.
+   - Do not mention backend planner, QueryPlan, Tavily, runtime, classifier, OpenAI, fingerprints, or internal state.
+   - Keep language aligned to the user's latest message where practical.
+
+6. Add no-network regression coverage.
+   - pending location + `ok, can we start again?` -> restart acknowledgement, no location question.
+   - pending stack + `start over` -> restart acknowledgement, no stack question.
+   - pending update + `let's restart` -> restart acknowledgement, pending update cleared.
+   - pending search confirmation + `начнем заново` -> restart acknowledgement, no search execution.
+   - `ok` alone during pending field remains clarification/unclear, not restart.
+   - valid sourcing message after restart starts a fresh Search Brief flow.
+
+7. Add UI sanity coverage after implementation.
+   - Reproduce the observed screenshot flow.
+   - Verify the assistant does not ask `What target location should the search use?`.
+   - Verify no search/runtime/Tavily execution happens from restart intent.
+   - Verify previous candidate results, if any, are not silently deleted.
+
+### Acceptance Criteria
+
+- `ok, can we start again?` during a pending clarification starts a fresh setup instead of asking for the pending field.
+- Restart intent is context-aware and does not depend on hardcoding one exact phrase.
+- The system clears only transient draft/pending state required to start over.
+- Existing results are not silently deleted.
+- No Search Brief, Agent Plan, QueryPlan, runtime approval, search execution, candidates, counts, filters, scoring, dedupe, or persistence can be changed directly by LLM output.
+- Existing supported Java/Ukraine sourcing flow still works after restart.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Adding persistence, saved sessions, saved searches, accounts, or database reset behavior.
+- Deleting candidate results automatically after a restart message.
+- Adding autonomous execution.
+- Expanding supported countries, technologies, providers, or role scope.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Logging raw prompts, raw LLM responses, raw user messages, raw search payloads, candidate URLs, profile URLs, or secrets.
+
+---
+
+## Task: P8.8-016 Suppress redundant post-update Search Summary confirmation bubble
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI behavior after the recruiter updates the Search Brief stack:
+
+```text
+AI Assistant:
+Updated the search summary (updated stack). Review it and confirm again before search.
+
+AI Assistant:
+I understand the task: to find Backend Developer profiles with Java expertise in Ukraine, specifically focusing on AWS. If this is correct, please confirm so I can begin the search.
+```
+
+The first bubble is redundant and too technical for the recruiter. The second bubble already says the useful thing: it restates the updated task and asks for confirmation.
+
+### Goal
+
+Suppress the intermediate `Updated the search summary...` assistant bubble when the same turn also renders a clear final confirmation message.
+
+The recruiter should see one clean assistant response after an update:
+
+```text
+I understand the task: to find Backend Developer profiles with Java expertise in Ukraine, specifically focusing on AWS. If this is correct, please confirm so I can begin the search.
+```
+
+or a localized equivalent.
+
+### Proposed Steps
+
+1. Identify the duplicate-message source.
+   - Trace whether the redundant bubble is produced by backend `RecruiterChatTurnResponse`, frontend message assembly, or both.
+   - Confirm which state transition creates `Updated the search summary (updated stack). Review it and confirm again before search.`
+   - Keep this as a UI/conversation cleanup; do not change Search Brief patch semantics.
+
+2. Define response priority for Search Brief updates.
+   - If a Search Brief update produces a ready-to-confirm summary in the same turn, render only the final confirmation message.
+   - If the update changes the brief but the brief is still incomplete, render the next useful clarification question.
+   - Show a terse update acknowledgement only when there is no better next conversational response.
+
+3. Keep the user-facing wording non-technical.
+   - Avoid exposing `updated stack`, internal Search Summary status, planner, QueryPlan, runtime, Tavily, fingerprints, classifier, or OpenAI.
+   - The assistant should speak in terms of the recruiter's task and confirmation.
+   - Keep the wording aligned with the current conversation language where practical.
+
+4. Preserve state and safety boundaries.
+   - Suppressing the bubble must not suppress actual Search Brief validation, stale-state checks, pending action setup, or confirmation requirements.
+   - Search execution still requires the existing explicit confirmation/runtime-approved path.
+   - LLM may help with final wording only; it must not change facts, fields, action state, approvals, QueryPlan, runtime execution, candidates, counts, scoring, filters, dedupe, or location logic.
+
+5. Add regression coverage.
+   - Updating `stack` from Spring to AWS produces exactly one assistant confirmation response, not two.
+   - Updating `location`, `role`, or `technology` follows the same no-duplicate rule.
+   - Incomplete update still asks the correct next clarification question.
+   - Pending search confirmation still exists after the clean confirmation message.
+   - Confirming after the clean message still follows the existing safe approved search path.
+
+6. Add UI sanity coverage after implementation.
+   - Reproduce the observed screenshot flow.
+   - Verify the redundant `Updated the search summary...` bubble is absent.
+   - Verify the final confirmation bubble remains visible and clear.
+
+### Acceptance Criteria
+
+- The recruiter no longer sees the redundant `Updated the search summary...` bubble when a final confirmation message is shown in the same turn.
+- Search Brief updates still apply and validate correctly.
+- The clean confirmation message still asks for explicit user confirmation before search.
+- Confirming after the clean message still uses the existing backend runtime-approved search path.
+- No backend execution boundary changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Removing useful clarification questions for incomplete Search Briefs.
+- Changing Search Brief patch/validation semantics.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Expanding supported countries, technologies, providers, or role scope.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Logging raw prompts, raw LLM responses, raw user messages, raw search payloads, candidate URLs, profile URLs, or secrets.
+
+---
+
+## Task: P8.8-017 Route explicit update/refine intent directly to update flow
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI behavior while a search is ready for confirmation:
+
+```text
+User: want to update
+AI Assistant: Do you want me to start this search, or should we change something first?
+```
+
+This is redundant. The user has already said they want to update/change the search. The assistant should not ask whether the user wants to start the search or change something first.
+
+Expected behavior:
+
+```text
+Sure. What would you like to update?
+```
+
+or, if the user already names the field/value in the same message, route into the existing pending-update/value handling.
+
+### Goal
+
+Improve pending-action/refinement handling so explicit update/refine intent directly enters the update flow.
+
+The assistant should understand natural update intent such as `want to update`, `I want to update`, `change it`, `edit search`, `modify the search`, `давай изменим`, or `хочу обновить`, using bounded LLM intent recognition rather than a growing deterministic phrase list.
+
+### Proposed Steps
+
+1. Confirm the current routing path.
+   - Trace whether `want to update` is classified as `unclear`, low-confidence `refine`, or bypasses the pending-action classifier.
+   - Identify whether the generic disambiguation wording is produced by backend response logic or frontend pending-action handling.
+
+2. Strengthen bounded pending-action intent handling.
+   - When a `start_search` confirmation is pending, explicit update/refine wording should classify as `refine`.
+   - The LLM may classify only the intent and confidence.
+   - The LLM must not return Search Brief patches, arbitrary fields, QueryPlan changes, approval changes, execution instructions, or tool calls.
+   - Avoid solving this by adding one-off hardcoded phrases as the primary mechanism.
+
+3. Route `refine` directly into pending-update flow.
+   - Do not run search.
+   - Clear or suspend the pending start-search action.
+   - Ask what the recruiter wants to update, unless the same message already provides a safe field/value that existing validation can handle.
+   - Preserve the current Search Brief as the draft being edited.
+
+4. Keep ambiguous messages ambiguous.
+   - `ok`, `fine`, `hmm`, or other vague acknowledgements should not automatically enter update flow.
+   - If intent is truly unclear, the assistant may ask a short clarification.
+   - But explicit `want to update` should not receive `start this search or change something first?`.
+
+5. Preserve language and recruiter-facing wording.
+   - Use concise user-facing wording such as `Sure. What would you like to update?`
+   - Keep Russian equivalents for Russian turns.
+   - Do not mention backend planner, QueryPlan, runtime, Tavily, classifier, OpenAI, fingerprints, or internal pending action state.
+
+6. Add no-network regression coverage.
+   - pending start-search + `want to update` -> asks what to update.
+   - pending start-search + `I want to update` -> asks what to update.
+   - pending start-search + `change it` / `edit search` / `modify the search` -> asks what to update.
+   - pending start-search + RU equivalents -> asks what to update in Russian.
+   - pending start-search + `ok` remains confirmation/unclear handling, not forced update.
+   - pending start-search + `yes, run it` still executes only through the existing safe approved path.
+
+7. Add UI sanity coverage after implementation.
+   - Reproduce the observed screenshot flow.
+   - Verify the assistant does not ask `Do you want me to start this search, or should we change something first?` after explicit update intent.
+   - Verify no Tavily/search/runtime execution happens from update intent.
+
+### Acceptance Criteria
+
+- `want to update` while a search is ready for confirmation enters update flow directly.
+- The assistant asks what to update instead of asking whether to start or change.
+- Explicit update/refine intent is understood through bounded LLM intent classification, not a one-off phrase list.
+- Search execution still requires explicit confirmation and the existing backend runtime-approved path.
+- LLM output cannot directly mutate Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, counts, results, or persistence.
+- Existing confirm and restart flows remain protected.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Letting LLM directly patch Search Brief state.
+- Changing Search Brief patch/validation semantics.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Expanding supported countries, technologies, providers, or role scope.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Logging raw prompts, raw LLM responses, raw user messages, raw search payloads, candidate URLs, profile URLs, or secrets.
+
+---
+
+## Task: P8.8-018 Add immediate user-message echo and assistant thinking state
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI behavior:
+
+```text
+User presses Enter
+UI waits
+User message and assistant answer appear together
+```
+
+Expected recruiter-facing behavior:
+
+```text
+User presses Enter
+User message appears immediately
+Assistant shows a short thinking/loading state
+Assistant answer replaces the thinking state when ready
+```
+
+The current frontend has mixed behavior:
+
+- the normal `/api/recruiter-chat/turn` path appends the user message before the backend request;
+- pending-action paths can await intent classification before appending the user message;
+- there is no dedicated assistant `Thinking...` bubble or spinner for chat turns;
+- status text can be misleading, for example `Updating search summary...`, even when the system is just reading/classifying a message.
+
+This makes the chat feel less like a real AI Agent conversation.
+
+### Goal
+
+Make chat sending feel immediate and conversational:
+
+- always show the user's sent message right away;
+- show a short assistant thinking/loading state while backend/LLM processing is in progress;
+- replace or remove that thinking state when the real assistant response arrives;
+- keep backend state, Search Brief validation, pending actions, and runtime execution boundaries unchanged.
+
+### Proposed Steps
+
+1. Add an optimistic user-message echo before async work.
+   - On form submit / Enter, append the user message immediately before any awaited classifier, pending-action handler, or `/api/recruiter-chat/turn` request.
+   - Avoid duplicate user messages when pending handlers also append local messages.
+   - Keep `localOnly` semantics clear: messages that should not be sent back to backend history must remain excluded from `chatMessagesForBackend()`.
+
+2. Add a transient assistant thinking state.
+   - Render a local-only assistant message such as `Thinking...`, `Reading your message...`, or localized equivalent.
+   - Prefer a small spinner/dots visual over noisy text where practical.
+   - Mark it as transient so it is not sent to backend history and is removed/replaced by the real response.
+
+3. Use the same UX for normal and pending flows.
+   - Normal `/api/recruiter-chat/turn` request.
+   - Pending search confirmation/refine/reject flow.
+   - Pending Search Summary update flow.
+   - Pending field-value update flow.
+   - Error/fallback flow.
+
+4. Keep status text neutral.
+   - Do not show `Updating search summary...` until a Search Brief update is actually known to be in progress.
+   - For generic processing, use neutral status or rely on the thinking bubble/spinner.
+   - This should align with `P8.8-014`.
+
+5. Preserve backend authority and safety.
+   - Optimistic UI must not mutate Search Brief, Agent Plan, QueryPlan, runtime approval, candidate results, scoring, filters, dedupe, or location logic.
+   - It must not trigger Tavily/search/runtime execution.
+   - It must not add persistence or backend session storage.
+   - LLM may still be used for bounded intent/wording, but the UI should not wait to show the user's sent text.
+
+6. Handle stale/parallel responses safely.
+   - If the user resets the chat or a newer interaction supersedes the old one, remove stale thinking messages.
+   - Do not attach an old assistant answer to a newer user message.
+   - Preserve the existing `interactionVersion` protection.
+
+7. Add regression coverage.
+   - Normal chat turn with delayed backend response: user message renders before response.
+   - Pending start-search intent classifier with delayed response: user message renders before classifier returns.
+   - Pending update intent classifier with delayed response: user message renders before classifier returns.
+   - Thinking state is visible during delay and removed/replaced after completion.
+   - Error path removes/replaces thinking state with a safe error message.
+   - `chatMessagesForBackend()` does not include transient thinking messages.
+
+8. Add UI sanity coverage after implementation.
+   - Reproduce Enter-to-send behavior in browser.
+   - Verify the user sees their message immediately.
+   - Verify a visible assistant thinking/spinner state appears during delayed processing.
+   - Verify final answer appears after processing without duplicate user messages.
+
+### Acceptance Criteria
+
+- Pressing Enter immediately renders the user's message in chat.
+- A visible assistant thinking/loading state appears while the response is pending.
+- The thinking/loading state is removed or replaced by the real assistant response.
+- Pending-action and pending-update flows use the same immediate echo behavior.
+- No duplicate user messages are rendered.
+- Transient thinking messages are not sent to backend chat history.
+- Search Brief, Agent Plan, QueryPlan, runtime approval, candidates, counts, filters, scoring, dedupe, location logic, and persistence behavior are unchanged.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Streaming assistant tokens.
+- Changing backend response semantics.
+- Letting LLM mutate state or execute actions.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Expanding supported countries, technologies, providers, or role scope.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Logging raw prompts, raw LLM responses, raw user messages, raw search payloads, candidate URLs, profile URLs, or secrets.
+
+---
+
+## Task: P8.8-019 Hide candidate workspace sort/filter/export controls from primary view for now
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI issue:
+
+The Candidate Workspace currently shows a large primary control area before the candidate list:
+
+- sort;
+- quality filter;
+- stack filter;
+- flags filter;
+- location filter;
+- review filter;
+- shortlist filter;
+- reset filters;
+- export scope;
+- export format;
+- export button.
+
+This takes too much visual space in the main candidate-review area and makes it harder to focus on the returned people. For the current narrow AI Agent flow, the recruiter should first see the results and be able to review candidates. Advanced controls can be hidden, collapsed, or moved out of the primary view for now.
+
+### Goal
+
+Temporarily remove the sort/filter/export control blocks from the primary recruiter-facing Candidate Workspace view while preserving the underlying data/model behavior.
+
+The primary post-search surface should prioritize:
+
+- compact result summary;
+- candidate table/list;
+- candidate review actions/details;
+- AI Agent review aids that help evaluate returned candidates.
+
+### Proposed Steps
+
+1. Identify the visible control blocks.
+   - Locate the Candidate Workspace toolbar rendering for sort/filter/review/shortlist controls.
+   - Locate the export controls rendering for export scope/format/button.
+   - Confirm whether both are produced from the same `renderWorkspaceToolbar()` / export block path or separate render paths.
+
+2. Hide or move controls without deleting core logic.
+   - Prefer hiding/collapsing from the primary recruiter-facing view over deleting filtering/export model helpers.
+   - Keep existing helper functions and state if they are still used by tests/export logic.
+   - Avoid breaking current workspace data mapping, review state, shortlist state, candidate explanations, or export serializers.
+
+3. Preserve table defaults.
+   - Keep original/default sort behavior stable.
+   - Keep default filters as `All` internally unless a later task designs a better compact control surface.
+   - Ensure candidates still render after search with no visible controls.
+
+4. Decide minimal export behavior for now.
+   - If export is hidden from primary view, keep export serializers/helpers intact for future reviewed UI.
+   - Do not remove export tests unless the product decision is to remove export capability entirely, which is not this task.
+   - Do not add persistence or backend export endpoints.
+
+5. Keep UI accessible and reversible.
+   - If controls are collapsed rather than hidden, use a compact disclosure that does not consume primary space.
+   - If controls are fully hidden, leave the implementation clean enough to reintroduce them later.
+   - Avoid leaving empty containers, large gaps, or visible disabled controls.
+
+6. Add frontend/UI regression coverage.
+   - Candidate list renders immediately after search without the large sort/filter/export block.
+   - Candidate row review controls still work.
+   - Shortlist/review state still works.
+   - Candidate explanations and agentic review aids still render.
+   - Export helper tests continue to pass if export implementation remains available internally.
+
+7. Add browser sanity after implementation.
+   - Run a representative search or use existing fixture/UAT path.
+   - Verify the candidate table is visible without scrolling past the large control block.
+   - Verify no layout overlap or empty toolbar area remains.
+
+### Acceptance Criteria
+
+- Sort/filter/export blocks no longer dominate the primary Candidate Workspace view.
+- Candidate results remain visible and usable after search.
+- Existing candidate review/status/shortlist behavior is not broken.
+- Existing export model/serializer logic remains intact unless a separate approved task removes export capability.
+- No backend search/runtime/Tavily/LLM behavior changes are introduced.
+- No persistence/database behavior is introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Redesigning the full Candidate Workspace.
+- Removing export capability permanently.
+- Adding a new advanced-filter UI.
+- Changing scoring, filters, dedupe, location logic, query generation, runtime approval, or search execution.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.8-020 Hide suggested first review and review guidance from primary candidate view
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI issue:
+
+The Candidate Workspace can show agentic review blocks above or near the candidate list:
+
+- `Suggested first review`;
+- `Review guidance`.
+
+These blocks were useful while building Phase 8.5 agentic review helpers, but in the current recruiter-facing primary workspace they add more pre-table content and push the candidate list down. The primary surface should first help the recruiter see and review returned people.
+
+This task is separate from `P8.8-019`: `P8.8-019` covers sort/filter/export controls; this task covers agentic review guidance blocks.
+
+### Goal
+
+Move `Suggested first review` and `Review guidance` out of the primary Candidate Workspace view for now.
+
+The underlying deterministic Phase 8.5 helpers may stay available internally for future reviewed surfaces, but the default recruiter-facing post-search view should prioritize the candidate list.
+
+### Proposed Steps
+
+1. Identify the exact render points.
+   - Locate `Suggested first review` rendering, currently tied to top-candidate recommendation UI.
+   - Locate `Review guidance` rendering, currently tied to workspace refinement suggestions.
+   - Confirm whether selected-candidate comparison and fit/gap blocks are separate and should remain or also be evaluated later.
+
+2. Hide or move the blocks from primary view.
+   - Prefer removing them from the default primary render path rather than deleting helper/model code.
+   - Keep helper functions and tests intact if they validate deterministic agentic review logic.
+   - Avoid empty wrappers, gaps, duplicated headings, or dead controls.
+
+3. Preserve candidate review workflow.
+   - Candidate table/list should move closer to the top of the workspace.
+   - Candidate row review status, shortlist, notes/details, and explanations should still work.
+   - Existing returned candidate facts should not change.
+
+4. Preserve Phase 8.5 logic boundaries.
+   - Do not change deterministic recommendation/refinement algorithms in this task.
+   - Do not add LLM calls, backend calls, Tavily calls, direct web-search, LinkedIn access, persistence, or executable next actions.
+   - If later we want these blocks back, that should be a reviewed UI design task with a more compact placement.
+
+5. Add frontend/UI regression coverage.
+   - Candidate list renders without `Suggested first review`.
+   - Candidate list renders without `Review guidance`.
+   - Candidate table remains visible and usable.
+   - Review status/shortlist/notes/details still work.
+   - Existing Phase 8.5 helper smoke tests still pass if helpers remain.
+
+6. Add browser sanity after implementation.
+   - Reproduce a post-search candidate workspace.
+   - Verify the first visible workspace content is candidate-focused.
+   - Verify no layout gaps remain where the blocks used to be.
+
+### Acceptance Criteria
+
+- `Suggested first review` is not shown in the primary Candidate Workspace view.
+- `Review guidance` is not shown in the primary Candidate Workspace view.
+- Candidate list/table is more prominent after search.
+- Candidate review/status/shortlist/details behavior is unchanged.
+- Underlying deterministic helper logic is not deleted unless a separate approved task decides that.
+- No backend search/runtime/Tavily/LLM behavior changes are introduced.
+- No persistence/database behavior is introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Redesigning the full Candidate Workspace.
+- Removing Phase 8.5 helper logic permanently.
+- Adding new recommendation or refinement algorithms.
+- Adding LLM-powered candidate recommendations.
+- Changing scoring, filters, dedupe, location logic, query generation, runtime approval, or search execution.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.8-021 Move review status and shortlist controls out of primary candidate row
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI issue:
+
+Candidate rows currently show a visible `Status` dropdown and `Shortlist` checkbox in the primary row area. This makes each row visually heavier and consumes horizontal space that should help the recruiter scan candidate identity, role, location, stack, and source.
+
+The current review state model is still useful internally:
+
+- `review_status`;
+- derived shortlist state;
+- notes/details;
+- selected-candidate comparison and fit/gap features that currently use shortlisted candidates.
+
+This task should move the visible controls out of the primary row for now, not delete the model.
+
+### Goal
+
+Simplify the primary candidate row by moving or hiding visible `Status` and `Shortlist` controls from the main row area.
+
+The first-pass row should focus on candidate facts:
+
+- score/quality;
+- name/headline;
+- role;
+- location;
+- stack;
+- source/profile link;
+- compact evidence/details access.
+
+### Proposed Steps
+
+1. Identify the current row controls.
+   - Locate the `Status` dropdown rendering.
+   - Locate the `Shortlist` checkbox rendering.
+   - Confirm which handlers update `workspaceReviewStateByCandidateId`.
+   - Confirm which downstream helpers depend on shortlist/review status.
+
+2. Choose conservative placement for v0.
+   - Preferred: remove the controls from the primary row and keep any needed review interactions in the details/secondary area.
+   - If details placement is too much for this task, hide the controls from primary view while preserving internal default state.
+   - Do not introduce a new complex review panel in this task.
+
+3. Preserve internal review state.
+   - Do not delete `workspaceReviewStateByCandidateId`.
+   - Do not delete review-status normalization helpers.
+   - Do not break notes/details state.
+   - Do not break existing helper tests that rely on review state unless a separate reviewed task redefines the selection model.
+
+4. Handle dependency on shortlist-based agentic helpers.
+   - `P8.5-003` selected-candidate comparison and `P8.5-004` fit/gap currently use shortlisted candidates.
+   - Since `P8.8-020` moves those visible guidance blocks out of primary view, this task may keep shortlist state internal and defer a new selection UI to a later reviewed task.
+   - Do not silently change the semantic meaning of `shortlisted`.
+
+5. Keep table layout compact.
+   - Remove the large status/shortlist panel from each row.
+   - Avoid empty cells or awkward horizontal gaps.
+   - Ensure long role/location/stack values do not wrap badly because of hidden controls.
+
+6. Add regression coverage.
+   - Candidate rows render without visible `Status` dropdown in the primary row.
+   - Candidate rows render without visible `Shortlist` checkbox in the primary row.
+   - Candidate details/notes still render if currently available.
+   - Existing workspace state helpers still pass.
+   - Existing candidate table smoke coverage still passes.
+
+7. Add browser sanity after implementation.
+   - Reproduce post-search candidate list.
+   - Verify primary rows are cleaner and candidate-focused.
+   - Verify no blank status/shortlist container remains.
+
+### Acceptance Criteria
+
+- Visible `Status` dropdown is not shown in the primary candidate row.
+- Visible `Shortlist` checkbox is not shown in the primary candidate row.
+- Candidate rows remain readable and compact.
+- Candidate facts, details, notes, explanations, and profile/source display remain usable.
+- Internal review state is not deleted or repurposed.
+- No backend search/runtime/Tavily/LLM behavior changes are introduced.
+- No persistence/database behavior is introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Removing review state permanently.
+- Redesigning candidate selection/comparison workflow.
+- Changing selected-candidate comparison or fit/gap semantics.
+- Adding LLM-powered candidate review in this task.
+- Changing scoring, filters, dedupe, location logic, query generation, runtime approval, or search execution.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.8-022 Move candidate diagnostic badges and expandable details out of primary row
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI issue:
+
+Candidate rows currently can show diagnostic badges and expandable technical/detail sections directly in the primary row area:
+
+- `Stack not confirmed`;
+- `Seniority from snippet`;
+- `Candidate details`;
+- `Quality details`;
+- `Query sources`.
+
+These are useful internal/evidence details, but they make the primary candidate row too dense. For first-pass recruiter review, the row should stay focused on the candidate and the main fit signals.
+
+### Goal
+
+Move diagnostic badges and expandable detail blocks out of the primary candidate row for now, while preserving the underlying evidence data and helper logic.
+
+The primary candidate row should show compact recruiter-facing facts only. Detailed evidence can be hidden, moved to a secondary details surface, or deferred to a later reviewed design.
+
+### Proposed Steps
+
+1. Identify the row-level diagnostics.
+   - Locate rendered badges such as `Stack not confirmed` and `Seniority from snippet`.
+   - Locate expandable sections `Candidate details`, `Quality details`, and `Query sources`.
+   - Confirm which helper functions render score breakdown, query source details, and quality fields.
+
+2. Remove them from the primary row render path.
+   - Do not delete underlying candidate evidence fields.
+   - Do not delete scoring, quality, query-source, or explanation helpers.
+   - Avoid leaving empty details containers or collapsed headings in the main row.
+
+3. Preserve useful summary fields.
+   - Keep compact top-level fields such as role, location, stack, source, and score/quality where needed.
+   - If stack is not confirmed, reflect that in the compact stack value only if it remains useful and not noisy.
+   - Avoid exposing internal diagnostic labels as prominent row badges.
+
+4. Preserve evidence for future reviewed surfaces.
+   - Query source metadata should remain available in the data model.
+   - Quality breakdown should remain available internally.
+   - Candidate detail/evidence helpers can remain for future secondary panels or debug views.
+
+5. Keep layout compact and readable.
+   - Candidate rows should take less vertical space.
+   - Long values should not overflow or wrap awkwardly.
+   - No blank areas should remain where details blocks were removed.
+
+6. Add regression coverage.
+   - Candidate rows render without `Stack not confirmed` and `Seniority from snippet` as prominent row badges.
+   - Candidate rows render without `Candidate details`, `Quality details`, and `Query sources` disclosure blocks.
+   - Candidate facts still render.
+   - Candidate explanation/quality data helpers still pass existing tests.
+   - Query source metadata remains present in backend/frontend data where existing tests expect it.
+
+7. Add browser sanity after implementation.
+   - Reproduce post-search candidate rows.
+   - Verify first-pass rows are visibly cleaner and candidate-focused.
+   - Verify no empty collapsed sections remain.
+
+### Acceptance Criteria
+
+- `Stack not confirmed` and `Seniority from snippet` are not shown as prominent primary-row badges.
+- `Candidate details`, `Quality details`, and `Query sources` are not shown as primary-row expandable sections.
+- Candidate rows remain compact and candidate-focused.
+- Underlying candidate evidence, quality data, and query-source metadata are not deleted.
+- Existing candidate facts and explanations remain usable.
+- No backend search/runtime/Tavily/LLM behavior changes are introduced.
+- No persistence/database behavior is introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Removing evidence data from backend or frontend models.
+- Removing candidate explanations permanently.
+- Redesigning a full secondary candidate detail panel.
+- Changing scoring, filters, dedupe, location logic, query generation, runtime approval, or search execution.
+- Adding LLM-powered candidate review in this task.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.8-023 Add fixed-height paginated candidate results area
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed UI issue:
+
+When many candidates are returned, the Candidate Workspace list grows vertically and the recruiter has to scroll a long page. This is not comfortable for review. The results area should behave more like a focused workspace: show a limited set of candidates, keep the area height predictable, and let the recruiter move through candidates by pagination.
+
+Expected direction:
+
+- a fixed or responsive-height candidate results area;
+- approximately 5-10 visible candidates per page depending on row height and viewport;
+- pagination controls inside or directly attached to that area;
+- no long full-page scroll just to move through candidate results.
+
+### Goal
+
+Add a fixed-height / bounded-height paginated Candidate Results area for the primary workspace.
+
+The recruiter should review candidates in a stable area without the entire page growing to dozens of rows.
+
+### Proposed Steps
+
+1. Define pagination model.
+   - Add frontend-only pagination state for the current visible candidate list.
+   - Include `current_page` and `page_size`.
+   - Default page size should show roughly 5-10 candidates; choose a conservative v0 default based on current row height.
+   - Reset to page 1 when a new search run starts or when visible candidate set changes materially.
+
+2. Apply pagination after current filtering/sorting state.
+   - Pagination should operate on the already-derived visible candidate list.
+   - Do not change scoring, filtering, sorting, dedupe, location logic, or backend result data.
+   - Export behavior should remain explicitly defined: if export stays hidden via `P8.8-019`, do not change export model here.
+
+3. Add bounded-height layout.
+   - Candidate results area should have a stable max-height or fixed responsive height.
+   - Keep pagination controls visible and close to the list.
+   - Avoid nested scroll traps where both page and candidate area fight for scroll.
+   - On smaller screens, keep pagination usable and avoid clipping row content.
+
+4. Add simple pagination controls.
+   - Show current range and total, for example `1-10 of 47`.
+   - Add previous/next controls.
+   - Optional page numbers can be added if they stay compact.
+   - Disable controls at boundaries.
+
+5. Preserve candidate interactions.
+   - Candidate row details, notes, explanations, source/profile display, and any remaining review actions should still work for candidates on the current page.
+   - Changing page should not reset candidate review state.
+   - New search should clear stale pagination if the result count changes.
+
+6. Add regression coverage.
+   - 0 candidates: empty state still renders.
+   - Fewer than page size: no unnecessary pagination noise or disabled controls are acceptable if compact.
+   - More than page size: only current page candidates render.
+   - Next/previous changes visible candidates without mutating workspace candidate data.
+   - New search or reset returns pagination to first page.
+   - Existing workspace helpers and export helpers still pass.
+
+7. Add browser sanity after implementation.
+   - Use a run/fixture with many candidates.
+   - Verify 5-10 candidates are visible in the bounded area.
+   - Verify page does not grow into a long candidate-only scroll.
+   - Verify pagination works and no layout overlap occurs.
+
+### Acceptance Criteria
+
+- Candidate Results use a bounded-height area instead of expanding the whole page indefinitely.
+- The default visible page shows roughly 5-10 candidates.
+- Pagination lets the recruiter move through all returned visible candidates.
+- Candidate data, order, review state, explanations, and source display are not mutated by pagination.
+- New search/reset returns pagination to a safe first-page state.
+- No backend search/runtime/Tavily/LLM behavior changes are introduced.
+- No persistence/database behavior is introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Server-side pagination.
+- Changing search result counts or backend report counts.
+- Changing scoring, filters, dedupe, location logic, query generation, runtime approval, or search execution.
+- Adding infinite scroll.
+- Redesigning the full Candidate Workspace.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
+
+---
+
+## Task: P8.8-024 Rebalance screen layout around compact chat and primary results workspace
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Desired screen direction from the user-provided annotated screenshot:
+
+- `Recruiter Chat` should remain on the left as a compact input/conversation panel.
+- `Candidate Results` should occupy the main wide workspace on the right.
+- The right-side results panel should use the available screen width and height better.
+- The layout should avoid large empty areas and avoid pushing the actual candidate table far down the page.
+
+This task should work together with:
+
+- `P8.8-019` hiding large sort/filter/export controls;
+- `P8.8-020` hiding agentic guidance blocks from the primary candidate view;
+- `P8.8-021` moving row-level review controls out of the primary row;
+- `P8.8-022` moving diagnostic row details out of the primary row;
+- `P8.8-023` adding fixed-height pagination for results.
+
+### Goal
+
+Create a cleaner screen-level layout:
+
+- compact left chat column;
+- large right candidate-results workspace;
+- candidate table visible high on the screen;
+- bounded candidate results area with pagination once `P8.8-023` is implemented;
+- responsive fallback that remains readable on narrower screens.
+
+### Proposed Steps
+
+1. Review current layout structure.
+   - Inspect `app/static/index.html` shell structure around `Recruiter Chat`, `Candidate Results`, report/search summary, and search details.
+   - Inspect `app/static/styles.css` grid/flex rules controlling desktop and responsive placement.
+   - Confirm which selectors are used by tests or frontend code before changing markup.
+
+2. Define desktop placement.
+   - Left column: compact `Recruiter Chat`.
+   - Right column: primary `Candidate Results`.
+   - Candidate Results should align near the top of the screen.
+   - Avoid leaving a large unused blank right-side area before results are available.
+   - Keep chat usable without letting it dominate the screen width.
+
+3. Define empty-state behavior.
+   - Before search, Candidate Results can show a compact empty state.
+   - The empty state should not occupy excessive vertical space.
+   - It should still clearly show where results will appear.
+
+4. Define post-search behavior.
+   - Candidate Results should become the dominant visible workspace.
+   - Candidate rows/pagination should start near the top of the right panel.
+   - Chat remains available for refinements, but does not push results down.
+
+5. Preserve responsive behavior.
+   - On narrow/mobile screens, stack chat and results safely.
+   - Avoid horizontal overflow.
+   - Text must not overlap or escape controls.
+   - Pagination and candidate row layout must remain usable.
+
+6. Preserve product boundaries.
+   - This is frontend layout work only.
+   - Do not change backend API contracts, Search Brief extraction, Agent Plan, QueryPlan, runtime approval, Tavily execution, scoring, filtering, dedupe, location logic, candidate facts, or persistence.
+   - Do not add LLM calls or autonomous behavior.
+
+7. Add regression/browser coverage.
+   - Desktop browser sanity: chat left, results right, results panel uses wide workspace.
+   - Post-search sanity: candidate list/table appears near top of results panel.
+   - Empty-state sanity: no oversized empty block.
+   - Narrow viewport sanity: stacked layout is readable, no overlap/horizontal scroll.
+   - Existing frontend smoke tests updated only where selectors/layout assertions need adjustment.
+
+### Acceptance Criteria
+
+- Desktop layout shows `Recruiter Chat` as a compact left panel.
+- Desktop layout shows `Candidate Results` as the main wide right-side workspace.
+- Candidate Results are visible high on the screen and do not feel like page-end content.
+- Empty state remains compact.
+- Post-search candidate list/table uses the right-side workspace effectively.
+- Narrow/mobile layout remains readable with no overlap or horizontal overflow.
+- No backend/runtime/search/Tavily/LLM behavior changes are introduced.
+- No persistence/database behavior is introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Full visual redesign of the application.
+- Changing chat behavior or Search Brief logic.
+- Changing candidate scoring, filters, dedupe, location logic, query generation, runtime approval, or search execution.
+- Implementing pagination itself if it remains owned by `P8.8-023`.
+- Adding new candidate review logic.
+- Adding autonomous execution.
+- Adding persistence, saved sessions, saved searches, or database work.
+- Direct web-search bypass, LinkedIn login/access/scraping, candidate messaging, or account actions.
 
 ---
 

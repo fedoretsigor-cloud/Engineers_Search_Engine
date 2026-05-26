@@ -165,6 +165,7 @@ let workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
 let workspaceReviewStateByCandidateId = {};
 let workspaceExplanationWordingByKey = {};
 let workspaceExportState = defaultWorkspaceExportState();
+let workspacePaginationState = defaultWorkspacePaginationState();
 let chatRequestInFlight = false;
 let agentPlanRequestInFlight = false;
 let planRequestInFlight = false;
@@ -172,6 +173,7 @@ let runtimePrepareRequestInFlight = false;
 let searchRequestInFlight = false;
 let searchConfirmationInFlight = false;
 let interactionVersion = 0;
+let chatTransientMessageCounter = 0;
 let agentActionDisplayState = {
   [AGENT_QUEUE_ACTION_BUILD_PLAN]: null,
   [AGENT_QUEUE_ACTION_RUN_SEARCH]: null,
@@ -253,6 +255,76 @@ function defaultWorkspaceExportState() {
   };
 }
 
+function defaultWorkspacePaginationState() {
+  return {
+    currentPage: 1,
+    pageSize: 8,
+  };
+}
+
+function clampWorkspacePage(page, totalPages) {
+  const safeTotalPages = Math.max(Number(totalPages) || 1, 1);
+  const safePage = Math.max(Number(page) || 1, 1);
+  return Math.min(safePage, safeTotalPages);
+}
+
+function workspacePaginationModel(candidates = visibleWorkspaceCandidates) {
+  const pageSize = Math.max(Number(workspacePaginationState.pageSize) || 8, 1);
+  const totalItems = candidates.length;
+  const totalPages = Math.max(Math.ceil(totalItems / pageSize), 1);
+  const currentPage = clampWorkspacePage(workspacePaginationState.currentPage, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  workspacePaginationState = {
+    ...workspacePaginationState,
+    currentPage,
+    pageSize,
+  };
+
+  return {
+    currentPage,
+    pageSize,
+    totalItems,
+    totalPages,
+    startIndex,
+    endIndex,
+    pageCandidates: candidates.slice(startIndex, endIndex),
+  };
+}
+
+function renderWorkspacePaginationControls(pagination) {
+  if (!pagination || pagination.totalPages <= 1) {
+    return "";
+  }
+
+  return `
+    <nav class="candidate-workspace-pagination" aria-label="Candidate results pages">
+      <span>
+        Page ${escapeHtml(pagination.currentPage)} of ${escapeHtml(pagination.totalPages)}
+      </span>
+      <div class="candidate-workspace-pagination-controls">
+        <button
+          type="button"
+          class="secondary-button"
+          data-workspace-page-action="previous"
+          ${pagination.currentPage <= 1 ? "disabled" : ""}
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          data-workspace-page-action="next"
+          ${pagination.currentPage >= pagination.totalPages ? "disabled" : ""}
+        >
+          Next
+        </button>
+      </div>
+    </nav>
+  `;
+}
+
 function updateWorkspaceExportStatusTarget() {
   const statusTarget = resultsList.querySelector("[data-workspace-export-status]");
   if (statusTarget) {
@@ -287,6 +359,7 @@ function clearWorkspaceState() {
   workspaceReviewStateByCandidateId = {};
   workspaceExplanationWordingByKey = {};
   workspaceExportState = defaultWorkspaceExportState();
+  workspacePaginationState = defaultWorkspacePaginationState();
 }
 
 function captureWorkspaceRunContext(searchData = {}) {
@@ -341,6 +414,7 @@ function replaceWorkspaceRun(dedupedResults = [], report = null, runContext = {}
     candidateWorkspace.createReviewStateForCandidates(candidates);
   workspaceExplanationWordingByKey = {};
   workspaceExportState = defaultWorkspaceExportState();
+  workspacePaginationState = defaultWorkspacePaginationState();
 }
 
 function renderWorkspaceOption(value, label, currentValue) {
@@ -390,91 +464,23 @@ function renderWorkspaceToolbar() {
     return "";
   }
 
-  const state = candidateWorkspace.normalizeWorkspaceViewState(workspaceViewState);
   const runLabel = latestWorkspaceRun.run_context?.execution_mode || "search";
   const queryCount = latestWorkspaceRun.run_context?.query_count || 0;
+  const candidateCount = latestWorkspaceRun.total_candidates || workspaceCandidates.length || 0;
 
   return `
-    <section class="candidate-workspace-toolbar" aria-label="Candidate workspace controls">
+    <section class="candidate-workspace-toolbar candidate-workspace-summary" aria-label="Candidate results summary">
       <div class="candidate-workspace-meta">
         <div>
           <span>Candidate Results</span>
-          <strong>${escapeHtml(latestWorkspaceRun.total_candidates)} ${escapeHtml(
-            pluralize(latestWorkspaceRun.total_candidates, "candidate", "candidates")
+          <strong>${escapeHtml(candidateCount)} unique ${escapeHtml(
+            pluralize(candidateCount, "candidate", "candidates")
           )}</strong>
         </div>
         <p>${escapeHtml(displayValue(runLabel))}, ${escapeHtml(queryCount)} ${escapeHtml(
           pluralize(queryCount, "query", "queries")
         )}</p>
       </div>
-      <div class="candidate-workspace-controls">
-        <label>
-          Sort
-          <select data-workspace-control="sort_mode">
-            ${renderWorkspaceOption("original", "Original order", state.sort_mode)}
-            ${renderWorkspaceOption("quality_desc", "Quality high to low", state.sort_mode)}
-            ${renderWorkspaceOption("quality_asc", "Quality low to high", state.sort_mode)}
-            ${renderWorkspaceOption("name_asc", "Name A to Z", state.sort_mode)}
-          </select>
-        </label>
-        <label>
-          Quality
-          <select data-workspace-control="quality_filter">
-            ${renderWorkspaceOption("all", "All", state.quality_filter)}
-            ${renderWorkspaceOption("80_plus", "80+", state.quality_filter)}
-            ${renderWorkspaceOption("70_plus", "70+", state.quality_filter)}
-            ${renderWorkspaceOption("60_plus", "60+", state.quality_filter)}
-          </select>
-        </label>
-        <label>
-          Stack
-          <select data-workspace-control="stack_filter">
-            ${renderWorkspaceOption("all", "All", state.stack_filter)}
-            ${renderWorkspaceOption("confirmed", "Confirmed", state.stack_filter)}
-            ${renderWorkspaceOption("query_source_only", "Query-source only", state.stack_filter)}
-            ${renderWorkspaceOption("not_visible", "Not visible", state.stack_filter)}
-          </select>
-        </label>
-        <label>
-          Flags
-          <select data-workspace-control="review_flag_filter">
-            ${renderWorkspaceOption("all", "All", state.review_flag_filter)}
-            ${renderWorkspaceOption("has_flags", "Has flags", state.review_flag_filter)}
-            ${renderWorkspaceOption("no_flags", "No flags", state.review_flag_filter)}
-            ${renderWorkspaceOption("high_medium", "High/medium flags", state.review_flag_filter)}
-          </select>
-        </label>
-        <label>
-          Location
-          <select data-workspace-control="location_filter">
-            ${renderWorkspaceOption("all", "All", state.location_filter)}
-            ${renderWorkspaceOption("target", "Target", state.location_filter)}
-            ${renderWorkspaceOption("unknown_weak", "Unknown/weak", state.location_filter)}
-          </select>
-        </label>
-        <label>
-          Review
-          <select data-workspace-control="review_status_filter">
-            ${renderWorkspaceOption("all", "All", state.review_status_filter)}
-            ${renderWorkspaceOption("new", "New", state.review_status_filter)}
-            ${renderWorkspaceOption("reviewing", "Reviewing", state.review_status_filter)}
-            ${renderWorkspaceOption("shortlisted", "Shortlisted", state.review_status_filter)}
-            ${renderWorkspaceOption("not_a_fit", "Not a fit", state.review_status_filter)}
-          </select>
-        </label>
-        <label>
-          Shortlist
-          <select data-workspace-control="shortlist_filter">
-            ${renderWorkspaceOption("all", "All", state.shortlist_filter)}
-            ${renderWorkspaceOption("shortlisted", "Shortlisted", state.shortlist_filter)}
-            ${renderWorkspaceOption("not_shortlisted", "Not shortlisted", state.shortlist_filter)}
-          </select>
-        </label>
-        <button type="button" class="secondary-button workspace-reset-button" data-workspace-action="reset-filters">
-          Reset filters
-        </button>
-      </div>
-      ${renderWorkspaceExportBlock()}
     </section>
   `;
 }
@@ -945,27 +951,11 @@ function renderWorkspaceRefinementSuggestions() {
 }
 
 function renderWorkspaceCandidate(candidate) {
-  const reviewState =
-    workspaceReviewStateByCandidateId[candidate.candidate_id] ||
-    { status: "new", note: "" };
-  const isShortlisted = candidateWorkspace.isWorkspaceCandidateShortlisted(reviewState);
-  const sourceBadges = candidate.query_sources
-    .map(
-      (source) =>
-        `<span title="${escapeHtml(source.role_phrase || source.query || source.category)}">${escapeHtml(
-          source.id || source.category || "query"
-        )}</span>`
-    )
-    .join("");
   const selectedStack = candidate.selected_stack_terms_found.length
     ? candidate.selected_stack_terms_found.join(", ")
     : displayValue(candidate.stack_fit);
-  const missingStack = candidate.missing_selected_stack_terms.length
-    ? candidate.missing_selected_stack_terms.join(", ")
-    : "";
   const qualityDisplay = candidate.has_quality_score ? candidate.quality_score : "n/a";
   const roleDisplay = candidate.raw?.result?.role_display || candidate.headline || candidate.raw_title;
-  const technologyDisplay = candidate.raw?.result?.technology_display;
   const sourceDisplay = candidate.source || "linkedin";
 
   return `
@@ -988,76 +978,7 @@ function renderWorkspaceCandidate(candidate) {
         ${renderWorkspaceRowField("Location", candidate.location_status)}
         ${renderWorkspaceRowField("Stack", selectedStack)}
         ${renderWorkspaceRowField("Source", sourceDisplay)}
-        <div class="workspace-review-strip candidate-row-review ${escapeHtml(
-          candidateWorkspace.reviewStatusClassName(reviewState.status)
-        )}">
-          <label>
-            Status
-            <select data-workspace-action="status">
-              ${renderWorkspaceReviewStatusOptions(reviewState.status)}
-            </select>
-          </label>
-          <label class="workspace-checkbox">
-            <input type="checkbox" data-workspace-action="shortlist" ${
-              isShortlisted ? "checked" : ""
-            } />
-            Shortlist
-          </label>
-          <span>${escapeHtml(candidateWorkspace.reviewStatusLabel(reviewState.status))}</span>
-        </div>
       </div>
-      ${
-        missingStack
-          ? `<p class="workspace-subtle-note">Missing selected stack: ${escapeHtml(missingStack)}</p>`
-          : ""
-      }
-      <div class="flag-badges" aria-label="Review flags">
-        ${renderFlagBadges(candidate.review_flags)}
-      </div>
-      <details>
-        <summary>Candidate details</summary>
-        <div class="quality-grid">
-          ${renderQualityField("Location", candidate.location_status)}
-          ${renderQualityField("Role", roleDisplay)}
-          ${renderQualityField("Tech", technologyDisplay)}
-          ${renderQualityField("Stack", selectedStack)}
-          ${renderQualityField("Seniority", candidate.seniority_level)}
-          ${renderQualityField("Source", sourceDisplay)}
-        </div>
-        <div class="score-details">
-          ${renderQualityField("Stack fit", candidate.stack_fit)}
-          ${renderQualityField("Quality bucket", candidate.quality_bucket)}
-          ${renderQualityField("Location group", candidate.location_group)}
-          ${renderQualityField("Stable identity", candidate.identity.is_stable_identity ? "yes" : "fallback")}
-        </div>
-        ${renderCandidateExplanation(candidate)}
-        <p class="result-snippet">${escapeHtml(candidate.snippet || "No snippet returned.")}</p>
-      </details>
-      <details>
-        <summary>Quality details</summary>
-        ${renderScoreBreakdown(candidate.raw?.result || {})}
-      </details>
-      <details>
-        <summary>Query sources</summary>
-        <div class="source-badges" aria-label="Query sources">
-          ${sourceBadges || "<span>No query sources</span>"}
-        </div>
-        ${renderQuerySourceDetails(candidate.query_sources)}
-      </details>
-      <details class="candidate-notes-details">
-        <summary>Recruiter notes</summary>
-        <label class="workspace-note">
-          Notes
-          <textarea
-            data-workspace-action="note"
-            maxlength="${escapeHtml(candidateWorkspace.NOTE_MAX_LENGTH)}"
-            placeholder="Private recruiter note for this run"
-          >${escapeHtml(reviewState.note)}</textarea>
-          <span data-workspace-note-count>${escapeHtml(reviewState.note.length)} / ${escapeHtml(
-            candidateWorkspace.NOTE_MAX_LENGTH
-          )}</span>
-        </label>
-      </details>
     </article>
   `;
 }
@@ -1070,6 +991,7 @@ function renderWorkspaceResults(report = null) {
   }
 
   visibleWorkspaceCandidates = recomputeVisibleWorkspaceCandidates();
+  const pagination = workspacePaginationModel(visibleWorkspaceCandidates);
 
   if (!workspaceCandidates.length) {
     resultsStatus.textContent = report?.raw_total
@@ -1083,23 +1005,22 @@ function renderWorkspaceResults(report = null) {
     return;
   }
 
-  resultsStatus.textContent = `Showing ${visibleWorkspaceCandidates.length} of ${workspaceCandidates.length} ${pluralize(
+  resultsStatus.textContent = `${workspaceCandidates.length} unique ${pluralize(
     workspaceCandidates.length,
     "candidate",
     "candidates"
-  )}.`;
+  )} found.`;
 
   resultsList.innerHTML = `
     ${renderWorkspaceToolbar()}
-    ${renderTopCandidateRecommendation()}
     ${renderSelectedCandidateComparison()}
     ${renderSelectedCandidateFitGapExplanation()}
-    ${renderWorkspaceRefinementSuggestions()}
     ${
       visibleWorkspaceCandidates.length
-        ? `<section class="candidate-workspace-list">${visibleWorkspaceCandidates
+        ? `<section class="candidate-workspace-list candidate-workspace-page">${pagination.pageCandidates
             .map(renderWorkspaceCandidate)
-            .join("")}</section>`
+            .join("")}</section>
+          ${renderWorkspacePaginationControls(pagination)}`
         : `<div class="workspace-empty-state">No candidates match current view filters. Reset filters to show all candidates.</div>`
     }
   `;
@@ -1389,6 +1310,28 @@ function isGenericSearchRunRefinementRequest(text) {
   );
 }
 
+function isRestartSearchSetupRequest(text) {
+  const normalizedText = normalizeChatCommandText(text);
+  if (
+    [
+      "start over",
+      "start again",
+      "restart",
+      "reset",
+      "new search",
+      "start new search",
+      "clear brief",
+      "\u043d\u0430\u0447\u0430\u0442\u044c \u0437\u0430\u043d\u043e\u0432\u043e",
+      "\u0441\u0431\u0440\u043e\u0441",
+      "\u043d\u043e\u0432\u044b\u0439 \u043f\u043e\u0438\u0441\u043a",
+    ].includes(normalizedText)
+  ) {
+    return true;
+  }
+
+  return /\b(start|begin|try|do)\s+(again|over|from scratch)\b/.test(normalizedText);
+}
+
 function isSearchRunAmbiguousReply(text) {
   return SEARCH_RUN_AMBIGUOUS_REPLIES.has(normalizeChatCommandText(text));
 }
@@ -1442,6 +1385,9 @@ function pendingUpdateFieldQuestion(field, language = currentChatLanguage) {
 function fallbackPendingSearchSummaryUpdateIntent(text) {
   const normalizedText = normalizeChatCommandText(text);
   const responseLanguage = chatMessageResponseLanguage(text);
+  if (isRestartSearchSetupRequest(text)) {
+    return { intent: "restart", field: null, responseLanguage };
+  }
   if (["cancel", "stop", "nevermind", "never mind", "\u043e\u0442\u043c\u0435\u043d\u0430", "\u0441\u0442\u043e\u043f"].includes(normalizedText)) {
     return { intent: "cancel", field: null, responseLanguage };
   }
@@ -1501,8 +1447,12 @@ async function classifyPendingSearchSummaryUpdateIntent(userText) {
       return fallbackPendingSearchSummaryUpdateIntent(userText);
     }
 
-    const intent = String(data.pending_update_intent || "unclear");
-    if (["select_field", "provide_value", "cancel", "unclear"].includes(intent)) {
+    const dataIntent = String(data.intent || "unclear");
+    const intent =
+      dataIntent === "restart"
+        ? "restart"
+        : String(data.pending_update_intent || "unclear");
+    if (["select_field", "provide_value", "cancel", "restart", "unclear"].includes(intent)) {
       return {
         intent,
         field: data.field || data.answered_field || pendingChatAction.field || null,
@@ -1520,6 +1470,9 @@ async function classifyPendingSearchSummaryUpdateIntent(userText) {
 
 function fallbackPendingSearchRunIntent(text) {
   const responseLanguage = chatMessageResponseLanguage(text);
+  if (isRestartSearchSetupRequest(text)) {
+    return { intent: "restart", reasonCode: "restart_current_search_setup", responseLanguage };
+  }
   if (isSearchRunConfirmation(text)) {
     return { intent: "confirm", reasonCode: "deterministic_confirm", responseLanguage };
   }
@@ -1567,8 +1520,14 @@ async function classifyPendingSearchRunIntent(userText) {
       return fallbackPendingSearchRunIntent(userText);
     }
 
-    const intent = String(data.pending_action_intent || "unclear");
-    if (["confirm", "refine", "reject", "unclear"].includes(intent)) {
+    const fallback = fallbackPendingSearchRunIntent(userText);
+    const dataIntent = String(data.intent || "unclear");
+    const intent =
+      dataIntent === "restart" ? "restart" : String(data.pending_action_intent || "unclear");
+    if (intent === "unclear" && fallback.intent !== "unclear") {
+      return fallback;
+    }
+    if (["confirm", "refine", "reject", "restart", "unclear"].includes(intent)) {
       return {
         intent,
         reasonCode: String(data.pending_action_reason_code || ""),
@@ -1720,6 +1679,15 @@ function clearDownstreamStateAfterBriefChange() {
   queryList.innerHTML = "";
 }
 
+function clearSearchSetupStateAfterRestart() {
+  clearAgentActionDisplayState();
+  clearPlannerData();
+  clearAgentPlanData();
+  clearRuntimeApproval();
+  planStatus.textContent = "Prepare search from the chat summary.";
+  queryList.innerHTML = "";
+}
+
 function clearExecutableStateAfterRefusal() {
   clearAgentActionDisplayState();
   clearPlannerData();
@@ -1736,6 +1704,60 @@ function chatMessagesForBackend() {
       role: message.role,
       content: message.content,
     }));
+}
+
+function appendOutgoingUserMessage(userText, options = {}) {
+  const message = {
+    role: "user",
+    content: userText,
+  };
+  if (options.localOnly) {
+    message.localOnly = true;
+  }
+  messages.push(message);
+  renderChatMessages();
+  return message;
+}
+
+function markChatMessageForBackend(message) {
+  if (message) {
+    delete message.localOnly;
+  }
+}
+
+function appendAssistantThinkingMessage(language = currentChatLanguage) {
+  chatTransientMessageCounter += 1;
+  const transientId = `thinking-${chatTransientMessageCounter}`;
+  messages.push({
+    role: "assistant",
+    content: language === "ru" ? "Думаю..." : "Thinking...",
+    localOnly: true,
+    transient: true,
+    transientId,
+  });
+  renderChatMessages();
+  return transientId;
+}
+
+function clearAssistantThinkingMessage(transientId = null) {
+  const previousLength = messages.length;
+  messages = messages.filter(
+    (message) =>
+      !message.transient ||
+      (transientId && message.transientId !== transientId)
+  );
+  if (messages.length !== previousLength) {
+    renderChatMessages();
+  }
+}
+
+function pendingChatActionUsesLocalOnlyHistory() {
+  return Boolean(
+    pendingChatAction &&
+      ["start_search", "update_search_summary", "update_search_summary_field"].includes(
+        pendingChatAction.type
+      )
+  );
 }
 
 function typedChatMessage(baseMessage, metadata = {}) {
@@ -1927,7 +1949,8 @@ function plainChatSpeaker(message = {}) {
 }
 
 function chatRoleClass(message = {}) {
-  return message.role === "user" ? "user-message" : "assistant-message";
+  const roleClass = message.role === "user" ? "user-message" : "assistant-message";
+  return message.transient ? `${roleClass} assistant-thinking-message` : roleClass;
 }
 
 function renderPlainChatMessage(message = {}) {
@@ -2731,6 +2754,7 @@ function updateChatStateFromResponse(data = {}) {
   if (data.clear_brief) {
     draftBrief = null;
     normalizedBrief = null;
+    clearSearchSetupStateAfterRestart();
   } else if (responseBrief) {
     draftBrief = responseBrief;
     normalizedBrief = responseBrief;
@@ -2744,7 +2768,14 @@ function updateChatStateFromResponse(data = {}) {
     clearDownstreamStateAfterBriefChange();
   }
 
-  if (data.assistant_message) {
+  const suppressRedundantUpdateBubble = Boolean(
+    data.assistant_message &&
+      data.brief_changed &&
+      data.brief_patch &&
+      chatState === "ready_for_planning"
+  );
+
+  if (data.assistant_message && !suppressRedundantUpdateBubble) {
     const messageType = recruiterChatMessageType(data);
     messages.push(
       typedChatMessage(
@@ -2788,7 +2819,6 @@ function isPostResultsFollowUpMessage(text) {
 }
 
 function handlePostResultsFollowUp(userText) {
-  messages.push({ role: "user", content: userText, localOnly: true });
   messages.push(
     typedChatMessage(
       {
@@ -2857,7 +2887,6 @@ async function handlePendingSearchRunChatAction(userText) {
   const cleanConfirmation = pendingIntent === "confirm";
   if (!pendingSearchRunConfirmationIsCurrent()) {
     if (cleanConfirmation && pendingChatAction?.type === "start_search") {
-      messages.push({ role: "user", content: userText, localOnly: true });
       clearPendingChatAction();
       appendSearchConfirmationReply(
         pendingResponseLanguage === "ru"
@@ -2874,13 +2903,32 @@ async function handlePendingSearchRunChatAction(userText) {
     return false;
   }
 
+  if (pendingIntent === "restart") {
+    clearPendingChatAction();
+    draftBrief = null;
+    normalizedBrief = null;
+    chatState = "drafting";
+    clearSearchSetupStateAfterRestart();
+    appendSearchConfirmationReply(
+      pendingResponseLanguage === "ru"
+        ? "\u041e\u043a, \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u043c \u0437\u0430\u043d\u043e\u0432\u043e. \u041d\u0430\u043f\u0438\u0448\u0438, \u043a\u043e\u0433\u043e \u0438\u0449\u0435\u043c: \u0440\u043e\u043b\u044c, \u043e\u0441\u043d\u043e\u0432\u043d\u0443\u044e \u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044e, \u043b\u043e\u043a\u0430\u0446\u0438\u044e \u0438 1-3 \u0441\u0438\u0433\u043d\u0430\u043b\u0430 \u0441\u0442\u0435\u043a\u0430."
+        : "Ok, let's start again. Tell me who we should find: role, main technology, location, and 1-3 stack signals.",
+      AGENT_MESSAGE_TYPES.ONBOARDING
+    );
+    chatStatusElement.textContent = "";
+    renderBriefSummaryCard(null);
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
   if (pendingIntent === "refine") {
     if (
       pendingReasonCode === "wants_to_update_before_search" ||
       pendingReasonCode === "generic_update_before_search" ||
       isGenericSearchRunRefinementRequest(userText)
     ) {
-      messages.push({ role: "user", content: userText, localOnly: true });
       clearPendingChatAction();
       clearRuntimeApproval();
       setPendingSearchSummaryUpdateAction();
@@ -2902,7 +2950,6 @@ async function handlePendingSearchRunChatAction(userText) {
   }
 
   if (pendingIntent === "reject") {
-    messages.push({ role: "user", content: userText, localOnly: true });
     clearPendingChatAction();
     clearRuntimeApproval();
     appendSearchConfirmationReply(
@@ -2918,7 +2965,6 @@ async function handlePendingSearchRunChatAction(userText) {
   }
 
   if (pendingIntent === "unclear") {
-    messages.push({ role: "user", content: userText, localOnly: true });
     appendSearchConfirmationReply(
       pendingResponseLanguage === "ru"
         ? "\u0425\u043e\u0447\u0435\u0448\u044c, \u0447\u0442\u043e\u0431\u044b \u044f \u043d\u0430\u0447\u0430\u043b \u044d\u0442\u043e\u0442 \u043f\u043e\u0438\u0441\u043a, \u0438\u043b\u0438 \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u043d\u0443\u0436\u043d\u043e \u0447\u0442\u043e-\u0442\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c?"
@@ -2935,7 +2981,6 @@ async function handlePendingSearchRunChatAction(userText) {
     return false;
   }
 
-  messages.push({ role: "user", content: userText, localOnly: true });
   clearPendingChatAction();
   appendSearchConfirmationReply(
     pendingResponseLanguage === "ru"
@@ -2980,7 +3025,6 @@ async function handlePendingSearchSummaryUpdateAction(userText) {
   }
 
   if (!pendingSearchSummaryUpdateIsCurrent()) {
-    messages.push({ role: "user", content: userText, localOnly: true });
     clearPendingChatAction();
     appendSearchConfirmationReply(
       chatMessageResponseLanguage(userText) === "ru"
@@ -2999,8 +3043,27 @@ async function handlePendingSearchSummaryUpdateAction(userText) {
   const responseLanguage =
     updateDecision.responseLanguage || chatMessageResponseLanguage(userText);
 
+  if (updateIntent === "restart") {
+    clearPendingChatAction();
+    draftBrief = null;
+    normalizedBrief = null;
+    chatState = "drafting";
+    clearSearchSetupStateAfterRestart();
+    appendSearchConfirmationReply(
+      responseLanguage === "ru"
+        ? "\u041e\u043a, \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u043c \u0437\u0430\u043d\u043e\u0432\u043e. \u041d\u0430\u043f\u0438\u0448\u0438, \u043a\u043e\u0433\u043e \u0438\u0449\u0435\u043c: \u0440\u043e\u043b\u044c, \u043e\u0441\u043d\u043e\u0432\u043d\u0443\u044e \u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044e, \u043b\u043e\u043a\u0430\u0446\u0438\u044e \u0438 1-3 \u0441\u0438\u0433\u043d\u0430\u043b\u0430 \u0441\u0442\u0435\u043a\u0430."
+        : "Ok, let's start again. Tell me who we should find: role, main technology, location, and 1-3 stack signals.",
+      AGENT_MESSAGE_TYPES.ONBOARDING
+    );
+    chatStatusElement.textContent = "";
+    renderBriefSummaryCard(null);
+    renderChatMessages();
+    updateActionState();
+    chatInput.focus();
+    return true;
+  }
+
   if (updateIntent === "cancel") {
-    messages.push({ role: "user", content: userText, localOnly: true });
     clearPendingChatAction();
     appendSearchConfirmationReply(
       responseLanguage === "ru"
@@ -3020,7 +3083,6 @@ async function handlePendingSearchSummaryUpdateAction(userText) {
     updateDecision.field
   ) {
     const selectedField = String(updateDecision.field);
-    messages.push({ role: "user", content: userText, localOnly: true });
     setPendingSearchSummaryUpdateFieldAction(selectedField);
     appendSearchConfirmationReply(
       pendingUpdateFieldQuestion(selectedField, responseLanguage),
@@ -3033,7 +3095,6 @@ async function handlePendingSearchSummaryUpdateAction(userText) {
   }
 
   if (pendingChatAction.type === "update_search_summary") {
-    messages.push({ role: "user", content: userText, localOnly: true });
     appendSearchConfirmationReply(
       responseLanguage === "ru"
         ? "\u0427\u0442\u043e \u0438\u043c\u0435\u043d\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c: role, technology, stack, location, seniority \u0438\u043b\u0438 depth?"
@@ -3112,30 +3173,63 @@ async function handlePendingBuildPlanChatAction(userText) {
 }
 
 async function sendChatTurn(userText) {
-  if (await handlePendingSearchRunChatAction(userText)) {
-    return;
-  }
+  const requestVersion = interactionVersion;
+  const optimisticUserMessage = appendOutgoingUserMessage(userText, {
+    localOnly:
+      pendingChatActionUsesLocalOnlyHistory() || isPostResultsFollowUpMessage(userText),
+  });
+  const thinkingMessageId = appendAssistantThinkingMessage(
+    chatMessageResponseLanguage(userText)
+  );
 
-  if (await handlePendingSearchSummaryUpdateAction(userText)) {
-    return;
-  }
+  try {
+    if (await handlePendingSearchRunChatAction(userText)) {
+      clearAssistantThinkingMessage(thinkingMessageId);
+      return;
+    }
 
-  if (isPostResultsFollowUpMessage(userText)) {
-    handlePostResultsFollowUp(userText);
+    if (await handlePendingSearchSummaryUpdateAction(userText)) {
+      clearAssistantThinkingMessage(thinkingMessageId);
+      return;
+    }
+
+    if (isPostResultsFollowUpMessage(userText)) {
+      handlePostResultsFollowUp(userText);
+      clearAssistantThinkingMessage(thinkingMessageId);
+      chatInput.focus();
+      return;
+    }
+
+    markChatMessageForBackend(optimisticUserMessage);
+    chatRequestInFlight = true;
+    chatStatusElement.textContent = "";
+    updateActionState();
+  } catch (error) {
+    clearAssistantThinkingMessage(thinkingMessageId);
+    messages.push(
+      typedChatMessage(
+        {
+          role: "assistant",
+          content: error.message,
+          localOnly: true,
+        },
+        {
+          messageType: AGENT_MESSAGE_TYPES.SYSTEM_ERROR,
+          surface: "chat",
+        }
+      )
+    );
+    chatStatusElement.textContent = error.message;
+    renderChatMessages();
+    updateActionState();
     chatInput.focus();
     return;
   }
 
-  const requestVersion = interactionVersion;
   const pendingUpdateFieldForRequest =
     pendingChatAction?.type === "update_search_summary_field"
       ? pendingChatAction.field
       : null;
-  messages.push({ role: "user", content: userText });
-  renderChatMessages();
-  chatRequestInFlight = true;
-  chatStatusElement.textContent = "Updating search summary...";
-  updateActionState();
 
   try {
     const response = await fetch("/api/recruiter-chat/turn", {
@@ -3160,6 +3254,7 @@ async function sendChatTurn(userText) {
       return;
     }
 
+    clearAssistantThinkingMessage(thinkingMessageId);
     updateChatStateFromResponse(data);
     if (
       pendingUpdateFieldForRequest &&
@@ -3173,6 +3268,7 @@ async function sendChatTurn(userText) {
       return;
     }
 
+    clearAssistantThinkingMessage(thinkingMessageId);
     messages.push(
       typedChatMessage(
         {
@@ -3191,6 +3287,7 @@ async function sendChatTurn(userText) {
     updateActionState();
   } finally {
     if (requestVersion === interactionVersion) {
+      clearAssistantThinkingMessage(thinkingMessageId);
       chatRequestInFlight = false;
       updateActionState();
       chatInput.focus();
@@ -3211,6 +3308,7 @@ function resetChat() {
   planRequestInFlight = false;
   searchRequestInFlight = false;
   searchConfirmationInFlight = false;
+  chatTransientMessageCounter = 0;
   multiWaveInput.checked = DEFAULT_MULTI_WAVE_ENABLED;
   clearAgentActionDisplayState();
   clearPlannerData();
@@ -3797,6 +3895,10 @@ function handleWorkspaceChange(event) {
       ...workspaceViewState,
       [controlName]: event.target.value,
     });
+    workspacePaginationState = {
+      ...workspacePaginationState,
+      currentPage: 1,
+    };
     clearWorkspaceExportStatus(false);
     renderWorkspaceResults(latestWorkspaceRun.report);
     return;
@@ -3860,6 +3962,23 @@ function handleWorkspaceClick(event) {
     return;
   }
 
+  const pageAction = event.target.closest("[data-workspace-page-action]");
+  if (pageAction) {
+    event.preventDefault();
+    const direction = pageAction.dataset.workspacePageAction;
+    const visibleCandidates = recomputeVisibleWorkspaceCandidates();
+    const pagination = workspacePaginationModel(visibleCandidates);
+    workspacePaginationState = {
+      ...workspacePaginationState,
+      currentPage:
+        direction === "previous"
+          ? pagination.currentPage - 1
+          : pagination.currentPage + 1,
+    };
+    renderWorkspaceResults(latestWorkspaceRun.report);
+    return;
+  }
+
   const exportAction = event.target.closest("[data-workspace-export-action]");
   if (exportAction) {
     event.preventDefault();
@@ -3885,6 +4004,7 @@ function handleWorkspaceClick(event) {
 
   event.preventDefault();
   workspaceViewState = candidateWorkspace.defaultWorkspaceViewState();
+  workspacePaginationState = defaultWorkspacePaginationState();
   clearWorkspaceExportStatus(false);
   renderWorkspaceResults(latestWorkspaceRun.report);
 }

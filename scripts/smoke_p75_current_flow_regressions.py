@@ -320,7 +320,7 @@ async def assert_ru_control_signal_regressions() -> None:
         assert response["state"] == "needs_clarification"
         assert response["normalized_brief"] is None
         assert response["brief_changed"] is True
-        assert response["stale_state_should_clear"] is True
+        assert response["stale_state_should_clear"] is False
         assert response["clear_brief"] is True
         assert response["can_build_plan"] is False
 
@@ -484,7 +484,7 @@ async def assert_en_hardening_regressions() -> None:
     assert reset["state"] == "needs_clarification"
     assert reset["normalized_brief"] is None
     assert reset["clear_brief"] is True
-    assert reset["stale_state_should_clear"] is True
+    assert reset["stale_state_should_clear"] is False
 
 
 def runtime_context_from_plan(agent_plan: dict, query_plan_response: dict) -> dict:

@@ -226,7 +226,6 @@ def assert_static_wiring() -> None:
 
     require(app_js, "function renderWorkspaceRefinementSuggestions()", "UI renderer")
     require(app_js, "Based on current visible candidates.", "scope wording")
-    require(app_js, "${renderWorkspaceRefinementSuggestions()}", "renderer insertion")
     require(app_js, "workspace-refinement-guidance", "guidance block markup")
 
     require(styles_css, ".workspace-refinement-grid", "guidance grid CSS")
