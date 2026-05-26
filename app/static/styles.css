@@ -287,6 +287,11 @@ textarea:focus {
   background: #0c1625;
 }
 
+.chat-empty-message {
+  width: 100%;
+  max-width: none;
+}
+
 .user-message {
   justify-self: end;
   border-color: var(--accent-line);

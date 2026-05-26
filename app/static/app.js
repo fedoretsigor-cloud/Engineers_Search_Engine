@@ -1744,7 +1744,7 @@ function renderTypedChatMessage(message = {}) {
 function renderChatMessages() {
   if (!messages.length) {
     chatMessagesElement.innerHTML = `
-      <article class="chat-message assistant-message">
+      <article class="chat-message assistant-message chat-empty-message">
         <p>Feel free to start the chat and describe who you are looking for. I will do my best to help you.</p>
       </article>
     `;

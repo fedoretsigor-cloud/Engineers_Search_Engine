@@ -17356,6 +17356,11 @@ Implemented as a UI-level UAT gate slice:
 
 ### Backlog
 
+- [ ] P8.8-008 Add bounded LLM Java-programmer role classifier
+- [ ] P8.8-009 Add bounded LLM Search Brief field-explanation intent
+- [ ] P8.8-010 Add bounded LLM pending-field answer classifier
+- [ ] P8.8-011 Improve bounded LLM pending-action refinement intent
+
 ### In Progress
 
 ### Done
@@ -18094,6 +18099,559 @@ This is a small frontend-only cleanup task.
 - Removing multi-wave behavior.
 - Changing query generation, filtering, scoring, dedupe, location logic, or candidate workspace behavior.
 - Adding persistence/database work.
+
+---
+
+## Task: P8.8-008 Add bounded LLM Java-programmer role classifier
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+The current role understanding is still too dependent on hardcoded role-like regexes and a small deterministic non-IT role list in `app/main.py`. This was acceptable as a narrow guardrail for the Java/Ukraine POC, but it is not the right long-term AI Agent direction.
+
+Observed problem:
+
+```text
+User: QA Automation
+Assistant: Sorry, I did not understand the request...
+
+User: Analyst
+Assistant: Sorry, I did not understand the request...
+```
+
+This is not accurate. The assistant should be able to understand that `QA Automation` and `Analyst` are role/profession-like requests, even if they are outside the currently supported Java-programmer search flow.
+
+### Goal
+
+Replace hardcoded role understanding as the primary mechanism with a bounded LLM role classifier.
+
+The classifier should use LLM semantic understanding while returning only a strict backend-validated JSON contract. It must decide whether the latest recruiter message describes:
+
+- a supported Java programmer / Java software developer / Java backend engineer role;
+- a recognizable but unsupported IT/software role;
+- a recognizable but unsupported non-IT profession;
+- an ambiguous role-like phrase that needs clarification;
+- noise / not a profession-like request.
+
+### Proposed Contract
+
+The LLM must not build a Search Brief, QueryPlan, filters, or executable action. It only classifies role/profession meaning.
+
+Example output:
+
+```json
+{
+  "is_profession_like": true,
+  "role_label": "QA Automation",
+  "role_domain": "software_it",
+  "java_programmer_role": false,
+  "support_status": "unsupported",
+  "confidence": "high",
+  "reason_code": "software_role_not_java_programmer"
+}
+```
+
+Allowed output values should be small and backend-owned:
+
+- `role_domain`: `software_it | non_it | ambiguous | unknown`
+- `support_status`: `supported | unsupported | ambiguous | noise`
+- `confidence`: `high | medium | low`
+- `reason_code`: bounded enum owned by backend.
+
+### Policy v1
+
+Supported:
+
+- roles clearly asking for Java programmer / Java software developer / Java backend engineer work;
+- examples: `Java Developer`, `Backend Engineer Java`, `Software Engineer with Java`, `Java Backend Developer`.
+
+Unsupported but understood:
+
+- IT/software roles that are not Java-programmer roles, for example `QA Automation`, `DevOps`, `Frontend Developer`, `Product Manager`;
+- non-IT professions, for example `plumber`, `dentist`, `lawyer`.
+
+Ambiguous:
+
+- role-like words that need clarification before classification, for example `Analyst`, `Engineer`, `Automation`.
+
+Noise:
+
+- messages that do not look like a role/profession/search request, for example random words or nonsense.
+
+### Proposed Steps
+
+1. Define the bounded role-classifier output contract.
+   - Add a typed backend schema or validated dict contract.
+   - Keep the output small and enum-based.
+   - Do not accept arbitrary LLM-returned actions, Search Brief fields, queries, or filters.
+
+2. Add an LLM-first role classifier.
+   - Input should include only the latest user message, language hint, and minimal current Search Brief context if needed.
+   - Exclude candidates, URLs, raw search results, raw Tavily payloads, secrets, and long chat history.
+   - Use deterministic fallback if OpenAI is unavailable, invalid, slow, or low confidence.
+
+3. Keep deterministic logic as fallback/guardrail only.
+   - Existing hard safety/prohibited checks still run before the classifier.
+   - Existing backend Search Brief validation remains authority.
+   - Hardcoded backend/non-IT regexes must not remain the main intelligence mechanism for role understanding.
+
+4. Route chat responses by classifier result.
+   - `supported` Java-programmer role continues into the existing Search Brief flow.
+   - `unsupported` IT/software role responds: role understood, but current supported flow is Java programmer search.
+   - `unsupported` non-IT role responds: role understood, but outside current IT/software sourcing scope.
+   - `ambiguous` asks one short clarification.
+   - `noise` says the message does not look like a candidate-search role request and asks for role, Java, location, and stack.
+
+5. Preserve the current product boundary.
+   - Do not expand supported search beyond the reviewed Java/Ukraine flow.
+   - Do not add new planner support for QA, Analyst, DevOps, Frontend, or non-IT roles.
+   - Do not let the classifier enable planning/search by itself.
+
+6. Add no-network tests with mocked LLM responses.
+   - `QA Automation` -> understood unsupported IT/software role.
+   - `Analyst` -> ambiguous or unsupported with clarification, not generic unclear.
+   - `Java Developer` -> supported.
+   - `Backend Engineer Java` -> supported.
+   - `Software Engineer Java` -> supported.
+   - `plumber` -> understood unsupported non-IT.
+   - `banana` -> noise / unclear.
+
+7. Add regression checks for current supported flow.
+   - `Find Java Developer in Ukraine with Spring` still reaches a valid supported Search Brief.
+   - Existing evidence gate still blocks hallucinated readiness.
+   - Pending-action intent and small-talk handling still work.
+
+8. Update documentation after implementation.
+   - Record that role understanding is LLM-first bounded classification, not a growing manual role catalog.
+   - Record that backend validation remains the authority layer.
+
+### Acceptance Criteria
+
+- `QA Automation` no longer receives `I did not understand` wording.
+- `Analyst` is not silently converted into `Backend Developer`.
+- Supported Java-programmer requests still build the existing supported Search Brief.
+- Unsupported roles are acknowledged as understood but outside current supported scope.
+- Noise is treated as not profession-like instead of being forced into a role.
+- The implementation does not rely on a growing manual role catalog as the primary mechanism.
+- The classifier cannot mutate Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, counts, results, or persistence.
+- `scripts/check_all.ps1` passes.
+
+### Non-Goals
+
+- Adding support for QA/Analyst/DevOps/Frontend/non-IT searches.
+- Expanding countries, technologies, providers, or search sources.
+- Building a free-form autonomous agent.
+- Letting LLM create or execute tools/actions.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Persistence/database work.
+
+---
+
+## Task: P8.8-009 Add bounded LLM Search Brief field-explanation intent
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Observed UI behavior:
+
+```text
+User: What role family means?
+Assistant: What role family should the search target?
+
+User: What role family means?
+Assistant: What role family should the search target?
+```
+
+This is not acceptable for an AI Agent conversation. The recruiter asked for an explanation of a term, but the assistant repeated the pending missing-field question.
+
+The likely cause is that the current pending clarification flow treats the message as an unrecognized answer to the missing `role_family` field, instead of recognizing it as a meta/explanation question about a Search Brief field.
+
+### Goal
+
+Add bounded LLM intent recognition for recruiter questions about Search Brief terms and pending clarification fields.
+
+The assistant should understand questions such as:
+
+- `What role family means?`
+- `What is role family?`
+- `What stack means?`
+- `What is main technology?`
+- `Что такое стек?`
+- `Что значит role family?`
+
+and answer the explanation without mutating Search Brief state, clearing context, building a plan, or running search.
+
+### Proposed Contract
+
+The LLM may classify only whether the latest message is asking for an explanation of a known Search Brief field.
+
+Example output:
+
+```json
+{
+  "intent": "field_explanation",
+  "field": "role_family",
+  "confidence": "high"
+}
+```
+
+Allowed fields:
+
+- `role_family`
+- `technology`
+- `stack`
+- `location`
+- `seniority`
+- `search_depth`
+- `profile_sources`
+
+Allowed intents:
+
+- `field_explanation`
+- `not_field_explanation`
+- `unclear`
+
+### Backend-Owned Meanings
+
+The LLM should not invent field definitions. Backend owns the meaning of each field:
+
+- `role_family`: broad type of role to search for, for example `Backend Developer`;
+- `technology`: main programming technology, for example `Java`;
+- `stack`: 1-3 supporting technologies, for example `Spring`, `Kafka`, `AWS`;
+- `location`: target candidate location, for example `Ukraine`;
+- `seniority`: optional experience level, for example `Senior`;
+- `search_depth`: search breadth/depth setting;
+- `profile_sources`: allowed public profile source, currently LinkedIn public profiles.
+
+Optional LLM wording may rephrase only after backend selects the safe meaning.
+
+### Proposed Steps
+
+1. Define the bounded field-explanation intent contract.
+   - Input: latest user message, language hint, optional pending clarification field, and compact current brief status.
+   - Output: strict JSON with `intent`, `field`, and `confidence`.
+   - Do not include candidates, URLs, raw search results, raw Tavily/OpenAI payloads, secrets, or long chat history.
+
+2. Add routing before pending-field unrecognized-answer fallback.
+   - If the user asks what a pending field means, answer the explanation.
+   - Preserve current Search Brief and pending clarification.
+   - Do not mark state stale.
+
+3. Use backend-owned explanations.
+   - Map each allowed field to a deterministic safe meaning.
+   - Match the user's language where possible.
+   - Keep the answer concise and recruiter-facing.
+
+4. Allow bounded wording only after safe meaning selection.
+   - LLM wording may make the explanation more natural.
+   - LLM wording must not change the field meaning, add unsupported capabilities, or mention internals.
+   - Invalid/unsafe wording falls back to deterministic explanation.
+
+5. Keep hard safety and execution boundaries.
+   - Prohibited requests still refuse before this classifier.
+   - Field explanations cannot create or mutate Search Brief fields.
+   - Field explanations cannot build a plan, approve search, run Tavily, open LinkedIn, message candidates, or act on accounts.
+
+6. Add no-network regression tests with mocked LLM output.
+   - `What role family means?` while `role_family` is missing returns a role-family explanation, not the same missing-field question.
+   - Repeated field-explanation questions do not loop.
+   - `What stack means?` explains stack.
+   - RU equivalents explain in RU.
+   - Existing draft/ready brief is preserved.
+   - Supported candidate-search request still follows the normal Search Brief path.
+
+7. Update documentation after implementation.
+   - Record that recruiter meta-questions about Search Brief fields are handled through bounded intent classification.
+   - Record that backend-owned definitions remain the authority.
+
+### Acceptance Criteria
+
+- `What role family means?` does not repeat `What role family should the search target?`.
+- Field explanation answers preserve the current Search Brief and pending clarification state.
+- The assistant can explain `role_family`, `technology`, `stack`, and `location` at minimum.
+- The implementation does not rely on hardcoding every wording variant as the primary mechanism.
+- LLM output cannot mutate Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, counts, results, or persistence.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Adding new supported roles, countries, technologies, providers, or search sources.
+- Changing Search Brief validation requirements.
+- Building a free-form help chatbot.
+- Letting LLM define product semantics.
+- Autonomous execution.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Persistence/database work.
+
+---
+
+## Task: P8.8-010 Add bounded LLM pending-field answer classifier
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Observed UI behavior:
+
+```text
+Assistant: Give me 1-3 stack signals, for example Spring, Kafka, AWS, or Hibernate.
+User: AWS
+Assistant: Обновил search summary (обновил stack). Какая основная технология должна быть у кандидата?
+User: AWS
+Assistant: Какая основная технология должна быть у кандидата?
+```
+
+The backend is logically correct that `AWS` is a stack signal, not the main technology. However, the conversation is poor: after the recruiter repeats `AWS` while the pending field is `technology`, the assistant should explain the mismatch instead of repeating the same question.
+
+Expected behavior:
+
+```text
+AWS понял как stack signal. Теперь нужна основная технология кандидата. В текущем поддержанном flow это Java, если ищем Java-разработчика.
+```
+
+### Goal
+
+Add bounded LLM classification for answers given while a specific Search Brief field is pending.
+
+The assistant should understand whether the recruiter:
+
+- answered the pending field;
+- answered a different Search Brief field;
+- repeated an already captured value;
+- asked for an explanation;
+- provided unsupported/ambiguous/noisy input.
+
+### Proposed Contract
+
+The LLM must classify the latest answer in the context of the pending field. It must not mutate Search Brief directly.
+
+Example output:
+
+```json
+{
+  "intent": "answers_different_field",
+  "pending_field": "technology",
+  "answered_field": "stack",
+  "value": "AWS",
+  "confidence": "high",
+  "reason_code": "stack_value_given_for_technology"
+}
+```
+
+Allowed intents:
+
+- `answers_pending_field`
+- `answers_different_field`
+- `repeats_existing_value`
+- `field_explanation_question`
+- `unsupported_value`
+- `ambiguous`
+- `noise`
+
+Allowed fields:
+
+- `role_family`
+- `technology`
+- `stack`
+- `location`
+- `seniority`
+- `search_depth`
+- `profile_sources`
+
+### Proposed Steps
+
+1. Define the bounded pending-field answer classifier contract.
+   - Input: latest user message, pending field, compact current normalized/draft brief, language hint.
+   - Output: strict JSON with `intent`, `pending_field`, `answered_field`, optional safe `value`, `confidence`, and bounded `reason_code`.
+   - Exclude candidates, profile URLs, raw search results, raw Tavily/OpenAI payloads, secrets, and long chat history.
+
+2. Add routing while a Search Brief field is pending.
+   - Run after hard safety/prohibited checks.
+   - Run before the generic pending-field unrecognized-answer fallback.
+   - Coordinate with `P8.8-009` so explanation questions are not misread as answers.
+
+3. Let backend own mutations and meanings.
+   - If the classifier says `answers_pending_field`, use existing deterministic patch/merge validation.
+   - If it says `answers_different_field`, backend may safely apply the different-field value only through existing validators.
+   - If the pending field remains missing, answer with a field-specific explanation instead of repeating the same question.
+   - If the value is repeated, acknowledge it is already captured and ask for the still-missing field.
+
+4. Add field-mismatch explanations.
+   - pending `technology`, answer `AWS` -> explain AWS is stack, still need main technology such as Java.
+   - pending `stack`, answer `Java` -> explain Java is main technology, still need 1-3 stack signals such as Spring/Kafka/AWS.
+   - pending `location`, answer `Spring` -> explain Spring is stack, still need target location.
+   - pending `role_family`, answer `AWS` -> explain AWS is stack, still need role family / target role.
+
+5. Keep supported-flow boundaries.
+   - Do not allow `AWS` to become `technology`.
+   - Do not allow unsupported technologies/countries/roles to silently become supported.
+   - Do not add planner support for non-Java technologies or non-Backend roles.
+
+6. Add no-network regression tests with mocked LLM output.
+   - pending `technology` + `AWS` -> stack captured or recognized, technology still missing, helpful explanation.
+   - repeated `AWS` while technology is still missing -> no loop, explain mismatch.
+   - pending `stack` + `Java` -> technology recognized, stack still missing, helpful explanation.
+   - pending `location` + `Spring` -> stack recognized, location still missing, helpful explanation.
+   - pending `role_family` + `AWS` -> no role mutation, helpful explanation.
+   - normal pending-field answers still work.
+
+7. Add browser/UI scenario after implementation.
+   - Reproduce the exact `AWS` repeated scenario.
+   - Verify the assistant does not repeat the same question without explanation.
+   - Verify Search Brief state remains valid and no search is enabled unless all required fields are present.
+
+8. Update documentation after implementation.
+   - Record that pending-field answers are interpreted semantically through bounded LLM classification.
+   - Record that backend validators remain the authority for actual Search Brief mutations.
+
+### Acceptance Criteria
+
+- Repeating `AWS` while pending `technology` no longer causes a blind repeated question.
+- The assistant explains wrong-field answers in recruiter-facing language.
+- Valid different-field answers may be captured only through existing backend validators.
+- Unsupported or ambiguous values do not silently mutate the Search Brief.
+- The implementation does not rely on hardcoding every mismatch phrase as the primary mechanism.
+- LLM output cannot mutate Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, counts, results, or persistence directly.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Expanding supported technologies beyond Java.
+- Expanding role/country support.
+- Replacing backend Search Brief validation.
+- Letting LLM directly patch Search Brief state.
+- Building a free-form chatbot.
+- Autonomous execution.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Persistence/database work.
+
+---
+
+## Task: P8.8-011 Improve bounded LLM pending-action refinement intent
+
+### Status
+
+Draft / not approved / not implemented.
+
+### Context
+
+Observed UI behavior while search confirmation is pending:
+
+```text
+User: great
+Assistant: Хочешь, чтобы я начал этот поиск, или сначала нужно что-то изменить?
+
+User: I want to update
+Assistant: Хочешь, чтобы я начал этот поиск, или сначала нужно что-то изменить?
+```
+
+The assistant should not repeat the same confirmation/refinement question. In this state, `I want to update` clearly means the recruiter wants to refine the search before running it.
+
+Expected behavior:
+
+```text
+Sure. What would you like to update in the search summary?
+```
+
+or in Russian when the latest user message is Russian:
+
+```text
+Конечно. Что нужно изменить в search summary?
+```
+
+### Goal
+
+Improve the bounded LLM pending-action intent classifier so general refinement intent is recognized before search execution.
+
+When `pending_action_type = start_search`, messages like `I want to update`, `I want to change something`, `edit`, `modify`, `let me adjust`, `хочу изменить`, or `надо поправить` should classify as `refine`, even if the recruiter has not yet named a specific field.
+
+### Proposed Contract
+
+The LLM may classify only the recruiter reply to the pending action.
+
+Example output:
+
+```json
+{
+  "pending_action_intent": "refine",
+  "confidence": "high",
+  "reason_code": "wants_to_update_before_search"
+}
+```
+
+Allowed intents:
+
+- `confirm`
+- `refine`
+- `reject`
+- `unclear`
+
+The LLM must not return Search Brief patches, field values, QueryPlan changes, execution instructions, or tool calls.
+
+### Proposed Steps
+
+1. Extend pending-action intent classification policy.
+   - Treat general edit/update/change intent as `refine` when search confirmation is pending.
+   - Do not require a concrete field change in the same message.
+   - Keep `confirm` strict enough that vague positive words like `great` do not automatically start search unless clearly intended as confirmation.
+
+2. Route `refine` safely.
+   - Do not run search.
+   - Clear or suspend the pending start-search action as appropriate for the current frontend state.
+   - Ask what the recruiter wants to update.
+   - Preserve the current Search Brief so the next message can patch it.
+
+3. Keep backend/runtime authority.
+   - Search execution still requires the existing runtime-approved path.
+   - LLM cannot directly mutate Search Brief, QueryPlan, approval, filters, scoring, dedupe, location logic, candidates, or results.
+
+4. Improve language handling.
+   - Prefer the latest user message language for this short response unless the current session state has a strong reason to keep the previous language.
+   - Avoid mixed EN/RU loops where an English `I want to update` receives a Russian repeated question.
+
+5. Add no-network regression tests with mocked classifier output.
+   - pending `start_search` + `I want to update` -> `refine`, no search execution.
+   - pending `start_search` + `I want to change something` -> `refine`.
+   - pending `start_search` + `edit` / `modify` / `let me adjust` -> `refine`.
+   - pending `start_search` + RU equivalents -> `refine`.
+   - pending `start_search` + `great` -> clarification, not automatic execution unless classifier clearly returns `confirm`.
+   - pending `start_search` + `yes, run it` -> `confirm` and existing safe runtime path.
+
+6. Add browser/UI scenario after implementation.
+   - Reproduce the exact `great` -> `I want to update` flow.
+   - Verify the assistant asks what to update instead of repeating the same confirmation question.
+   - Verify no Tavily/search execution happens on `I want to update`.
+
+7. Update documentation after implementation.
+   - Record that pending-action refinement intent is LLM-first bounded classification, not a growing manual phrase list.
+
+### Acceptance Criteria
+
+- `I want to update` while search confirmation is pending routes to `refine`.
+- The assistant asks what to update instead of repeating the same question.
+- No search runs from refinement intent.
+- The existing confirm path still works for explicit confirmation.
+- Vague positive acknowledgements do not accidentally execute search.
+- The implementation does not rely on hardcoding every refinement phrase as the primary mechanism.
+- LLM output cannot mutate Search Brief facts, QueryPlan, filters, scoring, dedupe, location logic, runtime approval, execution mode, candidates, counts, results, or persistence directly.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Changing Search Brief patch semantics.
+- Adding autonomous execution.
+- Letting LLM create Search Brief patches in this task.
+- Expanding supported roles, technologies, countries, or providers.
+- LinkedIn login/access/scraping, candidate messaging, or account actions.
+- Persistence/database work.
 
 ---
 
