@@ -4,7 +4,8 @@ param(
     [string] $Repo = "",
     [string] $Event = "push",
     [int] $TimeoutSeconds = 900,
-    [int] $PollSeconds = 10
+    [int] $PollSeconds = 10,
+    [int] $RunVisibilityTimeoutSeconds = 120
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,6 +72,7 @@ function Get-FailedJobDetails {
 }
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+$visibilityDeadline = (Get-Date).AddSeconds([Math]::Min($RunVisibilityTimeoutSeconds, $TimeoutSeconds))
 $shortSha = $CommitSha.Substring(0, [Math]::Min(7, $CommitSha.Length))
 $runsUrl = "$apiBase/actions/runs?head_sha=$CommitSha&event=$Event&per_page=20"
 
@@ -81,6 +83,13 @@ while ((Get-Date) -lt $deadline) {
     $runs = @($response.workflow_runs | Where-Object { $_.head_sha -eq $CommitSha })
 
     if ($runs.Count -eq 0) {
+        if ((Get-Date) -ge $visibilityDeadline) {
+            Write-Host "CI run did not become visible for $shortSha after $RunVisibilityTimeoutSeconds seconds."
+            Write-Host "This usually means workflow triggers do not include event '$Event' for this ref, or the GitHub API cannot access the run."
+            Write-Host "Check manually: https://github.com/$Owner/$Repo/actions"
+            exit 2
+        }
+
         Write-Host "CI run not visible yet. Waiting $PollSeconds seconds..."
         Start-Sleep -Seconds $PollSeconds
         continue

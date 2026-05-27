@@ -2,7 +2,8 @@ param(
     [string] $Remote = "origin",
     [string] $Branch = "",
     [int] $TimeoutSeconds = 900,
-    [int] $PollSeconds = 10
+    [int] $PollSeconds = 10,
+    [int] $RunVisibilityTimeoutSeconds = 120
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,5 +29,6 @@ $commitSha = (& git rev-parse HEAD).Trim()
 & (Join-Path $PSScriptRoot "watch_ci.ps1") `
     -CommitSha $commitSha `
     -TimeoutSeconds $TimeoutSeconds `
-    -PollSeconds $PollSeconds
+    -PollSeconds $PollSeconds `
+    -RunVisibilityTimeoutSeconds $RunVisibilityTimeoutSeconds
 exit $LASTEXITCODE
