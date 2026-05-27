@@ -156,6 +156,10 @@ Invoke-Check "P9.5 Final POC Hardening smoke" {
     & $python scripts/smoke_p95_final_poc.py
 }
 
+Invoke-Check "P9.6 Post-Deploy Polish smoke" {
+    & $python scripts/smoke_p96_post_deploy_polish.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

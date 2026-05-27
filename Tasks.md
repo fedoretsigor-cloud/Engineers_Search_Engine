@@ -20535,6 +20535,488 @@ Boundaries:
 
 ---
 
+## Phase 9.6 - Post-Deploy Recruiter UX Polish
+
+### Approved
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.6-001 Show LinkedIn profile link under each candidate in Candidate Results
+- [x] P9.6-002 Remove Location and Stack columns from primary Candidate Results table
+- [x] P9.6-003 Compact and raise initial Recruiter Chat helper box
+- [x] P9.6-004 Increase Recruiter Chat message input height
+- [x] P9.6-005 Reduce Recruiter Chat action button height
+- [x] P9.6-006 Replace hardcoded stack-signal whitelist with bounded LLM IT relevance validation
+
+### Current Phase 9.6 strategy note
+
+Phase 9.6 collects narrow post-deploy recruiter UX improvements observed on the live POC. These tasks should stay small and frontend-first where possible, but can include bounded conversation-validation fixes when live POC behavior blocks a normal recruiter flow. Phase 9.6 must not reopen Phase 9.5 hardening, Phase 9 provider logic, or Phase 10 persistence unless separately approved.
+
+Implementation result: `P9.6-001` through `P9.6-006` are completed. Candidate Results now shows a manual safe LinkedIn profile link under candidate identity, removes low-value `Location` and `Stack` columns from the primary table, keeps the chat helper compact/high/italic, uses a taller message input, uses shorter chat action buttons, and accepts non-hardcoded English IT/software stack signals through bounded LLM classification when deterministic recognition is insufficient. The implementation preserves manual user-click-only LinkedIn behavior, no LinkedIn automation/scraping/messaging/account actions, no provider/query fanout changes, no persistence, and no search execution outside the existing human-approved backend runtime boundary.
+
+Verification result: `scripts/check_all.ps1`, `scripts/smoke_p96_post_deploy_polish.py`, and local Playwright browser sanity passed.
+
+---
+
+## Task: P9.6-001 Show LinkedIn profile link under each candidate in Candidate Results
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+In the deployed POC Candidate Results table, each candidate row currently shows score, name/headline, role, location, stack, source, and status. Recruiter review needs a visible direct LinkedIn profile link below each candidate identity so the recruiter can manually inspect a public profile.
+
+The existing Candidate Workspace contract already allows manual recruiter navigation through a visible public profile URL when it is a validated safe `http`/`https` LinkedIn profile URL. The app/agent must not open the link automatically, log in, scrape LinkedIn, bypass restrictions, message candidates, or perform account actions.
+
+### Goal
+
+Make every candidate row easier to act on:
+
+- show a visible LinkedIn profile link under the candidate name/headline;
+- keep the compact Candidate Results table readable;
+- use existing safe profile URL data only;
+- preserve manual user-click behavior only.
+
+### Proposed Steps
+
+1. Review current Candidate Results rendering.
+   - Inspect `app/static/app.js` around workspace candidate mapping, `renderWorkspaceProfileLink()`, and the compact table row renderer.
+   - Confirm which field is currently the safest display/click source: prefer `candidate.profile_href` derived from validated `normalized_url`, with `candidate.profile_url` as display/fallback only.
+   - Confirm existing smoke/browser selectors that cover Candidate Results.
+
+2. Add the link to the primary row identity cell.
+   - Render the link below candidate name/headline in the `Name` column.
+   - Use a compact label/text such as the visible profile URL or `LinkedIn profile`.
+   - Use `target="_blank"` and `rel="noreferrer"`.
+   - Keep the row compact and avoid horizontal overflow.
+
+3. Keep unsafe or missing URLs safe.
+   - If `profile_href` is missing but a display URL exists, render escaped plain text or omit the link.
+   - Do not create clickable links from unvalidated or non-LinkedIn URLs.
+   - Do not expose internal ids, raw snippets, raw provider payloads, query diagnostics, or normalized URL internals beyond the intended profile link.
+
+4. Preserve product boundaries.
+   - Frontend/CSS-only by default.
+   - No backend search, provider, QueryPlan, runtime approval, scoring, filtering, dedupe, location, LLM, persistence, or account behavior changes.
+   - No automatic opening of LinkedIn profiles.
+   - No LinkedIn login, scraping, browser automation, messaging, or account actions.
+
+5. Add/update verification.
+   - Frontend smoke verifies a candidate row can render a safe LinkedIn profile link.
+   - Frontend smoke verifies unsafe/missing profile URLs do not become clickable links.
+   - Browser sanity verifies the link appears under candidates in the live-style compact table and does not break row layout.
+   - Run `scripts/check_all.ps1`.
+
+### Acceptance Criteria
+
+- Each candidate with a validated safe LinkedIn profile URL shows a visible profile link under the candidate name/headline.
+- The link opens only through manual recruiter click in a new tab.
+- Unsafe, missing, or non-LinkedIn URLs are not rendered as clickable links.
+- Candidate Results remains a compact readable table.
+- No backend/runtime/search/provider/scoring/filtering/dedupe/location/LLM/persistence behavior changes are introduced.
+- No LinkedIn automation, scraping, login, messaging, or account actions are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Opening LinkedIn automatically.
+- Scraping or enriching LinkedIn profiles.
+- Adding browser automation against LinkedIn.
+- Adding candidate messaging or account actions.
+- Changing search providers, query generation, scoring, filters, dedupe, or location logic.
+- Adding persistence, saved candidates, saved searches, or database work.
+- Redesigning the whole Candidate Results table.
+
+---
+
+## Task: P9.6-002 Remove Location and Stack columns from primary Candidate Results table
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+In the deployed POC Candidate Results table, the primary row currently includes `Location` and `Stack` columns. In many real result sets these cells show low-value technical placeholders such as `unknown_current_location` and `not_visible`. That makes the primary recruiter view noisier without helping the immediate candidate scan.
+
+The recruiter-facing table should prioritize clear identity and actionability: score, name/headline, role, source/status, and the profile link from `P9.6-001`. Location and stack evidence can remain internal or future detail data, but should not occupy primary table columns while they mostly show placeholders.
+
+### Goal
+
+Make Candidate Results cleaner and easier to scan:
+
+- remove `Location` and `Stack` columns from the primary Candidate Results table;
+- keep candidate identity, role, source/status, score, and profile-link usability visible;
+- preserve underlying candidate facts and backend evidence unchanged.
+
+### Proposed Steps
+
+1. Review current compact table rendering.
+   - Inspect `app/static/app.js` compact Candidate Results row/header renderer.
+   - Confirm where `Location` and `Stack` headers and cells are rendered.
+   - Confirm related CSS grid/table column definitions in `app/static/styles.css`.
+   - Confirm current smoke tests that assert visible table columns.
+
+2. Remove the two columns from the primary row.
+   - Remove `Location` header/cell from the main visible table.
+   - Remove `Stack` header/cell from the main visible table.
+   - Keep `location` and `stack` facts in the workspace candidate model/state.
+   - Do not delete backend fields, scoring evidence, filters, or quality logic.
+
+3. Rebalance the visible table layout.
+   - Give the `Name`/identity column more width.
+   - Ensure the future `P9.6-001` profile link has enough room under the name/headline.
+   - Keep `Score`, `Role`, `Source`, and `Status` readable.
+   - Prevent row text overflow/overlap on desktop and narrow viewport.
+
+4. Preserve safety and product boundaries.
+   - Frontend/CSS-only by default.
+   - No backend search/provider/runtime/QueryPlan/scoring/filtering/dedupe/location-classification/LLM/persistence changes.
+   - No change to how location or stack affect scoring/filtering internally.
+   - No LinkedIn automation, scraping, login, messaging, or account actions.
+
+5. Add/update verification.
+   - Frontend smoke verifies the primary table no longer renders `Location` and `Stack` headers.
+   - Frontend smoke verifies candidate rows still render score, name/headline, role, source, and status.
+   - Browser sanity verifies the deployed-style table is cleaner and does not overflow.
+   - Run `scripts/check_all.ps1`.
+
+### Acceptance Criteria
+
+- Primary Candidate Results table no longer shows `Location` and `Stack` columns.
+- Placeholder values such as `unknown_current_location` and `not_visible` are no longer visible as primary row columns.
+- Candidate rows still show score, candidate name/headline, role, source, and status.
+- Underlying candidate location/stack facts remain available internally for scoring/filtering/future detail surfaces.
+- No backend/runtime/search/provider/scoring/filtering/dedupe/location/LLM/persistence behavior changes are introduced.
+- No LinkedIn automation, scraping, login, messaging, or account actions are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Removing location or stack from backend candidate facts.
+- Changing location filtering, stack evidence, scoring, query generation, provider execution, or dedupe.
+- Replacing the whole Candidate Results table.
+- Adding new candidate details panels.
+- Adding persistence or saved candidates.
+- Opening LinkedIn automatically or adding LinkedIn automation.
+
+---
+
+## Task: P9.6-003 Compact and raise initial Recruiter Chat helper box
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+In the deployed POC empty Recruiter Chat state, the initial helper box with:
+
+```text
+Feel free to start the chat and describe who you are looking for. I will do my best to help you.
+```
+
+appears too low inside the chat panel and takes too much vertical space. The box should feel like a lightweight hint, not a large content card.
+
+### Goal
+
+Make the empty chat helper visually lighter:
+
+- move the helper box higher in the Recruiter Chat panel;
+- reduce its visual height by roughly half;
+- render the helper text in italic;
+- preserve the existing wording unless a later task changes text.
+
+### Proposed Steps
+
+1. Review current empty-chat helper rendering.
+   - Inspect `app/static/app.js` around empty chat message rendering.
+   - Inspect `app/static/styles.css` for `.chat-empty-state`, `.chat-messages`, and related empty-state spacing.
+   - Confirm whether the vertical position comes from chat container flex/height, padding, margin, or empty-state min-height.
+
+2. Adjust layout to raise the helper.
+   - Move the helper closer to the top of the chat messages area.
+   - Avoid making the panel feel cramped under the `Recruiter Chat` title.
+   - Preserve normal chat message layout once the conversation starts.
+
+3. Reduce helper height.
+   - Reduce padding/min-height so the box is about half the current visual height.
+   - Keep enough padding for readability.
+   - Avoid fixed pixel heights that can clip text on narrow screens.
+
+4. Apply italic styling.
+   - Make helper text italic.
+   - Keep color/contrast accessible against the dark background.
+   - Do not make all assistant messages italic, only the initial helper state.
+
+5. Preserve product boundaries.
+   - Frontend/CSS-only by default.
+   - No backend, chat state, Search Brief, planning, runtime, search, provider, LLM, scoring, persistence, or deployment behavior changes.
+
+6. Add/update verification.
+   - Frontend smoke checks the initial helper still renders.
+   - Browser sanity verifies the helper is higher, compact, and italic on desktop.
+   - Narrow viewport sanity verifies text does not clip or overlap.
+   - Run `scripts/check_all.ps1`.
+
+### Acceptance Criteria
+
+- The initial `Feel free...` helper appears higher in the Recruiter Chat panel.
+- The helper box is visually about half the previous height.
+- The helper text is italic.
+- Normal chat messages are not affected by the italic style.
+- Text does not clip or overlap on desktop or narrow viewport.
+- No backend/chat-state/search/runtime/provider/LLM/persistence behavior changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Changing the helper copy.
+- Redesigning Recruiter Chat.
+- Changing chat behavior, intent detection, Search Brief extraction, planning, or search execution.
+- Adding animations or new assistant states.
+- Changing Candidate Results.
+
+---
+
+## Task: P9.6-004 Increase Recruiter Chat message input height
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+In the deployed POC Recruiter Chat form, the message textarea is visually too short for natural recruiter prompts. The current prompt examples often wrap across several lines, and the user needs more vertical room to review and edit the search request before sending.
+
+### Goal
+
+Make the chat input more comfortable:
+
+- increase the message textarea height by roughly 2x;
+- preserve the current dark visual style;
+- preserve existing Enter-to-send and Shift+Enter-newline behavior.
+
+### Proposed Steps
+
+1. Review current textarea markup and CSS.
+   - Inspect `app/static/index.html` for the textarea `rows` attribute.
+   - Inspect `app/static/styles.css` for textarea height/min-height/padding/resizing rules.
+   - Inspect `app/static/app.js` key handling to confirm Enter/Shift+Enter behavior stays unchanged.
+
+2. Increase textarea height.
+   - Increase default visible height by roughly 2x.
+   - Prefer CSS `min-height`/responsive sizing over hard clipping.
+   - Keep manual resize behavior if currently available.
+
+3. Preserve layout balance.
+   - Ensure the larger textarea does not push the `Send`/`Reset` buttons out of view on normal desktop.
+   - Ensure Recruiter Chat and Candidate Results layout still fits cleanly.
+   - Check narrow viewport behavior for overlap/clipping.
+
+4. Preserve behavior boundaries.
+   - Frontend/CSS/markup-only by default.
+   - Do not change chat submit logic, backend chat endpoint, intent detection, Search Brief extraction, planning, runtime, search, LLM, persistence, or deployment behavior.
+   - Do not change Enter-to-send / Shift+Enter-newline semantics.
+
+5. Add/update verification.
+   - Frontend smoke or static check verifies textarea size rule/rows changed as intended.
+   - Browser sanity verifies the message input is visibly taller and the send/reset controls remain accessible.
+   - Browser sanity verifies Enter still sends and Shift+Enter still inserts a newline if current coverage does not already prove it.
+   - Run `scripts/check_all.ps1`.
+
+### Acceptance Criteria
+
+- The Recruiter Chat message input is roughly twice as tall as before.
+- Placeholder/default text remains readable.
+- Send/Reset controls remain accessible.
+- Enter-to-send and Shift+Enter-newline behavior remains unchanged.
+- No chat/backend/search/runtime/provider/LLM/persistence behavior changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Redesigning the full chat form.
+- Changing chat copy or placeholder.
+- Adding autosize behavior unless separately reviewed.
+- Changing message parsing, Search Brief extraction, planning, or search execution.
+- Changing Candidate Results.
+
+---
+
+## Task: P9.6-005 Reduce Recruiter Chat action button height
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+In the deployed POC Recruiter Chat form, the `Reset` and `Send` buttons look too tall and visually heavy. The text is acceptable and should not change; the task is only to make the buttons more compact by reducing their height/padding while keeping the visual style consistent.
+
+### Goal
+
+Make the chat action buttons cleaner:
+
+- reduce button height;
+- keep the existing `Reset` and `Send` text unchanged;
+- preserve current button colors, hierarchy, and behavior.
+
+### Proposed Steps
+
+1. Review current button styling.
+   - Inspect `app/static/styles.css` for `.primary-button`, `.secondary-button`, `.chat-form .actions`, and any button min-height/padding rules.
+   - Confirm whether button height is driven by padding, min-height, width, or form layout.
+   - Confirm other app buttons that share these classes so changes do not accidentally shrink unrelated controls too much.
+
+2. Scope the style change to Recruiter Chat actions.
+   - Prefer a selector scoped to the chat form/action area.
+   - Reduce vertical padding/min-height for `Reset` and `Send`.
+   - Keep clickable target reasonable and accessible.
+
+3. Preserve text and behavior.
+   - Do not change button labels.
+   - Do not change submit/reset handlers.
+   - Do not change Enter-to-send / Shift+Enter behavior.
+
+4. Preserve layout.
+   - Ensure the buttons align neatly with each other.
+   - Ensure they do not become visually cramped.
+   - Ensure narrow viewport does not clip text or overlap controls.
+
+5. Add/update verification.
+   - Frontend/static smoke verifies button labels remain `Reset` and `Send`.
+   - Browser sanity verifies buttons are visibly shorter and still clickable.
+   - Run `scripts/check_all.ps1`.
+
+### Acceptance Criteria
+
+- `Reset` and `Send` buttons in Recruiter Chat are visibly shorter.
+- Button text remains exactly `Reset` and `Send`.
+- Buttons remain clickable and visually aligned.
+- No chat behavior, submit behavior, backend, search, runtime, LLM, persistence, or Candidate Results behavior changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Changing button text.
+- Changing colors or visual hierarchy unless necessary for compactness.
+- Redesigning all buttons in the application.
+- Changing chat submit/reset logic.
+- Changing textarea behavior.
+- Changing Candidate Results.
+
+---
+
+## Task: P9.6-006 Replace hardcoded stack-signal whitelist with bounded LLM IT relevance validation
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+In the deployed POC, the recruiter can provide a role, location, and main technology, but the assistant still rejects some stack answers because stack signal recognition is tied to a hardcoded list. Example observed flow:
+
+```text
+User: I need QA Automation in Spain with Java
+AI Assistant: Which 1-3 stack signals are important for this search?
+User: Java
+AI Assistant: I did not recognize the stack signal. Use 1-3 English stack signals, for example Spring, Kafka, AWS, React, or Kubernetes.
+```
+
+This is wrong for the generalized POC direction. The recruiter should be able to provide any 1-3 stack signals that are relevant to the IT/software world. The system should not require a fixed stack whitelist such as Spring/Kafka/AWS/React/Kubernetes.
+
+### Goal
+
+Remove hardcoded stack-signal whitelist behavior from recruiter-facing validation:
+
+- accept 1-3 English stack signals chosen by the recruiter when they are IT/software-relevant;
+- use bounded LLM validation/classification where deterministic recognition is insufficient;
+- keep backend/runtime/search validation authoritative and safe;
+- keep stack terms as recruiter criteria, not as autonomous execution commands.
+
+### Proposed Steps
+
+1. Review current stack-signal handling.
+   - Inspect `app/domain_config.py`, `app/search_validation.py`, `app/search_brief.py`, `app/brief_patch.py`, and `app/main.py`.
+   - Identify every hardcoded stack allowlist path used for Search Brief extraction, pending stack answers, brief patching, structured search validation, planner input, and candidate quality display.
+   - Confirm which hardcoded lists are still useful as deterministic hints/aliases versus which paths incorrectly reject valid recruiter-provided stack terms.
+
+2. Define the new stack-signal contract.
+   - Stack remains required as 1-3 signals for the current POC flow.
+   - Stack signals must be English and relevant to IT/software/recruiting context.
+   - Stack signals may include languages, frameworks, libraries, tools, platforms, cloud services, QA tools, databases, methodologies, or related IT technologies.
+   - Stack signals must reject non-IT/noise/prohibited content, empty strings, Cyrillic, overly long phrases, URLs, instructions, and account/action requests.
+   - Duplicate or near-duplicate signals should be normalized/deduped where safe.
+
+3. Add bounded LLM stack-signal classifier.
+   - Use LLM only for classification/normalization of bounded candidate stack terms.
+   - Input should be small: candidate stack terms plus current role/main technology/location context.
+   - Output should be strict JSON with allowed terms, rejected terms, normalized labels, and rejection reasons.
+   - The LLM must not generate search queries, mutate role/location, execute tools, call providers, or decide search approval.
+   - If LLM is unavailable or output is invalid, fall back to deterministic conservative behavior with a clear recruiter-facing clarification.
+
+4. Replace rejection behavior.
+   - Stop rejecting stack terms only because they are absent from a hardcoded stack list.
+   - For pending stack answers such as `Java`, route through the new IT relevance classifier.
+   - If accepted, update the Search Brief stack and continue the normal ready/confirmation flow.
+   - If rejected, explain briefly that the term does not look like an IT/software stack signal and ask for 1-3 English IT stack signals.
+
+5. Preserve deterministic hints without making them the authority.
+   - Keep existing known stack lists as aliases/examples/scoring hints where useful.
+   - Do not let those lists become the only accepted set.
+   - Do not remove candidate-quality evidence/scoring support that depends on known terms unless separately reviewed.
+
+6. Update planner/scoring boundaries.
+   - The planner should receive the accepted recruiter stack labels and use them as criteria.
+   - Candidate quality may score exact visibility of accepted stack terms and related deterministic signals where available.
+   - Do not invent related terms through LLM for scoring in this task unless separately reviewed.
+   - Do not change provider fanout, query count, runtime approval, or search execution boundary.
+
+7. Add regression coverage.
+   - `QA Automation + Spain + Java` with pending stack answer `Java` is accepted.
+   - Non-hardcoded IT stack examples are accepted, for example `Playwright`, `Selenium`, `Cypress`, `Jenkins`, `Terraform`, or similar.
+   - Non-IT/noise/prohibited stack answers are rejected.
+   - Cyrillic stack input is rejected by English-only guardrails.
+   - LLM invalid/unavailable fallback is safe and deterministic.
+   - Existing Java/Spring/Kafka/AWS happy paths still pass.
+
+8. Add browser sanity.
+   - Use a live-style flow: `I need QA Automation in Spain with Java`, then answer stack as `Java` if the assistant asks.
+   - Verify the assistant does not reject `Java` as an unrecognized stack signal solely due to hardcoded whitelist absence.
+   - Verify no search runs without explicit recruiter confirmation.
+
+### Acceptance Criteria
+
+- Stack validation no longer relies on a hardcoded whitelist as the sole authority.
+- Recruiter can provide any 1-3 English IT/software-relevant stack signals.
+- Bounded LLM stack-signal classification is used where deterministic recognition is insufficient.
+- Invalid LLM output or missing LLM configuration falls back safely without executing search or accepting unsafe input blindly.
+- Pending stack answer `Java` in the observed QA Automation/Spain flow is accepted if it is an intended stack signal.
+- Non-IT, noisy, prohibited, Cyrillic, URL, or instruction-like stack inputs are rejected.
+- Existing backend runtime approval/search execution boundary remains unchanged.
+- No provider/query fanout, Tavily/Serper/SerpApi execution, candidate dedupe, location classification, persistence, LinkedIn automation, messaging, or account behavior changes are introduced.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Generating new search queries with LLM.
+- Letting LLM execute tools or approve search.
+- Letting LLM change role, technology, location, or recruiter intent outside bounded stack validation.
+- Adding persistence or saved stack taxonomies.
+- Expanding provider behavior.
+- Changing candidate scoring beyond using accepted stack labels as existing search criteria.
+- LinkedIn login, scraping, browser automation, messaging, or account actions.
+
+---
+
 ## Phase 10 - Persistent Memory + Saved Searches
 
 ### Approved

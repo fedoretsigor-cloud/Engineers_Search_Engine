@@ -59,6 +59,7 @@ Current product direction:
 - Phase 8.9: `Recruiter UI Polish Backlog before Persistence` - completed through `P8.9-003`
 - Phase 9: `Multi-Provider Search Expansion` - completed through `P9-008`
 - Phase 9.5: `Final POC Hardening And Render Deployment` - completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`
+- Phase 9.6: `Post-Deploy Recruiter UX Polish` - completed through `P9.6-006`: visible manual safe LinkedIn profile links under candidate identity, primary Candidate Results without low-value `Location`/`Stack` columns, compact/high/italic initial chat helper, taller chat input, shorter chat action buttons, and bounded LLM IT/software relevance validation for non-hardcoded stack signals with deterministic safe fallback
 - Phase 10: `Persistent Memory + Saved Searches` - parked future phase
 - Phase 11: `Manual Candidate Evidence Intake`
 - Phase 12: `Resume Upload & Fit Analysis`

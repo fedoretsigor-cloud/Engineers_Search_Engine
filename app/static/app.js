@@ -981,9 +981,6 @@ function workspaceCandidateStatus(candidate) {
 }
 
 function renderWorkspaceCandidate(candidate) {
-  const selectedStack = candidate.selected_stack_terms_found.length
-    ? candidate.selected_stack_terms_found.join(", ")
-    : displayValue(candidate.stack_fit);
   const qualityDisplay = candidate.has_quality_score ? `${candidate.quality_score}%` : "n/a";
   const roleDisplay = candidate.raw?.result?.role_display || candidate.headline || candidate.raw_title;
   const sourceDisplay = candidate.source || "linkedin";
@@ -997,10 +994,11 @@ function renderWorkspaceCandidate(candidate) {
       <td>
         <strong>${escapeHtml(candidate.display_name)}</strong>
         <span>${escapeHtml(candidate.headline || candidate.raw_title || "No headline returned.")}</span>
+        <div class="candidate-row-link candidate-table-profile-link">
+          ${renderWorkspaceProfileLink(candidate)}
+        </div>
       </td>
       <td>${escapeHtml(displayValue(roleDisplay, "N/A"))}</td>
-      <td>${escapeHtml(displayValue(candidate.location_status, "N/A"))}</td>
-      <td>${escapeHtml(displayValue(selectedStack, "N/A"))}</td>
       <td>${escapeHtml(displayValue(sourceDisplay, "N/A"))}</td>
       <td>${escapeHtml(statusDisplay)}</td>
     </tr>
@@ -1016,8 +1014,6 @@ function renderWorkspaceCandidateTable(candidates = []) {
             <th scope="col">Score</th>
             <th scope="col">Name</th>
             <th scope="col">Role</th>
-            <th scope="col">Location</th>
-            <th scope="col">Stack</th>
             <th scope="col">Source</th>
             <th scope="col">Status</th>
           </tr>
@@ -2056,6 +2052,7 @@ function renderTypedChatMessage(message = {}) {
 
 function renderChatMessages() {
   if (!messages.length) {
+    chatMessagesElement.classList.add("chat-messages-empty");
     chatMessagesElement.innerHTML = `
       <article class="chat-message assistant-message chat-empty-message">
         <p>Feel free to start the chat and describe who you are looking for. I will do my best to help you.</p>
@@ -2064,6 +2061,7 @@ function renderChatMessages() {
     return;
   }
 
+  chatMessagesElement.classList.remove("chat-messages-empty");
   chatMessagesElement.innerHTML = messages
     .map((message) =>
       message.messageType ? renderTypedChatMessage(message) : renderPlainChatMessage(message)

@@ -276,6 +276,13 @@ textarea:focus {
   padding-right: 4px;
 }
 
+.chat-messages-empty {
+  align-content: start;
+  max-height: none;
+  min-height: 0;
+  padding-top: 2px;
+}
+
 .chat-message {
   display: grid;
   gap: 5px;
@@ -318,6 +325,14 @@ textarea:focus {
 .chat-empty-message {
   width: 100%;
   max-width: none;
+  align-self: start;
+  padding: 8px 14px;
+  font-style: italic;
+}
+
+.chat-empty-message p {
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .user-message {
@@ -415,6 +430,20 @@ textarea:focus {
 .chat-form {
   display: grid;
   gap: 12px;
+}
+
+.chat-form textarea {
+  min-height: 208px;
+}
+
+.chat-form .actions {
+  align-items: center;
+  margin-top: 4px;
+}
+
+.chat-form .actions button {
+  min-height: 34px;
+  padding: 0 14px;
 }
 
 .candidate-results-empty-state,
@@ -1679,7 +1708,7 @@ summary {
 
 .candidate-results-table {
   width: 100%;
-  min-width: 860px;
+  min-width: 720px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -1710,26 +1739,22 @@ summary {
 
 .candidate-results-table th:nth-child(2),
 .candidate-results-table td:nth-child(2) {
-  width: 28%;
+  width: 42%;
 }
 
 .candidate-results-table th:nth-child(3),
 .candidate-results-table td:nth-child(3) {
-  width: 18%;
+  width: 28%;
 }
 
 .candidate-results-table th:nth-child(4),
-.candidate-results-table td:nth-child(4),
-.candidate-results-table th:nth-child(5),
-.candidate-results-table td:nth-child(5) {
-  width: 16%;
+.candidate-results-table td:nth-child(4) {
+  width: 14%;
 }
 
-.candidate-results-table th:nth-child(6),
-.candidate-results-table td:nth-child(6),
-.candidate-results-table th:nth-child(7),
-.candidate-results-table td:nth-child(7) {
-  width: 10%;
+.candidate-results-table th:nth-child(5),
+.candidate-results-table td:nth-child(5) {
+  width: 14%;
 }
 
 .candidate-results-table tbody tr:nth-child(even) {
@@ -1761,6 +1786,23 @@ summary {
   margin-top: 4px;
   color: var(--muted-strong);
   font-size: 13px;
+}
+
+.candidate-table-profile-link {
+  margin-top: 6px;
+}
+
+.candidate-table-profile-link a,
+.candidate-table-profile-link p {
+  display: inline;
+  color: var(--accent-strong);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.candidate-table-profile-link a:hover {
+  color: var(--text-strong);
 }
 
 .candidate-score-table-pill {

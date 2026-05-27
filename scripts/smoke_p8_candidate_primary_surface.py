@@ -52,9 +52,14 @@ def main() -> None:
     require(app_js, "renderWorkspaceCandidateTable", "candidate table render helper")
     require(app_js, "candidate-results-table", "candidate table markup")
     require(app_js, "candidate-score-table-pill", "score pill markup")
-    for column in ["Score", "Name", "Role", "Location", "Stack", "Source", "Status"]:
+    for column in ["Score", "Name", "Role", "Source", "Status"]:
         require(app_js, f"<th scope=\"col\">{column}</th>", f"{column} table column")
+    for hidden_column in ["Location", "Stack"]:
+        if f"<th scope=\"col\">{hidden_column}</th>" in app_js:
+            raise AssertionError(f"Primary candidate table should not render {hidden_column} column")
     require(app_js, "workspaceCandidateStatus", "candidate status helper")
+    require(app_js, "candidate-table-profile-link", "candidate profile link")
+    require(app_js, "renderWorkspaceProfileLink(candidate)", "safe profile link renderer")
     require(app_js, "renderWorkspacePaginationControls", "candidate pagination controls")
     require(app_js, 'data-workspace-page-action="next"', "next page action")
     require(app_js, 'data-workspace-page-action="previous"', "previous page action")

@@ -306,6 +306,7 @@ OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 OPENAI_RECRUITER_CHAT_MAX_COMPLETION_TOKENS = 1200
 OPENAI_AI_PLANNER_MAX_COMPLETION_TOKENS = 3000
 OPENAI_RECRUITER_INTENT_MAX_COMPLETION_TOKENS = 500
+OPENAI_STACK_SIGNAL_CLASSIFIER_MAX_COMPLETION_TOKENS = 500
 RECRUITER_CHAT_DEFAULT_PLANNER_MODE = PLANNER_MODE_RULE_BASED
 RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION = "needs_clarification"
 RECRUITER_CHAT_STATE_READY_FOR_PLANNING = "ready_for_planning"
@@ -352,6 +353,8 @@ RECRUITER_INTENT_CONFIDENCE_MEDIUM = "medium"
 RECRUITER_INTENT_CONFIDENCE_LOW = "low"
 RECRUITER_INTENT_PROMPT_VERSION = "phase_8_8_recruiter_intent_prompt_v1"
 RECRUITER_INTENT_VALIDATOR_VERSION = "phase_8_8_recruiter_intent_validator_v1"
+STACK_SIGNAL_CLASSIFIER_PROMPT_VERSION = "phase_9_6_stack_signal_classifier_v1"
+STACK_SIGNAL_CLASSIFIER_VALIDATOR_VERSION = "phase_9_6_stack_signal_classifier_validator_v1"
 RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION = "recruiter_chat_conversation"
 RECRUITER_SEARCH_BRIEF_FIELDS = {
     "role_family",
@@ -2778,6 +2781,333 @@ def java_stack_terms_in_text(text: str) -> list[str]:
     return stack_terms
 
 
+def stack_signal_candidate_terms_from_text(text: str) -> list[str]:
+    normalized_text = normalize_text_value(text)
+    if not normalized_text:
+        return []
+
+    cleaned_text = re.sub(
+        r"^\s*(?:please\s+)?(?:use|set|change|replace|update|make|stack|stack\s+is|stack\s*:|with|preferably)\s+",
+        "",
+        normalized_text,
+        flags=re.IGNORECASE,
+    )
+    parts = re.split(r"\s*,\s*|\s*&\s*|\s+\band\s+", cleaned_text, flags=re.IGNORECASE)
+    terms: list[str] = []
+    for part in parts:
+        term = compact_spaces(part).strip(" .,:;\"'")
+        if not term:
+            continue
+        if term.lower() in {"stack", "technology", "tech", "signal", "signals"}:
+            continue
+        if term not in terms:
+            terms.append(term)
+    return terms
+
+
+def normalize_stack_signal_candidates(text: str) -> tuple[list[str], str | None]:
+    raw_terms = stack_signal_candidate_terms_from_text(text)
+    if not raw_terms:
+        return [], "stack_signal_missing"
+    if len(raw_terms) > 3:
+        return [], "stack_signal_too_many_terms"
+
+    normalized_terms: list[str] = []
+    for term in raw_terms:
+        normalized_term, term_error = normalize_stack_item_value(term)
+        if term_error or not normalized_term:
+            return [], term_error or "stack_signal_invalid"
+        if agent_wording_has_prohibited_content(normalized_term):
+            return [], "stack_signal_prohibited_content"
+        if normalized_term not in normalized_terms:
+            normalized_terms.append(normalized_term)
+
+    if len(normalized_terms) > 3:
+        return [], "stack_signal_too_many_terms"
+    return normalized_terms, None
+
+
+def deterministic_known_stack_signal_terms(terms: list[str]) -> list[str] | None:
+    if not terms:
+        return None
+
+    known_values = {
+        **JAVA_STACK_VALUES,
+        **KNOWN_BACKEND_TECHNOLOGIES,
+        **{value.lower(): value for value in JAVA_STACK_TERMS},
+        **{value.lower(): value for value in KNOWN_BACKEND_TECHNOLOGIES.values()},
+    }
+    normalized_terms: list[str] = []
+    for term in terms:
+        canonical_term = canonical_value(term, known_values)
+        if not canonical_term:
+            return None
+        normalized_term, term_error = normalize_stack_item_value(canonical_term)
+        if term_error or not normalized_term:
+            return None
+        if normalized_term not in normalized_terms:
+            normalized_terms.append(normalized_term)
+    return normalized_terms
+
+
+def stack_signal_context_value(current_brief: SearchBrief | dict | None, field: str) -> str | None:
+    if current_brief is None:
+        return None
+    if isinstance(current_brief, dict):
+        return normalize_text_value(current_brief.get(field))
+    return normalize_text_value(getattr(current_brief, field, None))
+
+
+def stack_signal_classifier_system_prompt() -> str:
+    return (
+        "You classify bounded recruiter-provided stack signals for an IT/software "
+        "candidate search assistant. Return JSON only. You may only classify and "
+        "normalize the supplied stack terms. Do not create search queries, browse, "
+        "search, access LinkedIn, execute tools, approve searches, mutate role or "
+        "location, message candidates, or act on accounts."
+    )
+
+
+def stack_signal_classifier_user_prompt(
+    terms: list[str],
+    current_brief: SearchBrief | dict | None,
+) -> str:
+    return json.dumps(
+        {
+            "task": "Classify whether each supplied term is an English IT/software stack signal.",
+            "required_output": {
+                "accepted_terms": [
+                    {
+                        "input": "exact supplied term",
+                        "normalized": "safe normalized display label",
+                        "reason_code": "programming_language | framework | tool | platform | database | cloud | qa_tool | methodology | other_it",
+                    }
+                ],
+                "rejected_terms": [
+                    {
+                        "input": "exact supplied term",
+                        "reason_code": "non_it | noise | unsafe | not_english | too_broad | unclear",
+                    }
+                ],
+                "confidence": "high | medium | low",
+            },
+            "terms": terms,
+            "context": {
+                "role_family": stack_signal_context_value(current_brief, "role_family"),
+                "technology": stack_signal_context_value(current_brief, "technology"),
+                "location": stack_signal_context_value(current_brief, "location"),
+            },
+            "rules": [
+                "Accept English IT/software stack signals, including programming languages, frameworks, libraries, tools, platforms, cloud services, QA tools, databases, methodologies, and related technologies.",
+                "Reject non-IT terms, random text, URLs, instructions, account actions, outreach requests, and non-English terms.",
+                "Normalize labels conservatively without inventing new terms.",
+                "Every supplied term must appear exactly once across accepted_terms or rejected_terms.",
+                "Do not add terms that were not supplied.",
+                "Use confidence low if unsure.",
+                "Return JSON only.",
+            ],
+            "hard_boundaries": [
+                "No autonomous execution.",
+                "No query generation.",
+                "No direct web-search bypass.",
+                "No LinkedIn login, scraping, or restriction bypass.",
+                "No candidate messaging.",
+                "No account actions.",
+            ],
+            "prompt_version": STACK_SIGNAL_CLASSIFIER_PROMPT_VERSION,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+async def run_openai_json_stack_signal_classifier(
+    terms: list[str],
+    current_brief: SearchBrief | dict | None = None,
+) -> tuple[dict | None, str | None]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("OPENAI_MODEL")
+    if not api_key or not model:
+        return None, AGENT_WORDING_FALLBACK_NOT_CONFIGURED
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": stack_signal_classifier_system_prompt()},
+            {"role": "user", "content": stack_signal_classifier_user_prompt(terms, current_brief)},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": OPENAI_STACK_SIGNAL_CLASSIFIER_MAX_COMPLETION_TOKENS,
+        "response_format": {"type": "json_object"},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=AGENT_WORDING_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                os.getenv("OPENAI_CHAT_COMPLETIONS_URL", OPENAI_CHAT_COMPLETIONS_URL),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+    except httpx.TimeoutException:
+        return None, "openai_stack_signal_timeout"
+    except httpx.HTTPStatusError as exc:
+        return None, f"openai_stack_signal_http_{exc.response.status_code}"
+    except httpx.HTTPError:
+        return None, "openai_stack_signal_request_failed"
+
+    data = response.json()
+    content = (
+        data.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content")
+    )
+    if not content:
+        return None, "openai_stack_signal_empty_content"
+
+    try:
+        parsed_content = json.loads(content)
+    except json.JSONDecodeError:
+        return None, "openai_stack_signal_invalid_json"
+    if not isinstance(parsed_content, dict):
+        return None, "openai_stack_signal_wrong_shape"
+
+    return parsed_content, None
+
+
+def normalize_stack_signal_output_entry(entry: object) -> tuple[str | None, str | None, str | None]:
+    if isinstance(entry, str):
+        raw_input = normalize_text_value(entry)
+        normalized_value = raw_input
+        reason_code = None
+    elif isinstance(entry, dict):
+        raw_input = normalize_text_value(
+            entry.get("input") or entry.get("term") or entry.get("raw")
+        )
+        normalized_value = normalize_text_value(
+            entry.get("normalized") or entry.get("value") or raw_input
+        )
+        reason_code = safe_classifier_text_value(
+            entry.get("reason_code") or entry.get("reason"),
+            max_length=64,
+        )
+    else:
+        return None, None, None
+    return raw_input, normalized_value, reason_code
+
+
+def validate_stack_signal_classifier_output(
+    llm_output: dict | None,
+    terms: list[str],
+) -> tuple[dict | None, str | None]:
+    if not isinstance(llm_output, dict):
+        return None, "llm_stack_signal_wrong_shape"
+
+    allowed_keys = {"accepted_terms", "rejected_terms", "confidence"}
+    if any(key not in allowed_keys for key in llm_output):
+        return None, "llm_stack_signal_unknown_fields"
+
+    confidence = normalize_text_value(llm_output.get("confidence")) or RECRUITER_INTENT_CONFIDENCE_LOW
+    if confidence not in {
+        RECRUITER_INTENT_CONFIDENCE_HIGH,
+        RECRUITER_INTENT_CONFIDENCE_MEDIUM,
+        RECRUITER_INTENT_CONFIDENCE_LOW,
+    }:
+        return None, "llm_stack_signal_unknown_confidence"
+    if confidence == RECRUITER_INTENT_CONFIDENCE_LOW:
+        return None, "llm_stack_signal_low_confidence"
+
+    accepted_source = llm_output.get("accepted_terms")
+    rejected_source = llm_output.get("rejected_terms")
+    if not isinstance(accepted_source, list) or not isinstance(rejected_source, list):
+        return None, "llm_stack_signal_terms_not_lists"
+
+    candidate_keys = {
+        (normalize_text_value(term) or "").lower(): term
+        for term in terms
+        if normalize_text_value(term)
+    }
+    seen_keys: set[str] = set()
+    accepted_terms: list[str] = []
+    rejected_terms: list[dict[str, str]] = []
+
+    for entry in accepted_source:
+        raw_input, normalized_value, reason_code = normalize_stack_signal_output_entry(entry)
+        input_key = (raw_input or normalized_value or "").lower()
+        if input_key not in candidate_keys or input_key in seen_keys:
+            return None, "llm_stack_signal_accepted_term_mismatch"
+        normalized_term, term_error = normalize_stack_item_value(normalized_value)
+        if term_error or not normalized_term:
+            return None, "llm_stack_signal_invalid_accepted_term"
+        if agent_wording_has_prohibited_content(normalized_term):
+            return None, "llm_stack_signal_unsafe_accepted_term"
+        seen_keys.add(input_key)
+        if normalized_term not in accepted_terms:
+            accepted_terms.append(normalized_term)
+
+    for entry in rejected_source:
+        raw_input, normalized_value, reason_code = normalize_stack_signal_output_entry(entry)
+        input_key = (raw_input or normalized_value or "").lower()
+        if input_key not in candidate_keys or input_key in seen_keys:
+            return None, "llm_stack_signal_rejected_term_mismatch"
+        seen_keys.add(input_key)
+        rejected_terms.append(
+            {
+                "input": candidate_keys[input_key],
+                "reason_code": reason_code or "rejected",
+            }
+        )
+
+    if seen_keys != set(candidate_keys):
+        return None, "llm_stack_signal_missing_terms"
+    if len(accepted_terms) > 3:
+        return None, "llm_stack_signal_too_many_accepted_terms"
+
+    return {
+        "accepted_terms": accepted_terms,
+        "rejected_terms": rejected_terms,
+        "confidence": confidence,
+        "prompt_version": STACK_SIGNAL_CLASSIFIER_PROMPT_VERSION,
+        "validator_version": STACK_SIGNAL_CLASSIFIER_VALIDATOR_VERSION,
+    }, None
+
+
+async def classify_stack_signal_terms_from_message(
+    text: str,
+    current_brief: SearchBrief | dict | None = None,
+) -> tuple[list[str], str | None]:
+    candidate_terms, candidate_error = normalize_stack_signal_candidates(text)
+    if candidate_error:
+        return [], candidate_error
+
+    deterministic_terms = deterministic_known_stack_signal_terms(candidate_terms)
+    if deterministic_terms:
+        return deterministic_terms, None
+
+    llm_output, llm_error = await run_openai_json_stack_signal_classifier(
+        candidate_terms,
+        current_brief,
+    )
+    if llm_error or llm_output is None:
+        return [], llm_error or "llm_stack_signal_unavailable"
+
+    validated_output, validation_error = validate_stack_signal_classifier_output(
+        llm_output,
+        candidate_terms,
+    )
+    if validation_error or validated_output is None:
+        return [], validation_error or "llm_stack_signal_invalid"
+    if validated_output["rejected_terms"]:
+        return [], "llm_stack_signal_rejected_terms"
+    if not validated_output["accepted_terms"]:
+        return [], "llm_stack_signal_no_accepted_terms"
+
+    return validated_output["accepted_terms"], None
+
+
 UNSUPPORTED_REFINEMENT_PATTERNS = [
 ]
 
@@ -4515,7 +4845,9 @@ def apply_brief_patch_to_draft(
     candidate = clean_search_brief_dict(request.draft_brief)
     current_stack, current_stack_errors = normalize_brief_stack_items(candidate.get("stack"))
     if current_stack_errors:
-        return None, None, False, current_stack_errors, validation_error_message(current_stack_errors, language)
+        if candidate.get("stack"):
+            return None, None, False, current_stack_errors, validation_error_message(current_stack_errors, language)
+        current_stack = []
 
     next_stack = current_stack[:]
     changed = False
@@ -4771,14 +5103,17 @@ def pending_clarification_field(
     return missing_fields[0]
 
 
-def pending_stack_clarification_patch_from_message(
+async def pending_stack_clarification_patch_from_message(
     request: RecruiterChatTurnRequest,
     text: str,
 ) -> dict | None:
     if pending_clarification_field(request) != "stack":
         return None
 
-    stack_terms = java_stack_terms_in_text(text)
+    stack_terms, _ = await classify_stack_signal_terms_from_message(
+        text,
+        request.draft_brief,
+    )
     if not stack_terms:
         return None
 
@@ -4888,8 +5223,9 @@ def pending_clarification_unrecognized_answer_message(field: str, language: str)
                 "например Spring, Kafka, AWS или Hibernate."
             )
         return (
-            "I did not recognize the stack signal. Use 1-3 English stack signals, "
-            "for example Spring, Kafka, AWS, React, or Kubernetes."
+            "That does not look like an English IT/software stack signal. Use 1-3 "
+            "English stack signals, for example Java, Playwright, Selenium, Spring, "
+            "AWS, or Kubernetes."
         )
 
     return recruiter_chat_unclear_request_message(language)
@@ -5095,10 +5431,11 @@ def pending_update_unknown_field_message(language: str) -> str:
     return "Tell me which field to update: role, technology, stack, location, seniority, or depth."
 
 
-def pending_update_field_patch_from_message(
+async def pending_update_field_patch_from_message(
     field: str,
     text: str,
     language: str,
+    current_brief: SearchBrief | dict | None = None,
 ) -> tuple[dict | None, str | None]:
     if field == "location":
         location = deterministic_chat_brief_hints(text).get("location") or normalize_location_value(text)
@@ -5117,19 +5454,10 @@ def pending_update_field_patch_from_message(
         return None, pending_clarification_unrecognized_answer_message("location", language)
 
     if field == "stack":
-        stack_terms = java_stack_terms_in_text(text)
-        if not stack_terms:
-            candidate_terms = [
-                part.strip(" .")
-                for part in re.split(r"\s*,\s*|\s+\band\b\s+|\s*&\s*", text)
-                if part.strip(" .")
-            ]
-            normalized_terms: list[str] = []
-            for term in candidate_terms:
-                normalized_term, term_error = normalize_stack_item_value(term)
-                if not term_error and normalized_term and normalized_term not in normalized_terms:
-                    normalized_terms.append(normalized_term)
-            stack_terms = normalized_terms[:3]
+        stack_terms, _ = await classify_stack_signal_terms_from_message(
+            text,
+            current_brief,
+        )
         if stack_terms:
             return build_brief_patch(
                 source_message=text,
@@ -5336,10 +5664,11 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             )
 
         pending_update_patch, pending_update_message = (
-            pending_update_field_patch_from_message(
+            await pending_update_field_patch_from_message(
                 pending_update_field,
                 latest_user_text,
                 language,
+                request.draft_brief,
             )
         )
         if pending_update_patch is not None:
@@ -5520,7 +5849,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             in {RECRUITER_INTENT_SMALL_TALK, RECRUITER_INTENT_OFF_TOPIC}
         )
     ):
-        pending_stack_patch = pending_stack_clarification_patch_from_message(
+        pending_stack_patch = await pending_stack_clarification_patch_from_message(
             request,
             latest_user_text,
         )
@@ -5856,7 +6185,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         )
 
     if request.draft_brief:
-        pending_stack_patch = pending_stack_clarification_patch_from_message(
+        pending_stack_patch = await pending_stack_clarification_patch_from_message(
             request,
             latest_user_text,
         )
