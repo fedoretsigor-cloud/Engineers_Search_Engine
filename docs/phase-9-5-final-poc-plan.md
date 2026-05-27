@@ -14,7 +14,7 @@ Search providers stay as currently implemented in Phase 9. Provider fanout/repor
 - Completed: `P9.5-004 Polish empty and loading Candidate Results states`
 - Completed: `P9.5-005 Remove duplicate ready/search wording and Workspace Ready label`
 - Completed: `P9.5-006 Final POC regression pass`
-- Prepared, pending Render account credentials/dashboard action: `P9.5-007 Deploy POC to Render`
+- Completed: `P9.5-007 Deploy POC to Render`
 
 ## Implementation Result
 
@@ -26,6 +26,8 @@ Search providers stay as currently implemented in Phase 9. Provider fanout/repor
 - Duplicate ready/search wording and the visible `Workspace Ready` label were removed.
 - `render.yaml` and `docs/render-deployment.md` define the Render deployment path with secrets configured only in Render.
 - Local verification passed with `scripts/check_all.ps1` and Playwright browser sanity against `http://127.0.0.1:8000`.
+- Render deployment is live at `https://engineers-search-engine-poc.onrender.com/`.
+- Render verification passed: `/api/health` returned `status = ok`, root returned HTTP 200, and remote Playwright browser sanity verified UI load, English-only Cyrillic blocking, and the English Search Brief confirmation flow without running search.
 
 ## Required Product Changes
 
