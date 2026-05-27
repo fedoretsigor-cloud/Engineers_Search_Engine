@@ -20560,7 +20560,349 @@ Phase 9.6 collects narrow post-deploy recruiter UX improvements observed on the 
 
 Implementation result: `P9.6-001` through `P9.6-008` are completed. Candidate Results now shows a manual safe LinkedIn profile link under candidate identity, removes low-value `Location` and `Stack` columns from the primary table, keeps the chat helper compact/high/italic directly under the `Recruiter Chat` title in the empty state, uses a taller message input, uses shorter chat action buttons, accepts non-hardcoded English IT/software stack signals through bounded LLM classification when deterministic recognition is insufficient, and accepts safe English pending-location answers such as `Spain`, `Remote`, and `Madrid` while rejecting technology/role/noise answers. The implementation preserves manual user-click-only LinkedIn behavior, no LinkedIn automation/scraping/messaging/account actions, no provider/query fanout changes, no persistence, and no search execution outside the existing human-approved backend runtime boundary.
 
+Observed issue after Phase 9.6: natural pending-stack answers such as `Java only` still expose the wrong abstraction level. This should not become another phrase-specific patch. The issue is moved into Phase 9.7 as `P9.7-003`, under the broader bounded semantic interpreter track.
+
 Verification result: `scripts/check_all.ps1`, `scripts/smoke_p96_post_deploy_polish.py`, and local Playwright browser sanity passed.
+
+---
+
+## Phase 9.7 - Recruiter Chat Semantic Interpreter
+
+### Approved
+
+### Backlog
+
+- [ ] P9.7-001 Define bounded PendingAnswerInterpreter contract
+- [ ] P9.7-002 Implement backend validator for PendingAnswerInterpreter
+- [ ] P9.7-003 Apply interpreter to pending stack clarification
+- [ ] P9.7-004 Apply interpreter to pending location clarification
+- [ ] P9.7-005 Apply interpreter to update/refinement intent
+- [ ] P9.7-006 Retire duplicated legacy pending handlers
+- [ ] P9.7-007 Run recruiter semantic conversation UAT
+- [ ] P9.7-008 Close Phase 9.7 with AI Agent chat-understanding decision
+
+### In Progress
+
+### Done
+
+### Current Phase 9.7 strategy note
+
+Phase 9.7 is the architectural correction for recruiter-chat understanding. The goal is to stop fixing natural-language chat bugs as isolated keyword patches and introduce a bounded LLM semantic interpreter layer.
+
+The target pipeline is:
+
+```text
+message -> deterministic safety precheck -> bounded LLM semantic interpreter -> strict backend validator -> deterministic patch/action
+```
+
+The LLM interprets meaning only. Backend validation remains authoritative. The interpreter must not execute searches, generate queries, approve actions, call providers, open LinkedIn, scrape, message candidates, perform account actions, or persist data.
+
+Implementation should be incremental: define the general contract first, then connect one field/flow at a time. Deterministic fast paths can stay for obvious safe cases, but natural-language meaning should route through the interpreter instead of accumulating phrase-specific regex patches.
+
+---
+
+## Task: P9.7-001 Define bounded PendingAnswerInterpreter contract
+
+### Status
+
+Draft.
+
+### Goal
+
+Define the common semantic interpreter contract before coding.
+
+The contract should specify:
+
+- input: current draft brief, expected pending field, latest recruiter message, minimal recent conversation context;
+- output: strict JSON only;
+- intent taxonomy such as `answer_pending_field`, `ask_explanation`, `change_field`, `provide_update_value`, `unclear`, and `unsafe`;
+- allowed fields: `role_family`, `technology`, `stack`, `location`, `seniority`, `search_depth` only where already supported;
+- allowed values and validation boundaries per field;
+- confidence behavior;
+- fallback behavior;
+- safety boundaries.
+
+### Acceptance Criteria
+
+- The contract clearly separates semantic interpretation from execution.
+- The contract states that LLM output is never applied directly.
+- The contract supports stack, location, role/technology, and update/refinement paths without hardcoding one phrase.
+- The contract preserves no-autonomy, no direct web-search bypass, no LinkedIn automation/scraping/messaging/account actions, and no persistence.
+
+---
+
+## Task: P9.7-002 Implement backend validator for PendingAnswerInterpreter
+
+### Status
+
+Draft.
+
+### Goal
+
+Implement the backend authority layer for interpreter output.
+
+The validator should:
+
+- reject malformed JSON, extra fields, unknown intents, unknown fields, low confidence, unsafe content, URLs, account actions, non-English values, and unsupported values;
+- validate stack as 1-3 English IT/software stack signals;
+- validate location as safe English location-like input without changing country-domain/filter mapping;
+- validate role/technology through existing search validation rules;
+- return deterministic normalized output that can be converted into existing brief patch operations.
+
+### Acceptance Criteria
+
+- LLM output cannot mutate search state unless validator accepts it.
+- Validator has focused no-network tests.
+- No search/runtime/provider/candidate/persistence behavior changes.
+
+---
+
+## Task: P9.7-003 Apply interpreter to pending stack clarification
+
+### Status
+
+Draft.
+
+### Context
+
+After `P9.6-006`, pending stack clarification can use bounded LLM validation for non-hardcoded stack signals. However, the current path still depends on a deterministic pre-parser that first splits recruiter text into candidate terms. This task supersedes the observed `P9.6-009` issue and implements it as part of the broader Phase 9.7 semantic interpreter track.
+
+Observed issue:
+
+```text
+AI Assistant: Which 1-3 stack signals are important for this search?
+User: Java only
+AI Assistant: Please clarify what to change in the current search summary.
+```
+
+This is wrong. A recruiter naturally means `stack = ["Java"]`. The current parser treats `Java only` as one raw term, and the bounded stack classifier contract is too strict to interpret the whole phrase semantically.
+
+This is exactly the kind of small natural-language meaning where the AI Agent should use LLM capability instead of accumulating deterministic keyword patches such as `only`, `just`, `mainly`, `primarily`, etc.
+
+### Goal
+
+Make pending stack clarification understand natural-language stack answers by using a bounded LLM extractor when deterministic parsing is insufficient.
+
+The agent should understand meaning such as:
+
+- `Java only` -> `stack = ["Java"]`
+- `only Java` -> `stack = ["Java"]`
+- `just Java` -> `stack = ["Java"]`
+- `I only care about Java` -> `stack = ["Java"]`
+- `Java would be enough` -> `stack = ["Java"]`
+- `Spring is optional` -> `stack = ["Spring"]` with optional/nice-to-have semantics only if already supported safely
+- `Java and Selenium` -> `stack = ["Java", "Selenium"]`
+- `better Playwright and Selenium` -> `stack = ["Playwright", "Selenium"]`
+
+The backend remains the authority layer. LLM may interpret, but it must not execute, search, change role/location, approve actions, or bypass validation.
+
+### Proposed Steps
+
+1. Review current pending stack path.
+   - Inspect `pending_stack_clarification_patch_from_message()`.
+   - Inspect `classify_stack_signal_terms_from_message()`.
+   - Inspect `stack_signal_candidate_terms_from_text()` and the existing bounded stack classifier prompt/validator.
+   - Confirm where `Java only` becomes one invalid candidate term.
+
+2. Add a bounded natural-language pending stack extractor.
+   - Input: the full recruiter answer plus current brief context.
+   - Output strict JSON only.
+   - Suggested output shape:
+
+```json
+{
+  "intent": "provide_stack_answer | not_stack_answer | unclear",
+  "accepted_stack": ["Java"],
+  "excluded_stack": [],
+  "confidence": "high | medium | low",
+  "reason_code": "natural_language_stack_answer | non_it | unsafe | unclear"
+}
+```
+
+3. Keep deterministic fast path first.
+   - Simple answers such as `Java`, `Spring, Kafka`, `Playwright and Selenium` can continue through deterministic/bounded term classification.
+   - If deterministic parsing/classification fails, call the full-phrase LLM extractor.
+   - Do not call LLM for obvious unsafe/Cyrillic/URL/account-action input that existing validation can reject.
+
+4. Validate LLM output strictly.
+   - `accepted_stack` must contain 1-3 terms.
+   - Each accepted term must pass existing stack item validation.
+   - Each accepted term must be English IT/software relevant.
+   - Low confidence, unknown shape, extra fields, unsafe content, URLs, account actions, or non-IT terms must fail safe.
+   - LLM cannot add role, technology, location, query, provider, approval, runtime, candidate, or persistence changes.
+
+5. Apply only to pending stack clarification.
+   - This task should improve answers to the active question `Which 1-3 stack signals are important for this search?`.
+   - Do not change general Search Brief extraction, query planning, provider execution, candidate scoring, location filtering, or persistence.
+
+6. Update recruiter-facing fallback.
+   - If the answer cannot be safely interpreted, ask for 1-3 English IT/software stack signals.
+   - Avoid misleading generic update messages such as `Please clarify what to change in the current search summary` while the system is explicitly waiting for stack.
+
+7. Add regression coverage.
+   - `Java only` is accepted as `["Java"]`.
+   - `only Java` is accepted as `["Java"]`.
+   - `I only care about Java` is accepted as `["Java"]`.
+   - `better Playwright and Selenium` is accepted when LLM returns bounded valid terms.
+   - Low-confidence LLM output is rejected with a clarification.
+   - Unsafe/non-IT/account-action answers are rejected.
+   - Existing `Java`, `Playwright and Selenium`, and Cyrillic rejection tests still pass.
+
+### Acceptance Criteria
+
+- Pending stack clarification handles natural-language stack answers through bounded LLM semantic extraction.
+- `Java only` no longer falls into the generic update fallback.
+- Backend validation remains authoritative.
+- Maximum stack size remains 1-3.
+- No search execution, query generation, provider fanout, runtime approval, candidate scoring, location filtering, persistence, LinkedIn automation, scraping, messaging, or account actions change.
+- Relevant smoke tests and `scripts/check_all.ps1` pass after implementation.
+
+### Non-Goals
+
+- Do not make LLM output directly executable.
+- Do not let LLM change role, technology, location, search depth, query plan, provider settings, approval state, or candidate workspace state.
+- Do not add autonomous execution.
+- Do not add direct web-search bypass.
+- Do not add LinkedIn login, scraping, browser automation, messaging, or account actions.
+- Do not add persistence.
+- Do not replace all deterministic parsing; keep deterministic fast paths where safe.
+
+---
+
+## Task: P9.7-004 Apply interpreter to pending location clarification
+
+### Status
+
+Draft.
+
+### Goal
+
+Move pending location clarification onto the same interpreter/validator path after stack is stable.
+
+Examples to support:
+
+- `Spain`
+- `in Spain`
+- `remote in Europe`
+- `Madrid would work`
+- `not Ukraine, use Spain`
+
+### Boundaries
+
+- Do not add a country/city database.
+- Do not change location-filter country-domain mapping.
+- Do not change QueryPlan generation, providers, candidate scoring, dedupe, or persistence.
+- Backend validation remains authoritative.
+
+### Acceptance Criteria
+
+- Natural-language location answers are interpreted semantically and validated safely.
+- Existing direct safe location answers continue to work.
+- Technology/role/stack/noise answers are rejected as location values.
+
+---
+
+## Task: P9.7-005 Apply interpreter to update/refinement intent
+
+### Status
+
+Draft.
+
+### Goal
+
+Use the interpreter for recruiter replies that intend to change or refine the current Search Brief.
+
+Examples:
+
+- `no, change location`
+- `update stack`
+- `replace Kafka with Selenium`
+- `remove Spring`
+- `what does role family mean?`
+- `just use Selenium`
+
+The interpreter should classify the intent and proposed field/value, then backend validation should convert it into existing safe brief patch operations.
+
+### Acceptance Criteria
+
+- Update/refinement intent is handled by one semantic layer instead of scattered field-specific keyword handlers.
+- Existing patch operation safety remains intact.
+- No autonomous execution or search run is triggered by interpretation alone.
+
+---
+
+## Task: P9.7-006 Retire duplicated legacy pending handlers
+
+### Status
+
+Draft.
+
+### Goal
+
+After the interpreter is covered by tests, remove or narrow obsolete pending clarification/update handlers that duplicate semantic interpretation.
+
+Keep deterministic safety prechecks and simple fast paths where they are still valuable.
+
+### Acceptance Criteria
+
+- Duplicate keyword/regex logic is reduced.
+- Remaining deterministic handlers have clear safety or fast-path purpose.
+- Existing public API contracts, runtime approval, search execution, provider fanout, candidate scoring, filters, and persistence remain unchanged.
+
+---
+
+## Task: P9.7-007 Run recruiter semantic conversation UAT
+
+### Status
+
+Draft.
+
+### Goal
+
+Run a focused semantic conversation UAT before closing Phase 9.7.
+
+Scenario groups:
+
+- natural stack answers;
+- natural location answers;
+- role/technology answers;
+- update/refine flows;
+- field explanation questions;
+- off-topic and small talk;
+- unsafe/account-action requests;
+- multilingual/non-English rejection for the current POC.
+
+### Acceptance Criteria
+
+- UAT report records pass/fail findings.
+- Critical semantic flow regressions are fixed before Phase 9.7 closeout.
+- No raw secrets, raw provider payloads, raw profile URLs, screenshots, or candidate PII are committed.
+
+---
+
+## Task: P9.7-008 Close Phase 9.7 with AI Agent chat-understanding decision
+
+### Status
+
+Draft.
+
+### Goal
+
+Close Phase 9.7 with an explicit decision about the agent's chat-understanding baseline.
+
+The closeout should document:
+
+- what the semantic interpreter can safely understand;
+- what remains deterministic;
+- what remains unsupported;
+- known gaps before any future persistence/resume/manual-evidence work;
+- verification evidence and boundaries.
+
+### Acceptance Criteria
+
+- Phase 9.7 closeout is documented.
+- Project status/roadmap/tasks are updated.
+- The product boundary remains human-approved and non-autonomous.
 
 ---
 
