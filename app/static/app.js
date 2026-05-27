@@ -37,6 +37,8 @@ const AGENT_RUNTIME_TURN_MODE_EXECUTE_APPROVED = "execute_approved";
 const AGENT_RUNTIME_EXECUTION_MODE_SINGLE_WAVE = "single_wave";
 const AGENT_RUNTIME_EXECUTION_MODE_MULTI_WAVE = "multi_wave";
 const ASSISTANT_SPEAKER_LABEL = "AI Assistant";
+const ENGLISH_ONLY_MESSAGE =
+  "This POC accepts English input only. Please rewrite the request in English.";
 
 const AGENT_ACTION_STATUS_LABELS = {
   blocked: "Blocked",
@@ -1028,9 +1030,37 @@ function renderWorkspaceCandidateTable(candidates = []) {
   `;
 }
 
+function renderCandidateResultsEmptyState() {
+  return `
+    <section class="candidate-results-empty-state" aria-label="Candidate results placeholder">
+      <div class="candidate-results-illustration" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div>
+        <strong>Candidate results will appear here</strong>
+        <p>Describe the target role, technology, stack, and location in chat. After you confirm the search, matched public profiles will populate this workspace.</p>
+      </div>
+    </section>
+  `;
+}
+
+function renderCandidateResultsLoadingState() {
+  return `
+    <section class="candidate-results-loading-state" aria-label="Candidate search loading">
+      <div class="candidate-results-spinner" aria-hidden="true"></div>
+      <div>
+        <strong>Searching public profile signals</strong>
+        <p>Running the approved search plan and preparing the candidate workspace.</p>
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkspaceResults(report = null) {
   if (!latestWorkspaceRun) {
-    resultsList.innerHTML = "";
+    resultsList.innerHTML = renderCandidateResultsEmptyState();
     resultsStatus.textContent = "Run a search to see candidates.";
     return;
   }
@@ -1046,7 +1076,7 @@ function renderWorkspaceResults(report = null) {
           "results"
         )} returned, no unique candidates after filters and dedupe.`
       : "No candidates returned.";
-    resultsList.innerHTML = renderWorkspaceToolbar();
+    resultsList.innerHTML = `${renderWorkspaceToolbar()}${renderCandidateResultsEmptyState()}`;
     return;
   }
 
@@ -1380,13 +1410,14 @@ function isSearchRunAmbiguousReply(text) {
 }
 
 function chatMessageResponseLanguage(text) {
+  return "en";
+}
+
+function containsCyrillicText(text) {
   if (/[\u0400-\u04FF]/.test(text || "")) {
-    return "ru";
+    return true;
   }
-  if (/[A-Za-z]/.test(text || "")) {
-    return "en";
-  }
-  return currentChatLanguage;
+  return false;
 }
 
 const SEARCH_SUMMARY_UPDATE_FIELD_LABELS = {
@@ -1413,7 +1444,7 @@ function pendingUpdateFieldQuestion(field, language = currentChatLanguage) {
   if (field === "technology") {
     return language === "ru"
       ? "\u041a\u0430\u043a\u0443\u044e \u043e\u0441\u043d\u043e\u0432\u043d\u0443\u044e \u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044e \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c? \u0412 \u0442\u0435\u043a\u0443\u0449\u0435\u043c flow \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044f Java."
-      : "What main technology should I use? The current flow supports Java.";
+      : "What main technology should I use?";
   }
   if (field === "role_family") {
     return language === "ru"
@@ -1597,7 +1628,7 @@ function readyBriefChatStatus(options = {}) {
   }
 
   if (currentAgentPlanData?.agent_plan_status === "unsupported") {
-    return "This search is outside the supported Java/Ukraine flow.";
+    return "This search is outside the supported final POC flow.";
   }
 
   if (currentAgentPlanData) {
@@ -1710,7 +1741,7 @@ function clearSearchResultsData() {
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
   resultsStatus.textContent = "Run a search to see candidates.";
-  resultsList.innerHTML = "";
+  resultsList.innerHTML = renderCandidateResultsEmptyState();
 }
 
 function clearDownstreamStateAfterBriefChange() {
@@ -2138,7 +2169,7 @@ function buildSearchPlanQueueItem() {
   } else if (agentPlanRequestInFlight) {
     detail = "Preparing search summary.";
   } else if (currentAgentPlanData?.agent_plan_status === "unsupported") {
-    detail = "This search is outside the supported Java/Ukraine flow.";
+    detail = "This search is outside the supported final POC flow.";
   } else if (chatState === "ready_for_planning" && normalizedBrief) {
     detail = "Waiting until the search can be prepared.";
   }
@@ -2368,7 +2399,7 @@ function renderSearchErrors(errors = []) {
   );
   resultsStatus.textContent = message;
   reportStatus.textContent = message;
-  resultsList.innerHTML = "";
+  resultsList.innerHTML = renderCandidateResultsEmptyState();
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
   updateActionState();
@@ -3366,7 +3397,7 @@ function resetChat() {
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
   resultsStatus.textContent = "Run a search to see candidates.";
-  resultsList.innerHTML = "";
+  resultsList.innerHTML = renderCandidateResultsEmptyState();
   renderChatMessages();
   renderBriefSummaryCard(null);
   syncExecutionControlsFromPlan();
@@ -3561,7 +3592,7 @@ async function runStructuredSearch() {
   resultsStatus.textContent = "Checking that the search is ready to run...";
   reportStatus.textContent = "Starting search...";
   clearWorkspaceState();
-  resultsList.innerHTML = "";
+  resultsList.innerHTML = renderCandidateResultsLoadingState();
   reportGrid.innerHTML = "";
   contributionList.innerHTML = "";
 
@@ -3657,7 +3688,7 @@ async function runStructuredSearch() {
     resultsStatus.textContent = error.message;
     reportStatus.textContent = error.message;
     clearWorkspaceState();
-    resultsList.innerHTML = "";
+    resultsList.innerHTML = renderCandidateResultsEmptyState();
     reportGrid.innerHTML = "";
     contributionList.innerHTML = "";
   } finally {
@@ -4054,13 +4085,35 @@ function handleWorkspaceClick(event) {
 }
 
 if (statusElement) {
-  statusElement.textContent = "Workspace ready";
+  statusElement.textContent = "";
+  statusElement.hidden = true;
 }
 
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const userText = chatInput.value.trim();
   if (!userText) {
+    return;
+  }
+  if (containsCyrillicText(userText)) {
+    messages.push({ role: "user", content: userText, localOnly: true });
+    messages.push(
+      typedChatMessage(
+        {
+          role: "assistant",
+          content: ENGLISH_ONLY_MESSAGE,
+          localOnly: true,
+        },
+        {
+          messageType: AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK,
+          surface: "chat",
+        }
+      )
+    );
+    chatInput.value = "";
+    chatStatusElement.textContent = "English input only.";
+    renderChatMessages();
+    updateActionState();
     return;
   }
   chatInput.value = "";

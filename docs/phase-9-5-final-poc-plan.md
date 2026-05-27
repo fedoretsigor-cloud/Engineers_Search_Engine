@@ -2,19 +2,30 @@
 
 ## Summary
 
-Phase 9.5 is the final active POC phase. The project pauses Phase 10+ persistence and future feature tracks for now, finishes a small POC hardening slice, and then deploys the current product to Render with a public URL.
+Phase 9.5 is the final POC phase. The project pauses Phase 10+ persistence and future feature tracks for now, finishes a small POC hardening slice, and then deploys the current product to Render with a public URL.
 
 Search providers stay as currently implemented in Phase 9. Provider fanout/reporting changes are deferred unless a later reviewed task explicitly reopens them.
 
 ## Tasks
 
-- `P9.5-001 Park Phase 10+ and define final POC closeout`
-- `P9.5-002 Enforce English-only recruiter input`
-- `P9.5-003 Generalize search from Java/Ukraine baseline to any IT role`
-- `P9.5-004 Polish empty and loading Candidate Results states`
-- `P9.5-005 Remove duplicate ready/search wording and Workspace Ready label`
-- `P9.5-006 Final POC regression pass`
-- `P9.5-007 Deploy POC to Render`
+- Completed: `P9.5-001 Park Phase 10+ and define final POC closeout`
+- Completed: `P9.5-002 Enforce English-only recruiter input`
+- Completed: `P9.5-003 Generalize search from Java/Ukraine baseline to any IT role`
+- Completed: `P9.5-004 Polish empty and loading Candidate Results states`
+- Completed: `P9.5-005 Remove duplicate ready/search wording and Workspace Ready label`
+- Completed: `P9.5-006 Final POC regression pass`
+- Prepared, pending Render account credentials/dashboard action: `P9.5-007 Deploy POC to Render`
+
+## Implementation Result
+
+- The frontend blocks Cyrillic chat input before sending a backend request.
+- Backend validation rejects Cyrillic recruiter chat, Search Brief, and structured-search inputs.
+- The supported POC flow now accepts any English IT/software role with role, main technology, 1-3 stack signals, and location.
+- The generic rule-based planner builds 10 bounded LinkedIn X-ray queries and preserves the human-approved runtime boundary.
+- Candidate Results has a professional empty placeholder, loading spinner, and desktop height alignment with Recruiter Chat.
+- Duplicate ready/search wording and the visible `Workspace Ready` label were removed.
+- `render.yaml` and `docs/render-deployment.md` define the Render deployment path with secrets configured only in Render.
+- Local verification passed with `scripts/check_all.ps1` and Playwright browser sanity against `http://127.0.0.1:8000`.
 
 ## Required Product Changes
 
@@ -65,4 +76,3 @@ Search providers stay as currently implemented in Phase 9. Provider fanout/repor
 - Do not add persistence, saved searches, accounts, auth, outreach, LinkedIn login/scraping, or autonomous execution.
 - Do not commit provider secrets or deployment secrets.
 - Keep the approved backend runtime boundary as the only search execution path.
-

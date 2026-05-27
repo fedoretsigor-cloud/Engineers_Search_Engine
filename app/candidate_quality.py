@@ -733,6 +733,7 @@ def build_candidate_quality(
     domain_config = search_domain_config_for(
         input_snapshot.get("role_family") or "",
         input_snapshot.get("technology") or "",
+        input_snapshot.get("stack") or [],
     )
     quality: dict = {}
     review_flags = list(result.get("review_flags", []))

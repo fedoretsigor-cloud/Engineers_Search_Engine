@@ -231,9 +231,13 @@ from app.search_brief import (
 from app.search_validation import (
     add_validation_error,
     canonical_value,
+    normalize_freeform_label,
     normalize_location_value,
     normalize_multi_wave_search_request,
+    normalize_role_family_value,
+    normalize_stack_item_value,
     normalize_structured_search_request,
+    normalize_technology_value,
 )
 from app.search_execution import (
     PHASE9_PROVIDER_ORDER,
@@ -285,6 +289,7 @@ from app.text_utils import (
     clean_headline_value,
     clean_profile_text,
     compact_spaces,
+    contains_cyrillic_text,
     find_term_match,
     normalize_text_list,
     normalize_text_value,
@@ -1479,6 +1484,8 @@ def recruiter_chat_user_text(messages: list[RecruiterChatMessage]) -> str:
 
 
 def recruiter_chat_language(request: RecruiterChatTurnRequest) -> str:
+    return "en"
+
     language = (normalize_text_value(request.language) or "").lower()
     if language.startswith(("ru", "рус")):
         return "ru"
@@ -1894,16 +1901,16 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
                 "current_brief_status": request.current_brief_status,
                 "current_brief": clean_search_brief_dict(request.current_brief),
                 "supported_scope": (
-                    "IT/software sourcing; current implemented baseline is "
-                    "Backend Developer, Java, Ukraine."
+                    "English IT/software sourcing. The final POC supports any "
+                    "IT/software role when role, main technology, location, and "
+                    "1-3 stack signals are provided."
                 ),
             },
             "rules": [
                 "Classify clear non-IT professions such as plumber or dentist as candidate_search plus non_it.",
-                "Do not classify Data Engineer, Software Engineer, Backend Developer, or Java Developer as non_it.",
-                "Supported role means a Java programmer/software developer/backend engineer role only.",
-                "QA Automation, DevOps, Frontend Developer, Product Manager, and similar non-Java-programmer IT roles are understood but unsupported.",
-                "Analyst, Engineer, and Automation without Java programmer context are ambiguous role-like phrases.",
+                "Do not classify IT/software roles such as Data Engineer, QA Automation, DevOps, Frontend Developer, Product Manager, Analyst, Software Engineer, Backend Developer, or Java Developer as non_it.",
+                "Supported role means an English IT/software role, not only Java programmer roles.",
+                "If a word is not a profession or role-like search target, classify it as noise or unclear.",
                 "Noise or random text should use support_status noise and intent unclear.",
                 "If the user asks what a Search Brief field means, set field_intent field_explanation and select the field.",
                 "If context has a pending_field, classify whether the latest message answers that field, answers a different field, repeats an existing value, asks for a field explanation, or is unclear/noise.",
@@ -1919,7 +1926,7 @@ def recruiter_chat_intent_user_prompt(request: RecruiterChatIntentRequest) -> st
                 "Do not use pending_update_intent or pending_hypothesis_intent outside their matching context.",
                 "Classify clear start-over, restart, reset, clear current search, or begin-again requests as intent restart. This is state-management only and must not execute search.",
                 "Use unclear when confidence is low.",
-                "Prefer the latest user message language for response_language when it is clearly English or Russian.",
+                "Use English response_language for this final POC.",
                 "Return JSON only.",
             ],
             "hard_boundaries": [
@@ -2034,6 +2041,17 @@ def explicit_backend_role_signal(text: str) -> bool:
     )
 
 
+def explicit_it_role_signal(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    return bool(
+        re.search(
+            r"\b(dev|developer|engineer|programmer|architect|devops|sre|qa|tester|automation|analyst|data|scientist|product manager|project manager|designer|ux|ui|security|cloud|platform|database|dba|sysadmin|administrator|software|frontend|front end|backend|back end|fullstack|full stack|mobile|ios|android|embedded|firmware|blockchain|sap|salesforce)\b",
+            normalized_text,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
 def explicit_java_technology_signal(text: str) -> bool:
     normalized_text = normalized_chat_control_text(text)
     return bool(
@@ -2042,6 +2060,17 @@ def explicit_java_technology_signal(text: str) -> bool:
             or re.search(r"джава|джав[аы]", normalized_text, flags=re.IGNORECASE)
         )
         and not re.search(r"(?<![a-z0-9])javascript(?![a-z0-9])", normalized_text)
+    )
+
+
+def explicit_technology_signal(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if explicit_java_technology_signal(normalized_text):
+        return True
+    known_terms = sorted(KNOWN_BACKEND_TECHNOLOGIES, key=len, reverse=True)
+    return any(
+        re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized_text)
+        for term in known_terms
     )
 
 
@@ -2467,8 +2496,8 @@ def deterministic_recruiter_intent(
         role_domain = (
             RECRUITER_ROLE_DOMAIN_IT_SOFTWARE
             if (
-                explicit_backend_role_signal(text)
-                or explicit_java_technology_signal(text)
+                explicit_it_role_signal(text)
+                or explicit_technology_signal(text)
                 or java_stack_terms_in_text(text)
             )
             else RECRUITER_ROLE_DOMAIN_UNKNOWN
@@ -2476,11 +2505,11 @@ def deterministic_recruiter_intent(
         if role_domain == RECRUITER_ROLE_DOMAIN_IT_SOFTWARE:
             role_support_status = (
                 RECRUITER_ROLE_SUPPORT_SUPPORTED
-                if explicit_java_technology_signal(text)
-                and explicit_backend_role_signal(text)
+                if explicit_technology_signal(text)
+                and explicit_it_role_signal(text)
                 else RECRUITER_ROLE_SUPPORT_UNKNOWN
             )
-            is_profession_like = explicit_backend_role_signal(text)
+            is_profession_like = explicit_it_role_signal(text)
             java_programmer_role = role_support_status == RECRUITER_ROLE_SUPPORT_SUPPORTED
 
     return recruiter_intent_default_response(
@@ -2518,7 +2547,7 @@ def should_use_recruiter_intent_classifier(
         return True
     if detect_recruiter_chat_prohibited_requests(text):
         return False
-    if explicit_backend_role_signal(text) and explicit_java_technology_signal(text):
+    if explicit_it_role_signal(text) and explicit_technology_signal(text):
         return False
     if deterministic_non_it_role_label(text):
         return True
@@ -2626,6 +2655,8 @@ def detect_recruiter_chat_ambiguity_or_contradiction(
     normalized_text = normalized_chat_control_text(text)
     if not normalized_text:
         return None
+
+    return None
 
     stack_terms = java_stack_terms_in_text(normalized_text)
     has_role = explicit_backend_role_signal(normalized_text)
@@ -2748,6 +2779,9 @@ def java_stack_terms_in_text(text: str) -> list[str]:
 
 
 UNSUPPORTED_REFINEMENT_PATTERNS = [
+]
+
+LEGACY_UNSUPPORTED_REFINEMENT_PATTERNS = [
     (r"(?<![a-z0-9])react(?![a-z0-9])", "stack", "React"),
     (r"(?<![a-z0-9])javascript(?![a-z0-9])", "technology", "JavaScript"),
     (r"(?<![a-z0-9])python(?![a-z0-9])", "technology", "Python"),
@@ -3184,16 +3218,15 @@ def should_merge_chat_brief_field(
         return True
 
     if field_name == "role_family" and isinstance(value, str):
-        return canonical_value(value, CANONICAL_ROLE_FAMILIES) is not None
+        _, errors = normalize_role_family_value(value)
+        return not errors
 
     if field_name == "technology" and isinstance(value, str):
-        return canonical_value(value, KNOWN_BACKEND_TECHNOLOGIES) is not None
+        _, errors = normalize_technology_value(value)
+        return not errors
 
     if field_name == "location" and isinstance(value, str):
-        normalized_location = normalize_location_value(value)
-        return bool(
-            normalized_location and location_filter_config_for(normalized_location)
-        )
+        return bool(normalize_location_value(value))
 
     return True
 
@@ -3221,14 +3254,16 @@ def merge_chat_draft_brief(
         if isinstance(value, list) and not value:
             continue
         if field_name in {"stack", "nice_to_have"}:
-            if not explicit_stack:
-                continue
             normalized_stack_value, _ = normalize_brief_stack_items(value)
-            value = [
-                stack_item
-                for stack_item in normalized_stack_value
-                if stack_item in explicit_stack
-            ]
+            value = (
+                [
+                    stack_item
+                    for stack_item in normalized_stack_value
+                    if stack_item in explicit_stack
+                ]
+                if explicit_stack
+                else normalized_stack_value
+            )
             if not value:
                 continue
         if not should_merge_chat_brief_field(field_name, value, merged.get(field_name)):
@@ -3286,9 +3321,9 @@ def recruiter_chat_brief_user_prompt(request: RecruiterChatTurnRequest) -> str:
                 "draft_brief": {
                     "source_text": "Combined recruiter request text.",
                     "brief_status": "needs_clarification or ready_for_planning",
-                    "role_family": "Backend Developer or null",
-                    "technology": "Java or another explicitly requested backend technology",
-                    "stack": ["up to 3 Java stack values"],
+                    "role_family": "explicit English IT/software role/title/family or null",
+                    "technology": "explicit main technology or null",
+                    "stack": ["up to 3 explicitly requested stack signals"],
                     "location": "Target location string or null",
                     "seniority": "Optional seniority or null",
                     "must_have": [],
@@ -3308,10 +3343,10 @@ def recruiter_chat_brief_user_prompt(request: RecruiterChatTurnRequest) -> str:
             "previous_draft_brief": clean_search_brief_dict(request.draft_brief),
             "language_hint": request.language,
             "supported_values": {
-                "role_family": ["Backend Developer"],
-                "implemented_technology": ["Java"],
+                "role_family": "Any English IT/software role.",
+                "implemented_technology": "Any English main software technology.",
                 "known_backend_technologies": sorted(KNOWN_BACKEND_TECHNOLOGIES.values()),
-                "java_stack": JAVA_STACK_TERMS,
+                "known_java_stack_examples": JAVA_STACK_TERMS,
                 "search_depth": sorted(SEARCH_DEPTH_VALUES),
                 "profile_sources": [PROFILE_SOURCE_LINKEDIN_PUBLIC],
             },
@@ -3319,9 +3354,10 @@ def recruiter_chat_brief_user_prompt(request: RecruiterChatTurnRequest) -> str:
                 "Return one JSON object only.",
                 "Do not invent hard constraints that the recruiter did not provide.",
                 "If location, stack, role, or technology is missing, leave it null or empty.",
-                "Map Java backend/software engineer intent to role_family Backend Developer.",
+                "Keep the recruiter's target IT/software role as role_family; do not force it to Backend Developer.",
                 "Set search_depth to standard unless the recruiter asks for deep search.",
                 "Use profile_sources ['linkedin_public'] unless the user explicitly asks otherwise.",
+                "Use English field values only.",
                 "Never include target_titles; planner owns title generation later.",
             ],
             "hard_boundaries": [
@@ -3421,8 +3457,8 @@ def has_sourcing_or_recruiter_context_signal(text: str) -> bool:
         return False
 
     if (
-        explicit_backend_role_signal(normalized_text)
-        or explicit_java_technology_signal(normalized_text)
+        explicit_it_role_signal(normalized_text)
+        or explicit_technology_signal(normalized_text)
         or explicit_ukraine_location_signal(normalized_text)
         or bool(java_stack_terms_in_text(normalized_text))
     ):
@@ -3441,8 +3477,8 @@ def has_sourcing_or_recruiter_context_signal_for_off_topic(text: str) -> bool:
         return False
 
     if (
-        explicit_backend_role_signal(normalized_text)
-        or explicit_java_technology_signal(normalized_text)
+        explicit_it_role_signal(normalized_text)
+        or explicit_technology_signal(normalized_text)
         or bool(java_stack_terms_in_text(normalized_text))
     ):
         return True
@@ -3623,7 +3659,7 @@ def build_recruiter_chat_response(
         elif next_question:
             assistant_message = next_question
         elif can_build_plan:
-            assistant_message = ready_for_planning_message(language)
+            assistant_message = None
         else:
             assistant_message = validation_error_message(validation_errors, language)
 
@@ -3863,9 +3899,8 @@ def recruiter_chat_unsupported_it_role_message(language: str, role_label: str | 
             "напиши роль, локацию и 1-3 stack signals."
         )
     return (
-        f"I understand{role_context} as an IT/software role, but this version currently "
-        "supports Java programmer / Backend Developer search. If that is the target, "
-        "tell me the role, location, and 1-3 stack signals."
+        f"I understand{role_context} as an IT/software role. Tell me the main "
+        "technology, location, and 1-3 stack signals."
     )
 
 
@@ -3878,7 +3913,7 @@ def recruiter_chat_ambiguous_role_message(language: str, role_label: str | None)
         )
     return (
         f"I understand{role_context} as role-like, but it is ambiguous. "
-        "Are we looking for a Java programmer / Backend Developer, or a different role?"
+        "Tell me the target IT role, main technology, location, and 1-3 stack signals."
     )
 
 
@@ -3890,7 +3925,7 @@ def recruiter_chat_noise_role_message(language: str) -> str:
         )
     return (
         "That does not look like a candidate-search role request. Tell me the target "
-        "Java programmer role, location, and 1-3 stack signals."
+        "IT role, main technology, location, and 1-3 stack signals."
     )
 
 
@@ -4159,9 +4194,8 @@ def recruiter_chat_stack_explanation_message(language: str) -> str:
             "сигнала, например Spring, Kafka, AWS, Docker или Kubernetes."
         )
     return (
-        "Stack is required so the Java/Ukraine search summary is specific enough "
-        "before planning. Choose 1-3 signals such as Spring, Kafka, AWS, Docker, "
-        "or Kubernetes."
+        "Stack is required so the search summary is specific enough before planning. "
+        "Choose 1-3 signals such as Spring, Kafka, AWS, Docker, React, or Kubernetes."
     )
 
 
@@ -4250,6 +4284,33 @@ def current_brief_context_for_language(
     return context
 
 
+def normalized_field_value_has_evidence(value: object, text: str) -> bool:
+    if not value:
+        return False
+    values = value if isinstance(value, list) else [value]
+    normalized_text = normalized_chat_control_text(text)
+    for item in values:
+        item_text = normalize_text_value(str(item))
+        if not item_text:
+            continue
+        candidate_terms = [item_text]
+        item_key = item_text.lower()
+        for alias, canonical_value in JAVA_STACK_VALUES.items():
+            if canonical_value.lower() == item_key:
+                candidate_terms.append(alias)
+        for alias, canonical_value in KNOWN_BACKEND_TECHNOLOGIES.items():
+            if canonical_value.lower() == item_key:
+                candidate_terms.append(alias)
+
+        for candidate_term in candidate_terms:
+            if candidate_term.lower() in text.lower():
+                return True
+            pattern = term_match_pattern(candidate_term.lower())
+            if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+                return True
+    return False
+
+
 def search_brief_readiness_evidence(
     *,
     normalized_brief: dict,
@@ -4282,10 +4343,22 @@ def search_brief_readiness_evidence(
     candidate_payload = normalized_brief_state_payload(normalized_brief)
 
     field_evidence = {
-        "role_family": explicit_backend_role_signal(combined_user_text),
-        "technology": explicit_java_technology_signal(combined_user_text),
-        "location": explicit_ukraine_location_signal(combined_user_text),
-        "stack": bool(deterministic_chat_brief_hints(combined_user_text).get("stack")),
+        "role_family": normalized_field_value_has_evidence(
+            normalized_brief.get("role_family"),
+            combined_user_text,
+        ) or explicit_it_role_signal(combined_user_text),
+        "technology": normalized_field_value_has_evidence(
+            normalized_brief.get("technology"),
+            combined_user_text,
+        ) or explicit_technology_signal(combined_user_text),
+        "location": normalized_field_value_has_evidence(
+            normalized_brief.get("location"),
+            combined_user_text,
+        ) or explicit_ukraine_location_signal(combined_user_text),
+        "stack": normalized_field_value_has_evidence(
+            normalized_brief.get("stack") or [],
+            combined_user_text,
+        ),
     }
     if existing_is_ready:
         for field_name in field_evidence:
@@ -4435,7 +4508,7 @@ def apply_brief_patch_to_draft(
             patch_validation_error(
                 "brief_patch.operations",
                 "unsupported_patch_operation",
-                "Patch contains unsupported values for the current Java/Ukraine flow.",
+                "Patch contains unsupported values for the current final POC flow.",
             )
         ], unsupported_patch_message(language)
 
@@ -4452,7 +4525,11 @@ def apply_brief_patch_to_draft(
         operation_name = operation.get("operation")
 
         if operation_name == BRIEF_PATCH_ADD_STACK:
-            stack_item = canonical_value(operation.get("value"), JAVA_STACK_VALUES)
+            stack_item, stack_item_error = normalize_stack_item_value(operation.get("value"))
+            if stack_item_error:
+                return None, None, False, [
+                    patch_validation_error("stack", "invalid_stack_item", stack_item_error)
+                ], validation_error_message([], language)
             if stack_item and stack_item not in next_stack:
                 next_stack.append(stack_item)
                 changed = True
@@ -4460,7 +4537,7 @@ def apply_brief_patch_to_draft(
             continue
 
         if operation_name == BRIEF_PATCH_REMOVE_STACK:
-            stack_item = canonical_value(operation.get("value"), JAVA_STACK_VALUES)
+            stack_item, _ = normalize_stack_item_value(operation.get("value"))
             if stack_item and stack_item in next_stack:
                 next_stack.remove(stack_item)
                 changed = True
@@ -4500,14 +4577,40 @@ def apply_brief_patch_to_draft(
 
         if operation_name == BRIEF_PATCH_SET_LOCATION:
             location = normalize_location_value(operation.get("value"))
-            if location and location_filter_config_for(location) and location != normalize_location_value(
+            if location and location != normalize_location_value(
                 candidate.get("location")
             ):
                 candidate["location"] = location
                 changed = True
             continue
 
-        if operation_name in {BRIEF_PATCH_RECONFIRM_FIELD, BRIEF_PATCH_NOOP}:
+        if operation_name == BRIEF_PATCH_RECONFIRM_FIELD:
+            field_name = operation.get("field")
+            value = operation.get("value")
+            if field_name == "technology":
+                technology, technology_errors = normalize_technology_value(value)
+                if technology_errors or not technology:
+                    return None, None, False, technology_errors, validation_error_message(
+                        technology_errors,
+                        language,
+                    )
+                if technology != normalize_text_value(candidate.get("technology")):
+                    candidate["technology"] = technology
+                    candidate["must_have"] = [technology]
+                    changed = True
+            elif field_name == "role_family":
+                role_family, role_errors = normalize_role_family_value(value)
+                if role_errors or not role_family:
+                    return None, None, False, role_errors, validation_error_message(
+                        role_errors,
+                        language,
+                    )
+                if role_family != normalize_text_value(candidate.get("role_family")):
+                    candidate["role_family"] = role_family
+                    changed = True
+            continue
+
+        if operation_name == BRIEF_PATCH_NOOP:
             continue
 
     if stack_touched and not next_stack:
@@ -4736,8 +4839,7 @@ def pending_location_unsupported_answer_message(language: str) -> str:
             "Укажи Украину или город в Украине, например Киев."
         )
     return (
-        "The current Java/Ukraine baseline supports only Ukraine as the location. "
-        "Use Ukraine or a Ukrainian city, for example Kyiv."
+        "Use an English target location."
     )
 
 
@@ -4786,8 +4888,8 @@ def pending_clarification_unrecognized_answer_message(field: str, language: str)
                 "например Spring, Kafka, AWS или Hibernate."
             )
         return (
-            "I did not recognize a supported Java stack signal. Use 1-3 signals, "
-            "for example Spring, Kafka, AWS, or Hibernate."
+            "I did not recognize the stack signal. Use 1-3 English stack signals, "
+            "for example Spring, Kafka, AWS, React, or Kubernetes."
         )
 
     return recruiter_chat_unclear_request_message(language)
@@ -4963,7 +5065,7 @@ def pending_update_field_question(field: str, language: str) -> str:
     if field == "technology":
         if language == "ru":
             return "Какую основную технологию использовать? В текущем flow поддерживается Java."
-        return "What main technology should I use? The current flow supports Java."
+        return "What main technology should I use?"
     if field == "role_family":
         if language == "ru":
             return "Какую целевую роль использовать? Например, Backend Developer."
@@ -4999,7 +5101,7 @@ def pending_update_field_patch_from_message(
     language: str,
 ) -> tuple[dict | None, str | None]:
     if field == "location":
-        location = deterministic_chat_brief_hints(text).get("location")
+        location = deterministic_chat_brief_hints(text).get("location") or normalize_location_value(text)
         if location:
             return build_brief_patch(
                 source_message=text,
@@ -5012,12 +5114,22 @@ def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
-        if any(operation.get("field") == "location" for operation in unsupported_refinement_operations(text)):
-            return None, pending_location_unsupported_answer_message(language)
         return None, pending_clarification_unrecognized_answer_message("location", language)
 
     if field == "stack":
         stack_terms = java_stack_terms_in_text(text)
+        if not stack_terms:
+            candidate_terms = [
+                part.strip(" .")
+                for part in re.split(r"\s*,\s*|\s+\band\b\s+|\s*&\s*", text)
+                if part.strip(" .")
+            ]
+            normalized_terms: list[str] = []
+            for term in candidate_terms:
+                normalized_term, term_error = normalize_stack_item_value(term)
+                if not term_error and normalized_term and normalized_term not in normalized_terms:
+                    normalized_terms.append(normalized_term)
+            stack_terms = normalized_terms[:3]
         if stack_terms:
             return build_brief_patch(
                 source_message=text,
@@ -5030,51 +5142,38 @@ def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
-        unsupported_stack = [
-            operation
-            for operation in unsupported_refinement_operations(text)
-            if operation.get("field") in {"stack", "technology"}
-        ]
-        if unsupported_stack:
-            return build_brief_patch(
-                source_message=text,
-                operations=unsupported_stack,
-                requires_clarification=True,
-            ), None
         return None, pending_clarification_unrecognized_answer_message("stack", language)
 
     if field == "technology":
-        if explicit_java_technology_signal(text):
+        technology, technology_errors = normalize_technology_value(text)
+        if technology and not technology_errors:
             return build_brief_patch(
                 source_message=text,
                 operations=[
                     {
                         "operation": BRIEF_PATCH_RECONFIRM_FIELD,
                         "field": "technology",
-                        "value": "Java",
+                        "value": technology,
                     }
                 ],
                 requires_clarification=False,
             ), None
-        if any(operation.get("field") == "technology" for operation in unsupported_refinement_operations(text)):
-            return None, unsupported_patch_message(language)
         return None, pending_update_field_question("technology", language)
 
     if field == "role_family":
-        if explicit_backend_role_signal(text):
+        role_family, role_errors = normalize_role_family_value(text)
+        if role_family and not role_errors:
             return build_brief_patch(
                 source_message=text,
                 operations=[
                     {
                         "operation": BRIEF_PATCH_RECONFIRM_FIELD,
                         "field": "role_family",
-                        "value": "Backend Developer",
+                        "value": role_family,
                     }
                 ],
                 requires_clarification=False,
             ), None
-        if any(operation.get("field") == "role_family" for operation in unsupported_refinement_operations(text)):
-            return None, unsupported_patch_message(language)
         return None, pending_update_field_question("role_family", language)
 
     if field == "seniority":
@@ -5143,6 +5242,20 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     latest_user_text = latest_recruiter_chat_user_text(request.messages)
     chat_text = recruiter_chat_text(request.messages)
     user_text = recruiter_chat_user_text(request.messages)
+    if contains_cyrillic_text(chat_text) or contains_cyrillic_text(clean_search_brief_dict(request.draft_brief)):
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language="en",
+            validation_errors=[
+                {
+                    "field": "messages",
+                    "message": "This POC accepts English input only.",
+                }
+            ],
+            planner_mode=planner_mode,
+        )
+
     prohibited_errors = detect_recruiter_chat_prohibited_requests(latest_user_text)
     if prohibited_errors:
         return build_recruiter_chat_response(
@@ -5497,6 +5610,44 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     if (
         intent_decision
         and intent_decision.get("role_domain") == RECRUITER_ROLE_DOMAIN_IT_SOFTWARE
+        and intent_decision.get("role_label")
+        and not explicit_technology_signal(latest_user_text)
+        and not java_stack_terms_in_text(latest_user_text)
+        and not explicit_ukraine_location_signal(latest_user_text)
+    ):
+        role_label = normalize_freeform_label(str(intent_decision["role_label"]))
+        partial_brief = {
+            "source_text": chat_text,
+            "brief_status": SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
+            "role_family": role_label,
+            "technology": None,
+            "stack": [],
+            "location": None,
+            "seniority": None,
+            "must_have": [],
+            "nice_to_have": [],
+            "exclusions": [],
+            "search_depth": SEARCH_DEPTH_STANDARD,
+            "profile_sources": ["linkedin_public"],
+            "notes": None,
+            "missing_fields": ["technology", "location", "stack"],
+            "clarifying_questions": [],
+            "assumptions": [],
+        }
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=partial_brief,
+            next_question=one_clarifying_question(partial_brief, language),
+            planner_mode=planner_mode,
+            brief_changed=True,
+            stale_state_should_clear=True,
+        )
+
+    if (
+        intent_decision
+        and intent_decision.get("role_domain") == RECRUITER_ROLE_DOMAIN_IT_SOFTWARE
         and intent_decision.get("role_support_status")
         == RECRUITER_ROLE_SUPPORT_UNSUPPORTED
         and intent_decision.get("confidence")
@@ -5794,6 +5945,45 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             language,
             planner_mode,
             ambiguity["message"],
+        )
+
+    role_only_value, role_only_errors = normalize_role_family_value(latest_user_text)
+    if (
+        not request.draft_brief
+        and role_only_value
+        and not role_only_errors
+        and explicit_it_role_signal(latest_user_text)
+        and not explicit_technology_signal(latest_user_text)
+        and not java_stack_terms_in_text(latest_user_text)
+        and not explicit_ukraine_location_signal(latest_user_text)
+    ):
+        partial_brief = {
+            "source_text": chat_text,
+            "brief_status": SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
+            "role_family": role_only_value,
+            "technology": None,
+            "stack": [],
+            "location": None,
+            "seniority": None,
+            "must_have": [],
+            "nice_to_have": [],
+            "exclusions": [],
+            "search_depth": SEARCH_DEPTH_STANDARD,
+            "profile_sources": ["linkedin_public"],
+            "notes": None,
+            "missing_fields": ["technology", "location", "stack"],
+            "clarifying_questions": [],
+            "assumptions": [],
+        }
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=partial_brief,
+            next_question=one_clarifying_question(partial_brief, language),
+            planner_mode=planner_mode,
+            brief_changed=True,
+            stale_state_should_clear=True,
         )
 
     ai_output, ai_errors = await run_openai_json_recruiter_chat(request)
@@ -6388,7 +6578,7 @@ def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "engineers-search-engine",
-        "phase": "phase-1-poc",
+        "phase": "phase-9-5-final-poc",
     }
 
 
@@ -6412,6 +6602,15 @@ async def create_recruiter_chat_turn(request: RecruiterChatTurnRequest) -> dict:
 async def classify_recruiter_chat_intent(
     request: RecruiterChatIntentRequest,
 ) -> dict:
+    if contains_cyrillic_text(request.latest_message):
+        return recruiter_intent_default_response(
+            intent=RECRUITER_INTENT_UNCLEAR,
+            role_domain=RECRUITER_ROLE_DOMAIN_UNKNOWN,
+            role_support_status=RECRUITER_ROLE_SUPPORT_UNKNOWN,
+            confidence=RECRUITER_INTENT_CONFIDENCE_HIGH,
+            response_language="en",
+            fallback_reason="english_only",
+        )
     return await classify_recruiter_chat_intent_response(request)
 
 

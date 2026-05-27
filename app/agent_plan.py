@@ -53,9 +53,9 @@ def is_supported_agent_v0_baseline(
         return False
 
     return (
-        normalized_request.get("role_family") == "Backend Developer"
-        and normalized_request.get("technology") == "Java"
-        and normalized_request.get("location") == "Ukraine"
+        bool(normalized_request.get("role_family"))
+        and bool(normalized_request.get("technology"))
+        and bool(normalized_request.get("location"))
         and bool(normalized_request.get("stack"))
         and (normalized_brief.get("search_depth") or SEARCH_DEPTH_STANDARD)
         == SEARCH_DEPTH_STANDARD

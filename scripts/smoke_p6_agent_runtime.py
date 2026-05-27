@@ -421,8 +421,7 @@ def assert_agent_runtime_turn_http_contract() -> None:
 
         unsupported_flow_input = {
             **valid_runtime_tool_input(),
-            "location": "Poland",
-            "location_filter_enabled": False,
+            "search_depth": "deep",
         }
         unsupported_flow = post_runtime_turn(
             client,

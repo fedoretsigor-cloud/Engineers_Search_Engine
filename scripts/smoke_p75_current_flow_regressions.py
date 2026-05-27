@@ -189,6 +189,17 @@ def assert_refusal_response(response: dict, expected_code: str) -> None:
     ), response["validation_errors"]
 
 
+def assert_english_only_response(response: dict) -> None:
+    assert response["ok"] is False
+    assert response["state"] == "needs_clarification"
+    assert response["normalized_brief"] is None
+    assert response["brief_changed"] is False
+    assert response["stale_state_should_clear"] is False
+    assert response["can_build_plan"] is False
+    assert response["build_plan_action"] is None
+    assert "english input only" in (response["assistant_message"] or "").lower()
+
+
 async def assert_latest_turn_safety_regressions() -> None:
     cases = [
         (
@@ -259,6 +270,9 @@ async def assert_latest_turn_safety_regressions() -> None:
             chat_request(text, language=language, draft_brief=ready_brief())
         )
         assert len(RECRUITER_LLM_CALLS) == before_calls
+        if language == "ru":
+            assert_english_only_response(response)
+            continue
         assert_refusal_response(response, expected_code)
 
     before_calls = len(RECRUITER_LLM_CALLS)
@@ -284,45 +298,23 @@ async def assert_latest_turn_safety_regressions() -> None:
 
 
 async def assert_ru_control_signal_regressions() -> None:
-    assert main.explicit_backend_role_signal("бекенд")
-    assert main.explicit_backend_role_signal("бэкенд")
-    assert main.explicit_backend_role_signal("бэкэнд")
-    assert main.explicit_ukraine_location_signal("Украина")
-    assert main.explicit_ukraine_location_signal("Киев")
-    assert main.explicit_ukraine_location_signal("Київ")
+    assert main.contains_cyrillic_text("бекенд")
+    assert main.contains_cyrillic_text("Украина")
 
-    missing_role_or_technology = main.detect_recruiter_chat_ambiguity_or_contradiction(
-        "Spring Kafka Украина."
-    )
-    assert missing_role_or_technology is not None
-    assert missing_role_or_technology["code"] == "missing_role_or_technology"
-
-    kyiv_missing_role_or_technology = main.detect_recruiter_chat_ambiguity_or_contradiction(
-        "Spring Kafka Киев."
-    )
-    assert kyiv_missing_role_or_technology is not None
-    assert kyiv_missing_role_or_technology["code"] == "missing_role_or_technology"
-
-    too_many_stack_terms = main.detect_recruiter_chat_ambiguity_or_contradiction(
-        "бекенд Java Украина Spring Kafka AWS Docker"
-    )
-    assert too_many_stack_terms is not None
-    assert too_many_stack_terms["code"] == "too_many_stack_terms"
-
-    for text in ["сброс", "новый поиск", "начать заново"]:
-        assert main.detect_recruiter_chat_reset_intent(text)
+    for text in [
+        "Spring Kafka Украина.",
+        "Spring Kafka Киев.",
+        "бекенд Java Украина Spring Kafka AWS Docker",
+        "сброс",
+        "новый поиск",
+        "начать заново",
+    ]:
         before_calls = len(RECRUITER_LLM_CALLS)
         response = await main.recruiter_chat_turn_response(
             chat_request(text, language="ru", draft_brief=ready_brief())
         )
         assert len(RECRUITER_LLM_CALLS) == before_calls
-        assert response["ok"] is True
-        assert response["state"] == "needs_clarification"
-        assert response["normalized_brief"] is None
-        assert response["brief_changed"] is True
-        assert response["stale_state_should_clear"] is False
-        assert response["clear_brief"] is True
-        assert response["can_build_plan"] is False
+        assert_english_only_response(response)
 
 
 def assert_not_refinement_blocked(response: dict) -> None:
@@ -347,13 +339,8 @@ async def assert_clean_state_initial_request_regressions() -> None:
         response = await main.recruiter_chat_turn_response(
             chat_request(text, language="ru")
         )
-        assert len(RECRUITER_LLM_CALLS) == before_calls + 1
-        assert response["ok"] is True
-        assert response["state"] == "ready_for_planning"
-        assert response["normalized_brief"]["role_family"] == "Backend Developer"
-        assert response["normalized_brief"]["technology"] == "Java"
-        assert response["normalized_brief"]["location"] == "Ukraine"
-        assert_not_refinement_blocked(response)
+        assert len(RECRUITER_LLM_CALLS) == before_calls
+        assert_english_only_response(response)
 
     before_calls = len(RECRUITER_LLM_CALLS)
     refinement = await main.recruiter_chat_turn_response(
@@ -364,12 +351,7 @@ async def assert_clean_state_initial_request_regressions() -> None:
         )
     )
     assert len(RECRUITER_LLM_CALLS) == before_calls
-    assert refinement["ok"] is True
-    assert refinement["state"] == "ready_for_planning"
-    assert refinement["normalized_brief"]["stack"] == ["Spring", "Kafka", "Docker"]
-    assert refinement["brief_changed"] is True
-    assert refinement["stale_state_should_clear"] is True
-    assert refinement["brief_patch"]["operations"][0]["operation"] == "add_stack"
+    assert_english_only_response(refinement)
 
 
 async def assert_en_hardening_regressions() -> None:
@@ -384,7 +366,7 @@ async def assert_en_hardening_regressions() -> None:
     assert docker_kubernetes["ok"] is True
     assert docker_kubernetes["state"] == "ready_for_planning"
     assert docker_kubernetes["normalized_brief"]["stack"] == ["Docker", "Kubernetes"]
-    assert "Input should be a valid string" not in docker_kubernetes["assistant_message"]
+    assert "Input should be a valid string" not in (docker_kubernetes["assistant_message"] or "")
 
     no_stack = await main.recruiter_chat_turn_response(
         chat_request("Find Java backend developers in Ukraine.", language="en")
@@ -404,34 +386,6 @@ async def assert_en_hardening_regressions() -> None:
     assert typo["normalized_brief"]["stack"] == ["Spring", "Kafka"]
 
     no_llm_cases = [
-        (
-            "Spring Kafka Ukraine.",
-            "role and main technology",
-        ),
-        (
-            "Java backend in Ukraine, Spring Kafka AWS Docker Kubernetes PostgreSQL REST.",
-            "1-3 Java stack signals",
-        ),
-        (
-            "I have two roles: Java backend Ukraine and Python backend Poland.",
-            "one supported search",
-        ),
-        (
-            "Need Java developer, but Python is also okay.",
-            "one main technology",
-        ),
-        (
-            "Remote Ukraine, but current location should be Prague.",
-            "target location",
-        ),
-        (
-            "Spring required, but no Spring.",
-            "Spring is required",
-        ),
-        (
-            "Run deep search but do not search.",
-            "asked not to search",
-        ),
         (
             "What's the weather in Kyiv?",
             "candidate search",

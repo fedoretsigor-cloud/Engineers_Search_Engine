@@ -352,9 +352,9 @@ def _validate_supported_runtime_flow(
     normalized_request: dict[str, Any],
 ) -> list[dict[str, str]]:
     if (
-        normalized_request.get("role_family") == "Backend Developer"
-        and normalized_request.get("technology") == "Java"
-        and normalized_request.get("location") == "Ukraine"
+        normalized_request.get("role_family")
+        and normalized_request.get("technology")
+        and normalized_request.get("location")
         and normalized_request.get("search_depth") == SEARCH_DEPTH_STANDARD
         and normalized_request.get("stack")
     ):
@@ -364,7 +364,7 @@ def _validate_supported_runtime_flow(
         runtime_error(
             "tool_input",
             AGENT_RUNTIME_ERROR_UNSUPPORTED_FLOW,
-            "Agent Runtime v0 supports only Backend Developer + Java + Ukraine + standard depth with at least one stack item.",
+            "Agent Runtime v0 requires an English IT role, main technology, location, standard depth, and at least one stack item.",
         )
     ]
 

@@ -270,7 +270,7 @@ async def assert_brief_refinement_boundaries() -> None:
     assert duplicate_add["brief_changed"] is False
     assert duplicate_add["stale_state_should_clear"] is False
 
-    unsupported_patch = await main.recruiter_chat_turn_response(
+    generic_stack_patch = await main.recruiter_chat_turn_response(
         chat_request(
             "remove Kafka and add React",
             language="en",
@@ -278,13 +278,13 @@ async def assert_brief_refinement_boundaries() -> None:
         )
     )
     assert len(RECORDER.recruiter_llm_calls) == before_calls
-    assert unsupported_patch["normalized_brief"]["stack"] == ["Spring", "Kafka"]
-    assert unsupported_patch["brief_changed"] is False
-    assert unsupported_patch["stale_state_should_clear"] is False
-    assert any(
-        operation["operation"] == "unsupported"
-        for operation in unsupported_patch["brief_patch"]["operations"]
-    )
+    assert generic_stack_patch["normalized_brief"]["stack"] == ["Spring", "React"]
+    assert generic_stack_patch["brief_changed"] is True
+    assert generic_stack_patch["stale_state_should_clear"] is True
+    assert [
+        operation["operation"]
+        for operation in generic_stack_patch["brief_patch"]["operations"]
+    ] == ["remove_stack", "add_stack"]
 
     last_stack_remove = await main.recruiter_chat_turn_response(
         chat_request(

@@ -355,17 +355,18 @@ async def assert_small_talk_uses_safe_wording() -> None:
 async def assert_llm_role_classifier_handles_java_scope_edges() -> None:
     qa = await main.recruiter_chat_turn_response(chat_request("QA Automation", "en"))
     assert qa["state"] == "needs_clarification"
-    assert qa["normalized_brief"] is None
+    assert qa["normalized_brief"]["role_family"] == "QA Automation"
+    assert qa["normalized_brief"]["technology"] is None
+    assert qa["normalized_brief"]["stack"] == []
     assert qa["can_build_plan"] is False
-    assert "java programmer" in qa["assistant_message"].lower()
+    assert "main technology" in qa["assistant_message"].lower()
     assert "did not understand" not in qa["assistant_message"].lower()
 
     analyst = await main.recruiter_chat_turn_response(chat_request("Analyst", "en"))
     assert analyst["state"] == "needs_clarification"
-    assert analyst["normalized_brief"] is None
+    assert analyst["normalized_brief"]["role_family"] == "Analyst"
     assert analyst["can_build_plan"] is False
-    assert "ambiguous" in analyst["assistant_message"].lower()
-    assert "java programmer" in analyst["assistant_message"].lower()
+    assert "main technology" in analyst["assistant_message"].lower()
 
     noise = await main.recruiter_chat_turn_response(chat_request("banana", "en"))
     assert noise["state"] == "needs_clarification"
@@ -471,31 +472,12 @@ async def assert_pending_hypothesis_confirmation_completes_brief() -> None:
     initial = await main.recruiter_chat_turn_response(
         chat_request("Java dev in Ukraine with Spring", "en")
     )
-    assert initial["state"] == "needs_clarification"
-    assert "Backend Developer with Java" in initial["assistant_message"]
-
-    confirmed = await main.recruiter_chat_turn_response(
-        main.RecruiterChatTurnRequest(
-            language="en",
-            messages=[
-                main.RecruiterChatMessage(
-                    role="user",
-                    content="Java dev in Ukraine with Spring",
-                ),
-                main.RecruiterChatMessage(
-                    role="assistant",
-                    content=initial["assistant_message"],
-                ),
-                main.RecruiterChatMessage(role="user", content="yes"),
-            ],
-        )
-    )
-    assert confirmed["state"] == "ready_for_planning"
-    assert confirmed["can_build_plan"] is True
-    assert confirmed["normalized_brief"]["role_family"] == "Backend Developer"
-    assert confirmed["normalized_brief"]["technology"] == "Java"
-    assert confirmed["normalized_brief"]["location"] == "Ukraine"
-    assert confirmed["normalized_brief"]["stack"] == ["Spring"]
+    assert initial["state"] == "ready_for_planning"
+    assert initial["can_build_plan"] is True
+    assert initial["normalized_brief"]["role_family"] == "Backend Developer"
+    assert initial["normalized_brief"]["technology"] == "Java"
+    assert initial["normalized_brief"]["location"] == "Ukraine"
+    assert initial["normalized_brief"]["stack"] == ["Spring"]
 
     unsupported_yes = await main.recruiter_chat_turn_response(chat_request("yes", "en"))
     assert unsupported_yes["state"] == "needs_clarification"
@@ -541,7 +523,7 @@ async def assert_pending_update_intent_and_field_value_flow() -> None:
     assert updated_stack["normalized_brief"]["stack"] == ["Kafka"]
     assert updated_stack["brief_changed"] is True
 
-    unsupported_location = await main.recruiter_chat_turn_response(
+    updated_location = await main.recruiter_chat_turn_response(
         main.RecruiterChatTurnRequest(
             language="en",
             draft_brief=ready_brief(),
@@ -549,9 +531,10 @@ async def assert_pending_update_intent_and_field_value_flow() -> None:
             messages=[main.RecruiterChatMessage(role="user", content="Germany")],
         )
     )
-    assert unsupported_location["state"] == "ready_for_planning"
-    assert unsupported_location["brief_changed"] is False
-    assert "supports only Ukraine" in unsupported_location["assistant_message"]
+    assert updated_location["state"] == "ready_for_planning"
+    assert updated_location["normalized_brief"]["location"] == "Germany"
+    assert updated_location["brief_changed"] is True
+    assert updated_location["stale_state_should_clear"] is True
 
     restarted = await main.recruiter_chat_turn_response(
         main.RecruiterChatTurnRequest(

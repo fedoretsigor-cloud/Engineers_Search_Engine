@@ -23,6 +23,10 @@ def normalize_text_value(value: str | None) -> str | None:
     return normalized_value or None
 
 
+def contains_cyrillic_text(value: object) -> bool:
+    return bool(re.search(r"[\u0400-\u04FF]", str(value or "")))
+
+
 def normalize_text_list(values: list[str] | None) -> list[str]:
     if not values:
         return []

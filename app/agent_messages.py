@@ -352,10 +352,7 @@ def localized_clarifying_question_source_message(field: str, language: str) -> s
     questions = {
         "role_family": "What role family should the search target?",
         "technology": "What main technology should the candidate have?",
-        "stack": (
-            "Which Java stack signals are important for this search: "
-            "Spring, Kafka, AWS, Hibernate, or something else?"
-        ),
+        "stack": "Which 1-3 stack signals are important for this search?",
         "location": "What target location should the search use?",
         "search_depth": "Should this be a standard or deep search?",
         "profile_sources": "Which public profile source should be used?",
@@ -373,10 +370,7 @@ def ready_for_planning_source_message(language: str) -> str:
             "\u043d\u0430\u0447\u043d\u0443 \u043f\u043e\u0438\u0441\u043a."
         )
 
-    return (
-        "I understood the search. Review the summary. If it looks right, "
-        "confirm and I will start the search."
-    )
+    return "Search summary is ready."
 
 
 def validation_error_source_message(
@@ -484,8 +478,8 @@ def unsupported_patch_source_message(language: str) -> str:
             "Java-\u0441\u0442\u0435\u043a\u0430."
         )
     return (
-        "That change is outside the current Java/Ukraine flow. Please refine it "
-        "within Backend Developer, Java, Ukraine, and the supported Java stack."
+        "I could not apply that update safely. Use an English IT role, main "
+        "technology, location, and 1-3 stack signals."
     )
 
 
@@ -502,7 +496,7 @@ def last_stack_item_source_message(language: str) -> str:
         )
     return (
         "I cannot remove the last stack item without a replacement. Choose a "
-        "replacement from the supported Java stack."
+        "replacement stack signal."
     )
 
 
@@ -536,6 +530,9 @@ def agent_plan_supported_source_message(
     normalized_request: dict,
 ) -> str:
     stack_text = ", ".join(normalized_request.get("stack") or []) or "n/a"
+    role_text = normalized_request.get("role_family") or "the target role"
+    technology_text = normalized_request.get("technology") or "the main technology"
+    location_text = normalized_request.get("location") or "the target location"
     if language == "ru":
         return (
             "\u042f \u043f\u043e\u043d\u044f\u043b \u0437\u0430\u0434\u0430\u0447\u0443: "
@@ -547,9 +544,9 @@ def agent_plan_supported_source_message(
         )
 
     return (
-        "I understood the task: find Backend Developer profiles with Java in "
-        f"Ukraine, stack: {stack_text}. If this is correct, confirm and I will "
-        "start the search."
+        f"I understood the task: find {role_text} profiles with {technology_text} "
+        f"in {location_text}, stack: {stack_text}. If this is correct, confirm "
+        "and I will start the search."
     )
 
 
@@ -561,7 +558,7 @@ def agent_plan_needs_clarification_source_message(language: str) -> str:
             "\u043f\u043e\u0438\u0441\u043a \u0434\u043b\u044f Java/Ukraine baseline."
         )
 
-    return "I need the missing stack before I can prepare the search."
+    return "I need the missing required fields before I can prepare the search."
 
 
 def agent_plan_unsupported_source_message(language: str) -> str:
@@ -572,7 +569,7 @@ def agent_plan_unsupported_source_message(language: str) -> str:
             "\u0442\u043e\u043b\u044c\u043a\u043e Backend Developer with Java in Ukraine."
         )
 
-    return "Agent v0 currently supports only Backend Developer with Java in Ukraine."
+    return "Agent v0 requires an English IT role, main technology, location, and 1-3 stack signals."
 
 
 def agent_plan_action_error_source_message(error_code: str) -> str:
@@ -591,7 +588,7 @@ def agent_plan_action_error_source_message(error_code: str) -> str:
             "Prepared search mode does not match the current request."
         ),
         AGENT_PLAN_ERROR_UNSUPPORTED_BASELINE: (
-            "Agent v0 currently supports only Backend Developer with Java in Ukraine."
+            "Agent v0 requires an English IT role, main technology, location, and at least one stack signal."
         ),
     }
     return messages.get(error_code, "Prepare search action is not supported.")

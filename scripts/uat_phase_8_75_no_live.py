@@ -380,6 +380,13 @@ def fake_search_response(
 async def run_chat_cases(runner: UatRunner) -> None:
     for case_id, text, language, expected_stack, expected_seniority in READY_CHAT_CASES:
         response = await main.recruiter_chat_turn_response(chat_request(text, language=language))
+        if language == "ru" or main.contains_cyrillic_text(text):
+            runner.check(f"{case_id}-OK", "chat_english_only", lambda response=response: assert_equal(response["ok"], False))
+            runner.check(f"{case_id}-STATE", "chat_english_only", lambda response=response: assert_equal(response["state"], "needs_clarification"))
+            runner.check(f"{case_id}-NO-BUILD", "chat_english_only", lambda response=response: assert_equal(response["can_build_plan"], False))
+            runner.check(f"{case_id}-NO-BRIEF", "chat_english_only", lambda response=response: assert_equal(response["normalized_brief"], None))
+            runner.check(f"{case_id}-MESSAGE", "chat_english_only", lambda response=response: assert_contains((response.get("assistant_message") or "").lower(), "english input only"))
+            continue
         runner.check(f"{case_id}-STATE", "chat_ready", lambda response=response: assert_equal(response["state"], "ready_for_planning"))
         runner.check(f"{case_id}-BUILD", "chat_ready", lambda response=response: assert_equal(response["can_build_plan"], True))
         runner.check(f"{case_id}-ROLE", "chat_ready", lambda response=response: assert_equal(response["normalized_brief"]["role_family"], "Backend Developer"))
@@ -390,6 +397,13 @@ async def run_chat_cases(runner: UatRunner) -> None:
 
     for case_id, text, language, _missing_fields in MISSING_CHAT_CASES:
         response = await main.recruiter_chat_turn_response(chat_request(text, language=language))
+        if language == "ru" or main.contains_cyrillic_text(text):
+            runner.check(f"{case_id}-OK", "chat_english_only", lambda response=response: assert_equal(response["ok"], False))
+            runner.check(f"{case_id}-STATE", "chat_english_only", lambda response=response: assert_equal(response["state"], "needs_clarification"))
+            runner.check(f"{case_id}-NO-BUILD", "chat_english_only", lambda response=response: assert_equal(response["can_build_plan"], False))
+            runner.check(f"{case_id}-NO-BRIEF", "chat_english_only", lambda response=response: assert_equal(response["normalized_brief"], None))
+            runner.check(f"{case_id}-MESSAGE", "chat_english_only", lambda response=response: assert_contains((response.get("assistant_message") or "").lower(), "english input only"))
+            continue
         runner.check(f"{case_id}-STATE", "chat_clarification", lambda response=response: assert_equal(response["state"], "needs_clarification"))
         runner.check(f"{case_id}-NO-BUILD", "chat_clarification", lambda response=response: assert_equal(response["can_build_plan"], False))
         runner.check(f"{case_id}-QUESTION", "chat_clarification", lambda response=response: assert_truthy(response.get("next_question") or response.get("assistant_message")))
@@ -408,6 +422,9 @@ async def run_chat_cases(runner: UatRunner) -> None:
     ]
     for case_id, text, language, expected_state, expected_ok in behavior_cases:
         response = await main.recruiter_chat_turn_response(chat_request(text, language=language))
+        if language == "ru" or main.contains_cyrillic_text(text):
+            expected_ok = False
+            expected_state = "needs_clarification"
         runner.check(f"{case_id}-OK", "chat_guardrails", lambda response=response, expected_ok=expected_ok: assert_equal(response["ok"], expected_ok))
         runner.check(f"{case_id}-STATE", "chat_guardrails", lambda response=response, expected_state=expected_state: assert_equal(response["state"], expected_state))
         runner.check(f"{case_id}-NO-BUILD", "chat_guardrails", lambda response=response: assert_equal(response["can_build_plan"], False))
@@ -425,6 +442,12 @@ async def run_chat_cases(runner: UatRunner) -> None:
         response = await main.recruiter_chat_turn_response(
             chat_request(text, language=language, draft_brief=ready_brief())
         )
+        if language == "ru" or main.contains_cyrillic_text(text):
+            runner.check(f"{case_id}-OK", "chat_english_only", lambda response=response: assert_equal(response["ok"], False))
+            runner.check(f"{case_id}-STATE", "chat_english_only", lambda response=response: assert_equal(response["state"], "needs_clarification"))
+            runner.check(f"{case_id}-NO-BUILD", "chat_english_only", lambda response=response: assert_equal(response["can_build_plan"], False))
+            runner.check(f"{case_id}-NO-BRIEF", "chat_english_only", lambda response=response: assert_equal(response["normalized_brief"], None))
+            continue
         runner.check(f"{case_id}-STATE", "chat_refinement", lambda response=response: assert_equal(response["state"], "ready_for_planning"))
         runner.check(f"{case_id}-STACK", "chat_refinement", lambda response=response, expected_stack=expected_stack: assert_equal(response["normalized_brief"]["stack"], expected_stack))
         runner.check(f"{case_id}-PATCH", "chat_refinement", lambda response=response, expect_patch=expect_patch: assert_equal(bool(response.get("brief_patch")), expect_patch))
@@ -478,19 +501,19 @@ def run_brief_and_plan_cases(runner: UatRunner) -> None:
     )
     runner.check("PLAN-UNSUPPORTED-DEPTH-001", "agent_plan", lambda: assert_equal(unsupported_depth["agent_plan_status"], "unsupported"))
 
-    unsupported_location = main.build_agent_plan_response(
+    generic_location = main.build_agent_plan_response(
         main.AgentPlanRequest(search_brief=ready_brief(location="Poland"), language="en")
     )
-    runner.check("PLAN-UNSUPPORTED-LOCATION-001", "agent_plan", lambda: assert_equal(unsupported_location["agent_plan_status"], "needs_clarification"))
-    runner.check("PLAN-UNSUPPORTED-LOCATION-002", "agent_plan", lambda: assert_equal(unsupported_location["agent_plan"], None))
-    runner.check("PLAN-UNSUPPORTED-LOCATION-003", "agent_plan", lambda: assert_truthy(unsupported_location["validation_errors"]))
+    runner.check("PLAN-GENERIC-LOCATION-001", "agent_plan", lambda: assert_equal(generic_location["agent_plan_status"], "supported"))
+    runner.check("PLAN-GENERIC-LOCATION-002", "agent_plan", lambda: assert_truthy(generic_location["agent_plan"]))
+    runner.check("PLAN-GENERIC-LOCATION-003", "agent_plan", lambda: assert_equal(generic_location["validation_errors"], []))
 
-    unsupported_technology = main.build_agent_plan_response(
+    generic_technology = main.build_agent_plan_response(
         main.AgentPlanRequest(search_brief=ready_brief(technology="JavaScript"), language="en")
     )
-    runner.check("PLAN-UNSUPPORTED-TECH-001", "agent_plan", lambda: assert_equal(unsupported_technology["agent_plan_status"], "needs_clarification"))
-    runner.check("PLAN-UNSUPPORTED-TECH-002", "agent_plan", lambda: assert_equal(unsupported_technology["agent_plan"], None))
-    runner.check("PLAN-UNSUPPORTED-TECH-003", "agent_plan", lambda: assert_truthy(unsupported_technology["validation_errors"]))
+    runner.check("PLAN-GENERIC-TECH-001", "agent_plan", lambda: assert_equal(generic_technology["agent_plan_status"], "supported"))
+    runner.check("PLAN-GENERIC-TECH-002", "agent_plan", lambda: assert_truthy(generic_technology["agent_plan"]))
+    runner.check("PLAN-GENERIC-TECH-003", "agent_plan", lambda: assert_equal(generic_technology["validation_errors"], []))
 
 
 async def run_query_plan_cases(runner: UatRunner) -> None:

@@ -107,7 +107,7 @@ def assert_no_network_http_routes(main_module) -> None:
     assert health_response.json() == {
         "status": "ok",
         "service": "engineers-search-engine",
-        "phase": "phase-1-poc",
+        "phase": "phase-9-5-final-poc",
     }
 
     tools_response = client.get("/api/agent/tools")

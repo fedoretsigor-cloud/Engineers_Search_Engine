@@ -200,21 +200,42 @@ CANONICAL_ROLE_FAMILIES = {
 
 KNOWN_BACKEND_TECHNOLOGIES = {
     "java": "Java",
+    "javascript": "JavaScript",
+    "js": "JavaScript",
+    "typescript": "TypeScript",
+    "ts": "TypeScript",
     "python": "Python",
     "node.js": "Node.js",
     "nodejs": "Node.js",
     "node js": "Node.js",
     "c#": "C#",
     "csharp": "C#",
+    ".net": ".NET",
+    "dotnet": ".NET",
     "go": "Go",
     "golang": "Go",
     "php": "PHP",
+    "ruby": "Ruby",
+    "kotlin": "Kotlin",
+    "scala": "Scala",
+    "swift": "Swift",
+    "react": "React",
+    "angular": "Angular",
+    "vue": "Vue",
+    "devops": "DevOps",
+    "kubernetes": "Kubernetes",
+    "aws": "AWS",
+    "azure": "Azure",
+    "gcp": "GCP",
+    "salesforce": "Salesforce",
+    "sap": "SAP",
 }
 
-IMPLEMENTED_BACKEND_TECHNOLOGIES = {"Java"}
+IMPLEMENTED_BACKEND_TECHNOLOGIES = set(KNOWN_BACKEND_TECHNOLOGIES.values())
 
 JAVA_STACK_VALUES = {
     "spring": "Spring",
+    "sping": "Spring",
     "спринг": "Spring",
     "spring boot": "Spring Boot",
     "спринг бут": "Spring Boot",
@@ -222,6 +243,7 @@ JAVA_STACK_VALUES = {
     "хайбернейт": "Hibernate",
     "хибернейт": "Hibernate",
     "kafka": "Kafka",
+    "kafak": "Kafka",
     "кафка": "Kafka",
     "postgresql": "PostgreSQL",
     "postgres": "PostgreSQL",
@@ -237,6 +259,7 @@ JAVA_STACK_VALUES = {
     "microservices": "Microservices",
     "микросервисы": "Microservices",
     "rest": "REST",
+    "react": "React",
 }
 
 JAVA_STACK_TERMS = [
@@ -250,6 +273,7 @@ JAVA_STACK_TERMS = [
     "Kubernetes",
     "Microservices",
     "REST",
+    "React",
 ]
 
 SEARCH_DOMAIN_CONFIG = {
@@ -383,8 +407,32 @@ LOCATION_FILTER_CONFIG = {
 }
 
 
-def search_domain_config_for(role_family: str, technology: str) -> dict:
-    return SEARCH_DOMAIN_CONFIG.get(role_family, {}).get(technology, {})
+def generic_quality_config_for(technology: str, stack: list[str] | None = None) -> dict:
+    selected_stack = stack or []
+    return {
+        "quality": {
+            "technology": {
+                "exact_terms": [technology] if technology else [],
+                "exclude_terms": [],
+                "related_terms": [],
+            },
+            "stack": {
+                "allowed_terms": selected_stack,
+                "related_terms": [],
+            },
+        }
+    }
+
+
+def search_domain_config_for(
+    role_family: str,
+    technology: str,
+    stack: list[str] | None = None,
+) -> dict:
+    configured = SEARCH_DOMAIN_CONFIG.get(role_family, {}).get(technology)
+    if configured is not None:
+        return configured
+    return generic_quality_config_for(technology, stack)
 
 
 def location_filter_config_for(location: str) -> dict | None:

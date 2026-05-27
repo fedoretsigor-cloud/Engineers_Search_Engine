@@ -92,6 +92,11 @@ body {
   height: 100%;
 }
 
+.results-list {
+  flex: 1;
+  min-height: 0;
+}
+
 .report-panel {
   background: var(--panel-soft);
   box-shadow: none;
@@ -256,6 +261,13 @@ textarea:focus {
   top: 16px;
 }
 
+@media (min-width: 980px) {
+  .chat-panel,
+  .results-panel {
+    min-height: clamp(560px, 72vh, 760px);
+  }
+}
+
 .chat-messages {
   display: grid;
   gap: 10px;
@@ -403,6 +415,77 @@ textarea:focus {
 .chat-form {
   display: grid;
   gap: 12px;
+}
+
+.candidate-results-empty-state,
+.candidate-results-loading-state {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  min-height: 420px;
+  height: 100%;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  padding: 28px;
+  background:
+    linear-gradient(180deg, rgba(45, 212, 191, 0.08), transparent 42%),
+    #0a1220;
+  text-align: center;
+}
+
+.candidate-results-empty-state strong,
+.candidate-results-loading-state strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.candidate-results-empty-state p,
+.candidate-results-loading-state p {
+  max-width: 520px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.candidate-results-illustration {
+  display: grid;
+  grid-template-columns: repeat(3, 58px);
+  gap: 10px;
+  justify-content: center;
+}
+
+.candidate-results-illustration span {
+  display: block;
+  height: 78px;
+  border: 1px solid var(--accent-line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(103, 232, 249, 0.18), transparent),
+    var(--panel-raised);
+}
+
+.candidate-results-illustration span:nth-child(2) {
+  transform: translateY(-10px);
+}
+
+.candidate-results-spinner {
+  width: 46px;
+  height: 46px;
+  border: 4px solid rgba(154, 170, 190, 0.24);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: candidate-spin 0.9s linear infinite;
+}
+
+@keyframes candidate-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .brief-summary-panel[hidden] {

@@ -123,11 +123,11 @@ async def run_smoke() -> None:
             chat_request("привет", language="ru")
         )
         assert len(LLM_CALLS) == before_greeting
-        assert ru_greeting["ok"] is True
+        assert ru_greeting["ok"] is False
         assert ru_greeting["state"] == "needs_clarification"
         assert ru_greeting["normalized_brief"] is None
         assert ru_greeting["can_build_plan"] is False
-        assert "роль" in ru_greeting["assistant_message"].lower()
+        assert "english input only" in ru_greeting["assistant_message"].lower()
 
         en_greeting = await main.recruiter_chat_turn_response(
             chat_request("hello", language="en")
@@ -164,7 +164,7 @@ async def run_smoke() -> None:
         assert draft_preserved["can_build_plan"] is True
 
         before_refinement = len(LLM_CALLS)
-        add_stack = await main.recruiter_chat_turn_response(
+        rejected_ru_refinement = await main.recruiter_chat_turn_response(
             chat_request(
                 "добавь Docker",
                 language="ru",
@@ -172,11 +172,11 @@ async def run_smoke() -> None:
             )
         )
         assert len(LLM_CALLS) == before_refinement
-        assert add_stack["state"] == "ready_for_planning"
-        assert add_stack["normalized_brief"]["stack"] == ["Spring", "Kafka", "Docker"]
-        assert add_stack["brief_changed"] is True
-        assert add_stack["stale_state_should_clear"] is True
-        assert add_stack["brief_patch"]["operations"][0]["operation"] == "add_stack"
+        assert rejected_ru_refinement["ok"] is False
+        assert rejected_ru_refinement["state"] == "needs_clarification"
+        assert rejected_ru_refinement["normalized_brief"] is None
+        assert rejected_ru_refinement["can_build_plan"] is False
+        assert "english input only" in rejected_ru_refinement["assistant_message"].lower()
 
         remove_and_add = await main.recruiter_chat_turn_response(
             chat_request(
@@ -227,20 +227,20 @@ async def run_smoke() -> None:
         assert deep_search["brief_changed"] is True
         assert deep_search["stale_state_should_clear"] is True
 
-        unsupported_patch = await main.recruiter_chat_turn_response(
+        generic_stack_patch = await main.recruiter_chat_turn_response(
             chat_request(
                 "remove Kafka and add React",
                 language="en",
                 draft_brief=ready_java_ukraine_brief(),
             )
         )
-        assert unsupported_patch["normalized_brief"]["stack"] == ["Spring", "Kafka"]
-        assert unsupported_patch["brief_changed"] is False
-        assert unsupported_patch["stale_state_should_clear"] is False
-        assert any(
-            operation["operation"] == "unsupported"
-            for operation in unsupported_patch["brief_patch"]["operations"]
-        )
+        assert generic_stack_patch["normalized_brief"]["stack"] == ["Spring", "React"]
+        assert generic_stack_patch["brief_changed"] is True
+        assert generic_stack_patch["stale_state_should_clear"] is True
+        assert [
+            operation["operation"]
+            for operation in generic_stack_patch["brief_patch"]["operations"]
+        ] == ["remove_stack", "add_stack"]
 
         before_clean_initial = len(LLM_CALLS)
         clean_initial_without_draft = await main.recruiter_chat_turn_response(
@@ -295,17 +295,12 @@ async def run_smoke() -> None:
                 language="ru",
             )
         )
-        assert len(LLM_CALLS) == before_complete + 1
-        assert ru_complete["ok"] is True
-        assert ru_complete["state"] == "ready_for_planning"
-        assert ru_complete["normalized_brief"]["role_family"] == "Backend Developer"
-        assert ru_complete["normalized_brief"]["technology"] == "Java"
-        assert ru_complete["normalized_brief"]["location"] == "Ukraine"
-        assert ru_complete["normalized_brief"]["stack"] == ["Spring", "Kafka"]
-        assert ru_complete["recommended_planner_mode"] == "rule_based"
-        assert ru_complete["can_build_plan"] is True
-        assert ru_complete["build_plan_action"]["endpoint"] == "/api/agent/query-plan"
-        assert ru_complete["build_plan_action"]["planner_mode"] == "rule_based"
+        assert len(LLM_CALLS) == before_complete
+        assert ru_complete["ok"] is False
+        assert ru_complete["state"] == "needs_clarification"
+        assert ru_complete["normalized_brief"] is None
+        assert ru_complete["can_build_plan"] is False
+        assert "english input only" in ru_complete["assistant_message"].lower()
 
         en_complete = await main.recruiter_chat_turn_response(
             chat_request(
@@ -321,10 +316,10 @@ async def run_smoke() -> None:
         incomplete = await main.recruiter_chat_turn_response(
             chat_request("Найди Java разработчиков.", language="ru")
         )
-        assert incomplete["ok"] is True
+        assert incomplete["ok"] is False
         assert incomplete["state"] == "needs_clarification"
-        assert incomplete["next_question"]
-        assert "\n" not in incomplete["next_question"]
+        assert incomplete["next_question"] is None
+        assert "english input only" in incomplete["assistant_message"].lower()
         assert incomplete["can_build_plan"] is False
 
         refused = await main.recruiter_chat_turn_response(
@@ -334,9 +329,10 @@ async def run_smoke() -> None:
             )
         )
         assert refused["ok"] is False
-        assert refused["state"] == "refused"
+        assert refused["state"] == "needs_clarification"
         assert refused["validation_errors"]
         assert refused["can_build_plan"] is False
+        assert "english input only" in refused["assistant_message"].lower()
 
     finally:
         main.run_openai_json_recruiter_chat = original_llm

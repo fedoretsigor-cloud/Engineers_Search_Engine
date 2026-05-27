@@ -29,12 +29,16 @@ def build_query_slot(
     purpose: str,
     role_phrase: str,
     location: str,
+    technology: str | None = None,
     stack: list[str] | None = None,
 ) -> dict:
     quoted_location = quote_query_value(location)
     quoted_role_phrase = quote_query_value(role_phrase)
     query_parts = ["site:linkedin.com/in", "AND", quoted_role_phrase]
     uses_stack = stack or []
+
+    if technology and technology.lower() not in role_phrase.lower():
+        query_parts.extend(["AND", quote_query_value(technology)])
 
     if uses_stack:
         query_parts.extend(["AND", build_stack_or(uses_stack)])
@@ -47,9 +51,66 @@ def build_query_slot(
         "purpose": purpose,
         "role_phrase": role_phrase,
         "query": " ".join(query_parts),
+        "technology": technology,
         "uses_stack": uses_stack,
         "max_results": QUERY_PLAN_MAX_RESULTS,
     }
+
+
+def generic_role_phrases(role_family: str, technology: str) -> list[str]:
+    candidates = [
+        f"{technology} {role_family}",
+        f"{role_family} {technology}",
+        role_family,
+        f"{technology} Developer",
+        f"{technology} Engineer",
+        f"{technology} Specialist",
+        f"{technology} Consultant",
+        f"{role_family} Engineer",
+        f"{role_family} Developer",
+        f"{technology} Software Engineer",
+    ]
+    unique: list[str] = []
+    seen: set[str] = set()
+    for phrase in candidates:
+        normalized = " ".join(phrase.split())
+        key = normalized.lower()
+        if normalized and key not in seen:
+            seen.add(key)
+            unique.append(normalized)
+    return unique[:10]
+
+
+def generic_planner_queries(normalized_request: dict) -> list[dict]:
+    role_family = normalized_request["role_family"]
+    technology = normalized_request["technology"]
+    role_phrases = generic_role_phrases(role_family, technology)
+    stack_focused_ids = {"Q07", "Q08", "Q09", "Q10"}
+    queries: list[dict] = []
+
+    for index in range(10):
+        query_id = f"Q{index + 1:02d}"
+        role_phrase = role_phrases[index % len(role_phrases)]
+        uses_stack = query_id in stack_focused_ids
+        category = "stack_focused" if uses_stack else "role_based"
+        purpose = (
+            "Find profiles that mention selected stack signals."
+            if uses_stack
+            else "Find profiles for the selected role, technology, and location."
+        )
+        queries.append(
+            build_query_slot(
+                query_id=query_id,
+                category=category,
+                purpose=purpose,
+                role_phrase=role_phrase,
+                location=normalized_request["location"],
+                technology=technology,
+                stack=normalized_request["stack"] if uses_stack else None,
+            )
+        )
+
+    return queries
 
 
 class RuleBasedQueryPlannerV1:
@@ -63,17 +124,21 @@ class RuleBasedQueryPlannerV1:
             normalized_request["technology"],
         )
         planner_queries = domain_config.get("planner", {}).get("queries", [])
-        queries = [
-            build_query_slot(
-                query_config["id"],
-                query_config["category"],
-                query_config["purpose"],
-                query_config["role_phrase"],
-                location,
-                stack if query_config.get("uses_selected_stack") else None,
-            )
-            for query_config in planner_queries
-        ]
+        if planner_queries:
+            queries = [
+                build_query_slot(
+                    query_config["id"],
+                    query_config["category"],
+                    query_config["purpose"],
+                    query_config["role_phrase"],
+                    location,
+                    normalized_request["technology"],
+                    stack if query_config.get("uses_selected_stack") else None,
+                )
+                for query_config in planner_queries
+            ]
+        else:
+            queries = generic_planner_queries(normalized_request)
 
         return {
             "planner_version": self.version,
@@ -130,4 +195,4 @@ def add_plan_validation_error(
 
 
 def planner_explanation_for_rule_based() -> str:
-    return "Using tested Java Backend rule-based planner baseline."
+    return "Using bounded rule-based LinkedIn X-ray planner baseline."

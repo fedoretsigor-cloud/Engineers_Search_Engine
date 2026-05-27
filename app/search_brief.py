@@ -2,10 +2,6 @@ import hashlib
 import json
 
 from app.domain_config import (
-    CANONICAL_ROLE_FAMILIES,
-    IMPLEMENTED_BACKEND_TECHNOLOGIES,
-    JAVA_STACK_VALUES,
-    KNOWN_BACKEND_TECHNOLOGIES,
     PROFILE_SOURCE_LINKEDIN_PUBLIC,
     PROFILE_SOURCE_VALUES,
     SEARCH_BRIEF_STATUSES,
@@ -18,11 +14,14 @@ from app.domain_config import (
 from app.schemas import SearchBrief, StructuredSearchRequest
 from app.search_validation import (
     add_validation_error,
-    canonical_value,
     normalize_location_value,
+    normalize_role_family_value,
+    normalize_search_location_value,
+    normalize_stack_items,
     normalize_structured_search_request,
+    normalize_technology_value,
 )
-from app.text_utils import normalize_text_list, normalize_text_value
+from app.text_utils import contains_cyrillic_text, normalize_text_list, normalize_text_value
 
 
 def clarifying_question_for_missing_field(field: str) -> str:
@@ -30,8 +29,7 @@ def clarifying_question_for_missing_field(field: str) -> str:
         "role_family": "What role family should the search target?",
         "technology": "What main technology should the candidate have?",
         "stack": (
-            "Which Java stack signals are important for this search: "
-            "Spring, Kafka, AWS, Hibernate, or something else?"
+            "Which 1-3 stack signals are important for this search?"
         ),
         "location": "What target location should the search use?",
         "search_depth": "Should this be a standard or deep search?",
@@ -43,24 +41,7 @@ def clarifying_question_for_missing_field(field: str) -> str:
 def normalize_brief_stack_items(
     stack: list[str] | None,
 ) -> tuple[list[str], list[dict[str, str]]]:
-    errors: list[dict[str, str]] = []
-    normalized_stack: list[str] = []
-    seen_stack_values: set[str] = set()
-
-    for item in stack or []:
-        canonical_stack_item = canonical_value(item, JAVA_STACK_VALUES)
-        if not canonical_stack_item:
-            add_validation_error(errors, "stack", "Unsupported Java stack item.")
-            continue
-
-        if canonical_stack_item not in seen_stack_values:
-            seen_stack_values.add(canonical_stack_item)
-            normalized_stack.append(canonical_stack_item)
-
-    if len(normalized_stack) > 3:
-        add_validation_error(errors, "stack", "Java stack supports up to 3 selected items.")
-
-    return normalized_stack, errors
+    return normalize_stack_items(stack)
 
 
 def build_structured_request_from_brief(normalized_brief: dict) -> StructuredSearchRequest:
@@ -89,23 +70,29 @@ def validate_and_normalize_search_brief(
         add_validation_error(errors, "brief_status", "Unsupported brief status.")
         brief_status = SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION
 
-    role_family = canonical_value(brief.role_family, CANONICAL_ROLE_FAMILIES)
-    if brief.role_family and not role_family:
-        add_validation_error(errors, "role_family", "Unsupported role family.")
+    if contains_cyrillic_text(brief.source_text):
+        add_validation_error(errors, "source_text", "This POC accepts English input only.")
 
-    technology = canonical_value(brief.technology, KNOWN_BACKEND_TECHNOLOGIES)
-    if brief.technology and not technology:
-        add_validation_error(errors, "technology", "Unsupported technology.")
-    elif technology and technology not in IMPLEMENTED_BACKEND_TECHNOLOGIES:
-        add_validation_error(
-            errors,
-            "technology",
-            "Technology is known but planner is not implemented yet.",
-        )
+    role_family, role_errors = (
+        normalize_role_family_value(brief.role_family)
+        if brief.role_family
+        else (None, [])
+    )
+    errors.extend(role_errors)
 
-    location = normalize_location_value(brief.location)
-    if location and not location_filter_config_for(location):
-        add_validation_error(errors, "location", "Location is not supported yet.")
+    technology, technology_errors = (
+        normalize_technology_value(brief.technology)
+        if brief.technology
+        else (None, [])
+    )
+    errors.extend(technology_errors)
+
+    location, location_errors = (
+        normalize_search_location_value(brief.location)
+        if brief.location
+        else (None, [])
+    )
+    errors.extend(location_errors)
 
     search_depth = normalize_text_value(brief.search_depth) or SEARCH_DEPTH_STANDARD
     if search_depth not in SEARCH_DEPTH_VALUES:
@@ -121,7 +108,11 @@ def validate_and_normalize_search_brief(
     if unsupported_profile_sources:
         add_validation_error(errors, "profile_sources", "Unsupported profile source.")
 
-    normalized_stack, stack_errors = normalize_brief_stack_items(brief.stack)
+    normalized_stack, stack_errors = (
+        normalize_brief_stack_items(brief.stack)
+        if brief.stack
+        else ([], [])
+    )
     errors.extend(stack_errors)
 
     missing_fields: set[str] = set()
