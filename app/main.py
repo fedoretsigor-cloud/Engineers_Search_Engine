@@ -192,6 +192,12 @@ from app.brief_patch import (
 from app.candidate_explanation_wording import (
     build_candidate_explanation_wording_response,
 )
+from app.pending_answer_interpreter import (
+    PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD,
+    PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE,
+    run_openai_json_pending_answer_interpreter as _run_openai_json_pending_answer_interpreter,
+    validate_pending_answer_interpreter_output,
+)
 from app.planning import (
     RuleBasedQueryPlannerV1,
     add_plan_validation_error,
@@ -3109,6 +3115,86 @@ async def classify_stack_signal_terms_from_message(
     return validated_output["accepted_terms"], None
 
 
+def clean_pending_answer_brief_context(
+    current_brief: SearchBrief | dict | None,
+) -> dict:
+    if isinstance(current_brief, SearchBrief):
+        return clean_search_brief_dict(current_brief)
+    if isinstance(current_brief, dict):
+        return {
+            key: value
+            for key, value in current_brief.items()
+            if value is not None and value != []
+        }
+    return {}
+
+
+async def run_openai_json_pending_answer_interpreter(
+    *,
+    latest_message: str,
+    language: str,
+    expected_field: str | None = None,
+    pending_update_field: str | None = None,
+    current_brief: SearchBrief | dict | None = None,
+) -> tuple[dict | None, str | None]:
+    return await _run_openai_json_pending_answer_interpreter(
+        latest_message=latest_message,
+        language=language,
+        expected_field=expected_field,
+        pending_update_field=pending_update_field,
+        current_brief=clean_pending_answer_brief_context(current_brief),
+        chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
+    )
+
+
+async def classify_pending_answer_interpreter_from_message(
+    *,
+    text: str,
+    language: str,
+    expected_field: str | None = None,
+    pending_update_field: str | None = None,
+    current_brief: SearchBrief | dict | None = None,
+) -> tuple[dict | None, str | None]:
+    llm_output, llm_error = await run_openai_json_pending_answer_interpreter(
+        latest_message=text,
+        language=language,
+        expected_field=expected_field,
+        pending_update_field=pending_update_field,
+        current_brief=current_brief,
+    )
+    if llm_error or llm_output is None:
+        return None, llm_error or "pending_answer_interpreter_unavailable"
+
+    return validate_pending_answer_interpreter_output(
+        llm_output,
+        expected_field=expected_field,
+        pending_update_field=pending_update_field,
+    )
+
+
+async def stack_terms_from_pending_answer_interpreter(
+    interpreter_result: dict | None,
+    current_brief: SearchBrief | dict | None,
+) -> list[str]:
+    if not interpreter_result:
+        return []
+    if interpreter_result.get("field") != "stack":
+        return []
+    if interpreter_result.get("intent") not in {
+        PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD,
+        PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE,
+    }:
+        return []
+    raw_terms = interpreter_result.get("values") or []
+    if not raw_terms:
+        return []
+    stack_terms, _ = await classify_stack_signal_terms_from_message(
+        ", ".join(raw_terms),
+        current_brief,
+    )
+    return stack_terms[:3]
+
+
 UNSUPPORTED_REFINEMENT_PATTERNS = [
 ]
 
@@ -5107,14 +5193,38 @@ def pending_clarification_field(
 async def pending_stack_clarification_patch_from_message(
     request: RecruiterChatTurnRequest,
     text: str,
+    language: str = "en",
 ) -> dict | None:
-    if pending_clarification_field(request) != "stack":
+    if pending_clarification_field(request, language) != "stack":
         return None
 
-    stack_terms, _ = await classify_stack_signal_terms_from_message(
-        text,
-        request.draft_brief,
+    stack_terms: list[str] = []
+    candidate_terms, candidate_error = normalize_stack_signal_candidates(text)
+    if not candidate_error:
+        stack_terms = deterministic_known_stack_signal_terms(candidate_terms)
+
+    should_use_semantic_interpreter = bool(
+        candidate_error
+        or any(re.search(r"\s", term.strip()) for term in candidate_terms)
     )
+
+    if not stack_terms:
+        if should_use_semantic_interpreter:
+            interpreter_result, _ = await classify_pending_answer_interpreter_from_message(
+                text=text,
+                language=language,
+                expected_field="stack",
+                current_brief=request.draft_brief,
+            )
+            stack_terms = await stack_terms_from_pending_answer_interpreter(
+                interpreter_result,
+                request.draft_brief,
+            )
+        if not stack_terms and not candidate_error and not should_use_semantic_interpreter:
+            stack_terms, _ = await classify_stack_signal_terms_from_message(
+                text,
+                request.draft_brief,
+            )
     if not stack_terms:
         return None
 
@@ -5215,16 +5325,34 @@ def normalize_pending_location_value(value: str) -> tuple[str | None, str | None
     return location, None
 
 
-def pending_location_clarification_patch_from_message(
+async def pending_location_clarification_patch_from_message(
     request: RecruiterChatTurnRequest,
     text: str,
+    language: str = "en",
 ) -> dict | None:
-    if pending_clarification_field(request) != "location":
+    if pending_clarification_field(request, language) != "location":
         return None
 
     location = deterministic_chat_brief_hints(text).get("location")
     if not location:
-        location, _ = normalize_pending_location_value(text)
+        candidate = pending_location_candidate_text(text)
+        token_count = len(re.findall(r"[A-Za-z0-9]+", candidate or ""))
+        if token_count <= 2:
+            location, _ = normalize_pending_location_value(text)
+    if not location:
+        interpreter_result, _ = await classify_pending_answer_interpreter_from_message(
+            text=text,
+            language=language,
+            expected_field="location",
+            current_brief=request.draft_brief,
+        )
+        if (
+            interpreter_result
+            and interpreter_result.get("field") == "location"
+            and interpreter_result.get("intent") == PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD
+            and interpreter_result.get("values")
+        ):
+            location = interpreter_result["values"][0]
     if not location:
         return None
 
@@ -5523,6 +5651,89 @@ def pending_update_unknown_field_message(language: str) -> str:
     return "Tell me which field to update: role, technology, stack, location, seniority, or depth."
 
 
+async def pending_interpreter_patch_for_field(
+    field: str,
+    text: str,
+    language: str,
+    current_brief: SearchBrief | dict | None = None,
+) -> dict | None:
+    interpreter_result, _ = await classify_pending_answer_interpreter_from_message(
+        text=text,
+        language=language,
+        expected_field=field,
+        pending_update_field=field,
+        current_brief=current_brief,
+    )
+    if not interpreter_result:
+        return None
+    if interpreter_result.get("intent") not in {
+        PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD,
+        PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE,
+    }:
+        return None
+    if interpreter_result.get("field") != field:
+        return None
+
+    values = interpreter_result.get("values") or []
+    if not values:
+        return None
+
+    if field == "stack":
+        stack_terms = await stack_terms_from_pending_answer_interpreter(
+            interpreter_result,
+            current_brief,
+        )
+        if not stack_terms:
+            return None
+        return build_brief_patch(
+            source_message=text,
+            operations=[
+                {
+                    "operation": BRIEF_PATCH_REPLACE_STACK,
+                    "field": "stack",
+                    "values": stack_terms[:3],
+                }
+            ],
+            requires_clarification=False,
+        )
+
+    if field == "location":
+        return build_brief_patch(
+            source_message=text,
+            operations=[
+                {
+                    "operation": BRIEF_PATCH_SET_LOCATION,
+                    "field": "location",
+                    "value": values[0],
+                }
+            ],
+            requires_clarification=False,
+        )
+
+    if field == "technology":
+        operation = BRIEF_PATCH_RECONFIRM_FIELD
+    elif field == "role_family":
+        operation = BRIEF_PATCH_RECONFIRM_FIELD
+    elif field == "seniority":
+        operation = BRIEF_PATCH_SET_SENIORITY
+    elif field == "search_depth":
+        operation = BRIEF_PATCH_SET_SEARCH_DEPTH
+    else:
+        return None
+
+    return build_brief_patch(
+        source_message=text,
+        operations=[
+            {
+                "operation": operation,
+                "field": field,
+                "value": values[0],
+            }
+        ],
+        requires_clarification=False,
+    )
+
+
 async def pending_update_field_patch_from_message(
     field: str,
     text: str,
@@ -5532,7 +5743,10 @@ async def pending_update_field_patch_from_message(
     if field == "location":
         location = deterministic_chat_brief_hints(text).get("location")
         if not location:
-            location, _ = normalize_pending_location_value(text)
+            candidate = pending_location_candidate_text(text)
+            token_count = len(re.findall(r"[A-Za-z0-9]+", candidate or ""))
+            if token_count <= 2:
+                location, _ = normalize_pending_location_value(text)
         if location:
             return build_brief_patch(
                 source_message=text,
@@ -5545,13 +5759,39 @@ async def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
+        interpreter_patch = await pending_interpreter_patch_for_field(
+            "location",
+            text,
+            language,
+            current_brief,
+        )
+        if interpreter_patch is not None:
+            return interpreter_patch, None
         return None, pending_clarification_unrecognized_answer_message("location", language)
 
     if field == "stack":
-        stack_terms, _ = await classify_stack_signal_terms_from_message(
-            text,
-            current_brief,
+        stack_terms: list[str] = []
+        candidate_terms, candidate_error = normalize_stack_signal_candidates(text)
+        if not candidate_error:
+            stack_terms = deterministic_known_stack_signal_terms(candidate_terms)
+        should_use_semantic_interpreter = bool(
+            candidate_error
+            or any(re.search(r"\s", term.strip()) for term in candidate_terms)
         )
+        if not stack_terms and should_use_semantic_interpreter:
+            interpreter_patch = await pending_interpreter_patch_for_field(
+                "stack",
+                text,
+                language,
+                current_brief,
+            )
+            if interpreter_patch is not None:
+                return interpreter_patch, None
+        if not stack_terms and not candidate_error and not should_use_semantic_interpreter:
+            stack_terms, _ = await classify_stack_signal_terms_from_message(
+                text,
+                current_brief,
+            )
         if stack_terms:
             return build_brief_patch(
                 source_message=text,
@@ -5580,6 +5820,14 @@ async def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
+        interpreter_patch = await pending_interpreter_patch_for_field(
+            "technology",
+            text,
+            language,
+            current_brief,
+        )
+        if interpreter_patch is not None:
+            return interpreter_patch, None
         return None, pending_update_field_question("technology", language)
 
     if field == "role_family":
@@ -5596,6 +5844,14 @@ async def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
+        interpreter_patch = await pending_interpreter_patch_for_field(
+            "role_family",
+            text,
+            language,
+            current_brief,
+        )
+        if interpreter_patch is not None:
+            return interpreter_patch, None
         return None, pending_update_field_question("role_family", language)
 
     if field == "seniority":
@@ -5612,6 +5868,14 @@ async def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
+        interpreter_patch = await pending_interpreter_patch_for_field(
+            "seniority",
+            text,
+            language,
+            current_brief,
+        )
+        if interpreter_patch is not None:
+            return interpreter_patch, None
         return None, pending_update_field_question("seniority", language)
 
     if field == "search_depth":
@@ -5628,9 +5892,89 @@ async def pending_update_field_patch_from_message(
                 ],
                 requires_clarification=False,
             ), None
+        interpreter_patch = await pending_interpreter_patch_for_field(
+            "search_depth",
+            text,
+            language,
+            current_brief,
+        )
+        if interpreter_patch is not None:
+            return interpreter_patch, None
         return None, pending_update_field_question("search_depth", language)
 
     return None, pending_update_unknown_field_message(language)
+
+
+async def pending_clarification_response_if_any(
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    latest_user_text: str,
+    chat_text: str,
+) -> dict | None:
+    pending_stack_patch = await pending_stack_clarification_patch_from_message(
+        request,
+        latest_user_text,
+        language,
+    )
+    if pending_stack_patch is not None:
+        return build_recruiter_chat_refinement_response(
+            request,
+            language,
+            planner_mode,
+            pending_stack_patch,
+            chat_text,
+        )
+
+    pending_location_patch = await pending_location_clarification_patch_from_message(
+        request,
+        latest_user_text,
+        language,
+    )
+    if pending_location_patch is not None:
+        return build_recruiter_chat_refinement_response(
+            request,
+            language,
+            planner_mode,
+            pending_location_patch,
+            chat_text,
+        )
+
+    if pending_location_unsupported_answer_from_message(request, latest_user_text):
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            pending_location_unsupported_answer_message(language),
+        )
+
+    brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
+    if brief_patch is not None:
+        return build_recruiter_chat_refinement_response(
+            request,
+            language,
+            planner_mode,
+            brief_patch,
+            chat_text,
+        )
+
+    unrecognized_field = pending_clarification_unrecognized_answer_field(
+        request,
+        latest_user_text,
+        language,
+    )
+    if unrecognized_field:
+        return build_recruiter_chat_preserve_current_brief_response(
+            request,
+            language,
+            planner_mode,
+            pending_clarification_unrecognized_answer_message(
+                unrecognized_field,
+                language,
+            ),
+        )
+
+    return None
 
 
 async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dict:
@@ -5943,65 +6287,15 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             in {RECRUITER_INTENT_SMALL_TALK, RECRUITER_INTENT_OFF_TOPIC}
         )
     ):
-        pending_stack_patch = await pending_stack_clarification_patch_from_message(
+        pending_response = await pending_clarification_response_if_any(
             request,
-            latest_user_text,
-        )
-        if pending_stack_patch is not None:
-            return build_recruiter_chat_refinement_response(
-                request,
-                language,
-                planner_mode,
-                pending_stack_patch,
-                chat_text,
-            )
-
-        pending_location_patch = pending_location_clarification_patch_from_message(
-            request,
-            latest_user_text,
-        )
-        if pending_location_patch is not None:
-            return build_recruiter_chat_refinement_response(
-                request,
-                language,
-                planner_mode,
-                pending_location_patch,
-                chat_text,
-            )
-
-        if pending_location_unsupported_answer_from_message(request, latest_user_text):
-            return build_recruiter_chat_preserve_current_brief_response(
-                request,
-                language,
-                planner_mode,
-                pending_location_unsupported_answer_message(language),
-            )
-
-        brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
-        if brief_patch is not None:
-            return build_recruiter_chat_refinement_response(
-                request,
-                language,
-                planner_mode,
-                brief_patch,
-                chat_text,
-            )
-
-        unrecognized_field = pending_clarification_unrecognized_answer_field(
-            request,
-            latest_user_text,
             language,
+            planner_mode,
+            latest_user_text,
+            chat_text,
         )
-        if unrecognized_field:
-            return build_recruiter_chat_preserve_current_brief_response(
-                request,
-                language,
-                planner_mode,
-                pending_clarification_unrecognized_answer_message(
-                    unrecognized_field,
-                    language,
-                ),
-            )
+        if pending_response is not None:
+            return pending_response
 
     if (
         intent_decision
@@ -6279,65 +6573,15 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
         )
 
     if request.draft_brief:
-        pending_stack_patch = await pending_stack_clarification_patch_from_message(
+        pending_response = await pending_clarification_response_if_any(
             request,
-            latest_user_text,
-        )
-        if pending_stack_patch is not None:
-            return build_recruiter_chat_refinement_response(
-                request,
-                language,
-                planner_mode,
-                pending_stack_patch,
-                chat_text,
-            )
-
-        pending_location_patch = pending_location_clarification_patch_from_message(
-            request,
-            latest_user_text,
-        )
-        if pending_location_patch is not None:
-            return build_recruiter_chat_refinement_response(
-                request,
-                language,
-                planner_mode,
-                pending_location_patch,
-                chat_text,
-            )
-
-        if pending_location_unsupported_answer_from_message(request, latest_user_text):
-            return build_recruiter_chat_preserve_current_brief_response(
-                request,
-                language,
-                planner_mode,
-                pending_location_unsupported_answer_message(language),
-            )
-
-        brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
-        if brief_patch is not None:
-            return build_recruiter_chat_refinement_response(
-                request,
-                language,
-                planner_mode,
-                brief_patch,
-                chat_text,
-            )
-
-        unrecognized_field = pending_clarification_unrecognized_answer_field(
-            request,
-            latest_user_text,
             language,
+            planner_mode,
+            latest_user_text,
+            chat_text,
         )
-        if unrecognized_field:
-            return build_recruiter_chat_preserve_current_brief_response(
-                request,
-                language,
-                planner_mode,
-                pending_clarification_unrecognized_answer_message(
-                    unrecognized_field,
-                    language,
-                ),
-            )
+        if pending_response is not None:
+            return pending_response
 
     if detect_recruiter_chat_unclear_request(latest_user_text) and not (
         request.draft_brief and is_refinement_like_chat_message(latest_user_text)

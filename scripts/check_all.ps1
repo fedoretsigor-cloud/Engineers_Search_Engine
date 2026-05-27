@@ -160,6 +160,10 @@ Invoke-Check "P9.6 Post-Deploy Polish smoke" {
     & $python scripts/smoke_p96_post_deploy_polish.py
 }
 
+Invoke-Check "P9.7 Semantic Interpreter smoke" {
+    & $python scripts/smoke_p97_semantic_interpreter.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

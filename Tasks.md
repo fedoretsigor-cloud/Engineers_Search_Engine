@@ -20572,22 +20572,22 @@ Verification result: `scripts/check_all.ps1`, `scripts/smoke_p96_post_deploy_pol
 
 ### Backlog
 
-- [ ] P9.7-001 Define bounded PendingAnswerInterpreter contract
-- [ ] P9.7-002 Implement backend validator for PendingAnswerInterpreter
-- [ ] P9.7-003 Apply interpreter to pending stack clarification
-- [ ] P9.7-004 Apply interpreter to pending location clarification
-- [ ] P9.7-005 Apply interpreter to update/refinement intent
-- [ ] P9.7-006 Retire duplicated legacy pending handlers
-- [ ] P9.7-007 Run recruiter semantic conversation UAT
-- [ ] P9.7-008 Close Phase 9.7 with AI Agent chat-understanding decision
-
 ### In Progress
 
 ### Done
 
+- [x] P9.7-001 Define bounded PendingAnswerInterpreter contract
+- [x] P9.7-002 Implement backend validator for PendingAnswerInterpreter
+- [x] P9.7-003 Apply interpreter to pending stack clarification
+- [x] P9.7-004 Apply interpreter to pending location clarification
+- [x] P9.7-005 Apply interpreter to update/refinement intent
+- [x] P9.7-006 Retire duplicated legacy pending handlers
+- [x] P9.7-007 Run recruiter semantic conversation UAT
+- [x] P9.7-008 Close Phase 9.7 with AI Agent chat-understanding decision
+
 ### Current Phase 9.7 strategy note
 
-Phase 9.7 is the architectural correction for recruiter-chat understanding. The goal is to stop fixing natural-language chat bugs as isolated keyword patches and introduce a bounded LLM semantic interpreter layer.
+Phase 9.7 is completed as the architectural correction for recruiter-chat understanding. It stops fixing natural-language pending-answer bugs as isolated keyword patches and introduces a bounded LLM semantic interpreter layer.
 
 The target pipeline is:
 
@@ -20597,7 +20597,7 @@ message -> deterministic safety precheck -> bounded LLM semantic interpreter -> 
 
 The LLM interprets meaning only. Backend validation remains authoritative. The interpreter must not execute searches, generate queries, approve actions, call providers, open LinkedIn, scrape, message candidates, perform account actions, or persist data.
 
-Implementation should be incremental: define the general contract first, then connect one field/flow at a time. Deterministic fast paths can stay for obvious safe cases, but natural-language meaning should route through the interpreter instead of accumulating phrase-specific regex patches.
+Implementation result: `app/pending_answer_interpreter.py` defines the bounded contract/prompt/validator/OpenAI wrapper; `app/main.py` applies it to natural pending stack answers, natural pending location answers, and selected update/refinement values while retaining deterministic fast paths for simple safe inputs. The duplicated pending clarification blocks now use a shared helper. Regression/UAT coverage is in `scripts/smoke_p97_semantic_interpreter.py` and is wired into `scripts/check_all.ps1`.
 
 ---
 
@@ -20605,7 +20605,7 @@ Implementation should be incremental: define the general contract first, then co
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
@@ -20635,7 +20635,7 @@ The contract should specify:
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
@@ -20661,7 +20661,7 @@ The validator should:
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Context
 
@@ -20690,7 +20690,7 @@ The agent should understand meaning such as:
 - `just Java` -> `stack = ["Java"]`
 - `I only care about Java` -> `stack = ["Java"]`
 - `Java would be enough` -> `stack = ["Java"]`
-- `Spring is optional` -> `stack = ["Spring"]` with optional/nice-to-have semantics only if already supported safely
+- `Spring is optional` -> `stack = ["Spring"]` as a safe stack signal; optional/nice-to-have semantics remain out of scope until separately supported
 - `Java and Selenium` -> `stack = ["Java", "Selenium"]`
 - `better Playwright and Selenium` -> `stack = ["Playwright", "Selenium"]`
 
@@ -20704,16 +20704,16 @@ The backend remains the authority layer. LLM may interpret, but it must not exec
    - Inspect `stack_signal_candidate_terms_from_text()` and the existing bounded stack classifier prompt/validator.
    - Confirm where `Java only` becomes one invalid candidate term.
 
-2. Add a bounded natural-language pending stack extractor.
+2. Add a bounded natural-language pending answer interpreter.
    - Input: the full recruiter answer plus current brief context.
    - Output strict JSON only.
    - Suggested output shape:
 
 ```json
 {
-  "intent": "provide_stack_answer | not_stack_answer | unclear",
-  "accepted_stack": ["Java"],
-  "excluded_stack": [],
+  "intent": "answer_pending_field | ask_explanation | change_field | provide_update_value | unclear | unsafe",
+  "field": "stack",
+  "values": ["Java"],
   "confidence": "high | medium | low",
   "reason_code": "natural_language_stack_answer | non_it | unsafe | unclear"
 }
@@ -20773,7 +20773,7 @@ The backend remains the authority layer. LLM may interpret, but it must not exec
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
@@ -20806,7 +20806,7 @@ Examples to support:
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
@@ -20835,7 +20835,7 @@ The interpreter should classify the intent and proposed field/value, then backen
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
@@ -20855,7 +20855,7 @@ Keep deterministic safety prechecks and simple fast paths where they are still v
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
@@ -20884,7 +20884,7 @@ Scenario groups:
 
 ### Status
 
-Draft.
+Implemented / completed.
 
 ### Goal
 
