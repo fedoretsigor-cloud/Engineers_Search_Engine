@@ -173,7 +173,7 @@ def assert_validator_contract() -> None:
     assert error is None, error
     assert valid is not None, valid
     assert valid["values"] == ["Java"], valid
-    assert valid["validator_version"] == "pending_answer_interpreter_validator_v1", valid
+    assert valid["validator_version"] == "pending_answer_interpreter_validator_v2", valid
 
     invalid, error = validate_pending_answer_interpreter_output(
         {

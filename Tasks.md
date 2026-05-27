@@ -20920,7 +20920,7 @@ The closeout should document:
 
 ### Current Phase 9.8 strategy note
 
-Phase 9.8 is a proposed post-deploy correction for role drift in planner/scoring behavior. The observed issue is not QA-specific and must not be fixed with a role-specific patch.
+Phase 9.8 is completed as the post-deploy correction for role drift in planner/scoring behavior. The observed issue was not QA-specific and was not fixed with a role-specific patch.
 
 Observed issue:
 
@@ -20946,6 +20946,8 @@ The intended product behavior is global:
 Implementation result: `P9.8-001` is completed. Rule-based query plans now include deterministic `RoleAliasPlan` metadata. Generic planning no longer approves technology-only role phrases such as `Java Developer` for arbitrary roles such as `QA Automation`; those legacy templates are rejected as `technology_only_role_drift`. Configured domain plans, such as `Backend Developer + Java`, keep their explicitly configured role phrases. Candidate quality now uses approved role aliases as the strong role evidence set, so a plain Java Developer profile is not a strong role match for `QA Automation + Java`.
 
 Verification result: `scripts/smoke_p98_role_anchoring.py` covers QA Automation/Java, Data Analyst/Python, DevOps/AWS, Product Manager/AI, configured Backend Developer/Java preservation, and candidate scoring against a plain Java Developer false positive.
+
+Current source-of-truth after Phase 9.8: the deployed POC is closed unless explicitly reopened; Phase 10+ persistence and later feature tracks remain parked. Any reopened work must preserve the Phase 9.7 interpreter/backend-validator boundary, Phase 9.8 role-anchoring guardrail, approved backend runtime execution, and the absolute no-LinkedIn/no-scraping/no-messaging/no-account-action boundaries.
 
 ---
 
@@ -21709,6 +21711,183 @@ Remove hardcoded stack-signal whitelist behavior from recruiter-facing validatio
 
 ---
 
+## Phase 9.9 - Search Brief Value Replacement Update Resolver
+
+### Approved
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.9-001 Add global Search Brief value-replacement update resolver
+
+### Current Phase 9.9 strategy note
+
+This reopened chat-understanding hardening slice is completed after Phase 9.8. It fixes value-replacement update messages globally, not as a Selenium/Cucumber-specific patch.
+
+The target architecture remains the AI Agent conversation architecture:
+
+```text
+recruiter message -> deterministic safety precheck -> bounded LLM semantic interpreter -> strict backend resolver/validator -> brief_patch -> assistant confirmation
+```
+
+The LLM may interpret that the recruiter wants to replace one Search Brief value with another, but it must not directly mutate the Search Brief. Backend matching, field resolution, validation, and `brief_patch` application remain authoritative.
+
+---
+
+## Task: P9.9-001 Add global Search Brief value-replacement update resolver
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+Observed conversation issue:
+
+```text
+AI Assistant: I understand the task: to find QA Automation profiles in Poland with a primary skill in Java and experience in Selenium. Please confirm if this is correct, and I will begin the search.
+Recruiter: update Selenium to Cucumber
+AI Assistant: Which field should I update: role, technology, stack, location, seniority, or depth?
+```
+
+This is wrong when the current Search Brief already contains `Selenium`. The old value anchors the intended field. The assistant should resolve the field from current state, then apply a validated replacement or ask a narrow clarification only when resolution is ambiguous.
+
+### Goal
+
+Add a global value-replacement update path for Search Brief refinement messages such as:
+
+- `update Selenium to Cucumber`
+- `replace Selenium with Cucumber`
+- `use Cucumber instead of Selenium`
+- `not Selenium, Cucumber`
+- `change Java to Python`
+- `update Poland to Germany`
+
+The fix must work across supported Search Brief fields, not just stack values and not just Selenium/Cucumber.
+
+### Proposed Architecture
+
+1. Extend the semantic interpreter contract.
+   - Add or reuse an intent shape for `replace_value`.
+   - The LLM returns only bounded structured data: `old_value`, `new_value`, optional `field_hint`, confidence, and reason code.
+   - The LLM must not return final Search Brief mutations, executable actions, provider calls, query plans, approvals, or candidate changes.
+
+2. Add backend value-resolution logic.
+   - Match `old_value` against the current normalized Search Brief.
+   - If exactly one supported field/list item matches, route replacement to that field.
+   - If multiple fields match, ask a narrow clarification naming the conflicting fields.
+   - If no field matches, ask what value should be updated.
+   - If `new_value` fails the target field validator, reject it with a recruiter-facing clarification.
+
+3. Route through existing safe patching.
+   - Convert the resolved replacement into existing `brief_patch.operations`.
+   - Apply the patch only through existing Search Brief validation.
+   - Clear stale downstream state only through existing `stale_state_should_clear` behavior.
+   - Do not directly mutate the Search Brief from LLM output.
+
+4. Preserve product boundaries.
+   - Do not start search automatically.
+   - Do not build or execute a QueryPlan.
+   - Do not change provider fanout, scoring, dedupe, location filtering, persistence, candidate workspace, or runtime approval.
+   - Do not add LinkedIn login, scraping, browser automation, messaging, autonomous execution, or account actions.
+
+### Field Resolution Rules
+
+- `stack`: replace an item inside the stack list when `old_value` matches one existing stack signal.
+- `technology`: replace the main technology when `old_value` matches current technology.
+- `location`: replace location only after location validation accepts `new_value`.
+- `role_family`: replace role only after role validation accepts `new_value`; do not let technology-only role drift reappear.
+- Unsupported or absent fields must not be invented by the interpreter.
+- If `old_value` appears in both technology and stack, ask a precise clarification instead of guessing.
+
+### LLM Boundary
+
+Use LLM where it adds value:
+
+- understanding natural phrasing and word order;
+- extracting `old_value` and `new_value`;
+- recognizing replacement intent across supported control-language phrasing.
+
+Do not use LLM as authority for:
+
+- final field selection;
+- Search Brief validity;
+- role alias approval;
+- runtime approval;
+- query generation;
+- search execution;
+- candidate facts or scoring.
+
+### Proposed Steps
+
+1. Review current update/refinement path.
+   - Inspect `app/pending_answer_interpreter.py`, `app/brief_patch.py`, `app/search_brief.py`, `app/search_validation.py`, and the recruiter chat turn handling in `app/main.py` / `app/routes.py`.
+   - Confirm where current update/refinement flows ask broad field-selection questions.
+
+2. Define the replacement interpreter output.
+   - Keep the schema small and strict.
+   - Add validator checks for empty values, URLs, unsafe/account-action text, excessive length, unsupported language, and low confidence.
+   - Preserve deterministic fallback for simple `replace X with Y` patterns if useful, but do not make the fix regex-only.
+
+3. Implement backend resolver.
+   - Normalize current brief values for matching without losing display values.
+   - Support exact and conservative case-insensitive matching.
+   - Avoid fuzzy matching that could replace the wrong field.
+   - Return structured resolution outcomes: `resolved`, `ambiguous`, `old_value_not_found`, `new_value_invalid`, `unsupported`.
+
+4. Apply through `brief_patch`.
+   - Generate patch operations only after backend resolution.
+   - Reuse existing patch validation and stale-state clearing.
+   - Return a concise assistant confirmation after successful replacement.
+
+5. Add no-network regression coverage.
+   - Add smoke coverage for the observed Selenium/Cucumber flow.
+   - Cover technology replacement, location replacement, ambiguous technology+stack matches, old value not found, invalid new value, and no automatic search execution.
+   - Cover invalid/unavailable LLM fallback behavior.
+   - Wire the smoke into `scripts/check_all.ps1`.
+
+6. Add focused browser sanity if needed.
+   - Verify the visible chat updates the search summary after a successful replacement.
+   - Verify the assistant does not ask the broad "which field" question when the old value uniquely matches current state.
+   - Verify `Run search` still requires explicit recruiter approval.
+
+### Acceptance Criteria
+
+- `update Selenium to Cucumber` updates the current Search Brief when `Selenium` uniquely exists in the current brief.
+- The assistant does not ask a broad field-selection question when `old_value` uniquely identifies the field.
+- Ambiguous matches produce a narrow clarification, not a guessed update.
+- Missing `old_value` produces a clarification instead of a hallucinated update.
+- Invalid `new_value` is rejected by the target field validator.
+- All successful replacements go through `brief_patch` and Search Brief validation.
+- Search does not start automatically after a replacement.
+- Existing Phase 9.7 interpreter/backend-validator boundary remains intact.
+- Existing Phase 9.8 role-anchoring guardrail remains intact.
+- `scripts/check_all.ps1` passes after implementation.
+
+### Non-Goals
+
+- Selenium/Cucumber-specific hardcoding.
+- Regex-only command handling as the primary solution.
+- Direct Search Brief mutation from LLM output.
+- Adding new Search Brief fields.
+- Changing provider execution, QueryPlan generation, runtime approval, scoring, dedupe, location filtering, persistence, candidate workspace, or export.
+- LinkedIn login, scraping, browser automation, messaging, autonomous execution, or account actions.
+
+### Implementation Result
+
+`P9.9-001` is implemented as a bounded value-replacement resolver in the recruiter chat path. `PendingAnswerInterpreter` now supports `replace_value` in validator/prompt contract v2. The backend resolves the old value against the current normalized Search Brief, asks a narrow clarification for ambiguous or missing old values, validates the new value through the target field validator, and applies successful changes only through existing `brief_patch` operations. Exact deterministic replacement parsing remains as a safe fallback and consistency check for literal commands.
+
+The implementation preserves the Phase 9.7 interpreter/backend-validator boundary and the Phase 9.8 role anchoring guardrail. Search does not start automatically, and provider execution, QueryPlan generation, scoring, dedupe, location filtering, persistence, Candidate Workspace, export, LinkedIn/account boundaries, and runtime approval are unchanged.
+
+### Verification Result
+
+`scripts/smoke_p99_value_replacement.py` covers the observed `update Selenium to Cucumber` flow, technology replacement, location replacement, ambiguous technology+stack matches, missing old values, invalid new values, and LLM-unavailable deterministic fallback. The smoke is wired into `scripts/check_all.ps1`.
+
+---
+
 ## Phase 10 - Persistent Memory + Saved Searches
 
 ### Approved
@@ -21728,7 +21907,7 @@ Remove hardcoded stack-signal whitelist behavior from recruiter-facing validatio
 
 ### Current Phase 10 strategy note
 
-Phase 10 is parked for now. Database/persistence should not be pulled into Phase 9.5 unless the POC is explicitly reopened beyond final hardening/deploy.
+Phase 10 is parked for now. Database/persistence should not be pulled into reopened post-Phase 9.9 work unless the POC is explicitly reopened for persistence.
 
 ---
 

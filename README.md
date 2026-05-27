@@ -3,7 +3,7 @@ AI-powered sourcing search engine
 
 ## Current Status
 
-Planner-based Tavily/LinkedIn X-ray sourcing prototype.
+Planner-based public LinkedIn X-ray sourcing prototype with approved backend provider fanout.
 
 Status:
 
@@ -13,8 +13,8 @@ Status:
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
-- Current final POC status: Phase 9.5 is completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`.
-- Phase 10+ persistence and later feature tracks are parked for now; the project is closing the current work as a POC before any database/memory work.
+- Current final POC status: Phase 9.9 is completed. The POC is deployed to Render at `https://engineers-search-engine-poc.onrender.com/` and is closed unless explicitly reopened.
+- Phase 10+ persistence and later feature tracks are parked for now; no database/memory work is active.
 - Phase 6 `Human-approved Tool-Calling Agent Runtime` is completed through `P6-006 Close Phase 6 with AI Agent v0 decision` and closed as `AI Agent Runtime v0 baseline`.
 - Phase 5.5 `Technical modularization before Agent Runtime` is completed through `P5.5-009`.
 - Phase 5 `Recruiter Chat UX + Search Brief conversation` is completed and closed as a narrow Java/Ukraine Agent UX foundation.
@@ -83,11 +83,15 @@ Status:
 - Phase 8.9 `Recruiter UI Polish Backlog before Persistence` is completed through `P8.9-003`: stale assistant thinking bubbles are removed before real replies, Candidate Results is a compact score-sorted table, and the desktop results panel is balanced with Recruiter Chat.
 - Phase 9 `Multi-Provider Search Expansion` is completed through `P9-008`: approved backend runtime/search execution now runs Tavily plus Serper, SerpApi Google with 5-page review, and SerpApi Bing with 5-page review, normalizes provider results, dedupes by normalized LinkedIn URL, preserves provider provenance, and reports provider breakdown/limits without frontend direct provider calls or raw provider payload logging.
 - Phase 9.5 `Final POC Hardening And Render Deployment` is completed. `P9.5-001` through `P9.5-007` are implemented and verified: Phase 10+ is parked, Phase 9 providers are unchanged, input is English-only, the current search flow supports any English IT role with role/main technology/stack/location, Candidate Results has polished empty/loading states, duplicate ready/search wording and `Workspace Ready` are removed, final regression is wired into `scripts/check_all.ps1`, and the POC is deployed to Render at `https://engineers-search-engine-poc.onrender.com/`. See `docs/phase-9-5-final-poc-plan.md`.
+- Phase 9.6 `Post-Deploy Recruiter UX Polish` is completed through `P9.6-008`.
+- Phase 9.7 `Recruiter Chat Semantic Interpreter` is completed through `P9.7-008`: bounded `PendingAnswerInterpreter` interprets pending stack/location/update values, while backend validation remains authoritative.
+- Phase 9.8 `Role-Anchored Query Planning And Scoring Guardrail` is completed through `P9.8-001`: generic planning no longer turns technology-only phrases such as `Java Developer` into the target role for arbitrary roles such as `QA Automation`, and scoring uses approved role aliases as strong role evidence.
+- Phase 9.9 `Search Brief Value Replacement Update Resolver` is completed through `P9.9-001`: recruiter messages such as `update Selenium to Cucumber` are interpreted as safe value replacements, resolved against the current Search Brief, and applied only through validated `brief_patch` operations.
 - `P8-008` through `P8-016` are completed as bounded current-flow chat-quality hardening: optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, conservative classification policy coverage, Russian pending-stack answers, localized next-iteration options, chat-confirmed `Build Plan`, Enter-to-send, normalized `AI Assistant` speaker titles, and hardened pending clarification answer routing. These changes keep `Approve & Search` as the only Tavily execution gate and do not add autonomous execution, direct web-search bypass, LinkedIn login/scraping/access automation, candidate messaging, account actions, persistence, or new search scope.
 
-Agreed next direction:
+Current source-of-truth:
 
-- Phase 9.5 now intentionally moves the POC from the narrow `Backend Developer + Java + Ukraine` baseline toward any English IT/software role with role, main technology, stack, and location;
+- Phase 9.5 moved the POC from the narrow `Backend Developer + Java + Ukraine` baseline toward any English IT/software role with role, main technology, stack, and location;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
 - Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`;
@@ -96,12 +100,14 @@ Agreed next direction:
 - Phase 8.8 completed the bounded recruiter-facing conversation hardening slice before persistence, including LLM-first role/field/pending-action/pending-hypothesis/pending-update intent hardening, bounded restart/update/refine routing, immediate chat echo/thinking state, and simplified paginated Candidate Results while backend validation remains authoritative;
 - Phase 9 provider expansion is completed: approved searches run Tavily, Serper, SerpApi Google 5-page review, and SerpApi Bing 5-page review through the backend runtime/search pipeline, then normalize and dedupe results before Candidate Results;
 - Phase 9.5 final POC hardening/deploy is completed and live on Render;
+- Phase 9.6, Phase 9.7, Phase 9.8, and Phase 9.9 are completed as post-deploy polish, semantic chat-understanding, role-anchored planning/scoring guardrail work, and value-replacement chat hardening;
+- the POC is closed after Phase 9.9 unless explicitly reopened;
 - Phase 10 persistence/memory and later phases are parked until the POC is explicitly reopened for more work.
 
 Current pipeline:
 
 - recruiter chat collects a validated `Search Brief` from natural-language recruiter messages;
-- recruiter chat now has bounded onboarding wording fallback, deterministic off-topic/noise routing, Russian stack clarification answers, Enter-to-send, and a unified `AI Assistant` speaker title;
+- recruiter chat now has bounded onboarding wording fallback, deterministic off-topic/noise routing, semantic pending stack/location/update interpretation, safe value replacement updates, Russian stack clarification answers, Enter-to-send, and a unified `AI Assistant` speaker title;
 - the supported Java/Ukraine baseline gets a current Agent Plan in chat before planning;
 - `Build Plan` executes the Agent Plan's proposed backend action and converts the chat-produced brief into a visible approvable Search Plan;
 - an `Agent Actions` queue shows the current planning/search action status and approval context without executing actions itself;
@@ -113,7 +119,7 @@ Current pipeline:
 - optional explicit AI planner mode can draft and explain a plan for backend validation/fallback;
 - backend validates AI draft plans deterministically and can show rule-based fallback;
 - rule-based Tavily execution requires explicit approval bound to action, query count, and current `QueryPlan` fingerprint;
-- Tavily executes the generated queries, then Phase 9 provider expansion runs Serper, SerpApi Google 5-page review, and SerpApi Bing 5-page review inside the same approved backend search execution path;
+- approved backend search execution runs Tavily, Serper, SerpApi Google 5-page review, and SerpApi Bing 5-page review inside the same approved runtime/search path;
 - LinkedIn profile URLs are normalized and deduped;
 - visible `LinkedIn profiles only` and `Location filter` controls are applied;
 - Ukraine location filtering uses current-location classification instead of a finite negative-location blacklist;
@@ -124,7 +130,7 @@ Execution boundary:
 
 - AI planner output is planning/explanation only and is not executable.
 - AI Agent behavior must stay human-approved, not autonomous: it may suggest, prepare, explain, validate, and analyze, but search/deep/multi-wave execution requires explicit approval.
-- Tavily execution must stay inside the approved backend pipeline.
+- Provider execution must stay inside the approved backend pipeline.
 - The legacy raw `/api/search` Tavily path is disabled.
 - AI-generated plans remain non-executable until a later reviewed task explicitly enables that path.
 - AI plan validation includes strict `AIPlannerCoveragePolicy v0` coverage checks for the Java/Ukraine standard baseline; unsupported briefs return a visible coverage-policy warning.
@@ -150,6 +156,16 @@ $env:OPENAI_MODEL="..."
 ```
 
 If these values are not configured, the primary recruiter chat-to-brief flow cannot call the LLM adapter. LLM-assisted Agent Plan/Response wording still falls back to deterministic wording when configuration or validation fails.
+
+Required provider configuration for live approved search:
+
+```powershell
+$env:TAVILY_API_KEY="..."
+$env:SERPER_API_KEY="..."
+$env:SERPAPI_API_KEY="..."
+```
+
+No-live regression checks use deterministic doubles and do not require real provider keys.
 
 The backend uses `max_completion_tokens` for OpenAI Chat Completions requests, which is compatible with `gpt-5.4-mini`.
 
@@ -188,6 +204,28 @@ powershell -ExecutionPolicy Bypass -File .\scripts\watch_ci.ps1
 - `ProjectStatus.md`
 - `Roadmap.md`
 - `Tasks.md`
+- `AGENTS.md`
+- `instructions`
+- `docs/render-deployment.md`
+- `docs/phase-9-7-pending-answer-interpreter-contract.md`
+- `docs/phase-9-7-closeout.md`
+- `docs/phase-9-7-semantic-conversation-uat-report.md`
+- `docs/phase-9-5-final-poc-plan.md`
+- `docs/phase-8-candidate-workspace-contract.md`
+- `docs/phase-8-5-agentic-candidate-review-contract.md`
+- `docs/phase-8-75-uat-acceptance-gate.md`
+- `docs/phase-8-75-uat-report.md`
+- `docs/phase-8-75-1-conversation-ux-uat.md`
+- `docs/phase-8-75-1-conversation-ux-report.md`
+- `docs/phase-7-5-closeout.md`
+- `docs/phase-7-5-qa-findings-report.md`
+- `docs/phase-7-agent-message-taxonomy.md`
+- `docs/phase-7-message-facts-contract.md`
+- `docs/phase-7-agent-wording-style-policy.md`
+- `docs/phase-7-llm-routing-gating-policy.md`
+- `docs/phase-7-bounded-llm-payload-prompt-contract.md`
+- `docs/phase-7-closeout.md`
+- `docs/phase-6-closeout.md`
 - `docs/phase-5-agent-stabilization.md`
 - `docs/phase-4-ai-planner-baseline.md`
 - `docs/phase-1-poc-findings.md`

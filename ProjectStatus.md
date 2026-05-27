@@ -14,13 +14,17 @@ Phase 3 - Candidate Quality Layer is completed.
 
 Phase 4 - AI Agent Foundation is completed.
 
-Current phase: Phase 9.7 `Recruiter Chat Semantic Interpreter` is completed through `P9.7-008`; Phase 10+ is parked unless the POC is explicitly reopened.
+Current phase: Phase 9.9 `Search Brief Value Replacement Update Resolver` is completed through `P9.9-001`; the POC is closed unless explicitly reopened. Phase 10+ is parked unless the POC is explicitly reopened.
 
-Phase 10+ persistence and later feature tracks are parked for now. The current decision is to close the project as a POC after a final hardening/deploy slice. The working plan is recorded in `docs/phase-9-5-final-poc-plan.md`. Phase 9.5 is completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`.
+Phase 10+ persistence and later feature tracks are parked for now. The current decision is to treat the deployed POC as closed after Phase 9.9. The Phase 9.5 deployment plan is recorded in `docs/phase-9-5-final-poc-plan.md`; the deployed POC remains live on Render at `https://engineers-search-engine-poc.onrender.com/`.
 
 Phase 9.6 is completed as post-deploy recruiter UX polish through `P9.6-008`. `P9.6-001` through `P9.6-008` show a manually clickable safe LinkedIn profile link under each candidate name/headline, remove low-value placeholder-heavy `Location`/`Stack` columns from the primary table, make the initial chat helper higher/shorter/italic and correctly positioned directly under `Recruiter Chat`, make the message input taller, make chat action buttons shorter, allow non-hardcoded English IT/software-relevant stack signals through bounded LLM validation when deterministic recognition is insufficient, and accept safe English pending-location answers such as `Spain`, `Remote`, and `Madrid` while rejecting technology/stack/role/noise answers. The observed `Java only` pending-stack issue is moved into Phase 9.7 as `P9.7-003`, not handled as a phrase-specific patch. The slice preserves no LinkedIn automation, no scraping, no messaging, no account actions, no backend search execution boundary changes, and no persistence.
 
 Phase 9.7 is completed as `Recruiter Chat Semantic Interpreter v1`. It introduced a bounded `PendingAnswerInterpreter` contract, strict backend validator, natural pending stack/location/update-refinement handling, shared pending clarification routing, and recruiter semantic conversation UAT. The implemented pipeline is `message -> deterministic safety precheck -> bounded LLM semantic interpreter -> strict backend validator -> deterministic patch/action`.
+
+Phase 9.8 is completed as the global role-anchored planning/scoring guardrail. `P9.8-001` adds deterministic `RoleAliasPlan` metadata to rule-based query plans, prevents technology-only generic role drift for arbitrary roles, preserves explicitly configured domain plans, and makes candidate scoring use approved role aliases as the strong role evidence set.
+
+Phase 9.9 is completed as a narrow reopened chat-understanding hardening slice. `P9.9-001` extends the bounded pending-answer interpreter with `replace_value`, adds backend Search Brief value resolution, applies successful replacements only through existing `brief_patch` validation, and covers `update Selenium to Cucumber` plus technology/location/ambiguous/missing/invalid/fallback cases in `scripts/smoke_p99_value_replacement.py`.
 
 Completed Phase 8 implementation slices include `P8-002` through `P8-006.1` and completed `P8-007` / `P8-007B`: Phase 4 is closed as an AI Agent Foundation, Phase 5 is closed as a narrow Java/Ukraine Agent UX foundation, Phase 5.5 is closed as technical modularization before Agent Runtime, Phase 6 is closed as `AI Agent Runtime v0 baseline`, Phase 7 is closed as `Agent Conversation Wording Layer v0 baseline` in `docs/phase-7-closeout.md`, Phase 7.5 is closed as `Recruiter Simulation QA & Flow Hardening` in `docs/phase-7-5-closeout.md` with the decision `ready after approved fixes completed`, and Phase 8 now has the docs-only Candidate Workspace v0 contract in `docs/phase-8-candidate-workspace-contract.md`. `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, `P8-006.1 Implement explicit selected-candidate wording overlay`, `P8-007A Implement export model and serializers`, and `P8-007B Add export UI and download workflow` are implemented as conservative candidate-workspace slices: approved search results map into explicit workspace state, sorting/filtering operate only over already returned candidates, review status/shortlist/notes remain browser in-memory only, deterministic candidate explanations are grounded only in returned workspace facts, selected-candidate explanation wording is an explicit backend-owned validated LLM overlay with deterministic fallback, and export is a local frontend-only workflow with allowlisted model/CSV/Markdown helpers plus explicit UI/download glue and no backend/runtime behavior. Phase 7 delivered the docs-only `Agent Message Taxonomy V0` contract in `docs/phase-7-agent-message-taxonomy.md`, the docs-only `Agent Message Facts Contract V0` in `docs/phase-7-message-facts-contract.md`, the docs-only `Agent Wording Style and Language Policy V0` in `docs/phase-7-agent-wording-style-policy.md`, the backend-first deterministic source-message helper layer in `app/agent_messages.py`, the docs-only `LLM Routing and Gating Policy V0` in `docs/phase-7-llm-routing-gating-policy.md`, the docs-only `Bounded LLM Wording Payload and Prompt Contract V0` in `docs/phase-7-bounded-llm-payload-prompt-contract.md`, code-level wording validation/fallback/provenance metadata in `app/agent_wording.py`, frontend typed rendering for current agent chat messages in `app/static/app.js`, and no-network golden conversation regression coverage in `scripts/smoke_p7_golden_conversations.py`. Phase 6 delivered the human-approved runtime contract, typed backend registry/envelope helpers, frontend Agent Action Review Queue, first approved runtime execution loop for the Java/Ukraine baseline, runtime guardrail regression coverage, repaired real runtime wrapper execution, and a dedicated closeout decision. The backend has Search Brief validation/adapter, extracted rule-based planner and deterministic AI QueryPlan validation modules, extracted Tavily/query-wave execution and snapshot modules, extracted Candidate Quality module, extracted Agent Tools/Agent Plan modules, extracted Agent Response/brief patch/Agent wording modules, extracted deterministic Agent Messages, extracted FastAPI route wrappers, typed Agent Runtime registry/envelope helpers, `POST /api/agent/runtime/turn`, route/import/runtime guardrail/unmocked-wrapper no-network HTTP smoke coverage in the regression baseline, local regression check script, GitHub Actions CI, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval before Tavily execution, AI planner baseline evaluation, AI planner coverage policy/repair behavior, `POST /api/recruiter-chat/turn`, `POST /api/agent/plan`, `agent_response`, and `agent_response.next_iteration_options` on approved search responses. The frontend starts from recruiter chat, shows typed current agent messages and current agent actions as a review/status queue, and `Approve & Search` uses the Agent Runtime path instead of direct structured-search execution. This is still not a complete autonomous recruiter agent.
 
@@ -51,6 +55,10 @@ Phase 9.5 is completed as the final POC hardening/deploy phase. `P9.5-001` throu
 Phase 9.6 is completed as post-deploy recruiter UX polish. `P9.6-001` through `P9.6-008` are implemented and verified: Candidate Results shows manual safe LinkedIn profile links under candidate identity, the primary table no longer shows `Location` and `Stack` placeholder columns, the initial chat helper is compact/high/italic and positioned directly under the title in the empty state, the chat textarea is taller, chat action buttons are shorter, pending stack clarification accepts bounded non-hardcoded English IT/software stack signals via LLM classification with deterministic safe fallback, and pending location clarification accepts safe English non-Ukraine locations while rejecting technology/role/noise answers. `scripts/check_all.ps1`, the dedicated `scripts/smoke_p96_post_deploy_polish.py`, and local Playwright browser sanity passed.
 
 Phase 9.7 is completed as semantic chat-understanding hardening. `P9.7-001` through `P9.7-008` are implemented and verified: `app/pending_answer_interpreter.py` defines the bounded prompt/contract/validator/OpenAI wrapper, `app/main.py` applies the interpreter to natural pending stack answers such as `Java only`, natural pending location answers such as `Madrid would work`, and selected update/refinement values such as `replace Kafka with Selenium`, while keeping deterministic fast paths and the existing brief patch/runtime approval boundaries. `scripts/smoke_p97_semantic_interpreter.py` covers validator behavior and semantic conversation UAT and is wired into `scripts/check_all.ps1`.
+
+Phase 9.8 is completed as role-anchored planning/scoring hardening. `P9.8-001` is implemented and verified: rule-based query plans now include deterministic `RoleAliasPlan` metadata, generic planning rejects technology-only role phrases such as `Java Developer` for arbitrary target roles such as `QA Automation`, configured domain plans such as `Backend Developer + Java` are preserved, and candidate scoring uses approved role aliases as strong role evidence. `scripts/smoke_p98_role_anchoring.py` covers QA Automation/Java, Data Analyst/Python, DevOps/AWS, Product Manager/AI, configured Backend Developer/Java preservation, and candidate scoring against a plain Java Developer false positive.
+
+Phase 9.9 is completed as value-replacement chat hardening. `P9.9-001` is implemented and verified: replacement messages such as `update Selenium to Cucumber`, `replace Selenium with Cucumber`, and `use Cucumber instead of Selenium` resolve the old value against the current Search Brief, ask narrow clarification for ambiguous or missing old values, reject invalid new values through target-field validation, and never start search automatically. `scripts/smoke_p99_value_replacement.py` is wired into `scripts/check_all.ps1`.
 
 After Phase 7 closeout, Phase 7.5 was inserted as the QA gate before Phase 8. Phase 7.5 is now closed with the readiness decision `ready after approved fixes completed`. Phase 8 is closed through `P8-032`, Phase 8.5 has `P8.5-001` through `P8.5-005` completed, and Phase 8.75 is completed as the recruiter UAT gate before Phase 9 multi-provider expansion and Phase 10 persistence. `P8-001` is completed as the Candidate Workspace v0 contract and `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, `P8-006 Define bounded candidate explanation wording contract`, `P8-006.1 Implement explicit selected-candidate wording overlay`, `P8-007 Prepare export workflow`, `P8-007A Implement export model and serializers`, and `P8-007B Add export UI and download workflow` are implemented/completed. Phase 8.75 added `docs/phase-8-75-uat-acceptance-gate.md`, deterministic no-live UAT in `scripts/uat_phase_8_75_no_live.py`, Candidate Workspace helper UAT in `scripts/uat_phase_8_75_workspace_cases.js`, limited live backend-runtime UAT in `scripts/uat_phase_8_75_live.py`, and the aggregate report in `docs/phase-8-75-uat-report.md`. Phase 8.75.1 added `docs/phase-8-75-1-conversation-ux-uat.md`, `scripts/uat_phase_8_75_1_ui_conversation.py`, and `docs/phase-8-75-1-conversation-ux-report.md`; the real frontend simulated-user gate passed `116/116` UI scenarios with deterministic OpenAI/Tavily doubles. The gates keep live Tavily out of CI and preserve the absolute boundaries: no direct web-search bypass, no direct LinkedIn access/login/scraping, no candidate messaging, no account actions, no autonomous execution, no persistence, and no unreviewed providers.
 
@@ -149,8 +157,12 @@ Planned current and later phases:
 - Phase 8.75: `Recruiter UAT & Acceptance Gate`, completed green before provider expansion / persistence.
 - Phase 8.8: `Recruiter Concern Backlog before Persistence`, completed as bounded recruiter-facing conversation hardening before Phase 9 multi-provider expansion and Phase 10 persistence.
 - Phase 9: `Multi-Provider Search Expansion`, completed.
-- Phase 9.5: `Final POC Hardening And Render Deployment`, completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`; Phase 10+ is parked.
+- Phase 9.5: `Final POC Hardening And Render Deployment`, completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`.
 - Phase 9.6: `Post-Deploy Recruiter UX Polish`, completed through `P9.6-008`.
+- Phase 9.7: `Recruiter Chat Semantic Interpreter`, completed through `P9.7-008`.
+- Phase 9.8: `Role-Anchored Query Planning And Scoring Guardrail`, completed through `P9.8-001`.
+- Phase 9.9: `Search Brief Value Replacement Update Resolver`, completed through `P9.9-001`; this is the closed POC baseline unless explicitly reopened.
+- Phase 10: `Persistent Memory + Saved Searches`, parked future phase.
 - Phase 11: `Manual Candidate Evidence Intake`, future track where the recruiter manually pastes public profile text copied outside the app, and the agent compares that user-provided evidence against the current Search Brief and workspace context.
 - Phase 12: `Resume Upload & Fit Analysis`, future track for structured resume/CV analysis after provider expansion and persistence decisions.
 
@@ -507,13 +519,17 @@ Recommended next steps:
 - Phase 8.5: `Agentic Candidate Review & Iteration`; `P8.5-001 Define agentic candidate review contract`, `P8.5-002 Add top-candidate recommendation from returned workspace facts`, `P8.5-003 Add selected-candidate comparison`, `P8.5-004 Add fit/gap explanation across selected candidates`, and `P8.5-005 Add guided next-refinement suggestions from workspace results` are completed.
 - Phase 8.75: `Recruiter UAT & Acceptance Gate`; `P8.75-001 Run recruiter UAT acceptance gate before persistence` and `P8.75.1-001 Run UI conversation UX UAT before persistence` are completed and green.
 - Phase 8.8: `Recruiter Concern Backlog before Persistence`; `P8.8-001` through `P8.8-024` are approved and implemented.
-- Phase 9: `Multi-Provider Search Expansion`.
+- Phase 9: `Multi-Provider Search Expansion`, completed through `P9-008`.
+- Phase 9.5: `Final POC Hardening And Render Deployment`, completed through `P9.5-007` and deployed to Render.
+- Phase 9.6: `Post-Deploy Recruiter UX Polish`, completed through `P9.6-008`.
+- Phase 9.7: `Recruiter Chat Semantic Interpreter`, completed through `P9.7-008`.
 - Phase 9.8: `Role-Anchored Query Planning And Scoring Guardrail`; `P9.8-001` is completed. Rule-based query plans now carry deterministic `RoleAliasPlan` metadata, generic planning rejects technology-only role phrases for arbitrary roles, configured domain plans are preserved, and candidate scoring uses approved aliases as the strong role evidence set.
-- Phase 10: `Persistent Memory + Saved Searches`.
-- Phase 11: `Manual Candidate Evidence Intake`.
-- Phase 12: `Resume Upload & Fit Analysis`.
+- Phase 9.9: `Search Brief Value Replacement Update Resolver`; `P9.9-001` is completed. Search Brief value-replacement updates resolve old values against the current brief and apply only through validated `brief_patch` operations.
+- Phase 10: `Persistent Memory + Saved Searches`, parked future phase.
+- Phase 11: `Manual Candidate Evidence Intake`, parked future phase.
+- Phase 12: `Resume Upload & Fit Analysis`, parked future phase.
 
-Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is completed as technical preparation before runtime. Phase 6 is completed as `AI Agent Runtime v0 baseline`. Phase 7 is completed as `Agent Conversation Wording Layer v0 baseline`. Phase 7.5 is completed as a recruiter simulation QA gate with the decision `ready after approved fixes completed`. Phase 8 is completed and closed through `P8-032` as the Candidate Workspace/Table + Shortlist phase. Phase 8.5 is completed through `P8.5-005` as deterministic current-run review slices. Phase 8.75 is completed as green recruiter UAT acceptance gates before Phase 9 multi-provider expansion and Phase 10 persistence, including backend/runtime/workspace acceptance and real frontend simulated-user conversation UX. Phase 9.8 completed the global role-anchored planning/scoring correction before treating the POC as stable for broader IT roles. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
+Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is completed as technical preparation before runtime. Phase 6 is completed as `AI Agent Runtime v0 baseline`. Phase 7 is completed as `Agent Conversation Wording Layer v0 baseline`. Phase 7.5 is completed as a recruiter simulation QA gate with the decision `ready after approved fixes completed`. Phase 8 is completed and closed through `P8-032` as the Candidate Workspace/Table + Shortlist phase. Phase 8.5 is completed through `P8.5-005` as deterministic current-run review slices. Phase 8.75 is completed as green recruiter UAT acceptance gates before Phase 9 multi-provider expansion and Phase 10 persistence, including backend/runtime/workspace acceptance and real frontend simulated-user conversation UX. Phase 9.8 completed the global role-anchored planning/scoring correction, and Phase 9.9 completed safe value-replacement chat hardening before treating the POC as stable for broader IT roles. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
 
 ## Verification
 
@@ -522,6 +538,7 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 - `node --check app/static/app.js`
 - Phase 9.7 semantic interpreter smoke: `python scripts/smoke_p97_semantic_interpreter.py`
 - Phase 9.8 role anchoring smoke: `python scripts/smoke_p98_role_anchoring.py`
+- Phase 9.9 value replacement smoke: `python scripts/smoke_p99_value_replacement.py`
 - Backend smoke-check for query-only request behavior.
 - Backend smoke-check for neutral scoring.
 - Backend smoke-check for LinkedIn profile URL detection and toggle request field.
@@ -599,6 +616,29 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 
 - `Roadmap.md`
 - `Tasks.md`
+- `AGENTS.md`
+- `instructions`
+- `README.md`
+- `docs/render-deployment.md`
+- `docs/phase-9-7-pending-answer-interpreter-contract.md`
+- `docs/phase-9-7-closeout.md`
+- `docs/phase-9-7-semantic-conversation-uat-report.md`
+- `docs/phase-9-5-final-poc-plan.md`
+- `docs/phase-8-candidate-workspace-contract.md`
+- `docs/phase-8-5-agentic-candidate-review-contract.md`
+- `docs/phase-8-75-uat-acceptance-gate.md`
+- `docs/phase-8-75-uat-report.md`
+- `docs/phase-8-75-1-conversation-ux-uat.md`
+- `docs/phase-8-75-1-conversation-ux-report.md`
+- `docs/phase-7-5-closeout.md`
+- `docs/phase-7-5-qa-findings-report.md`
+- `docs/phase-7-agent-message-taxonomy.md`
+- `docs/phase-7-message-facts-contract.md`
+- `docs/phase-7-agent-wording-style-policy.md`
+- `docs/phase-7-llm-routing-gating-policy.md`
+- `docs/phase-7-bounded-llm-payload-prompt-contract.md`
+- `docs/phase-7-closeout.md`
+- `docs/phase-6-closeout.md`
 - `docs/phase-5-agent-stabilization.md`
 - `docs/phase-1-poc-findings.md`
 - `docs/phase-3-quality-baseline.md`

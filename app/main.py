@@ -195,6 +195,7 @@ from app.candidate_explanation_wording import (
 from app.pending_answer_interpreter import (
     PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD,
     PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE,
+    PENDING_ANSWER_INTENT_REPLACE_VALUE,
     run_openai_json_pending_answer_interpreter as _run_openai_json_pending_answer_interpreter,
     validate_pending_answer_interpreter_output,
 )
@@ -3195,6 +3196,330 @@ async def stack_terms_from_pending_answer_interpreter(
     return stack_terms[:3]
 
 
+VALUE_REPLACEMENT_FIELDS = (
+    "role_family",
+    "technology",
+    "stack",
+    "location",
+    "seniority",
+    "search_depth",
+)
+
+
+def value_replacement_key(value: object) -> str | None:
+    text = normalize_text_value(str(value)) if value is not None else None
+    if not text:
+        return None
+    return compact_spaces(text).strip(" .,:;\"'").lower()
+
+
+def looks_like_value_replacement_message(text: str) -> bool:
+    normalized_text = normalized_chat_control_text(text)
+    if not normalized_text:
+        return False
+    return bool(
+        re.search(
+            r"\b(update|change|replace|switch)\b.+\b(to|with|for)\b",
+            normalized_text,
+        )
+        or re.search(r"\buse\b.+\binstead of\b", normalized_text)
+        or re.search(r"\bnot\b.+\bbut\b", normalized_text)
+        or re.search(r"^\s*not\s+[^,]+,\s*[^,]+", text, flags=re.IGNORECASE)
+    )
+
+
+def deterministic_value_replacement_from_message(text: str) -> dict | None:
+    normalized_text = normalize_text_value(text)
+    if not normalized_text:
+        return None
+
+    patterns = [
+        r"^\s*(?:please\s+)?(?:update|change|replace|switch)\s+(?P<old>.+?)\s+(?:to|with|for)\s+(?P<new>.+?)\s*$",
+        r"^\s*(?:please\s+)?use\s+(?P<new>.+?)\s+instead\s+of\s+(?P<old>.+?)\s*$",
+        r"^\s*(?:please\s+)?not\s+(?P<old>.+?)\s*,?\s+(?:but\s+)?(?P<new>.+?)\s*$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, normalized_text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        old_value = compact_spaces(match.group("old")).strip(" .,:;\"'")
+        new_value = compact_spaces(match.group("new")).strip(" .,:;\"'")
+        if old_value and new_value:
+            return {
+                "intent": PENDING_ANSWER_INTENT_REPLACE_VALUE,
+                "old_value": old_value,
+                "new_value": new_value,
+                "field_hint": None,
+                "source": "deterministic_fallback",
+            }
+    return None
+
+
+async def value_replacement_from_message(
+    text: str,
+    language: str,
+    current_brief: SearchBrief | dict | None,
+) -> dict | None:
+    if not looks_like_value_replacement_message(text):
+        return None
+
+    deterministic_replacement = deterministic_value_replacement_from_message(text)
+    interpreter_result, _ = await classify_pending_answer_interpreter_from_message(
+        text=text,
+        language=language,
+        current_brief=current_brief,
+    )
+    if (
+        interpreter_result
+        and interpreter_result.get("intent") == PENDING_ANSWER_INTENT_REPLACE_VALUE
+        and interpreter_result.get("old_value")
+        and interpreter_result.get("new_value")
+    ):
+        if deterministic_replacement:
+            if (
+                value_replacement_key(interpreter_result.get("old_value"))
+                == value_replacement_key(deterministic_replacement.get("old_value"))
+                and value_replacement_key(interpreter_result.get("new_value"))
+                == value_replacement_key(deterministic_replacement.get("new_value"))
+            ):
+                return interpreter_result
+            return deterministic_replacement
+        return interpreter_result
+
+    return deterministic_replacement
+
+
+def search_brief_value_matches(
+    normalized_brief: dict,
+    old_value: str,
+) -> list[dict]:
+    old_key = value_replacement_key(old_value)
+    if not old_key:
+        return []
+
+    matches: list[dict] = []
+    for field in VALUE_REPLACEMENT_FIELDS:
+        if field == "stack":
+            for index, item in enumerate(normalized_brief.get("stack") or []):
+                if value_replacement_key(item) == old_key:
+                    matches.append({"field": field, "value": item, "index": index})
+            continue
+
+        value = normalized_brief.get(field)
+        if value_replacement_key(value) == old_key:
+            matches.append({"field": field, "value": value})
+
+    return matches
+
+
+def field_label(field: str) -> str:
+    labels = {
+        "role_family": "role",
+        "technology": "technology",
+        "stack": "stack",
+        "location": "location",
+        "seniority": "seniority",
+        "search_depth": "depth",
+    }
+    return labels.get(field, field.replace("_", " "))
+
+
+def value_replacement_clarification_patch(
+    *,
+    source_message: str,
+    message: str,
+) -> dict:
+    return build_brief_patch(
+        source_message=source_message,
+        operations=[],
+        requires_clarification=True,
+        assistant_message=message,
+    )
+
+
+def value_replacement_not_found_message(old_value: str, language: str) -> str:
+    return (
+        f"I could not find {old_value} in the current search summary. "
+        "Tell me which existing value should be updated."
+    )
+
+
+def value_replacement_ambiguous_message(old_value: str, fields: list[str], language: str) -> str:
+    field_list = ", ".join(field_label(field) for field in fields)
+    return (
+        f"I found {old_value} in more than one search summary field: {field_list}. "
+        "Which one should I update?"
+    )
+
+
+def value_replacement_invalid_message(
+    *,
+    field: str,
+    new_value: str,
+    errors: list[dict[str, str]] | list[str],
+    language: str,
+) -> str:
+    message = None
+    if errors:
+        first_error = errors[0]
+        message = (
+            first_error.get("message")
+            if isinstance(first_error, dict)
+            else str(first_error)
+        )
+    field_name = field_label(field)
+    suffix = f" {message}" if message else ""
+    return f"I could not use {new_value} as {field_name}.{suffix}"
+
+
+def normalized_replacement_for_field(
+    field: str,
+    new_value: str,
+) -> tuple[str | None, list[dict[str, str]] | list[str]]:
+    if field == "stack":
+        stack_item, stack_error = normalize_stack_item_value(new_value)
+        return stack_item, [stack_error] if stack_error else []
+    if field == "location":
+        return normalize_search_location_value(new_value)
+    if field == "technology":
+        return normalize_technology_value(new_value)
+    if field == "role_family":
+        return normalize_role_family_value(new_value)
+    if field == "seniority":
+        seniority = detected_seniority_value(new_value)
+        return seniority, [] if seniority else ["Unsupported seniority."]
+    if field == "search_depth":
+        search_depth = detected_search_depth_value(new_value)
+        return search_depth, [] if search_depth else ["Unsupported search depth."]
+    return None, ["Unsupported field."]
+
+
+def replacement_operation_for_field(
+    *,
+    normalized_brief: dict,
+    match: dict,
+    new_value: str,
+) -> tuple[dict | None, list[dict[str, str]] | list[str]]:
+    field = match["field"]
+    normalized_new_value, errors = normalized_replacement_for_field(field, new_value)
+    if errors or not normalized_new_value:
+        return None, errors
+
+    if field == "stack":
+        current_stack = list(normalized_brief.get("stack") or [])
+        next_stack: list[str] = []
+        replaced = False
+        for index, item in enumerate(current_stack):
+            next_item = normalized_new_value if index == match.get("index") else item
+            if index == match.get("index"):
+                replaced = True
+            if next_item not in next_stack:
+                next_stack.append(next_item)
+        if not replaced:
+            return None, ["Original stack item was not found."]
+        return {
+            "operation": BRIEF_PATCH_REPLACE_STACK,
+            "field": "stack",
+            "values": next_stack,
+        }, []
+
+    if field == "location":
+        return {
+            "operation": BRIEF_PATCH_SET_LOCATION,
+            "field": "location",
+            "value": normalized_new_value,
+        }, []
+
+    if field in {"technology", "role_family"}:
+        return {
+            "operation": BRIEF_PATCH_RECONFIRM_FIELD,
+            "field": field,
+            "value": normalized_new_value,
+        }, []
+
+    if field == "seniority":
+        return {
+            "operation": BRIEF_PATCH_SET_SENIORITY,
+            "field": "seniority",
+            "value": normalized_new_value,
+        }, []
+
+    if field == "search_depth":
+        return {
+            "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,
+            "field": "search_depth",
+            "value": normalized_new_value,
+        }, []
+
+    return None, ["Unsupported field."]
+
+
+async def value_replacement_patch_from_message(
+    request: RecruiterChatTurnRequest,
+    text: str,
+    language: str,
+) -> dict | None:
+    if not request.draft_brief:
+        return None
+
+    replacement = await value_replacement_from_message(
+        text,
+        language,
+        request.draft_brief,
+    )
+    if not replacement:
+        return None
+
+    old_value = replacement.get("old_value")
+    new_value = replacement.get("new_value")
+    if not old_value or not new_value:
+        return None
+
+    context = current_brief_context_for_language(request.draft_brief, language)
+    normalized_brief = context.get("normalized_brief") or clean_search_brief_dict(
+        request.draft_brief
+    )
+    matches = search_brief_value_matches(normalized_brief, old_value)
+    if not matches:
+        return value_replacement_clarification_patch(
+            source_message=text,
+            message=value_replacement_not_found_message(old_value, language),
+        )
+
+    matched_fields = sorted({match["field"] for match in matches})
+    if len(matches) != 1:
+        return value_replacement_clarification_patch(
+            source_message=text,
+            message=value_replacement_ambiguous_message(
+                old_value,
+                matched_fields,
+                language,
+            ),
+        )
+
+    operation, errors = replacement_operation_for_field(
+        normalized_brief=normalized_brief,
+        match=matches[0],
+        new_value=new_value,
+    )
+    if operation is None:
+        return value_replacement_clarification_patch(
+            source_message=text,
+            message=value_replacement_invalid_message(
+                field=matches[0]["field"],
+                new_value=new_value,
+                errors=errors,
+                language=language,
+            ),
+        )
+
+    return build_brief_patch(
+        source_message=text,
+        operations=[operation],
+        requires_clarification=False,
+    )
+
+
 UNSUPPORTED_REFINEMENT_PATTERNS = [
 ]
 
@@ -5352,7 +5677,9 @@ async def pending_location_clarification_patch_from_message(
             and interpreter_result.get("intent") == PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD
             and interpreter_result.get("values")
         ):
-            location = interpreter_result["values"][0]
+            interpreted_location = interpreter_result["values"][0]
+            if not location_candidate_is_obviously_not_location(interpreted_location):
+                location = interpreted_location
     if not location:
         return None
 
@@ -6180,6 +6507,20 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             language,
             planner_mode,
             pending_hypothesis_unclear_message(language),
+        )
+
+    replacement_patch = await value_replacement_patch_from_message(
+        request,
+        latest_user_text,
+        language,
+    )
+    if replacement_patch is not None:
+        return build_recruiter_chat_refinement_response(
+            request,
+            language,
+            planner_mode,
+            replacement_patch,
+            chat_text,
         )
 
     current_pending_field = pending_clarification_field(request, language)
