@@ -6,6 +6,7 @@ from app.domain_config import (
     REVIEW_FLAG_TAXONOMY,
     search_domain_config_for,
 )
+from app.role_aliases import approved_role_aliases_from_plan
 from app.text_utils import (
     clean_headline_value,
     clean_profile_text,
@@ -80,23 +81,30 @@ def query_plan_by_id(query_plan: dict) -> dict[str, dict]:
 
 def role_context_phrases(query_sources: list[dict], query_plan: dict) -> list[str]:
     queries_by_id = query_plan_by_id(query_plan)
+    approved_aliases = approved_role_aliases_from_plan(query_plan.get("role_alias_plan"))
     role_phrases: list[str] = []
+    approved_alias_keys = {alias.lower() for alias in approved_aliases}
 
     for source in query_sources:
         role_phrase = source.get("role_phrase")
         if not role_phrase:
             query = queries_by_id.get(source.get("id"))
             role_phrase = query.get("role_phrase") if query else None
-        if role_phrase:
+        if role_phrase and (
+            not approved_alias_keys or role_phrase.lower() in approved_alias_keys
+        ):
             role_phrases.append(role_phrase)
 
     input_snapshot = query_plan.get("input_snapshot") or {}
     if input_snapshot.get("role_family"):
         role_phrases.append(input_snapshot["role_family"])
 
-    for query in query_plan.get("queries", []):
-        if query.get("role_phrase"):
-            role_phrases.append(query["role_phrase"])
+    if approved_aliases:
+        role_phrases.extend(approved_aliases)
+    else:
+        for query in query_plan.get("queries", []):
+            if query.get("role_phrase"):
+                role_phrases.append(query["role_phrase"])
 
     return ordered_unique(role_phrases)
 

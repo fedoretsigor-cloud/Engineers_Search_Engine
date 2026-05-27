@@ -164,6 +164,10 @@ Invoke-Check "P9.7 Semantic Interpreter smoke" {
     & $python scripts/smoke_p97_semantic_interpreter.py
 }
 
+Invoke-Check "P9.8 Role Anchoring smoke" {
+    & $python scripts/smoke_p98_role_anchoring.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

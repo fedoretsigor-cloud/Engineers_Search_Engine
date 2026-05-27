@@ -20906,6 +20906,165 @@ The closeout should document:
 
 ---
 
+## Phase 9.8 - Role-Anchored Query Planning And Scoring Guardrail
+
+### Approved
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.8-001 Add role-anchored query planning and scoring guardrail
+
+### Current Phase 9.8 strategy note
+
+Phase 9.8 is a proposed post-deploy correction for role drift in planner/scoring behavior. The observed issue is not QA-specific and must not be fixed with a role-specific patch.
+
+Observed issue:
+
+```text
+Recruiter request: I need QA Automation with Java skills in Spain
+Current result: candidate list is dominated by Java Developer profiles
+```
+
+Root cause to verify during implementation:
+
+- generic query planning can generate technology-only role phrases such as `Java Developer`, `Java Engineer`, `Java Software Engineer`, `Java Specialist`, and `Java Consultant` for arbitrary IT roles;
+- candidate quality can treat those generated query role phrases as strong role evidence;
+- therefore `technology = Java` can accidentally become the target role, even when `role_family = QA Automation`.
+
+The intended product behavior is global:
+
+- role remains the recruiter-selected/requested target role;
+- technology remains a technology constraint/signal;
+- stack remains a supporting stack constraint/signal;
+- location remains a location constraint/signal;
+- LLM may help interpret or expand role aliases, but backend validation remains authoritative.
+
+Implementation result: `P9.8-001` is completed. Rule-based query plans now include deterministic `RoleAliasPlan` metadata. Generic planning no longer approves technology-only role phrases such as `Java Developer` for arbitrary roles such as `QA Automation`; those legacy templates are rejected as `technology_only_role_drift`. Configured domain plans, such as `Backend Developer + Java`, keep their explicitly configured role phrases. Candidate quality now uses approved role aliases as the strong role evidence set, so a plain Java Developer profile is not a strong role match for `QA Automation + Java`.
+
+Verification result: `scripts/smoke_p98_role_anchoring.py` covers QA Automation/Java, Data Analyst/Python, DevOps/AWS, Product Manager/AI, configured Backend Developer/Java preservation, and candidate scoring against a plain Java Developer false positive.
+
+---
+
+## Task: P9.8-001 Add role-anchored query planning and scoring guardrail
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+After Phase 9.7, the chat can understand natural recruiter input better, but the approved search can still drift at the planning/scoring layer.
+
+Example:
+
+```text
+Search Brief:
+role_family = QA Automation
+technology = Java
+location = Spain
+stack = Java
+```
+
+The system should search for QA Automation / Test Automation / SDET-like profiles with Java as a technology signal. It should not treat generic Java Developer profiles as strong matches unless an approved role-alias policy explicitly says that the target role allows that alias.
+
+This must be solved as a global role-anchoring architecture issue, not as a QA-only fix.
+
+### Goal
+
+Prevent technology-only role drift in query planning and candidate scoring for all IT roles.
+
+Use bounded LLM where it adds real value:
+
+- propose semantically related role aliases for the requested role;
+- normalize recruiter wording into a role-alias plan;
+- help support roles beyond the original Java/backend baseline.
+
+Do not use LLM as the authority for execution, provider calls, candidate scoring facts, or approval. Backend validation must decide which aliases are allowed.
+
+### Review Decision Before Coding
+
+Current implementation should not add a live OpenAI call inside the rule-based planner path. The planner/runtime approval path is currently deterministic and synchronous; adding a runtime LLM dependency there would increase latency, cost, and failure modes before the role-drift guardrail is proven.
+
+For `P9.8-001`, implement the role-anchoring guardrail as:
+
+- deterministic `RoleAliasPlan` metadata on every rule-based `QueryPlan`;
+- validated role aliases as the only strong role phrases for generic planning/scoring;
+- configured domain plans, such as `Backend Developer + Java`, preserved through explicitly approved configured role phrases;
+- no technology-only generic role templates for arbitrary roles;
+- contract/validator-ready shape so a future bounded LLM alias producer can be added behind the same backend validator without changing executor/scoring semantics.
+
+This keeps the fix global and avoids a QA-specific patch.
+
+### Proposed Steps
+
+1. Review current planner and scorer behavior.
+   - Inspect `app/planning.py` generic role phrase generation.
+   - Inspect `app/candidate_quality.py` role context and role matching.
+   - Confirm exactly where technology-only phrases become query roles and strong role evidence.
+
+2. Define a bounded `RoleAliasPlan` contract.
+   - Input: validated Search Brief role, technology, stack, location, and language policy.
+   - Output: strict structured JSON with `target_role`, `approved_aliases`, `rejected_aliases`, `confidence`, and `reason_code`.
+   - Example approved aliases for `QA Automation`: `QA Automation`, `QA Automation Engineer`, `Test Automation Engineer`, `SDET`.
+   - Example rejected aliases: `Java Developer`, `Java Engineer`, `Java Software Engineer` when target role is QA Automation.
+   - The LLM may propose aliases only; it must not generate final query execution, approve search, call providers, open LinkedIn, message candidates, or persist data.
+
+3. Add backend role-alias validation.
+   - Reject aliases that are technology-only role phrases unless explicitly allowed by a validated role-compatibility rule.
+   - Reject aliases with URLs, Boolean query syntax, account actions, unsafe text, unsupported language, or excessive length/count.
+   - Reject low-confidence or ambiguous alias plans.
+   - Keep deterministic fallback available when OpenAI is missing or validation fails.
+
+4. Replace generic technology-only role phrase generation.
+   - Planner must build role phrases from validated role aliases, not from generic `{technology} Developer/Engineer/Specialist/Consultant` templates.
+   - Technology can remain an `AND` term or stack signal, but should not become the role.
+   - Preserve useful role-anchored combinations like `{role_family} {technology}` and `{technology} {role_family}` when valid.
+
+5. Add deterministic fallback aliases.
+   - Fallback must be conservative and role-anchored.
+   - It can use `role_family`, `{role_family} {technology}`, `{technology} {role_family}`, and safe role-family-derived variants.
+   - It must not add generic technology-only roles for arbitrary roles.
+
+6. Update candidate quality role evidence.
+   - Strong role evidence should come from target role or validated aliases.
+   - Query-source role evidence should be typed and weaker unless the source role phrase is validated as role-anchored.
+   - A `Junior Java Developer` candidate must not become a strong role match for `QA Automation + Java` just because Java appears in the technology/stack.
+
+7. Add regression coverage.
+   - `QA Automation + Java + Spain` query plan must not contain `Java Developer`, `Java Engineer`, `Java Software Engineer`, `Java Specialist`, or `Java Consultant`.
+   - `Data Analyst + Python` must not drift into `Python Developer`.
+   - `DevOps + AWS` must not drift into `AWS Developer`.
+   - `Product Manager + AI` must not drift into `AI Engineer`.
+   - `Backend Developer + Java` should preserve useful Java/backend coverage only through validated aliases, not through unvalidated generic technology-only defaults.
+   - Candidate scoring must not rank a plain Java Developer as a strong role match for QA Automation.
+
+8. Run live or simulated recruiter UAT after implementation.
+   - Validate that `QA Automation + Java + Spain` returns role-appropriate query intent.
+   - Compare candidate result quality before/after.
+   - Record any coverage loss explicitly rather than hiding it with broad generic role phrases.
+
+### Acceptance Criteria
+
+- No QA-specific hardcode is introduced.
+- Generic planner no longer turns technology into role for arbitrary IT roles.
+- Candidate scoring no longer treats technology-only generated phrases as strong target-role evidence.
+- Bounded LLM role-alias expansion is optional and validated; deterministic fallback remains safe.
+- Existing human-approved runtime boundary is preserved.
+- No autonomous execution, no direct web-search bypass, no LinkedIn login/scraping/automation, no candidate messaging, no account actions, and no persistence are added.
+
+### Non-Goals
+
+- Do not change search providers.
+- Do not add direct LinkedIn access or enrichment.
+- Do not add persistence or saved searches.
+- Do not add a live role-alias LLM producer in this task; future bounded LLM alias expansion must reuse the backend validator introduced here.
+
+---
+
 ## Task: P9.6-007 Default empty Recruiter Chat layout
 
 ### Status

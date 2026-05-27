@@ -508,11 +508,12 @@ Recommended next steps:
 - Phase 8.75: `Recruiter UAT & Acceptance Gate`; `P8.75-001 Run recruiter UAT acceptance gate before persistence` and `P8.75.1-001 Run UI conversation UX UAT before persistence` are completed and green.
 - Phase 8.8: `Recruiter Concern Backlog before Persistence`; `P8.8-001` through `P8.8-024` are approved and implemented.
 - Phase 9: `Multi-Provider Search Expansion`.
+- Phase 9.8: `Role-Anchored Query Planning And Scoring Guardrail`; `P9.8-001` is completed. Rule-based query plans now carry deterministic `RoleAliasPlan` metadata, generic planning rejects technology-only role phrases for arbitrary roles, configured domain plans are preserved, and candidate scoring uses approved aliases as the strong role evidence set.
 - Phase 10: `Persistent Memory + Saved Searches`.
 - Phase 11: `Manual Candidate Evidence Intake`.
 - Phase 12: `Resume Upload & Fit Analysis`.
 
-Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is completed as technical preparation before runtime. Phase 6 is completed as `AI Agent Runtime v0 baseline`. Phase 7 is completed as `Agent Conversation Wording Layer v0 baseline`. Phase 7.5 is completed as a recruiter simulation QA gate with the decision `ready after approved fixes completed`. Phase 8 is completed and closed through `P8-032` as the Candidate Workspace/Table + Shortlist phase. Phase 8.5 is completed through `P8.5-005` as deterministic current-run review slices. Phase 8.75 is completed as green recruiter UAT acceptance gates before Phase 9 multi-provider expansion and Phase 10 persistence, including backend/runtime/workspace acceptance and real frontend simulated-user conversation UX. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
+Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow Java/Ukraine Agent UX foundation. Phase 5.5 is completed as technical preparation before runtime. Phase 6 is completed as `AI Agent Runtime v0 baseline`. Phase 7 is completed as `Agent Conversation Wording Layer v0 baseline`. Phase 7.5 is completed as a recruiter simulation QA gate with the decision `ready after approved fixes completed`. Phase 8 is completed and closed through `P8-032` as the Candidate Workspace/Table + Shortlist phase. Phase 8.5 is completed through `P8.5-005` as deterministic current-run review slices. Phase 8.75 is completed as green recruiter UAT acceptance gates before Phase 9 multi-provider expansion and Phase 10 persistence, including backend/runtime/workspace acceptance and real frontend simulated-user conversation UX. Phase 9.8 completed the global role-anchored planning/scoring correction before treating the POC as stable for broader IT roles. Every following task should intentionally move the product toward a real AI Agent experience while preserving backend tool boundaries and explicit approval before execution.
 
 ## Verification
 
@@ -520,6 +521,7 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 - `python -m compileall app`
 - `node --check app/static/app.js`
 - Phase 9.7 semantic interpreter smoke: `python scripts/smoke_p97_semantic_interpreter.py`
+- Phase 9.8 role anchoring smoke: `python scripts/smoke_p98_role_anchoring.py`
 - Backend smoke-check for query-only request behavior.
 - Backend smoke-check for neutral scoring.
 - Backend smoke-check for LinkedIn profile URL detection and toggle request field.
@@ -589,6 +591,7 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 - `RuleBasedQueryPlanner v1` is still the default execution planner. AI draft planning exists behind explicit mode, but AI-generated plans remain non-executable until a later reviewed task enables AI plan execution through deterministic validation and approval.
 - Current AI QueryPlan validation now includes strict `AIPlannerCoveragePolicy v0` coverage checks for the Java/Ukraine standard baseline. Unsupported briefs still need future coverage policies and return a visible `coverage_policy_not_configured` warning.
 - Candidate quality score is a deterministic v1 signal and should not be treated as final recruiting quality.
+- Role alias expansion in Phase 9.8 is currently deterministic and validator-ready; a future bounded LLM alias producer is not live yet and must reuse the backend role-alias validator.
 - No database, persistent shortlist, authentication, or autonomous AI agent runtime is included. Phase 8 shortlist/review state is browser in-memory only until Phase 10.
 - Absolute product boundaries: no direct web-search bypass outside the approved backend pipeline, no direct LinkedIn access/automation, no LinkedIn login, no LinkedIn scraping or restriction bypass, no automatic candidate messaging, no autonomous execution, and no actions with user or third-party accounts.
 

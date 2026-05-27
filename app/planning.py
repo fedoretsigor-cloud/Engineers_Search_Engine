@@ -8,6 +8,7 @@ from app.domain_config import (
     QUERY_PLANNER_VERSION,
     search_domain_config_for,
 )
+from app.role_aliases import build_role_alias_plan, approved_role_aliases_from_plan
 
 
 def quote_query_value(value: str) -> str:
@@ -58,33 +59,23 @@ def build_query_slot(
 
 
 def generic_role_phrases(role_family: str, technology: str) -> list[str]:
-    candidates = [
-        f"{technology} {role_family}",
-        f"{role_family} {technology}",
-        role_family,
-        f"{technology} Developer",
-        f"{technology} Engineer",
-        f"{technology} Specialist",
-        f"{technology} Consultant",
-        f"{role_family} Engineer",
-        f"{role_family} Developer",
-        f"{technology} Software Engineer",
-    ]
-    unique: list[str] = []
-    seen: set[str] = set()
-    for phrase in candidates:
-        normalized = " ".join(phrase.split())
-        key = normalized.lower()
-        if normalized and key not in seen:
-            seen.add(key)
-            unique.append(normalized)
-    return unique[:10]
+    role_alias_plan = build_role_alias_plan(
+        role_family=role_family,
+        technology=technology,
+    )
+    return approved_role_aliases_from_plan(role_alias_plan)[:10]
 
 
-def generic_planner_queries(normalized_request: dict) -> list[dict]:
+def generic_planner_queries(
+    normalized_request: dict,
+    role_alias_plan: dict | None = None,
+) -> list[dict]:
     role_family = normalized_request["role_family"]
     technology = normalized_request["technology"]
-    role_phrases = generic_role_phrases(role_family, technology)
+    if role_alias_plan:
+        role_phrases = approved_role_aliases_from_plan(role_alias_plan)
+    else:
+        role_phrases = generic_role_phrases(role_family, technology)
     stack_focused_ids = {"Q07", "Q08", "Q09", "Q10"}
     queries: list[dict] = []
 
@@ -124,6 +115,15 @@ class RuleBasedQueryPlannerV1:
             normalized_request["technology"],
         )
         planner_queries = domain_config.get("planner", {}).get("queries", [])
+        role_alias_plan = build_role_alias_plan(
+            role_family=normalized_request["role_family"],
+            technology=normalized_request["technology"],
+            configured_role_phrases=[
+                query_config["role_phrase"]
+                for query_config in planner_queries
+                if query_config.get("role_phrase")
+            ],
+        )
         if planner_queries:
             queries = [
                 build_query_slot(
@@ -138,11 +138,12 @@ class RuleBasedQueryPlannerV1:
                 for query_config in planner_queries
             ]
         else:
-            queries = generic_planner_queries(normalized_request)
+            queries = generic_planner_queries(normalized_request, role_alias_plan)
 
         return {
             "planner_version": self.version,
             "input_snapshot": normalized_request,
+            "role_alias_plan": role_alias_plan,
             "queries": queries,
             "filters": {
                 "linkedin_profiles_only": normalized_request["linkedin_profiles_only"],
@@ -161,6 +162,7 @@ def query_plan_fingerprint_payload(query_plan: dict) -> dict:
         "planner_version": query_plan.get("planner_version"),
         "planner_mode": query_plan.get("planner_mode", PLANNER_MODE_RULE_BASED),
         "input_snapshot": query_plan.get("input_snapshot"),
+        "role_alias_plan": query_plan.get("role_alias_plan"),
         "queries": query_plan.get("queries"),
         "filters": query_plan.get("filters"),
         "execution": query_plan.get("execution"),
