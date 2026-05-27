@@ -47,7 +47,25 @@ if ($token) {
 
 function Invoke-GitHubApi {
     param([string] $Uri)
-    return Invoke-RestMethod -Uri $Uri -Headers $headers
+    try {
+        return Invoke-RestMethod -Uri $Uri -Headers $headers
+    }
+    catch {
+        $statusCode = $null
+        if ($_.Exception.Response) {
+            $statusCode = [int] $_.Exception.Response.StatusCode
+        }
+
+        if ($statusCode -eq 403) {
+            Write-Host "GitHub API request was rejected while checking CI, likely because the unauthenticated rate limit was exceeded."
+            Write-Host "Set GITHUB_TOKEN or GH_TOKEN before running this watcher, then retry:"
+            Write-Host "  `$env:GITHUB_TOKEN = '<token-with-actions-read-access>'"
+            Write-Host "  powershell -ExecutionPolicy Bypass -File .\scripts\watch_ci.ps1 -CommitSha $CommitSha"
+            exit 2
+        }
+
+        throw
+    }
 }
 
 function Get-FailedJobDetails {
