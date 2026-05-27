@@ -261,6 +261,15 @@ textarea:focus {
   top: 16px;
 }
 
+.chat-panel > .panel-header {
+  margin-bottom: 0;
+}
+
+.chat-panel:has(.chat-messages-empty) {
+  align-content: start;
+  gap: 10px;
+}
+
 @media (min-width: 980px) {
   .chat-panel,
   .results-panel {
@@ -280,7 +289,7 @@ textarea:focus {
   align-content: start;
   max-height: none;
   min-height: 0;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .chat-message {

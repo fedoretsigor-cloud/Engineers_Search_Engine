@@ -49,6 +49,23 @@ def missing_stack_brief() -> main.SearchBrief:
     )
 
 
+def missing_location_brief() -> main.SearchBrief:
+    return main.SearchBrief(
+        source_text="I need QA Automation with Java skills.",
+        brief_status="needs_clarification",
+        role_family="QA Automation",
+        technology="Java",
+        stack=["Java"],
+        location=None,
+        must_have=["Java"],
+        nice_to_have=["Java"],
+        search_depth="standard",
+        profile_sources=["linkedin_public"],
+        missing_fields=["location"],
+        clarifying_questions=["What target location should the search use?"],
+    )
+
+
 def chat_request(text: str, draft_brief: main.SearchBrief | None = None) -> main.RecruiterChatTurnRequest:
     return main.RecruiterChatTurnRequest(
         language="en",
@@ -238,6 +255,55 @@ async def assert_cyrillic_stack_is_still_rejected() -> None:
     assert any("English input only" in error["message"] for error in response["validation_errors"]), response
 
 
+async def assert_pending_location_spain_is_accepted() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("Spain", draft_brief=missing_location_brief())
+    )
+    assert response["ok"] is True, response
+    assert response["state"] == "ready_for_planning", response
+    assert response["normalized_brief"]["location"] == "Spain", response
+    assert response["can_build_plan"] is True, response
+
+
+async def assert_pending_location_remote_is_accepted() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("Remote", draft_brief=missing_location_brief())
+    )
+    assert response["ok"] is True, response
+    assert response["state"] == "ready_for_planning", response
+    assert response["normalized_brief"]["location"] == "Remote", response
+    assert response["can_build_plan"] is True, response
+
+
+async def assert_pending_location_prefixed_city_is_accepted() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("location is Madrid", draft_brief=missing_location_brief())
+    )
+    assert response["ok"] is True, response
+    assert response["state"] == "ready_for_planning", response
+    assert response["normalized_brief"]["location"] == "Madrid", response
+
+
+async def assert_pending_location_java_is_rejected() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("Java", draft_brief=missing_location_brief())
+    )
+    assert response["state"] == "needs_clarification", response
+    assert response["can_build_plan"] is False, response
+    assert response["normalized_brief"]["location"] is None, response
+    assert "English target location" in response["assistant_message"], response
+    assert "current baseline" not in response["assistant_message"], response
+
+
+async def assert_pending_location_role_is_rejected() -> None:
+    response = await main.recruiter_chat_turn_response(
+        chat_request("QA Automation", draft_brief=missing_location_brief())
+    )
+    assert response["state"] == "needs_clarification", response
+    assert response["can_build_plan"] is False, response
+    assert response["normalized_brief"]["location"] is None, response
+
+
 async def main_smoke() -> None:
     assert_frontend_phase_96_contract()
     await assert_pending_stack_java_is_accepted_without_llm()
@@ -245,6 +311,11 @@ async def main_smoke() -> None:
     await assert_invalid_stack_terms_are_rejected_safely()
     await assert_llm_unavailable_fallback_is_safe()
     await assert_cyrillic_stack_is_still_rejected()
+    await assert_pending_location_spain_is_accepted()
+    await assert_pending_location_remote_is_accepted()
+    await assert_pending_location_prefixed_city_is_accepted()
+    await assert_pending_location_java_is_rejected()
+    await assert_pending_location_role_is_rejected()
 
 
 if __name__ == "__main__":

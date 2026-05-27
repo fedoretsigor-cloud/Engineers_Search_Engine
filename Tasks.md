@@ -20551,14 +20551,205 @@ Boundaries:
 - [x] P9.6-004 Increase Recruiter Chat message input height
 - [x] P9.6-005 Reduce Recruiter Chat action button height
 - [x] P9.6-006 Replace hardcoded stack-signal whitelist with bounded LLM IT relevance validation
+- [x] P9.6-007 Default empty Recruiter Chat layout
+- [x] P9.6-008 Generalize pending location clarification
 
 ### Current Phase 9.6 strategy note
 
 Phase 9.6 collects narrow post-deploy recruiter UX improvements observed on the live POC. These tasks should stay small and frontend-first where possible, but can include bounded conversation-validation fixes when live POC behavior blocks a normal recruiter flow. Phase 9.6 must not reopen Phase 9.5 hardening, Phase 9 provider logic, or Phase 10 persistence unless separately approved.
 
-Implementation result: `P9.6-001` through `P9.6-006` are completed. Candidate Results now shows a manual safe LinkedIn profile link under candidate identity, removes low-value `Location` and `Stack` columns from the primary table, keeps the chat helper compact/high/italic, uses a taller message input, uses shorter chat action buttons, and accepts non-hardcoded English IT/software stack signals through bounded LLM classification when deterministic recognition is insufficient. The implementation preserves manual user-click-only LinkedIn behavior, no LinkedIn automation/scraping/messaging/account actions, no provider/query fanout changes, no persistence, and no search execution outside the existing human-approved backend runtime boundary.
+Implementation result: `P9.6-001` through `P9.6-008` are completed. Candidate Results now shows a manual safe LinkedIn profile link under candidate identity, removes low-value `Location` and `Stack` columns from the primary table, keeps the chat helper compact/high/italic directly under the `Recruiter Chat` title in the empty state, uses a taller message input, uses shorter chat action buttons, accepts non-hardcoded English IT/software stack signals through bounded LLM classification when deterministic recognition is insufficient, and accepts safe English pending-location answers such as `Spain`, `Remote`, and `Madrid` while rejecting technology/role/noise answers. The implementation preserves manual user-click-only LinkedIn behavior, no LinkedIn automation/scraping/messaging/account actions, no provider/query fanout changes, no persistence, and no search execution outside the existing human-approved backend runtime boundary.
 
 Verification result: `scripts/check_all.ps1`, `scripts/smoke_p96_post_deploy_polish.py`, and local Playwright browser sanity passed.
+
+---
+
+## Task: P9.6-007 Default empty Recruiter Chat layout
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+After `P9.6-003`, `P9.6-004`, and `P9.6-005`, the default empty Recruiter Chat state still needs a precise visual target. The intended default state is:
+
+- `Recruiter Chat` title at the top of the panel;
+- the initial `Feel free...` helper immediately under the title, not vertically centered lower in the panel;
+- `MESSAGE` label directly after the helper;
+- a large message textarea below the label;
+- `Reset` and `Send` buttons aligned bottom-right under the textarea.
+
+The helper text and default placeholder text should not change in this task.
+
+### Goal
+
+Make the empty Recruiter Chat default layout match the approved visual target:
+
+- remove the large vertical gap between `Recruiter Chat` and the helper;
+- keep the helper compact, italic, and full-width inside the chat panel;
+- keep the message input large;
+- keep the action buttons compact and aligned bottom-right;
+- preserve all chat behavior.
+
+### Proposed Steps
+
+1. Review current empty chat layout.
+   - Inspect `.chat-panel`, `.panel-header`, `.chat-messages`, `.chat-messages-empty`, `.chat-empty-message`, `.chat-form`, and chat button CSS.
+   - Measure the actual vertical gap between the `Recruiter Chat` header and helper in browser sanity.
+
+2. Tighten only the empty-state layout.
+   - Remove double spacing caused by panel header margin plus grid gap.
+   - Keep normal conversation spacing readable once messages exist.
+   - Avoid changing assistant/user message behavior during active chat.
+
+3. Preserve the approved default visual structure.
+   - Helper stays immediately under `Recruiter Chat`.
+   - `MESSAGE` label follows the helper.
+   - Textarea stays large.
+   - Buttons stay compact and bottom-right.
+
+4. Preserve boundaries.
+   - CSS/front-end layout only.
+   - No backend, Search Brief, LLM, runtime, provider, query, candidate, scoring, filtering, persistence, or deployment logic changes.
+
+5. Verify.
+   - Browser sanity checks the helper is close under the header, compact, and italic.
+   - Browser sanity checks textarea remains tall and buttons remain compact.
+   - Run at least the P9.6 smoke or full `scripts/check_all.ps1` before commit.
+
+### Acceptance Criteria
+
+- Default empty Recruiter Chat layout visually matches the approved target.
+- The helper appears directly below the `Recruiter Chat` heading with no large vertical gap.
+- The helper remains compact and italic.
+- The message textarea remains large.
+- `Reset` and `Send` remain compact and aligned bottom-right.
+- No chat behavior or backend/search/runtime/provider/LLM/persistence behavior changes are introduced.
+- Relevant checks pass after implementation.
+
+### Non-Goals
+
+- Changing helper wording.
+- Changing placeholder wording.
+- Changing chat state, Search Brief extraction, intent detection, LLM calls, planning, or search execution.
+- Changing Candidate Results.
+
+### Implementation Result
+
+- Tightened empty-state chat layout so CSS grid rows no longer stretch the `Recruiter Chat` header/helper away from the top.
+- Kept the helper compact, italic, and full-width inside the chat panel.
+- Preserved the taller textarea and compact bottom-right actions.
+- Did not change backend, Search Brief, runtime, search, provider, LLM, persistence, or Candidate Results behavior.
+
+### Verification Completed
+
+- `scripts/smoke_p96_post_deploy_polish.py`.
+- Local Playwright browser sanity for default empty chat layout.
+
+---
+
+## Task: P9.6-008 Generalize pending location clarification
+
+### Status
+
+Implemented / completed.
+
+### Context
+
+Phase 9.5 generalized the final POC to any English IT/software role when role, main technology, 1-3 stack signals, and location are present. `P9.6-006` generalized stack-signal acceptance with bounded LLM validation where deterministic recognition is insufficient.
+
+However, the pending-location clarification path still contains old Ukraine-baseline behavior. Example observed flow:
+
+```text
+User: I need QA Automation in Spain with Java skills
+AI Assistant: Which 1-3 stack signals are important for this search?
+User: Java
+AI Assistant: Java looks like technology, but I still need location.
+User: Spain
+AI Assistant: I did not recognize the location. For the current baseline, use Ukraine or a Ukrainian city, for example Kyiv.
+```
+
+This conflicts with the final POC scope. `Spain` should be accepted as an English target location. The old Ukraine-only message should not appear in the generic final POC pending-location flow.
+
+### Goal
+
+Make pending location clarification match the final POC scope:
+
+- accept safe English target locations such as `Spain`, `Germany`, `Poland`, `Madrid`, `United Kingdom`, `San Francisco`, or `Remote`;
+- keep rejecting Cyrillic, URLs, unsafe instructions, account/action requests, and obvious non-location answers;
+- avoid accepting technology/stack/role terms such as `Java`, `Spring`, `QA Automation`, or `Developer` as a location;
+- preserve backend runtime/search approval boundaries.
+
+### Proposed Steps
+
+1. Review current pending-location flow.
+   - Inspect `pending_location_clarification_patch_from_message()`.
+   - Inspect `pending_clarification_unrecognized_answer_field()` and `pending_clarification_unrecognized_answer_message()`.
+   - Compare with `pending_update_field_patch_from_message(..., field="location")`, which already accepts generic location updates.
+
+2. Add a strict safe pending-location normalizer.
+   - Reuse existing Search Brief/structured-search field validation where possible.
+   - Accept bounded English location-like values.
+   - Strip simple recruiter prefixes such as `location is`, `use`, `set`, `in`, or `from`.
+   - Reject empty/noise/control words, URLs, unsafe instructions, Cyrillic, overlong values, technology/stack terms, and IT role terms.
+   - Do not add broad country-domain mapping or location-filter semantics in this task.
+
+3. Apply the normalizer to pending location clarification.
+   - `Spain` should create a `BRIEF_PATCH_SET_LOCATION` patch.
+   - Existing Ukraine/Kyiv detection should continue to work.
+   - `Java` should not become a location.
+   - `QA Automation` / role-like answers should not become a location.
+
+4. Update recruiter-facing fallback wording.
+   - Remove old `current baseline / Ukraine` wording from generic pending-location clarification.
+   - Use wording such as: `That does not look like an English target location. Use a country, city, region, or Remote, for example Spain, Germany, Poland, Madrid, or Remote.`
+
+5. Preserve boundaries.
+   - Do not change provider fanout, QueryPlan generation, search execution, runtime approval, candidate scoring, dedupe, location filtering, or persistence.
+   - Do not call Tavily/OpenAI from this path.
+   - Do not add LinkedIn automation, scraping, login, messaging, account actions, or direct web-search bypass.
+
+6. Add/update verification.
+   - Pending location answer `Spain` is accepted and makes the brief ready when other required fields are present.
+   - Pending location answer `Germany` or `Remote` is accepted.
+   - Pending location answer `Java` is rejected as not a location.
+   - Old Ukraine/Kyiv pending-location behavior remains valid.
+   - Cyrillic location input is still rejected by English-only guardrails.
+   - Full `scripts/check_all.ps1` passes.
+
+### Acceptance Criteria
+
+- Pending location clarification accepts safe English non-Ukraine locations.
+- `Spain` in the observed flow is accepted as `location = Spain`.
+- The old Ukraine-only fallback message no longer appears for generic English pending-location answers.
+- Technology/stack/role answers are not silently accepted as locations.
+- Existing ready Search Brief, planner, runtime approval, provider execution, location filter, scoring, dedupe, and persistence behavior remain unchanged.
+- Relevant checks pass after implementation.
+
+### Non-Goals
+
+- Adding LLM location classification.
+- Adding a full country/city database.
+- Adding or changing location-filter country-domain mapping.
+- Changing query generation, provider execution, candidate quality, or location filtering.
+- Adding persistence.
+- Adding direct web-search, LinkedIn automation, scraping, login, messaging, or account actions.
+
+### Implementation Result
+
+- Added a strict pending-location normalizer for safe English location-like answers.
+- Pending location clarification now accepts values such as `Spain`, `Remote`, and prefixed answers such as `location is Madrid`.
+- Pending location clarification rejects technology, stack, role, and noise answers such as `Java` and `QA Automation`.
+- Generic English fallback wording no longer references the old Ukraine-only baseline.
+- The same safe normalizer is used for pending location update values.
+- No query generation, provider execution, runtime approval, location-filter mapping, scoring, dedupe, persistence, or LinkedIn/account behavior changed.
+
+### Verification Completed
+
+- `scripts/smoke_p96_post_deploy_polish.py`.
+- `scripts/smoke_p88_conversation_hardening.py`.
+- `scripts/smoke_p95_final_poc.py`.
 
 ---
 

@@ -233,6 +233,7 @@ from app.search_validation import (
     canonical_value,
     normalize_freeform_label,
     normalize_location_value,
+    normalize_search_location_value,
     normalize_multi_wave_search_request,
     normalize_role_family_value,
     normalize_stack_item_value,
@@ -5130,6 +5131,90 @@ async def pending_stack_clarification_patch_from_message(
     )
 
 
+def pending_location_candidate_text(text: str) -> str | None:
+    candidate = normalize_text_value(text)
+    if not candidate:
+        return None
+
+    prefix_pattern = (
+        r"^\s*(?:please\s+)?"
+        r"(?:(?:use|set|change|replace|update|make)\s+)?"
+        r"(?:(?:the\s+)?(?:target\s+)?(?:location|country|city|region)\s*"
+        r"(?:is|to|as|:)?\s*|(?:in|from)\s+)"
+    )
+    for _ in range(2):
+        next_candidate = re.sub(prefix_pattern, "", candidate, flags=re.IGNORECASE)
+        next_candidate = compact_spaces(next_candidate).strip(" .,:;\"'")
+        if next_candidate == candidate:
+            break
+        candidate = next_candidate
+
+    return candidate or None
+
+
+def location_candidate_is_obviously_not_location(value: str) -> bool:
+    normalized_value = normalized_chat_control_text(value)
+    if not normalized_value:
+        return True
+
+    if normalized_value in {
+        "yes",
+        "no",
+        "ok",
+        "okay",
+        "great",
+        "good",
+        "sure",
+        "confirm",
+        "confirmed",
+        "update",
+        "change",
+        "location",
+        "country",
+        "city",
+        "region",
+        "skip",
+        "none",
+        "n a",
+        "na",
+        "not sure",
+        "i dont know",
+        "i do not know",
+    }:
+        return True
+
+    if explicit_technology_signal(value):
+        return True
+    if deterministic_known_stack_signal_terms([value]):
+        return True
+    if explicit_it_role_signal(value):
+        return True
+    return bool(
+        re.search(
+            r"\b(skill|skills|stack|technology|tech|role|profession|"
+            r"developer|engineer|automation|tester|qa|software)\b",
+            normalized_value,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
+def normalize_pending_location_value(value: str) -> tuple[str | None, str | None]:
+    candidate = pending_location_candidate_text(value)
+    if not candidate:
+        return None, "location_missing"
+    if location_candidate_is_obviously_not_location(candidate):
+        return None, "location_not_location"
+
+    location, errors = normalize_search_location_value(candidate)
+    if errors or not location:
+        return None, "location_invalid"
+    if location_candidate_is_obviously_not_location(location):
+        return None, "location_not_location"
+
+    return location, None
+
+
 def pending_location_clarification_patch_from_message(
     request: RecruiterChatTurnRequest,
     text: str,
@@ -5138,6 +5223,8 @@ def pending_location_clarification_patch_from_message(
         return None
 
     location = deterministic_chat_brief_hints(text).get("location")
+    if not location:
+        location, _ = normalize_pending_location_value(text)
     if not location:
         return None
 
@@ -5193,8 +5280,12 @@ def pending_clarification_unrecognized_answer_field(
     if not normalized_text:
         return field if text.strip() else None
 
-    if field == "location" and deterministic_chat_brief_hints(normalized_text).get("location"):
-        return None
+    if field == "location":
+        location = deterministic_chat_brief_hints(text).get("location")
+        if not location:
+            location, _ = normalize_pending_location_value(text)
+        if location:
+            return None
     if field == "stack" and java_stack_terms_in_text(normalized_text):
         return None
 
@@ -5212,8 +5303,9 @@ def pending_clarification_unrecognized_answer_message(field: str, language: str)
                 "или город в Украине, например Киев."
             )
         return (
-            "I did not recognize the location. For the current baseline, use "
-            "Ukraine or a Ukrainian city, for example Kyiv."
+            "That does not look like an English target location. Use a country, "
+            "city, region, or Remote, for example Spain, Germany, Poland, "
+            "Madrid, or Remote."
         )
 
     if field == "stack":
@@ -5438,7 +5530,9 @@ async def pending_update_field_patch_from_message(
     current_brief: SearchBrief | dict | None = None,
 ) -> tuple[dict | None, str | None]:
     if field == "location":
-        location = deterministic_chat_brief_hints(text).get("location") or normalize_location_value(text)
+        location = deterministic_chat_brief_hints(text).get("location")
+        if not location:
+            location, _ = normalize_pending_location_value(text)
         if location:
             return build_brief_patch(
                 source_message=text,
