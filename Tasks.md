@@ -10948,7 +10948,7 @@ Implemented focused hardening:
 
 ### Current Phase 8 strategy note
 
-Phase 8 became the active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`. Phase 8, Phase 8.5, Phase 8.75, Phase 8.8, Phase 8.9, and Phase 9 are now completed; the current active direction is Phase 10 persistence/saved searches.
+Phase 8 became the active phase after `P7.5-010` closed Phase 7.5 with the readiness decision `ready after approved fixes completed`. Phase 8, Phase 8.5, Phase 8.75, Phase 8.8, Phase 8.9, and Phase 9 are now completed; the current active direction is Phase 9.5 final POC hardening and Render deployment. Phase 10+ is parked.
 
 `P8-001 Define candidate workspace contract` is completed as a docs-only contract task in `docs/phase-8-candidate-workspace-contract.md`. Its goal is to turn search results into the recruiter's working artifact: a candidate table with evidence, quality signals, shortlist, notes, and statuses.
 
@@ -10966,7 +10966,7 @@ Chat-quality batch: `P8-008` through `P8-016` are implemented as bounded current
 
 Backlog consolidation note: `P8-017`, `P8-018`, `P8-019`, `P8-020`, `P8-021`, `P8-023`, `P8-024`, `P8-025`, `P8-026`, `P8-027`, `P8-028`, `P8-029`, `P8-030`, and `P8-031` are observed recruiter-facing UX issues. `P8-017`, `P8-018`, and `P8-019` are covered by implemented `P8-032B`; `P8-028` and `P8-029` are covered by implemented `P8-032A`; `P8-025` and `P8-026` are covered by implemented `P8-032C`; `P8-030` and `P8-031` are covered by implemented Bundle A; `P8-024` is covered by implemented Bundle B; `P8-027` is covered by implemented Bundle D. `P8-020` and `P8-021` were reviewed after `P8-032A` and implemented as their own narrow frontend-only cleanup slice. `P8-022` was implemented separately in Bundle C because changing multi-wave default changes execution-mode behavior, not only conversation/presentation.
 
-Bundle A, Bundle B, Bundle C, Bundle D, and the `P8-032` parent umbrella are now implemented. Phase 8.5, Phase 8.75, Phase 8.8, Phase 8.9, and Phase 9 are also completed; the next reviewed direction is Phase 10 persistence/saved searches.
+Bundle A, Bundle B, Bundle C, Bundle D, and the `P8-032` parent umbrella are now implemented. Phase 8.5, Phase 8.75, Phase 8.8, Phase 8.9, and Phase 9 are also completed; the next reviewed direction is Phase 9.5 final POC hardening and Render deployment. Phase 10+ is parked.
 
 ---
 
@@ -20479,6 +20479,50 @@ Approval note: approved by the explicit Phase 9 execution goal using the `review
 
 ---
 
+## Phase 9.5 - Final POC Hardening And Render Deployment
+
+### Approved
+
+### Backlog
+
+- [ ] P9.5-001 Park Phase 10+ and define final POC closeout
+- [ ] P9.5-002 Enforce English-only recruiter input
+- [ ] P9.5-003 Generalize search from Java/Ukraine baseline to any IT role
+- [ ] P9.5-004 Polish empty and loading Candidate Results states
+- [ ] P9.5-005 Remove duplicate ready/search wording and Workspace Ready label
+- [ ] P9.5-006 Final POC regression pass
+- [ ] P9.5-007 Deploy POC to Render
+
+### In Progress
+
+### Done
+
+### Current Phase 9.5 strategy note
+
+Phase 9.5 is the final active POC phase. The project parks Phase 10+ persistence and future feature tracks for now, finishes a small POC hardening slice, and then deploys the current product to Render with a public URL.
+
+Search providers stay as currently implemented in Phase 9. Provider fanout/reporting changes are deferred unless a later reviewed task explicitly reopens them.
+
+The working plan is `docs/phase-9-5-final-poc-plan.md`.
+
+Task intent:
+
+1. `P9.5-001` updates docs/status so Phase 10+ is parked and Phase 9.5 is the POC closeout track.
+2. `P9.5-002` blocks Cyrillic input and keeps the current POC conversation English-only across frontend/backend entry points.
+3. `P9.5-003` removes the narrow Java/Ukraine role limitation and supports any English IT/software role when role, main technology, stack, and location are provided.
+4. `P9.5-004` improves the empty and loading Candidate Results states with professional placeholder/loading visuals and height alignment with Recruiter Chat.
+5. `P9.5-005` removes duplicate ready/search chat wording and visible `Workspace Ready`.
+6. `P9.5-006` runs the final POC regression pass.
+7. `P9.5-007` deploys the POC to Render without committing secrets.
+
+Boundaries:
+
+- do not change Phase 9 search providers unless explicitly reopened;
+- do not add persistence, saved searches, accounts, auth, outreach, LinkedIn login/scraping, or autonomous execution;
+- keep the approved backend runtime boundary as the only search execution path.
+
+---
+
 ## Phase 10 - Persistent Memory + Saved Searches
 
 ### Approved
@@ -20498,7 +20542,7 @@ Approval note: approved by the explicit Phase 9 execution goal using the `review
 
 ### Current Phase 10 strategy note
 
-Phase 10 is where database/persistence becomes useful. It should not be pulled into earlier phases unless separately approved, because the immediate goal is to stabilize the approved multi-provider search flow first.
+Phase 10 is parked for now. Database/persistence should not be pulled into Phase 9.5 unless the POC is explicitly reopened beyond final hardening/deploy.
 
 ---
 

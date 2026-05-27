@@ -13,7 +13,8 @@ Status:
 - Phase 3 Candidate Quality Layer completed.
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
-- Current active phase: Phase 10 `Persistent Memory + Saved Searches`.
+- Current active phase: Phase 9.5 `Final POC Hardening And Render Deployment`.
+- Phase 10+ persistence and later feature tracks are parked for now; the project is closing the current work as a POC before any database/memory work.
 - Phase 6 `Human-approved Tool-Calling Agent Runtime` is completed through `P6-006 Close Phase 6 with AI Agent v0 decision` and closed as `AI Agent Runtime v0 baseline`.
 - Phase 5.5 `Technical modularization before Agent Runtime` is completed through `P5.5-009`.
 - Phase 5 `Recruiter Chat UX + Search Brief conversation` is completed and closed as a narrow Java/Ukraine Agent UX foundation.
@@ -81,11 +82,12 @@ Status:
 - Phase 8.8 `Recruiter Concern Backlog before Persistence` is completed as bounded recruiter-facing conversation hardening through `P8.8-001` through `P8.8-024`. The latest slice added bounded restart/update/refine routing, immediate user-message echo with assistant thinking state, suppression of redundant technical update bubbles, and a simplified recruiter-facing candidate workspace with compact chat, dominant Candidate Results, fixed-height pagination, and hidden primary sort/filter/export/review/diagnostic controls.
 - Phase 8.9 `Recruiter UI Polish Backlog before Persistence` is completed through `P8.9-003`: stale assistant thinking bubbles are removed before real replies, Candidate Results is a compact score-sorted table, and the desktop results panel is balanced with Recruiter Chat.
 - Phase 9 `Multi-Provider Search Expansion` is completed through `P9-008`: approved backend runtime/search execution now runs Tavily plus Serper, SerpApi Google with 5-page review, and SerpApi Bing with 5-page review, normalizes provider results, dedupes by normalized LinkedIn URL, preserves provider provenance, and reports provider breakdown/limits without frontend direct provider calls or raw provider payload logging.
+- Phase 9.5 `Final POC Hardening And Render Deployment` is the active final POC plan. It parks Phase 10+ for now, keeps Phase 9 providers unchanged, adds English-only input, generalizes the current search flow to any English IT role with role/main technology/stack/location, polishes empty/loading Candidate Results states, removes duplicate ready/search wording and `Workspace Ready`, runs final regression, and deploys to Render. See `docs/phase-9-5-final-poc-plan.md`.
 - `P8-008` through `P8-016` are completed as bounded current-flow chat-quality hardening: optional LLM onboarding wording with deterministic fallback, deterministic off-topic/noise guardrails, conservative classification policy coverage, Russian pending-stack answers, localized next-iteration options, chat-confirmed `Build Plan`, Enter-to-send, normalized `AI Assistant` speaker titles, and hardened pending clarification answer routing. These changes keep `Approve & Search` as the only Tavily execution gate and do not add autonomous execution, direct web-search bypass, LinkedIn login/scraping/access automation, candidate messaging, account actions, persistence, or new search scope.
 
 Agreed next direction:
 
-- keep the product focused on one narrow high-quality flow first: `Backend Developer + Java + Ukraine`;
+- Phase 9.5 now intentionally moves the POC from the narrow `Backend Developer + Java + Ukraine` baseline toward any English IT/software role with role, main technology, stack, and location;
 - Phase 5.5 technical modularization is complete; the current backend is split into focused modules without product behavior changes;
 - Phase 6 human-approved tool-calling runtime is complete as Agent Runtime v0 baseline;
 - Phase 7 is completed and closed as `Agent Conversation Wording Layer v0 baseline`; completed Phase 7 tasks: `P7-001 Define agent message taxonomy and lifecycle mapping`, `P7-002 Define message facts and source-of-truth contract`, `P7-003 Define agent wording style and language policy`, `P7-004 Build deterministic source messages for approved message types`, `P7-005 Define LLM routing and gating policy for conversation wording`, `P7-006 Add bounded LLM wording payloads and prompt contract`, `P7-007 Add wording validation, fallback, and provenance metadata`, `P7-008 Add frontend rendering for typed agent messages`, `P7-009 Add golden conversation scenario regression tests`, `P7-010 Close Phase 7 with wording quality and guardrail evaluation`;
@@ -93,7 +95,8 @@ Agreed next direction:
 - Phase 8.75 is completed green as the backend/runtime/workspace and real frontend conversation UX acceptance gates after Phase 8.5 and before Phase 9 multi-provider expansion / Phase 10 persistence;
 - Phase 8.8 completed the bounded recruiter-facing conversation hardening slice before persistence, including LLM-first role/field/pending-action/pending-hypothesis/pending-update intent hardening, bounded restart/update/refine routing, immediate chat echo/thinking state, and simplified paginated Candidate Results while backend validation remains authoritative;
 - Phase 9 provider expansion is completed: approved searches run Tavily, Serper, SerpApi Google 5-page review, and SerpApi Bing 5-page review through the backend runtime/search pipeline, then normalize and dedupe results before Candidate Results;
-- Phase 10 persistence/memory is the next active direction.
+- Phase 9.5 final POC hardening/deploy is the next active direction;
+- Phase 10 persistence/memory and later phases are parked until the POC is explicitly reopened for more work.
 
 Current pipeline:
 
