@@ -7,6 +7,7 @@ This is the repeatable deployment path for the final POC.
 - Use `render.yaml` as the Render Blueprint.
 - Service type: web service.
 - Runtime: Python.
+- Plan: free by default for the POC.
 - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 - Health check: `/api/health`.
 
