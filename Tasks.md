@@ -21074,7 +21074,7 @@ This keeps the fix global and avoids a QA-specific patch.
 - [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [x] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
 - [x] P9.9-006 Add bounded Search Brief refinement interpreter v2
-- [ ] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
+- [x] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
 
 ### In Progress
 
@@ -21086,6 +21086,7 @@ This keeps the fix global and avoids a QA-specific patch.
 - [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [x] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
 - [x] P9.9-006 Add bounded Search Brief refinement interpreter v2
+- [x] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
 
 ### Current Phase 9.9 strategy note
 
@@ -21570,7 +21571,7 @@ Apply the same bounded LLM + strict validator pattern to recruiter refinement me
 
 ### Status
 
-Draft / not approved.
+Completed.
 
 ### Goal
 
@@ -21593,6 +21594,18 @@ Close Phase 9.9 with a documented decision on whether recruiter-message semantic
 ### Non-Goals
 
 - No new product behavior beyond documentation.
+
+### Implementation Result
+
+- Added `docs/phase-9-9-closeout.md`.
+- Closed Phase 9.9 as the final POC semantic-understanding hardening layer.
+- Documented LLM authority boundaries, backend authority boundaries, verification evidence, residual limitations, and future handoff.
+- Updated `Roadmap.md`, `ProjectStatus.md`, `Tasks.md`, and `AGENTS.md`.
+
+### Verification Completed
+
+- `git diff --check`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
 
 ---
 
