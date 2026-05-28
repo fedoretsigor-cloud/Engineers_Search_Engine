@@ -21073,7 +21073,7 @@ This keeps the fix global and avoids a QA-specific patch.
 
 - [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [x] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
-- [ ] P9.9-006 Add bounded Search Brief refinement interpreter v2
+- [x] P9.9-006 Add bounded Search Brief refinement interpreter v2
 - [ ] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
 
 ### In Progress
@@ -21085,6 +21085,7 @@ This keeps the fix global and avoids a QA-specific patch.
 - [x] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
 - [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [x] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
+- [x] P9.9-006 Add bounded Search Brief refinement interpreter v2
 
 ### Current Phase 9.9 strategy note
 
@@ -21483,7 +21484,7 @@ Add an automated semantic UAT suite that Codex runs during implementation verifi
 
 ### Status
 
-Draft / not approved.
+Completed.
 
 ### Goal
 
@@ -21492,22 +21493,45 @@ Apply the same bounded LLM + strict validator pattern to recruiter refinement me
 ### Proposed Steps
 
 1. Review current refinement paths and `brief_patch` behavior.
-2. Define a bounded refinement interpreter contract:
-   - change field;
-   - add/remove/replace stack;
-   - change location;
-   - clarify role;
-   - update domain/must-have;
-   - unclear/unsafe.
-3. Validate all operations server-side before applying them.
-4. Preserve `PendingAnswerInterpreter v1` or merge only where the contract is clearly stronger.
-5. Add regression cases:
+2. Add a separate bounded `SearchBriefRefinementInterpreter v2` module instead of extending the old clean-state parser.
+3. Define a strict LLM output contract:
+   - `schema_version`;
+   - `intent`: `patch`, `clarify`, `noop`, `unsafe`, or `unclear`;
+   - `operations`: bounded patch operations only;
+   - `confidence`: `high`, `medium`, or `low`;
+   - `reason_codes`.
+4. Map only validated interpreter operations into existing/backend-owned `brief_patch` operations:
+   - `add_stack`, `remove_stack`, `replace_stack`;
+   - `set_location`;
+   - `reconfirm_field` for `role_family` and `technology`;
+   - `set_seniority`;
+   - `set_search_depth`.
+5. Add explicit must-have/domain update support through backend-owned patch operations:
+   - `add_must_have`;
+   - `remove_must_have`;
+   - `replace_must_have`.
+6. Validate all interpreter output server-side before applying it:
+   - reject unknown keys/operations/fields;
+   - reject low confidence;
+   - reject Cyrillic/URLs/account/action/prohibited values;
+   - normalize role, technology, stack, location, seniority, search depth, and must-have values through backend validators;
+   - enforce stack max 3 and bounded must-have size.
+7. Integrate interpreter only after a `draft_brief` exists and deterministic safety/off-topic/reset/greeting checks have run.
+8. Keep pending-field and pending-update handlers working; use the new interpreter as the general existing-draft refinement path, not as an autonomous agent executor.
+9. Do not use the old `run_openai_json_recruiter_chat` parser for general existing-draft refinement once the new interpreter is available; keep legacy compatibility only where not yet replaced by reviewed paths.
+10. Add regression cases:
    - `change location to Canada`;
    - `Java only`;
    - `add Selenium`;
    - `remove banking`;
    - `I meant QA, not developer`;
    - `make it remote`.
+11. Add negative regression cases:
+   - unsafe/prohibited text does not mutate the brief;
+   - unclear text preserves current brief and asks one targeted clarification;
+   - invalid interpreter output does not fall back to legacy parser.
+12. Wire the new no-network smoke/UAT into `scripts/check_all.ps1`.
+13. Update documentation/status after verification.
 
 ### Acceptance Criteria
 
@@ -21515,11 +21539,30 @@ Apply the same bounded LLM + strict validator pattern to recruiter refinement me
 - Ambiguous refinements ask one targeted question.
 - Unsafe or out-of-scope text does not mutate the brief.
 - Runtime approval/search execution boundaries remain unchanged.
+- The old general existing-draft parser cannot silently overwrite role/technology/location/stack when the refinement interpreter rejects output.
+- Must-have/domain context can be updated without being treated as technology or stack.
 
 ### Non-Goals
 
 - No autonomous search after refinement.
 - No persistence.
+- No planner, provider, scoring, dedupe, Candidate Results, LinkedIn/account, or deployment changes.
+
+### Implementation Result
+
+- Added `app/search_brief_refinement.py` with bounded `SearchBriefRefinementInterpreter v2`, OpenAI JSON wrapper, strict backend validator, and deterministic patch mapping.
+- Added backend-owned `must_have` patch operations: `add_must_have`, `remove_must_have`, and `replace_must_have`.
+- Integrated the interpreter into the existing-draft refinement path after deterministic safety and pending-field handling.
+- General existing-draft refinements no longer silently fall through to the legacy recruiter-chat parser when the new interpreter rejects or cannot validate output.
+- Added `scripts/smoke_p99_search_brief_refinement.py` with no-network coverage for location, stack replace/add, must-have/domain removal, role correction, remote location, unsafe/no-mutation, and invalid-output/no-legacy-fallback behavior.
+- Wired the smoke into `scripts/check_all.ps1`.
+
+### Verification Completed
+
+- `.venv\Scripts\python.exe scripts\smoke_p99_search_brief_refinement.py`
+- `.venv\Scripts\python.exe -m compileall app scripts`
+- `git diff --check`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
 
 ---
 

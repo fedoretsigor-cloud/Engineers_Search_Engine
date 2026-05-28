@@ -178,10 +178,13 @@ from app.agent_wording import (
     with_agent_wording_metadata,
 )
 from app.brief_patch import (
+    BRIEF_PATCH_ADD_MUST_HAVE,
     BRIEF_PATCH_ADD_STACK,
     BRIEF_PATCH_NOOP,
     BRIEF_PATCH_RECONFIRM_FIELD,
+    BRIEF_PATCH_REMOVE_MUST_HAVE,
     BRIEF_PATCH_REMOVE_STACK,
+    BRIEF_PATCH_REPLACE_MUST_HAVE,
     BRIEF_PATCH_REPLACE_STACK,
     BRIEF_PATCH_SET_LOCATION,
     BRIEF_PATCH_SET_SEARCH_DEPTH,
@@ -237,6 +240,11 @@ from app.search_brief import (
 from app.search_brief_extractor import (
     run_openai_json_search_brief_extractor as _run_openai_json_search_brief_extractor,
     validate_search_brief_extractor_output,
+)
+from app.search_brief_refinement import (
+    normalize_refinement_must_have_value,
+    run_openai_json_search_brief_refinement_interpreter as _run_openai_json_search_brief_refinement_interpreter,
+    validate_search_brief_refinement_output,
 )
 from app.search_validation import (
     add_validation_error,
@@ -3165,6 +3173,20 @@ async def run_openai_json_search_brief_extractor(
     )
 
 
+async def run_openai_json_search_brief_refinement_interpreter(
+    *,
+    latest_message: str,
+    language: str,
+    current_brief: SearchBrief | dict | None = None,
+) -> tuple[dict | None, str | None]:
+    return await _run_openai_json_search_brief_refinement_interpreter(
+        latest_message=latest_message,
+        language=language,
+        current_brief=clean_pending_answer_brief_context(current_brief),
+        chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
+    )
+
+
 async def classify_pending_answer_interpreter_from_message(
     *,
     text: str,
@@ -3283,6 +3305,21 @@ REFINEMENT_INTENT_PATTERNS = (
     + REMOVE_REFINEMENT_PATTERNS
     + REPLACE_REFINEMENT_PATTERNS
     + [
+        r"\bchange\b",
+        r"\bupdate\b",
+        r"\bset\b",
+        r"\bmake\b",
+        r"\bi meant\b",
+        r"\binstead\b",
+        r"\blocation\b",
+        r"\bcountry\b",
+        r"\bcity\b",
+        r"\bregion\b",
+        r"\bremote\b",
+        r"\brole\b",
+        r"\btechnology\b",
+        r"\bmust[- ]?have\b",
+        r"\bdomain\b",
         r"\bsenior\b",
         r"\bmiddle\b",
         r"\bjunior\b",
@@ -4870,6 +4907,9 @@ def brief_patch_operation_label(operation_name: str, language: str) -> str:
             BRIEF_PATCH_ADD_STACK: "added stack",
             BRIEF_PATCH_REMOVE_STACK: "removed stack",
             BRIEF_PATCH_REPLACE_STACK: "updated stack",
+            BRIEF_PATCH_ADD_MUST_HAVE: "added must-have",
+            BRIEF_PATCH_REMOVE_MUST_HAVE: "removed must-have",
+            BRIEF_PATCH_REPLACE_MUST_HAVE: "updated must-have",
             BRIEF_PATCH_SET_SENIORITY: "updated seniority",
             BRIEF_PATCH_SET_SEARCH_DEPTH: "updated search depth",
             BRIEF_PATCH_SET_LOCATION: "updated location",
@@ -4955,8 +4995,11 @@ def apply_brief_patch_to_draft(
         current_stack = []
 
     next_stack = current_stack[:]
+    current_must_have = normalize_text_list(candidate.get("must_have"))
+    next_must_have = current_must_have[:]
     changed = False
     stack_touched = False
+    must_have_touched = False
 
     for operation in operations:
         operation_name = operation.get("operation")
@@ -5021,6 +5064,81 @@ def apply_brief_patch_to_draft(
                 changed = True
             continue
 
+        if operation_name == BRIEF_PATCH_ADD_MUST_HAVE:
+            must_have, must_have_error = normalize_refinement_must_have_value(
+                operation.get("value")
+            )
+            if must_have_error or not must_have:
+                return None, None, False, [
+                    patch_validation_error(
+                        "must_have",
+                        "invalid_must_have_item",
+                        must_have_error or "Invalid must-have item.",
+                    )
+                ], validation_error_message([], language)
+            if must_have.lower() not in {item.lower() for item in next_must_have}:
+                next_must_have.append(must_have)
+                changed = True
+                must_have_touched = True
+            continue
+
+        if operation_name == BRIEF_PATCH_REMOVE_MUST_HAVE:
+            must_have, must_have_error = normalize_refinement_must_have_value(
+                operation.get("value")
+            )
+            if must_have_error or not must_have:
+                return None, None, False, [
+                    patch_validation_error(
+                        "must_have",
+                        "invalid_must_have_item",
+                        must_have_error or "Invalid must-have item.",
+                    )
+                ], validation_error_message([], language)
+            lowered_must_have = must_have.lower()
+            filtered_must_have = [
+                item
+                for item in next_must_have
+                if item.lower() != lowered_must_have
+            ]
+            if filtered_must_have != next_must_have:
+                next_must_have = filtered_must_have
+                changed = True
+                must_have_touched = True
+            continue
+
+        if operation_name == BRIEF_PATCH_REPLACE_MUST_HAVE:
+            raw_values = operation.get("values") or []
+            if not isinstance(raw_values, list):
+                return None, None, False, [
+                    patch_validation_error(
+                        "must_have",
+                        "invalid_must_have_values",
+                        "Must-have replacement must be a list.",
+                    )
+                ], validation_error_message([], language)
+            replacement_must_have: list[str] = []
+            for raw_value in raw_values:
+                must_have, must_have_error = normalize_refinement_must_have_value(
+                    raw_value
+                )
+                if must_have_error or not must_have:
+                    return None, None, False, [
+                        patch_validation_error(
+                            "must_have",
+                            "invalid_must_have_item",
+                            must_have_error or "Invalid must-have item.",
+                        )
+                    ], validation_error_message([], language)
+                if must_have.lower() not in {
+                    item.lower() for item in replacement_must_have
+                }:
+                    replacement_must_have.append(must_have)
+            if next_must_have != replacement_must_have:
+                next_must_have = replacement_must_have
+                changed = True
+                must_have_touched = True
+            continue
+
         if operation_name == BRIEF_PATCH_RECONFIRM_FIELD:
             field_name = operation.get("field")
             value = operation.get("value")
@@ -5063,6 +5181,9 @@ def apply_brief_patch_to_draft(
     if stack_touched:
         candidate["stack"] = next_stack
         candidate["nice_to_have"] = next_stack
+
+    if must_have_touched:
+        candidate["must_have"] = next_must_have
 
     if changed:
         candidate["source_text"] = chat_text
@@ -5923,6 +6044,43 @@ async def pending_update_field_patch_from_message(
     return None, pending_update_unknown_field_message(language)
 
 
+def search_brief_refinement_unavailable_message(language: str) -> str:
+    if language == "ru":
+        return "Please clarify what to change in the current search summary."
+    return "Please clarify what to change in the current search summary."
+
+
+async def search_brief_refinement_patch_from_message(
+    request: RecruiterChatTurnRequest,
+    text: str,
+    language: str,
+) -> tuple[dict | None, str | None]:
+    if not request.draft_brief:
+        return None, None
+    if not is_refinement_like_chat_message(text):
+        return None, None
+
+    llm_output, llm_error = await run_openai_json_search_brief_refinement_interpreter(
+        latest_message=text,
+        language=language,
+        current_brief=request.draft_brief,
+    )
+    if llm_error or llm_output is None:
+        return None, search_brief_refinement_unavailable_message(language)
+
+    refinement_result, refinement_errors = validate_search_brief_refinement_output(
+        llm_output,
+        source_message=text,
+    )
+    if refinement_errors or refinement_result is None:
+        return None, search_brief_refinement_unavailable_message(language)
+
+    patch = refinement_result["patch"]
+    if patch.get("requires_clarification"):
+        return None, search_brief_refinement_unavailable_message(language)
+    return patch, None
+
+
 async def pending_clarification_response_if_any(
     request: RecruiterChatTurnRequest,
     language: str,
@@ -5967,6 +6125,37 @@ async def pending_clarification_response_if_any(
         )
 
     brief_patch = deterministic_brief_patch_from_message(latest_user_text, language)
+    if brief_patch is not None and brief_patch.get("operations"):
+        return build_recruiter_chat_refinement_response(
+            request,
+            language,
+            planner_mode,
+            brief_patch,
+            chat_text,
+        )
+
+    if not pending_clarification_field(request, language):
+        refinement_patch, refinement_message = await search_brief_refinement_patch_from_message(
+            request,
+            latest_user_text,
+            language,
+        )
+        if refinement_patch is not None:
+            return build_recruiter_chat_refinement_response(
+                request,
+                language,
+                planner_mode,
+                refinement_patch,
+                chat_text,
+            )
+        if refinement_message:
+            return build_recruiter_chat_preserve_current_brief_response(
+                request,
+                language,
+                planner_mode,
+                refinement_message,
+            )
+
     if brief_patch is not None:
         return build_recruiter_chat_refinement_response(
             request,
