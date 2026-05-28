@@ -12,6 +12,11 @@ from app.domain_config import (
     SEARCH_DEPTH_VALUES,
 )
 from app.schemas import SearchBrief
+from app.role_understanding import (
+    ROLE_SUPPORT_NEEDS_CLARIFICATION,
+    ROLE_SUPPORT_REJECTED,
+    ROLE_SUPPORT_SUPPORTED,
+)
 from app.search_brief import validate_and_normalize_search_brief
 from app.search_validation import (
     add_validation_error,
@@ -699,6 +704,8 @@ def normalize_role_ambiguity_value(
 
 def validate_search_brief_extractor_output(
     llm_output: dict | None,
+    *,
+    role_understanding: dict | None = None,
 ) -> tuple[dict | None, list[dict[str, str]]]:
     errors: list[dict[str, str]] = []
     if not isinstance(llm_output, dict):
@@ -737,8 +744,46 @@ def validate_search_brief_extractor_output(
     )
 
     source_text = safe_extractor_text_value(draft_brief.get("source_text"), max_length=500)
+    role_understanding_role_family = None
+    if role_understanding is not None:
+        if not isinstance(role_understanding, dict):
+            add_validation_error(
+                errors,
+                "role_understanding",
+                "Role understanding must be a validated object.",
+            )
+        else:
+            role_support_status = role_understanding.get("support_status")
+            role_label = safe_extractor_text_value(
+                role_understanding.get("role_label"),
+                max_length=80,
+            )
+            if role_support_status == ROLE_SUPPORT_SUPPORTED and role_label:
+                role_understanding_role_family = role_label
+            elif role_support_status == ROLE_SUPPORT_NEEDS_CLARIFICATION:
+                role_ambiguity["is_ambiguous"] = True
+                if role_label:
+                    role_ambiguity["label"] = role_label
+                clarification_question = safe_extractor_text_value(
+                    role_understanding.get("clarification_question"),
+                    max_length=160,
+                )
+                if clarification_question:
+                    role_ambiguity["clarification_question"] = clarification_question
+                if "role_family" not in clarification_targets:
+                    clarification_targets.insert(0, "role_family")
+            elif role_support_status == ROLE_SUPPORT_REJECTED:
+                add_validation_error(
+                    errors,
+                    "role_family",
+                    "Role must be an English IT/software role.",
+                )
+
     role_family = None
-    raw_role_family = safe_extractor_text_value(draft_brief.get("role_family"), max_length=80)
+    raw_role_family = (
+        role_understanding_role_family
+        or safe_extractor_text_value(draft_brief.get("role_family"), max_length=80)
+    )
     if draft_brief.get("role_family") is not None and not raw_role_family:
         add_validation_error(errors, "role_family", "Role value is unsafe.")
     elif raw_role_family:
@@ -918,6 +963,7 @@ def validate_search_brief_extractor_output(
         "normalized_brief": normalized_brief,
         "domain_experience": domain_experience,
         "role_ambiguity": role_ambiguity,
+        "role_understanding": role_understanding,
         "clarification_targets": clarification_targets,
         "reason_codes": normalize_reason_codes(llm_output.get("reason_codes")),
     }, []

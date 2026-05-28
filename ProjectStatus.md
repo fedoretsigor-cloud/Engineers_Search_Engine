@@ -164,6 +164,7 @@ Planned current and later phases:
 - Phase 9.9: `AI Agent Semantic Understanding Hardening`, completed through `P9.9-007`, approved as the clean-state initial-message understanding correction and existing-draft refinement correction with automated semantic recruiter UAT.
 - Phase 9.10: `Global LocationGuard v1`, completed through `P9.10-001`.
 - Phase 9.11: `Requirement-To-Search-Signal Resolver`, completed through `P9.11-001` for non-developer IT briefs such as `Project Manager + banking domain + English + Excel`.
+- Phase 9.12: `Role Understanding Resolver`, completed through `P9.12-001` for bounded LLM classification of IT-adjacent/generic/non-IT clean-state recruiter roles before backend Search Brief validation.
 - Phase 11: `Manual Candidate Evidence Intake`, future track where the recruiter manually pastes public profile text copied outside the app, and the agent compares that user-provided evidence against the current Search Brief and workspace context.
 - Phase 12: `Resume Upload & Fit Analysis`, future track for structured resume/CV analysis after provider expansion and persistence decisions.
 

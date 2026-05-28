@@ -14,7 +14,7 @@ Status:
 - Phase 4 AI Agent Foundation completed.
 - Phase 4 `P4-003`-`P4-011` are completed: Search Brief validation/adapter, Agent Tools v0 metadata, explicit AI planner mode, deterministic AI QueryPlan validation/fallback, planner explanation UI, backend approval gate before Tavily execution, AI planner baseline evaluation, AI planner coverage diagnosis/improvement, and Phase 4 closeout.
 - Current final POC status: Phase 9.5 is completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`.
-- Post-deploy hardening through Phase 9.11 is completed: global LocationGuard is active, and non-developer IT briefs can derive safe executable search signals from explicit requirements such as banking domain, English, and Excel while preserving human approval before execution.
+- Post-deploy hardening through Phase 9.12 is completed: global LocationGuard is active, non-developer IT briefs can derive safe executable search signals from explicit requirements such as banking domain, English, and Excel, and IT-adjacent role scope is checked through bounded Role Understanding before planning while preserving human approval before execution.
 - Phase 10+ persistence and later feature tracks are parked for now; the project is closing the current work as a POC before any database/memory work.
 - Phase 6 `Human-approved Tool-Calling Agent Runtime` is completed through `P6-006 Close Phase 6 with AI Agent v0 decision` and closed as `AI Agent Runtime v0 baseline`.
 - Phase 5.5 `Technical modularization before Agent Runtime` is completed through `P5.5-009`.

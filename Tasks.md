@@ -30270,3 +30270,116 @@ The exact observed flow now asks only for missing location on the first turn and
 - `python scripts\smoke_p99_search_brief_refinement.py`
 - `python scripts\smoke_p910_location_guard.py`
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
+
+---
+
+## Phase 9.12 - Role Understanding Resolver
+
+### Approved
+
+- [x] P9.12-001 Add bounded Role Understanding Resolver v1 for IT-adjacent recruiter roles
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.12-001 Add bounded Role Understanding Resolver v1 for IT-adjacent recruiter roles
+
+### Current Phase 9.12 strategy note
+
+This is a narrow AI Agent chat-understanding hardening slice after P9.11. P9.11 safely maps explicit non-developer requirements into executable `technology` and `stack` signals, but role scope should still be understood through a bounded LLM layer where deterministic role labels are too broad, IT-adjacent, or potentially non-IT.
+
+The implementation follows the current project rule: LLM may interpret meaning, while backend validation remains authoritative and all execution stays behind existing approval gates.
+
+## Task: P9.12-001 Add bounded Role Understanding Resolver v1 for IT-adjacent recruiter roles
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed concern:
+
+```text
+Recruiter: I need Project Manager with banking domain experience, strong SQL and Excel skills in Ukraine
+Question: should LLM check whether this is IT or non-IT?
+```
+
+The correct model is not hardcoded role acceptance alone. The agent should use a bounded LLM role-understanding resolver for IT-adjacent recruiter roles, then let backend validation decide whether the result can become a Search Brief, needs a role-scope clarification, or must be rejected.
+
+### Goal
+
+Add `Role Understanding Resolver v1` for clean-state recruiter messages where the extracted role is IT-adjacent, overly generic, or potentially non-IT.
+
+The resolver classifies only role scope:
+
+- `it_software`;
+- `it_adjacent`;
+- `non_it`;
+- `ambiguous`;
+- `unknown`.
+
+It returns a bounded role label, support status, short evidence, and optional clarification question. It does not mutate Search Brief state directly.
+
+### Architecture
+
+1. Add a focused backend module `app/role_understanding.py`.
+   - It owns the OpenAI JSON prompt/payload for `role_understanding_resolver_v1`.
+   - It owns strict validation for schema, status, confidence, safe text, role evidence, and IT-adjacent support evidence.
+   - It has deterministic trigger logic so ordinary supported IT/software roles such as `Backend Developer + Java + Spring` do not call the resolver.
+
+2. Integrate only into clean-state Search Brief extraction.
+   - Run `SearchBriefExtractor v2` first.
+   - Run Role Understanding only for IT-adjacent/generic/non-IT role risk.
+   - Pass only validated role-understanding metadata into `validate_search_brief_extractor_output()`.
+
+3. Keep backend validation authoritative.
+   - Supported role labels must pass existing `normalize_role_family_value()`.
+   - IT-adjacent roles such as `Project Manager` require source-message role evidence plus IT/software/tool/work-skill evidence.
+   - Generic `Project Manager in Ukraine` becomes a role-scope clarification, not a ready Search Brief.
+   - Clearly non-IT roles such as `Plumber` are rejected even if the message mentions Excel.
+
+4. Preserve product boundaries.
+   - No automatic search.
+   - No QueryPlan from chat turn.
+   - No provider/runtime/scoring/dedupe/LocationGuard/persistence changes.
+   - No LinkedIn login, scraping, profile automation, restriction bypass, candidate messaging, or account actions.
+
+### Acceptance Criteria
+
+- `Project Manager + banking domain + SQL + Excel + Ukraine` can become `ready_for_planning` with `role_family = Project Manager`, `technology = Banking`, and `stack = ["SQL", "Excel"]`.
+- A generic `Project Manager in Ukraine` asks a role-scope clarification such as whether this is an IT/software Project Manager role.
+- Standard IT/software requests such as `Backend Developer + Java + Spring + Ukraine` skip the role-understanding resolver and remain unchanged.
+- Non-IT role requests such as `Plumber + Excel + Ukraine` are rejected and are not coerced into IT.
+- Role-understanding output cannot override source-message evidence.
+- No search starts automatically; `Prepare search` / runtime approval boundaries remain unchanged.
+- New no-network smoke coverage is wired into `scripts/check_all.ps1`.
+
+### Non-Goals
+
+- New Search Brief schema fields.
+- LLM-generated QueryPlans.
+- Direct LLM mutation of Search Brief state.
+- Per-candidate LLM calls.
+- Changing provider execution, runtime approval, scoring, dedupe, LocationGuard, persistence, candidate workspace, or export.
+- LinkedIn login, scraping, profile automation, messaging, autonomous execution, or account actions.
+
+### Implementation result
+
+Implemented in `app/role_understanding.py`, `app/search_brief_extractor.py`, `app/main.py`, `scripts/smoke_p912_role_understanding.py`, and `scripts/check_all.ps1`.
+
+The clean-state chat path now runs bounded `role_understanding_resolver_v1` only when the Search Brief extractor output looks IT-adjacent, generic, invalid, or non-IT. Validated resolver output can recover a generic extractor role such as `IT` into a concrete supported role such as `Project Manager`, can force a narrow role-scope clarification for ambiguous IT-adjacent roles, or can reject non-IT roles. Existing P9.11 requirement-to-search-signal resolution remains responsible for deriving `technology` and `stack` from explicit requirements after role scope is validated.
+
+Developer/engineer/QA-style roles remain on the existing extractor/validator path and do not call Role Understanding. Chat still does not build a QueryPlan or execute search automatically.
+
+### Verification result
+
+- `python -m compileall app scripts\smoke_p912_role_understanding.py`
+- `python scripts\smoke_p912_role_understanding.py`
+- `python scripts\smoke_p911_requirement_signals.py`
+- `python scripts\smoke_p99_search_brief_extractor.py`
+- `python scripts\uat_phase_9_9_semantic_search_brief.py`
+- `python scripts\smoke_p88_conversation_hardening.py`

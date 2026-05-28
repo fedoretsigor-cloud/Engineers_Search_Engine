@@ -201,6 +201,11 @@ from app.pending_answer_interpreter import (
     run_openai_json_pending_answer_interpreter as _run_openai_json_pending_answer_interpreter,
     validate_pending_answer_interpreter_output,
 )
+from app.role_understanding import (
+    run_openai_json_role_understanding as _run_openai_json_role_understanding,
+    should_run_role_understanding_resolver,
+    validate_role_understanding_output,
+)
 from app.planning import (
     RuleBasedQueryPlannerV1,
     add_plan_validation_error,
@@ -3172,6 +3177,26 @@ async def run_openai_json_search_brief_extractor(
         latest_message=latest_message,
         language=language,
         previous_brief=previous_brief,
+        chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
+    )
+
+
+async def run_openai_json_role_understanding(
+    *,
+    latest_message: str,
+    language: str,
+    extracted_role_family: str | None = None,
+    extracted_technology: str | None = None,
+    extracted_stack: list[str] | None = None,
+    extracted_domain_experience: list[str] | None = None,
+) -> tuple[dict | None, str | None]:
+    return await _run_openai_json_role_understanding(
+        latest_message=latest_message,
+        language=language,
+        extracted_role_family=extracted_role_family,
+        extracted_technology=extracted_technology,
+        extracted_stack=extracted_stack,
+        extracted_domain_experience=extracted_domain_experience,
         chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
     )
 
@@ -6958,8 +6983,41 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
                 planner_mode=planner_mode,
             )
 
+        role_understanding_validation = None
+        if should_run_role_understanding_resolver(
+            extractor_output,
+            latest_message=latest_user_text,
+        ):
+            extractor_draft = extractor_output.get("draft_brief") or {}
+            if isinstance(extractor_draft, dict):
+                role_understanding_output, role_understanding_error = (
+                    await run_openai_json_role_understanding(
+                        latest_message=latest_user_text,
+                        language=language,
+                        extracted_role_family=extractor_draft.get("role_family"),
+                        extracted_technology=extractor_draft.get("technology"),
+                        extracted_stack=extractor_draft.get("stack") or [],
+                        extracted_domain_experience=(
+                            extractor_draft.get("domain_experience") or []
+                        ),
+                    )
+                )
+                if not role_understanding_error and role_understanding_output is not None:
+                    (
+                        role_understanding_validation,
+                        role_understanding_errors,
+                    ) = validate_role_understanding_output(
+                        role_understanding_output,
+                        latest_message=latest_user_text,
+                    )
+                    if role_understanding_errors:
+                        role_understanding_validation = None
+
         extractor_validation, extractor_validation_errors = (
-            validate_search_brief_extractor_output(extractor_output)
+            validate_search_brief_extractor_output(
+                extractor_output,
+                role_understanding=role_understanding_validation,
+            )
         )
         if extractor_validation_errors or extractor_validation is None:
             return build_recruiter_chat_response(
