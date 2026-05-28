@@ -119,6 +119,18 @@ NON_DEVELOPER_REQUIREMENT_ROLE_PATTERNS = [
     r"\bsystems analyst\b",
     r"\bfunctional analyst\b",
 ]
+NON_DEVELOPER_REQUIREMENT_ROLE_LABELS = [
+    (r"\bproject manager\b", "Project Manager"),
+    (r"\bprogram manager\b", "Program Manager"),
+    (r"\bproduct manager\b", "Product Manager"),
+    (r"\bproduct owner\b", "Product Owner"),
+    (r"\bscrum master\b", "Scrum Master"),
+    (r"\bagile coach\b", "Agile Coach"),
+    (r"\bdelivery manager\b", "Delivery Manager"),
+    (r"\bbusiness analyst\b", "Business Analyst"),
+    (r"\bsystems analyst\b", "Systems Analyst"),
+    (r"\bfunctional analyst\b", "Functional Analyst"),
+]
 DEVELOPER_REQUIREMENT_ROLE_BLOCK_PATTERNS = [
     r"\bdeveloper\b",
     r"\bengineer\b",
@@ -151,6 +163,33 @@ REQUIREMENT_SIGNAL_GENERIC_TOKENS = {
     "skill",
     "skills",
     "strong",
+}
+GENERIC_EXTRACTOR_ROLE_VALUES = {
+    "it",
+    "it role",
+    "it/software role",
+    "software",
+    "software role",
+    "technology role",
+}
+EXTRACTOR_SENIORITY_ALIASES = {
+    "junior": "Junior",
+    "jr": "Junior",
+    "trainee": "Junior",
+    "intern": "Junior",
+    "middle": "Middle",
+    "mid": "Middle",
+    "mid-level": "Middle",
+    "senior": "Senior",
+    "sr": "Senior",
+    "lead": "Lead",
+    "team lead": "Lead",
+    "tech lead": "Lead",
+    "principal": "Principal",
+    "staff": "Staff",
+    "senior lead": "Senior Lead",
+    "senior team lead": "Senior Lead",
+    "senior tech lead": "Senior Lead",
 }
 REQUIREMENT_SIGNAL_UPPERCASE_TOKENS = {
     "ai",
@@ -399,6 +438,31 @@ def role_allows_requirement_search_signal_resolution(role_family: object) -> boo
         re.search(pattern, role, flags=re.IGNORECASE)
         for pattern in NON_DEVELOPER_REQUIREMENT_ROLE_PATTERNS
     )
+
+
+def recover_requirement_role_family_from_source_text(
+    raw_role_family: object,
+    source_text: object,
+) -> str | None:
+    raw_role = normalize_text_value(raw_role_family).lower()
+    if raw_role not in GENERIC_EXTRACTOR_ROLE_VALUES:
+        return None
+
+    text = normalize_text_value(source_text)
+    if not text:
+        return None
+
+    for pattern, role_label in NON_DEVELOPER_REQUIREMENT_ROLE_LABELS:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            return role_label
+    return None
+
+
+def normalize_extractor_seniority_value(value: object) -> str | None:
+    text = normalize_text_value(value)
+    if not text:
+        return None
+    return EXTRACTOR_SENIORITY_ALIASES.get(text.lower())
 
 
 def humanize_requirement_signal_label(value: str) -> str | None:
@@ -679,7 +743,18 @@ def validate_search_brief_extractor_output(
         add_validation_error(errors, "role_family", "Role value is unsafe.")
     elif raw_role_family:
         role_family, role_errors = normalize_role_family_value(raw_role_family)
-        errors.extend(role_errors)
+        if role_errors:
+            recovered_role_family = recover_requirement_role_family_from_source_text(
+                raw_role_family,
+                source_text,
+            )
+            if recovered_role_family:
+                role_family, recovered_role_errors = normalize_role_family_value(
+                    recovered_role_family
+                )
+                errors.extend(recovered_role_errors)
+            else:
+                errors.extend(role_errors)
 
     technology = None
     raw_technology = safe_extractor_text_value(draft_brief.get("technology"), max_length=40)
@@ -720,7 +795,9 @@ def validate_search_brief_extractor_output(
         location, location_errors = normalize_search_location_value(raw_location)
         errors.extend(location_errors)
 
-    seniority = safe_extractor_text_value(draft_brief.get("seniority"), max_length=40)
+    seniority = normalize_extractor_seniority_value(
+        safe_extractor_text_value(draft_brief.get("seniority"), max_length=40)
+    )
     notes = safe_extractor_text_value(draft_brief.get("notes"), max_length=200)
 
     must_have, must_have_error = safe_extractor_text_list(

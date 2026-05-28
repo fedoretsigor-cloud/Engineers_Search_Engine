@@ -45,6 +45,7 @@ def raw_extractor_output(
     technology: str | None,
     stack: list[str] | None,
     location: str | None,
+    seniority: str | None = None,
     must_have: list[str] | None = None,
     domain_experience: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -62,7 +63,7 @@ def raw_extractor_output(
             "technology": technology,
             "stack": stack or [],
             "location": location,
-            "seniority": None,
+            "seniority": seniority,
             "must_have": must_have or [],
             "nice_to_have": [],
             "domain_experience": domain_experience or [],
@@ -166,6 +167,42 @@ def assert_non_developer_raw_domain_technology_is_allowed() -> None:
         raise RequirementSignalError(f"Unexpected technology: {normalized_brief!r}")
     if normalized_brief.get("brief_status") != "ready_for_planning":
         raise RequirementSignalError(f"Expected ready brief: {normalized_brief!r}")
+
+
+def assert_generic_llm_role_recovers_from_source_text() -> None:
+    raw = raw_extractor_output(
+        role_family="IT",
+        technology=None,
+        stack=["SQL", "Excel"],
+        location="Ukraine",
+        seniority="Project Manager",
+        must_have=["banking domain experience"],
+        domain_experience=["banking"],
+    )
+    validated, errors = extractor.validate_search_brief_extractor_output(raw)
+    if errors or validated is None:
+        raise RequirementSignalError(f"Expected generic role recovery: {errors!r}")
+    normalized_brief = validated["normalized_brief"]
+    expected_values = {
+        "brief_status": "ready_for_planning",
+        "role_family": "Project Manager",
+        "technology": "Banking",
+        "stack": ["SQL", "Excel"],
+        "location": "Ukraine",
+        "seniority": None,
+        "missing_fields": [],
+    }
+    actual_values = {
+        "brief_status": normalized_brief.get("brief_status"),
+        "role_family": normalized_brief.get("role_family"),
+        "technology": normalized_brief.get("technology"),
+        "stack": normalized_brief.get("stack"),
+        "location": normalized_brief.get("location"),
+        "seniority": normalized_brief.get("seniority"),
+        "missing_fields": normalized_brief.get("missing_fields"),
+    }
+    if actual_values != expected_values:
+        raise RequirementSignalError(f"Unexpected generic role recovery: {actual_values!r}")
 
 
 def assert_developer_roles_do_not_resolve_requirements() -> None:
@@ -286,6 +323,7 @@ async def main_smoke() -> None:
     assert_prompt_contract_mentions_requirement_signals()
     assert_project_manager_requirements_resolve_to_search_signals()
     assert_non_developer_raw_domain_technology_is_allowed()
+    assert_generic_llm_role_recovers_from_source_text()
     assert_developer_roles_do_not_resolve_requirements()
     await assert_conversation_asks_location_then_becomes_ready()
     print("P9.11 requirement-to-search-signal smoke passed.")
