@@ -21071,7 +21071,6 @@ This keeps the fix global and avoids a QA-specific patch.
 
 ### Backlog
 
-- [ ] P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
 - [ ] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
 - [ ] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
 - [ ] P9.9-004 Retire duplicated legacy clean-state semantic branches
@@ -21082,6 +21081,8 @@ This keeps the fix global and avoids a QA-specific patch.
 ### In Progress
 
 ### Done
+
+- [x] P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
 
 ### Current Phase 9.9 strategy note
 
@@ -21135,7 +21136,7 @@ This execution rule is part of the plan, not optional process commentary. Do not
 
 ### Status
 
-Draft / not approved.
+Implemented / completed.
 
 ### Context
 
@@ -21156,11 +21157,13 @@ Expected normalized brief:
 
 ### Goal
 
-Replace fragile initial full-message parsing with:
+Create the bounded LLM extractor foundation for the future replacement of fragile initial full-message parsing:
 
 ```text
-message -> deterministic safety/language precheck -> bounded LLM SearchBriefExtractor v2 -> strict backend validator -> normalized Search Brief -> targeted clarification
+message -> deterministic safety/language precheck -> bounded LLM SearchBriefExtractor v2 raw output
 ```
+
+This task defines the contract, prompt, OpenAI wrapper, and no-network contract tests only. It must not yet make LLM output authoritative, mutate Search Brief state, or replace the current recruiter-chat extraction path. Strict backend validation belongs to `P9.9-002`; clean-state integration belongs to `P9.9-003`.
 
 ### Proposed Steps
 
@@ -21185,39 +21188,47 @@ message -> deterministic safety/language precheck -> bounded LLM SearchBriefExtr
    - no LinkedIn login, scraping, automation, messaging, or account actions;
    - no persistence;
    - return strict JSON only.
-4. Add strict backend validation:
-   - role must be an English IT/software/data/product/recruiting-relevant role;
-   - technology/stack must be technical IT/software/data skills;
-   - domain/business words such as banking, fintech, healthcare, ecommerce, and telecom must go to `must_have` / `domain_experience`, not `technology`;
-   - location must be location-like;
-   - low confidence or role ambiguity triggers clarification;
-   - accepted output must build the same existing Search Brief / structured-request shape used by the current pipeline.
-5. Integrate only into clean-state initial recruiter-message extraction, not pending-answer routing.
-6. Preserve Phase 9.7 `PendingAnswerInterpreter` for follow-up replies.
-7. Add regression coverage:
-   - Analyst / Canada / banking / SQL case;
-   - QA Automation / Spain / Java / Selenium case;
-   - Backend Developer / Ukraine / Java / Spring case;
-   - off-topic/noise still refused or clarified;
-   - domain-only replies are not accepted as technology;
-   - ambiguous Analyst role asks a targeted role clarification if policy requires it.
-8. Update documentation and UAT notes.
+4. Add an isolated module-level OpenAI wrapper that returns raw parsed JSON plus bounded error codes, following the existing `PendingAnswerInterpreter` style.
+5. Add no-network contract tests for prompt boundaries, payload shape, missing OpenAI config behavior, invalid JSON handling, and strict no-execution/no-provider/no-LinkedIn/no-persistence wording in the prompt.
+6. Do not call this extractor from `recruiter_chat_turn_response` yet.
+7. Preserve Phase 9.7 `PendingAnswerInterpreter` for follow-up replies.
+8. Update documentation/status for `P9.9-001` only.
 
 ### Acceptance Criteria
 
 - No hardcoded fix for Analyst/Canada/banking only.
-- Initial Search Brief extraction uses bounded LLM semantics with deterministic safety precheck and strict backend validation.
-- `Banking domain` is not accepted as technology.
-- `SQL skills` can be accepted as technology/stack when relevant.
+- A new bounded `SearchBriefExtractor v2` contract and prompt exist.
+- The OpenAI wrapper can be tested without network by mocking the HTTP call.
+- The wrapper does not mutate Search Brief state and is not wired into recruiter chat yet.
+- The prompt explicitly separates role, location, technical skills, and domain/business context in its requested output.
 - Existing human-approved runtime/search boundary remains unchanged.
 - No autonomous execution, no direct web-search bypass, no LinkedIn login/scraping/automation, no candidate messaging, no account actions, and no persistence are added.
 
 ### Non-Goals
 
+- Do not validate or normalize extractor output as authoritative in this task; `P9.9-002` owns strict backend validation.
+- Do not replace the clean-state recruiter chat extraction path in this task; `P9.9-003` owns integration.
+- Do not add the full semantic UAT suite in this task; `P9.9-005` owns automated recruiter UAT.
 - Do not change query planner/scoring guardrail from Phase 9.8.
 - Do not change search providers.
 - Do not add persistence.
-- Do not implement without explicit approval.
+
+### Implementation Result
+
+- Added isolated `SearchBriefExtractor v2` foundation in `app/search_brief_extractor.py`.
+- Added bounded system/user prompt contract for clean-state initial recruiter-message extraction.
+- Added OpenAI JSON wrapper returning raw parsed JSON plus bounded error codes.
+- Added explicit prompt boundaries: no query generation, no provider calls, no LinkedIn login/scraping/automation, no messaging, no account actions, no search approval, and no persistence.
+- Added no-network smoke coverage in `scripts/smoke_p99_search_brief_extractor.py`.
+- Wired the smoke into `scripts/check_all.ps1`.
+- Did not integrate the extractor into `recruiter_chat_turn_response`; `P9.9-003` owns that.
+- Did not make LLM output authoritative; `P9.9-002` owns strict backend validation.
+
+### Verification Completed
+
+- `.venv\Scripts\python.exe scripts\smoke_p99_search_brief_extractor.py`
+- `.venv\Scripts\python.exe -m compileall app scripts`
+- `git diff --check`
 
 ---
 
