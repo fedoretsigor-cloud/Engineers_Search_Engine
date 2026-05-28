@@ -13,13 +13,14 @@ from app.search_validation import (
 from app.text_utils import compact_spaces, contains_cyrillic_text, normalize_text_value
 
 
-PENDING_ANSWER_INTERPRETER_PROMPT_VERSION = "pending_answer_interpreter_v1"
-PENDING_ANSWER_INTERPRETER_VALIDATOR_VERSION = "pending_answer_interpreter_validator_v1"
+PENDING_ANSWER_INTERPRETER_PROMPT_VERSION = "pending_answer_interpreter_v2"
+PENDING_ANSWER_INTERPRETER_VALIDATOR_VERSION = "pending_answer_interpreter_validator_v2"
 
 PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD = "answer_pending_field"
 PENDING_ANSWER_INTENT_ASK_EXPLANATION = "ask_explanation"
 PENDING_ANSWER_INTENT_CHANGE_FIELD = "change_field"
 PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE = "provide_update_value"
+PENDING_ANSWER_INTENT_REPLACE_VALUE = "replace_value"
 PENDING_ANSWER_INTENT_UNCLEAR = "unclear"
 PENDING_ANSWER_INTENT_UNSAFE = "unsafe"
 
@@ -41,6 +42,7 @@ PENDING_ANSWER_INTENTS = {
     PENDING_ANSWER_INTENT_ASK_EXPLANATION,
     PENDING_ANSWER_INTENT_CHANGE_FIELD,
     PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE,
+    PENDING_ANSWER_INTENT_REPLACE_VALUE,
     PENDING_ANSWER_INTENT_UNCLEAR,
     PENDING_ANSWER_INTENT_UNSAFE,
 }
@@ -56,6 +58,7 @@ PENDING_ANSWER_ALLOWED_KEYS = {
     "field",
     "values",
     "value",
+    "old_value",
     "accepted_stack",
     "confidence",
     "reason_code",
@@ -129,13 +132,14 @@ def pending_answer_interpreter_user_prompt(
             "required_output": {
                 "intent": (
                     "answer_pending_field | ask_explanation | change_field | "
-                    "provide_update_value | unclear | unsafe"
+                    "provide_update_value | replace_value | unclear | unsafe"
                 ),
                 "field": (
                     "role_family | technology | stack | location | seniority | "
                     "search_depth | null"
                 ),
                 "values": ["safe normalized values, max 3 for stack, max 1 for other fields"],
+                "old_value": "safe existing Search Brief value being replaced, or null",
                 "confidence": "high | medium | low",
                 "reason_code": "short_snake_case",
             },
@@ -147,9 +151,13 @@ def pending_answer_interpreter_user_prompt(
             "rules": [
                 "Use answer_pending_field when the recruiter answers the currently pending field.",
                 "Use provide_update_value when the recruiter gives a value for a selected update field.",
+                "Use replace_value when the recruiter asks to replace one existing Search Brief value with another.",
                 "Use change_field when the recruiter asks to change a field but does not provide the new value.",
                 "Use ask_explanation when the recruiter asks what a field means.",
                 "For stack, extract 1-3 English IT/software stack signals from natural phrasing such as 'Java only' or 'use Java and Selenium'.",
+                "For replacement requests such as 'replace Kafka with Selenium', 'update Selenium to Cucumber', or 'change Angular skill to PHP', set intent replace_value, put the existing value in old_value, and put the new value in values.",
+                "For replacement wording with skill, skills, tool, framework, or library, use field stack unless the message explicitly says main technology.",
+                "For replacement wording where the field is not clear, set field null and let backend validation resolve the matching current Search Brief value.",
                 "For location, extract one safe English location-like value such as a country, city, region, or Remote.",
                 "Do not invent missing values.",
                 "Use unclear or low confidence when meaning is uncertain.",
@@ -293,6 +301,10 @@ def validate_pending_answer_interpreter_output(
         field = field or pending_update_field
         if not field:
             return None, "pending_answer_missing_update_field"
+    elif intent == PENDING_ANSWER_INTENT_REPLACE_VALUE:
+        if pending_update_field and field not in {pending_update_field, None}:
+            return None, "pending_answer_update_field_mismatch"
+        field = field or pending_update_field
     elif intent in {
         PENDING_ANSWER_INTENT_ASK_EXPLANATION,
         PENDING_ANSWER_INTENT_CHANGE_FIELD,
@@ -314,6 +326,24 @@ def validate_pending_answer_interpreter_output(
         values, value_error = _normalize_interpreter_values(field, raw_values)
         if value_error:
             return None, value_error
+    elif intent == PENDING_ANSWER_INTENT_REPLACE_VALUE:
+        old_value = safe_interpreter_text_value(llm_output.get("old_value"))
+        if not old_value:
+            return None, "pending_answer_missing_old_value"
+        if len(raw_values) != 1:
+            return None, "pending_answer_replacement_value_count"
+        if field:
+            values, value_error = _normalize_interpreter_values(field, raw_values)
+            if value_error:
+                return None, value_error
+        else:
+            safe_values: list[str] = []
+            for raw_value in raw_values:
+                safe_value = safe_interpreter_text_value(raw_value)
+                if not safe_value:
+                    return None, "pending_answer_unsafe_value"
+                safe_values.append(safe_value)
+            values = safe_values
     elif raw_values:
         return None, "pending_answer_unexpected_values"
 
@@ -329,6 +359,11 @@ def validate_pending_answer_interpreter_output(
         "intent": intent,
         "field": field,
         "values": values,
+        "old_value": (
+            safe_interpreter_text_value(llm_output.get("old_value"))
+            if intent == PENDING_ANSWER_INTENT_REPLACE_VALUE
+            else None
+        ),
         "confidence": confidence,
         "reason_code": reason_code,
         "prompt_version": PENDING_ANSWER_INTERPRETER_PROMPT_VERSION,

@@ -206,6 +206,7 @@ from app.candidate_explanation_wording import (
 from app.pending_answer_interpreter import (
     PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD,
     PENDING_ANSWER_INTENT_PROVIDE_UPDATE_VALUE,
+    PENDING_ANSWER_INTENT_REPLACE_VALUE,
     run_openai_json_pending_answer_interpreter as _run_openai_json_pending_answer_interpreter,
     validate_pending_answer_interpreter_output,
 )
@@ -5619,7 +5620,7 @@ async def pending_location_clarification_patch_from_message(
             and interpreter_result.get("intent") == PENDING_ANSWER_INTENT_ANSWER_PENDING_FIELD
             and interpreter_result.get("values")
         ):
-            location = interpreter_result["values"][0]
+            location, _ = normalize_pending_location_value(interpreter_result["values"][0])
     if not location:
         return None
 
@@ -5918,6 +5919,358 @@ def pending_update_unknown_field_message(language: str) -> str:
     return "Tell me which field to update: role, technology, stack, location, seniority, or depth."
 
 
+SEARCH_BRIEF_REPLACEABLE_VALUE_FIELDS = {
+    "role_family",
+    "technology",
+    "stack",
+    "location",
+    "seniority",
+    "search_depth",
+}
+
+
+def normalized_replacement_field(value: object) -> str | None:
+    field = normalize_recruiter_search_brief_field(value)
+    if field in SEARCH_BRIEF_REPLACEABLE_VALUE_FIELDS:
+        return field
+    return None
+
+
+def search_brief_replacement_resolution_message(
+    reason: str,
+    language: str,
+    old_value: str | None = None,
+    field: str | None = None,
+) -> str:
+    field_label = (field or "field").replace("_", " ")
+    if reason == "old_value_not_found":
+        return (
+            f"I could not find {old_value or 'that value'} in the current search summary. "
+            "Tell me the exact field/value to update."
+        )
+    if reason == "ambiguous_old_value":
+        return (
+            f"I found {old_value or 'that value'} in more than one search summary field. "
+            "Which field should I update: role, technology, stack, location, seniority, or depth?"
+        )
+    if reason == "invalid_new_value":
+        return f"I could not safely use that replacement for {field_label}. Please provide one safe replacement value."
+    return "Please clarify the value replacement in the current search summary."
+
+
+def normalize_replacement_seniority_value(value: object) -> str | None:
+    normalized = (normalize_text_value(value) or "").lower()
+    aliases = {
+        "jr": "Junior",
+        "junior": "Junior",
+        "middle": "Middle",
+        "mid": "Middle",
+        "mid level": "Middle",
+        "senior": "Senior",
+        "sr": "Senior",
+        "lead": "Lead",
+        "staff": "Staff",
+        "principal": "Principal",
+    }
+    return aliases.get(normalized)
+
+
+def normalize_replacement_search_depth_value(value: object) -> str | None:
+    normalized = (normalize_text_value(value) or "").lower()
+    if normalized in {"standard", "normal", "default"}:
+        return SEARCH_DEPTH_STANDARD
+    if normalized in {"deep", "deeper", "expanded"}:
+        return SEARCH_DEPTH_DEEP
+    return None
+
+
+def normalize_replacement_value_for_field(
+    field: str,
+    value: object,
+) -> tuple[str | None, str | None]:
+    if field == "stack":
+        stack_item, error = normalize_stack_item_value(normalize_text_value(value))
+        return stack_item, error
+    if field == "location":
+        location, errors = normalize_search_location_value(normalize_text_value(value))
+        return location, "invalid_location" if errors else None
+    if field == "technology":
+        technology, errors = normalize_technology_value(normalize_text_value(value))
+        return technology, "invalid_technology" if errors else None
+    if field == "role_family":
+        role_family, errors = normalize_role_family_value(normalize_text_value(value))
+        return role_family, "invalid_role_family" if errors else None
+    if field == "seniority":
+        seniority = normalize_replacement_seniority_value(value)
+        return seniority, None if seniority else "invalid_seniority"
+    if field == "search_depth":
+        search_depth = normalize_replacement_search_depth_value(value)
+        return search_depth, None if search_depth else "invalid_search_depth"
+    return None, "invalid_field"
+
+
+def replacement_values_equal(left: object, right: object) -> bool:
+    return (normalize_text_value(left) or "").lower() == (
+        normalize_text_value(right) or ""
+    ).lower()
+
+
+def search_brief_replacement_matches(
+    current_brief: SearchBrief | dict | None,
+    old_value: str,
+) -> list[dict[str, object]]:
+    candidate = clean_search_brief_dict(current_brief)
+    if not candidate:
+        return []
+
+    matches: list[dict[str, object]] = []
+    fields = [
+        "role_family",
+        "technology",
+        "stack",
+        "location",
+        "seniority",
+        "search_depth",
+    ]
+
+    for field in fields:
+        normalized_old, error = normalize_replacement_value_for_field(field, old_value)
+        if error or not normalized_old:
+            continue
+
+        if field == "stack":
+            current_stack, stack_errors = normalize_brief_stack_items(candidate.get("stack"))
+            if stack_errors:
+                continue
+            for index, item in enumerate(current_stack):
+                if replacement_values_equal(item, normalized_old):
+                    matches.append(
+                        {
+                            "field": "stack",
+                            "old_value": item,
+                            "old_index": index,
+                        }
+                    )
+            continue
+
+        current_value = candidate.get(field)
+        if current_value is None:
+            continue
+        normalized_current, current_error = normalize_replacement_value_for_field(
+            field,
+            current_value,
+        )
+        if current_error or not normalized_current:
+            continue
+        if replacement_values_equal(normalized_current, normalized_old):
+            matches.append(
+                {
+                    "field": field,
+                    "old_value": normalized_current,
+                }
+            )
+
+    return matches
+
+
+async def normalize_replacement_new_value(
+    field: str,
+    value: str,
+    current_brief: SearchBrief | dict | None,
+) -> tuple[str | None, str | None]:
+    if field != "stack":
+        return normalize_replacement_value_for_field(field, value)
+
+    candidate_terms, candidate_error = normalize_stack_signal_candidates(value)
+    stack_terms: list[str] | None = None
+    if not candidate_error:
+        stack_terms = deterministic_known_stack_signal_terms(candidate_terms)
+    if not stack_terms:
+        stack_terms, _ = await classify_stack_signal_terms_from_message(
+            value,
+            current_brief,
+        )
+    if not stack_terms or len(stack_terms) != 1:
+        return None, "invalid_stack"
+    return stack_terms[0], None
+
+
+def replacement_stack_values(
+    current_brief: SearchBrief | dict | None,
+    old_value: str,
+    new_value: str,
+) -> list[str] | None:
+    candidate = clean_search_brief_dict(current_brief)
+    current_stack, stack_errors = normalize_brief_stack_items(candidate.get("stack"))
+    if stack_errors:
+        return None
+
+    next_stack: list[str] = []
+    replaced = False
+    for item in current_stack:
+        if replacement_values_equal(item, old_value):
+            if new_value not in next_stack:
+                next_stack.append(new_value)
+            replaced = True
+            continue
+        if item not in next_stack:
+            next_stack.append(item)
+    return next_stack if replaced else None
+
+
+async def search_brief_value_replacement_patch_from_result(
+    *,
+    text: str,
+    language: str,
+    current_brief: SearchBrief | dict | None,
+    interpreter_result: dict,
+    field_hint: str | None = None,
+) -> tuple[dict | None, str | None]:
+    if interpreter_result.get("intent") != PENDING_ANSWER_INTENT_REPLACE_VALUE:
+        return None, None
+
+    old_value = normalize_text_value(interpreter_result.get("old_value"))
+    values = interpreter_result.get("values") or []
+    if not old_value or len(values) != 1:
+        return None, search_brief_replacement_resolution_message(
+            "old_value_not_found",
+            language,
+            old_value,
+        )
+
+    llm_field = normalized_replacement_field(interpreter_result.get("field"))
+    hinted_field = normalized_replacement_field(field_hint) or llm_field
+    matches = search_brief_replacement_matches(current_brief, old_value)
+    if hinted_field:
+        hinted_matches = [
+            match for match in matches if match.get("field") == hinted_field
+        ]
+        if hinted_matches:
+            matches = hinted_matches
+
+    if not matches:
+        return None, search_brief_replacement_resolution_message(
+            "old_value_not_found",
+            language,
+            old_value,
+            hinted_field,
+        )
+
+    matched_fields = {str(match.get("field")) for match in matches}
+    if len(matched_fields) != 1:
+        return None, search_brief_replacement_resolution_message(
+            "ambiguous_old_value",
+            language,
+            old_value,
+        )
+
+    field = next(iter(matched_fields))
+    new_value, new_value_error = await normalize_replacement_new_value(
+        field,
+        values[0],
+        current_brief,
+    )
+    if new_value_error or not new_value:
+        return None, search_brief_replacement_resolution_message(
+            "invalid_new_value",
+            language,
+            old_value,
+            field,
+        )
+
+    if field == "stack":
+        next_stack = replacement_stack_values(
+            current_brief,
+            str(matches[0].get("old_value") or old_value),
+            new_value,
+        )
+        if not next_stack:
+            return None, search_brief_replacement_resolution_message(
+                "old_value_not_found",
+                language,
+                old_value,
+                field,
+            )
+        operations = [
+            {
+                "operation": BRIEF_PATCH_REPLACE_STACK,
+                "field": "stack",
+                "values": next_stack[:3],
+            }
+        ]
+    elif field == "location":
+        operations = [
+            {
+                "operation": BRIEF_PATCH_SET_LOCATION,
+                "field": "location",
+                "value": new_value,
+            }
+        ]
+    elif field in {"technology", "role_family"}:
+        operations = [
+            {
+                "operation": BRIEF_PATCH_RECONFIRM_FIELD,
+                "field": field,
+                "value": new_value,
+            }
+        ]
+    elif field == "seniority":
+        operations = [
+            {
+                "operation": BRIEF_PATCH_SET_SENIORITY,
+                "field": "seniority",
+                "value": new_value,
+            }
+        ]
+    elif field == "search_depth":
+        operations = [
+            {
+                "operation": BRIEF_PATCH_SET_SEARCH_DEPTH,
+                "field": "search_depth",
+                "value": new_value,
+            }
+        ]
+    else:
+        return None, pending_update_unknown_field_message(language)
+
+    return build_brief_patch(
+        source_message=text,
+        operations=operations,
+        requires_clarification=False,
+    ), None
+
+
+async def search_brief_value_replacement_patch_from_message(
+    *,
+    text: str,
+    language: str,
+    current_brief: SearchBrief | dict | None,
+    field_hint: str | None = None,
+) -> tuple[dict | None, str | None]:
+    if not current_brief:
+        return None, None
+    if not is_refinement_like_chat_message(text):
+        return None, None
+
+    normalized_field_hint = normalized_replacement_field(field_hint)
+    interpreter_result, _ = await classify_pending_answer_interpreter_from_message(
+        text=text,
+        language=language,
+        pending_update_field=normalized_field_hint,
+        current_brief=current_brief,
+    )
+    if not interpreter_result:
+        return None, None
+
+    return await search_brief_value_replacement_patch_from_result(
+        text=text,
+        language=language,
+        current_brief=current_brief,
+        interpreter_result=interpreter_result,
+        field_hint=normalized_field_hint,
+    )
+
+
 async def pending_interpreter_patch_for_field(
     field: str,
     text: str,
@@ -5965,13 +6318,16 @@ async def pending_interpreter_patch_for_field(
         )
 
     if field == "location":
+        location, _ = normalize_pending_location_value(values[0])
+        if not location:
+            return None
         return build_brief_patch(
             source_message=text,
             operations=[
                 {
                     "operation": BRIEF_PATCH_SET_LOCATION,
                     "field": "location",
-                    "value": values[0],
+                    "value": location,
                 }
             ],
             requires_clarification=False,
@@ -6007,6 +6363,17 @@ async def pending_update_field_patch_from_message(
     language: str,
     current_brief: SearchBrief | dict | None = None,
 ) -> tuple[dict | None, str | None]:
+    replacement_patch, replacement_message = await search_brief_value_replacement_patch_from_message(
+        text=text,
+        language=language,
+        current_brief=current_brief,
+        field_hint=field,
+    )
+    if replacement_patch is not None:
+        return replacement_patch, None
+    if replacement_message:
+        return None, replacement_message
+
     if field == "location":
         location = deterministic_chat_brief_hints(text).get("location")
         if not location:
@@ -6557,6 +6924,30 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
                 language,
             ),
         )
+
+    if request.draft_brief:
+        replacement_patch, replacement_message = (
+            await search_brief_value_replacement_patch_from_message(
+                text=latest_user_text,
+                language=language,
+                current_brief=request.draft_brief,
+            )
+        )
+        if replacement_patch is not None:
+            return build_recruiter_chat_refinement_response(
+                request,
+                language,
+                planner_mode,
+                replacement_patch,
+                chat_text,
+            )
+        if replacement_message:
+            return build_recruiter_chat_preserve_current_brief_response(
+                request,
+                language,
+                planner_mode,
+                replacement_message,
+            )
 
     pending_hypothesis = extract_pending_backend_java_hypothesis(request, language)
     if pending_hypothesis:

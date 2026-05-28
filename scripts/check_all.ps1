@@ -196,6 +196,10 @@ Invoke-Check "P9.13 Help/SmallTalk Resolver smoke" {
     & $python scripts/smoke_p913_help_smalltalk.py
 }
 
+Invoke-Check "P9.14 Search Brief Update Replacement smoke" {
+    & $python scripts/smoke_p914_update_replacement.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

@@ -30478,3 +30478,112 @@ The clean recruiter-chat path now routes tightly bounded help/opening messages t
 - `python scripts\smoke_p913_help_smalltalk.py`
 - `python scripts\smoke_p8_chat_quality.py`
 - `python scripts\smoke_p88_conversation_hardening.py`
+
+---
+
+## Phase 9.14 - Search Brief Update Replacement Resolver
+
+### Approved
+
+- [x] P9.14-001 Generalize Search Brief update resolver for natural-language replacement requests
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.14-001 Generalize Search Brief update resolver for natural-language replacement requests
+
+### Current Phase 9.14 strategy note
+
+This is a narrow recruiter-chat hardening slice after P9.13. The observed issue is that natural replacement requests such as `Change Angular skill to PHP` or `update Selenium to Cucumber` can degrade into a generic "which field should I update?" loop. The fix must not be phrase-specific hardcode. It follows the existing AI Agent pattern: bounded LLM interpretation where useful, with backend validation and `brief_patch` application as the authority.
+
+## Task: P9.14-001 Generalize Search Brief update resolver for natural-language replacement requests
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed conversation issue:
+
+```text
+Recruiter: Change Angular skill to PHP
+AI Assistant: Which field should I update: role, technology, stack, location, seniority, or depth?
+Recruiter: stack
+AI Assistant: Which 1-3 stack signals should I use?
+Recruiter: Change Angular skill to PHP
+AI Assistant: That does not look like an English IT/software stack signal...
+```
+
+This is wrong because the first message already contains the update intent, the old value, the new value, and a semantic field hint (`skill` -> stack when safe). The agent should understand the replacement request directly and avoid forcing the recruiter through a field-selection loop.
+
+### Goal
+
+Add a generalized Search Brief value-replacement resolver for existing draft/ready briefs.
+
+The resolver should support natural replacement requests such as:
+
+- `Change Angular skill to PHP`
+- `update Selenium to Cucumber`
+- `replace Java with PHP`
+
+The LLM may classify replacement meaning only. Backend validation must resolve the actual field by matching the old value against the current Search Brief, validate the new value for that resolved field, and apply the change only through existing `brief_patch` operations.
+
+### Architecture
+
+1. Extend `PendingAnswerInterpreter` to v2.
+   - Add bounded `replace_value` intent.
+   - Extract only safe `field`, `old_value`, and replacement `values`.
+   - Allow `field = null` so backend can infer from the current Search Brief.
+
+2. Add backend replacement resolution.
+   - Match `old_value` against current `role_family`, `technology`, `stack`, `location`, `seniority`, and `search_depth`.
+   - Prefer a valid field hint only when the old value actually exists in that field.
+   - Ask a narrow clarification if the old value is missing or ambiguous across fields.
+   - Validate the replacement value with the target field's existing validators.
+
+3. Apply changes through existing patch operations only.
+   - Stack value replacement preserves other stack values.
+   - Scalar fields use existing `reconfirm_field`, `set_location`, `set_seniority`, or `set_search_depth` operations.
+   - No QueryPlan is built and no search starts automatically.
+
+### Acceptance Criteria
+
+- `Change Angular skill to PHP` updates stack from `["Angular", "Playwright"]` to `["PHP", "Playwright"]`.
+- `update Selenium to Cucumber` can infer stack when Selenium exists only in stack.
+- `replace Java with PHP` can infer technology when Java exists only as the main technology.
+- If the old value is missing, the assistant asks a narrow clarification and does not mutate the Search Brief.
+- If the old value appears in more than one replaceable field, the assistant asks which field to update and does not mutate the Search Brief.
+- Repeating the same natural replacement request after a selected update field can still produce the correct patch.
+- No search starts automatically; `Prepare search` / runtime approval boundaries remain unchanged.
+- New no-network smoke coverage is wired into `scripts/check_all.ps1`.
+
+### Non-Goals
+
+- Phrase-specific hardcode for Angular, PHP, Selenium, Cucumber, or any fixed replacement phrase.
+- New Search Brief schema fields.
+- LLM-generated QueryPlans.
+- Direct LLM mutation of Search Brief state.
+- Changing provider execution, runtime approval, scoring, dedupe, LocationGuard, persistence, candidate workspace, or export.
+- LinkedIn login, scraping, profile automation, messaging, autonomous execution, or account actions.
+
+### Implementation result
+
+Implemented in `app/pending_answer_interpreter.py`, `app/main.py`, `scripts/smoke_p914_update_replacement.py`, `scripts/smoke_p97_semantic_interpreter.py`, and `scripts/check_all.ps1`.
+
+`PendingAnswerInterpreter v2` now supports `replace_value`. Recruiter-chat update handling runs a bounded replacement resolver before broad unclear/refinement fallbacks for existing briefs. The resolver uses LLM output only as semantic extraction, then checks the old value against the current normalized Search Brief and applies only backend-built `brief_patch` operations. Stack replacement preserves unrelated stack values, scalar replacements use the existing field patch operations, and ambiguous/missing old values return clarification without mutation.
+
+While verifying the full regression baseline, the pending-location interpreter path was also tightened so LLM-returned location answers are rechecked by the existing pending-location validator before patching. This preserves the P9.6 guardrail that technology/role answers such as `Java` or `QA Automation` must not be accepted as locations.
+
+### Verification result
+
+- `.\.venv\Scripts\python.exe -m compileall app scripts\smoke_p914_update_replacement.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p914_update_replacement.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p96_post_deploy_polish.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p97_semantic_interpreter.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p99_search_brief_refinement.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p88_conversation_hardening.py`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
