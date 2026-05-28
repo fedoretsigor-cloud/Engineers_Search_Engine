@@ -21065,6 +21065,384 @@ This keeps the fix global and avoids a QA-specific patch.
 
 ---
 
+## Phase 9.9 - AI Agent Semantic Understanding Hardening
+
+### Approved
+
+### Backlog
+
+- [ ] P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
+- [ ] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
+- [ ] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
+- [ ] P9.9-004 Retire duplicated legacy clean-state semantic branches
+- [ ] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
+- [ ] P9.9-006 Add bounded Search Brief refinement interpreter v2
+- [ ] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
+
+### In Progress
+
+### Done
+
+### Current Phase 9.9 strategy note
+
+Phase 9.9 is a proposed post-deploy correction for initial recruiter-message understanding. Phase 9.7 improved pending-answer semantics and Phase 9.8 fixed planner/scoring role drift, but the first full recruiter message can still be parsed incorrectly before a valid Search Brief exists.
+
+Observed issue:
+
+```text
+Recruiter request: I need Analyst in Canada with banking domain experience and SQL skills
+Current brief: role_family becomes the whole sentence; technology, stack, and location are missing.
+Follow-up issue: Banking domain can be accepted as technology, even though it is domain experience / must-have context.
+```
+
+The intended global behavior:
+
+- LLM extracts meaning from the first clean-state recruiter message.
+- Backend validation and normalization remain authoritative.
+- Domain/business context must not become technology.
+- Technical skills such as SQL should become technology/stack signals when relevant.
+- Ambiguous roles such as Analyst should trigger a targeted clarification when needed.
+- The assistant/Codex must run the automated semantic UAT suite after implementation and report pass/fail details; this phase must not rely only on manual browser observation.
+
+### Phase 9.9 execution rule
+
+For every Phase 9.9 task, Codex must apply the local skill:
+
+```text
+C:\Users\fedor\.codex\skills\goal-execution-loop\SKILL.md
+```
+
+Each task must be delivered one by one through this loop:
+
+```text
+review -> update if needed -> review again -> mark approved -> code -> checks -> fix defects -> rerun checks -> commit -> push -> short report
+```
+
+This execution rule is part of the plan, not optional process commentary. Do not skip the review-update-review loop, do not code before the task is ready/approved, and do not treat Phase 9.9 as one large combined implementation unless the user explicitly changes the plan.
+
+### Recommended implementation order
+
+1. `P9.9-001` and `P9.9-002`: define the bounded extractor contract and backend validator first.
+2. `P9.9-003`: route only clean-state initial recruiter messages through the new extractor.
+3. `P9.9-004`: remove or isolate old clean-state hardcoded semantic branches only after the new path is verified.
+4. `P9.9-005`: add automated semantic UAT and run it as part of verification.
+5. `P9.9-006`: extend the same pattern to later Search Brief refinements.
+6. `P9.9-007`: close the phase with a documented AI Agent semantic-understanding decision.
+
+---
+
+## Task: P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
+
+### Status
+
+Draft / not approved.
+
+### Context
+
+Current initial extraction can fail on multi-signal recruiter messages. Example:
+
+```text
+I need Analyst in Canada with banking domain experience and SQL skills
+```
+
+Expected normalized brief:
+
+- `role_family`: `Analyst`, or a clarification for `Business Analyst` / `Data Analyst` / `QA Analyst` / `Systems Analyst` if the role is too ambiguous.
+- `technology`: `SQL` when it is the main technical signal.
+- `stack`: `SQL` or supporting technical signals depending on validator policy.
+- `location`: `Canada`.
+- `must_have` / `domain_experience`: `banking domain experience`.
+- `brief_status`: ready only if required fields are validated and ambiguity is acceptable.
+
+### Goal
+
+Replace fragile initial full-message parsing with:
+
+```text
+message -> deterministic safety/language precheck -> bounded LLM SearchBriefExtractor v2 -> strict backend validator -> normalized Search Brief -> targeted clarification
+```
+
+### Proposed Steps
+
+1. Review the current initial extraction path in `app/main.py`, `app/search_brief.py`, `app/search_validation.py`, and the Phase 9.7 `PendingAnswerInterpreter`.
+2. Define `SearchBriefExtractor v2` output contract:
+   - `role_family`;
+   - `role_ambiguity`;
+   - `technology`;
+   - `stack`;
+   - `location`;
+   - `must_have`;
+   - `nice_to_have`;
+   - `domain_experience` or mapped `must_have`;
+   - `seniority`;
+   - `search_depth`;
+   - `confidence`;
+   - `reason_codes`.
+3. Add bounded LLM prompt/payload rules:
+   - extract fields only;
+   - no query generation;
+   - no Tavily/provider calls;
+   - no LinkedIn login, scraping, automation, messaging, or account actions;
+   - no persistence;
+   - return strict JSON only.
+4. Add strict backend validation:
+   - role must be an English IT/software/data/product/recruiting-relevant role;
+   - technology/stack must be technical IT/software/data skills;
+   - domain/business words such as banking, fintech, healthcare, ecommerce, and telecom must go to `must_have` / `domain_experience`, not `technology`;
+   - location must be location-like;
+   - low confidence or role ambiguity triggers clarification;
+   - accepted output must build the same existing Search Brief / structured-request shape used by the current pipeline.
+5. Integrate only into clean-state initial recruiter-message extraction, not pending-answer routing.
+6. Preserve Phase 9.7 `PendingAnswerInterpreter` for follow-up replies.
+7. Add regression coverage:
+   - Analyst / Canada / banking / SQL case;
+   - QA Automation / Spain / Java / Selenium case;
+   - Backend Developer / Ukraine / Java / Spring case;
+   - off-topic/noise still refused or clarified;
+   - domain-only replies are not accepted as technology;
+   - ambiguous Analyst role asks a targeted role clarification if policy requires it.
+8. Update documentation and UAT notes.
+
+### Acceptance Criteria
+
+- No hardcoded fix for Analyst/Canada/banking only.
+- Initial Search Brief extraction uses bounded LLM semantics with deterministic safety precheck and strict backend validation.
+- `Banking domain` is not accepted as technology.
+- `SQL skills` can be accepted as technology/stack when relevant.
+- Existing human-approved runtime/search boundary remains unchanged.
+- No autonomous execution, no direct web-search bypass, no LinkedIn login/scraping/automation, no candidate messaging, no account actions, and no persistence are added.
+
+### Non-Goals
+
+- Do not change query planner/scoring guardrail from Phase 9.8.
+- Do not change search providers.
+- Do not add persistence.
+- Do not implement without explicit approval.
+
+---
+
+## Task: P9.9-002 Add strict backend validator for SearchBriefExtractor v2
+
+### Status
+
+Draft / not approved.
+
+### Goal
+
+Make the backend, not the LLM, authoritative for whether extracted Search Brief fields are safe, valid, and usable.
+
+### Proposed Steps
+
+1. Define a versioned validator input/output for `SearchBriefExtractor v2`.
+2. Validate field names, types, confidence, max lengths, English-only text, max stack count, and unsupported/unsafe content.
+3. Validate semantic categories:
+   - role must be an IT/software/data/product/security/design/operations role;
+   - technology and stack must be technical IT/software/data skills;
+   - domain/business context must map to `must_have` / `domain_experience`, not `technology`;
+   - location must be location-like and safe.
+4. Return structured validation errors and clarification targets instead of silently accepting weak extraction.
+5. Keep validators deterministic and separately testable.
+
+### Acceptance Criteria
+
+- LLM output cannot directly mutate Search Brief state without backend validation.
+- Domain terms such as `banking domain`, `fintech`, or `healthcare` are not accepted as main technology.
+- Technical terms such as `SQL`, `Selenium`, `AWS`, `Power BI`, and `Terraform` can be accepted when the request context supports them.
+- Invalid, Cyrillic, URL-like, or prompt-injection-like values are rejected or clarified.
+
+### Non-Goals
+
+- No query planning changes.
+- No provider/search execution changes.
+- No autonomous execution.
+
+---
+
+## Task: P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
+
+### Status
+
+Draft / not approved.
+
+### Goal
+
+Use the new bounded LLM extractor only for the first clean-state full recruiter request, then feed the validated result into the existing Search Brief and approval-gated runtime flow.
+
+### Proposed Steps
+
+1. Locate the current clean-state recruiter chat extraction path in `app/main.py`.
+2. Insert the new extractor after deterministic safety/language checks and before legacy fallback parsing.
+3. Accept only validator-approved output.
+4. If extraction is incomplete or ambiguous, ask one targeted clarification question.
+5. Keep Phase 9.7 `PendingAnswerInterpreter` for follow-up clarification answers.
+6. Preserve current planner, provider, runtime approval, scoring, dedupe, and Candidate Results behavior.
+
+### Acceptance Criteria
+
+- `I need QA Automation in Spain with Java skills` produces a QA Automation search brief, not Java Developer.
+- `I need Analyst in Canada with banking domain experience and SQL skills` separates role/location/domain/technical skill.
+- Existing supported cases such as Backend Developer / Java / Ukraine / Spring remain valid.
+- Search still starts only through existing confirmation/runtime approval boundaries.
+
+### Non-Goals
+
+- No pending-answer rewrite in this task.
+- No planner/scoring/provider change.
+
+---
+
+## Task: P9.9-004 Retire duplicated legacy clean-state semantic branches
+
+### Status
+
+Draft / not approved.
+
+### Goal
+
+Remove or isolate old phrase-specific clean-state semantic branches after `SearchBriefExtractor v2` is verified, so hardcoded paths do not compete with the new semantic layer.
+
+### Proposed Steps
+
+1. Inventory legacy clean-state semantic functions and unreachable/dead branches in `app/main.py`.
+2. Identify which branches are still required for safety, greeting, off-topic, reset, or deterministic fallback.
+3. Remove only duplicated business-meaning parsing that is replaced by `SearchBriefExtractor v2`.
+4. Keep deterministic safety prechecks and backend validators.
+5. Add regression coverage for removed branches before deletion.
+
+### Acceptance Criteria
+
+- The clean-state path has one primary semantic extraction layer.
+- Safety/off-topic/greeting/reset behavior is preserved.
+- No Java/Ukraine/backend-specific branch can override a validated generic IT-role brief.
+
+### Non-Goals
+
+- No cosmetic UI changes.
+- No search execution changes.
+
+---
+
+## Task: P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
+
+### Status
+
+Draft / not approved.
+
+### Goal
+
+Add an automated semantic UAT suite that Codex runs during implementation verification to catch recruiter-understanding regressions without relying only on manual frontend testing.
+
+### Proposed Steps
+
+1. Create a deterministic no-network UAT script for clean-state recruiter prompts with mocked/bounded LLM responses where needed.
+2. Cover at least these categories:
+   - QA Automation / Spain / Java / Selenium;
+   - Analyst / Canada / banking domain / SQL;
+   - Data Analyst / Germany / SQL / Power BI;
+   - DevOps Engineer / Canada / AWS / Terraform;
+   - Product Manager / Poland / fintech / AI;
+   - Business Analyst / UK / Salesforce / banking;
+   - Cybersecurity Analyst / Remote / SIEM / SOC;
+   - ambiguous `Analyst` without enough context;
+   - off-topic/noise;
+   - unsafe/Cyrillic input.
+3. Assert semantic fields, not only HTTP success:
+   - role remains role;
+   - domain remains domain/must-have;
+   - technology/stack remain technical;
+   - location remains location;
+   - ambiguity asks clarification.
+4. Wire the UAT into `scripts/check_all.ps1` if stable and no-network.
+5. During implementation, Codex must run this suite plus the relevant existing smoke checks and report failures before commit.
+
+### Acceptance Criteria
+
+- The suite fails on role/technology/domain drift.
+- The suite is repeatable without live Tavily or live provider calls.
+- Codex verification report includes the semantic UAT result.
+- Existing Phase 9.7, 9.8, and 9.6 checks remain green.
+
+### Non-Goals
+
+- No live Tavily/provider UAT inside CI.
+- No screenshots or raw candidate/profile URLs committed.
+
+---
+
+## Task: P9.9-006 Add bounded Search Brief refinement interpreter v2
+
+### Status
+
+Draft / not approved.
+
+### Goal
+
+Apply the same bounded LLM + strict validator pattern to recruiter refinement messages after a draft Search Brief exists.
+
+### Proposed Steps
+
+1. Review current refinement paths and `brief_patch` behavior.
+2. Define a bounded refinement interpreter contract:
+   - change field;
+   - add/remove/replace stack;
+   - change location;
+   - clarify role;
+   - update domain/must-have;
+   - unclear/unsafe.
+3. Validate all operations server-side before applying them.
+4. Preserve `PendingAnswerInterpreter v1` or merge only where the contract is clearly stronger.
+5. Add regression cases:
+   - `change location to Canada`;
+   - `Java only`;
+   - `add Selenium`;
+   - `remove banking`;
+   - `I meant QA, not developer`;
+   - `make it remote`.
+
+### Acceptance Criteria
+
+- Natural refinement messages update the intended Search Brief field.
+- Ambiguous refinements ask one targeted question.
+- Unsafe or out-of-scope text does not mutate the brief.
+- Runtime approval/search execution boundaries remain unchanged.
+
+### Non-Goals
+
+- No autonomous search after refinement.
+- No persistence.
+
+---
+
+## Task: P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
+
+### Status
+
+Draft / not approved.
+
+### Goal
+
+Close Phase 9.9 with a documented decision on whether recruiter-message semantic understanding is good enough for the final POC baseline.
+
+### Proposed Steps
+
+1. Summarize implemented extractor/interpreter behavior.
+2. Summarize automated semantic UAT results.
+3. Document what LLM is allowed to decide and what backend remains authoritative for.
+4. Document residual limitations and future Phase 10+ handoff.
+5. Update `Roadmap.md`, `ProjectStatus.md`, `Tasks.md`, and `AGENTS.md`.
+
+### Acceptance Criteria
+
+- Phase 9.9 status is explicit: completed, blocked, or deferred.
+- Automated semantic UAT result is recorded.
+- Future work is clearly separated from current POC boundaries.
+
+### Non-Goals
+
+- No new product behavior beyond documentation.
+
+---
+
 ## Task: P9.6-007 Default empty Recruiter Chat layout
 
 ### Status
