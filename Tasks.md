@@ -21071,7 +21071,6 @@ This keeps the fix global and avoids a QA-specific patch.
 
 ### Backlog
 
-- [ ] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
 - [ ] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
 - [ ] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [ ] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
@@ -21083,6 +21082,7 @@ This keeps the fix global and avoids a QA-specific patch.
 ### Done
 
 - [x] P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
+- [x] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
 
 ### Current Phase 9.9 strategy note
 
@@ -21236,7 +21236,7 @@ This task defines the contract, prompt, OpenAI wrapper, and no-network contract 
 
 ### Status
 
-Draft / not approved.
+Implemented / completed.
 
 ### Goal
 
@@ -21244,15 +21244,28 @@ Make the backend, not the LLM, authoritative for whether extracted Search Brief 
 
 ### Proposed Steps
 
-1. Define a versioned validator input/output for `SearchBriefExtractor v2`.
-2. Validate field names, types, confidence, max lengths, English-only text, max stack count, and unsupported/unsafe content.
-3. Validate semantic categories:
+1. Define a versioned validator input/output for `SearchBriefExtractor v2` in the extractor module.
+2. Validator input is raw parsed LLM JSON from `P9.9-001`.
+3. Validator output is a deterministic normalized extractor result:
+   - `validator_version`;
+   - `schema_version`;
+   - `confidence`;
+   - `normalized_brief` using the existing `SearchBrief` shape;
+   - `domain_experience`;
+   - `role_ambiguity`;
+   - `clarification_targets`;
+   - `reason_codes`.
+4. Validate field names, types, confidence, max lengths, English-only text, max stack count, and unsupported/unsafe content.
+5. Validate semantic categories:
    - role must be an IT/software/data/product/security/design/operations role;
    - technology and stack must be technical IT/software/data skills;
    - domain/business context must map to `must_have` / `domain_experience`, not `technology`;
    - location must be location-like and safe.
-4. Return structured validation errors and clarification targets instead of silently accepting weak extraction.
-5. Keep validators deterministic and separately testable.
+6. Treat low confidence as not accepted.
+7. Build the normalized Search Brief draft through existing `SearchBrief` and Search Brief normalization helpers where possible.
+8. Return structured validation errors and clarification targets instead of silently accepting weak extraction.
+9. Keep validators deterministic and separately testable.
+10. Do not call the validator from `recruiter_chat_turn_response` yet; `P9.9-003` owns integration.
 
 ### Acceptance Criteria
 
@@ -21260,12 +21273,30 @@ Make the backend, not the LLM, authoritative for whether extracted Search Brief 
 - Domain terms such as `banking domain`, `fintech`, or `healthcare` are not accepted as main technology.
 - Technical terms such as `SQL`, `Selenium`, `AWS`, `Power BI`, and `Terraform` can be accepted when the request context supports them.
 - Invalid, Cyrillic, URL-like, or prompt-injection-like values are rejected or clarified.
+- The validator is covered by no-network tests and is wired into the local regression baseline.
 
 ### Non-Goals
 
+- No clean-state chat integration; `P9.9-003` owns that.
+- No full semantic recruiter UAT; `P9.9-005` owns that.
 - No query planning changes.
 - No provider/search execution changes.
 - No autonomous execution.
+
+### Implementation Result
+
+- Added `SEARCH_BRIEF_EXTRACTOR_VALIDATOR_VERSION`.
+- Added `validate_search_brief_extractor_output()` for raw `SearchBriefExtractor v2` JSON.
+- Validator returns deterministic normalized extractor result with `normalized_brief`, `domain_experience`, `role_ambiguity`, `clarification_targets`, `reason_codes`, schema version, confidence, and validator version.
+- Validator rejects unknown fields, low confidence, unsafe values, unsupported schema, invalid field types, too many stack items, and domain/business context placed in technology or stack.
+- Validator maps `domain_experience` into Search Brief `must_have` while preserving a separate `domain_experience` field in the validated extractor result.
+- No recruiter-chat integration, provider/search/runtime/scoring changes, or persistence were added.
+
+### Verification Completed
+
+- `.venv\Scripts\python.exe scripts\smoke_p99_search_brief_extractor.py`
+- `.venv\Scripts\python.exe -m compileall app scripts`
+- `git diff --check`
 
 ---
 

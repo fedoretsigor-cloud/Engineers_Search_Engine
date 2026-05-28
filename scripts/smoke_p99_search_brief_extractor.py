@@ -46,6 +46,91 @@ def assert_openai_payload_contract() -> None:
     assert payload["messages"][1]["role"] == "user", payload
 
 
+def valid_raw_extractor_output() -> dict:
+    return {
+        "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+        "draft_brief": {
+            "source_text": "I need Analyst in Canada with banking domain experience and SQL skills.",
+            "role_family": "Analyst",
+            "role_ambiguity": {
+                "is_ambiguous": True,
+                "label": "Analyst",
+                "options": ["Data Analyst", "Business Analyst", "Systems Analyst"],
+                "clarification_question": "Which Analyst role should the search target?",
+            },
+            "technology": "SQL",
+            "stack": ["SQL"],
+            "location": "Canada",
+            "seniority": None,
+            "must_have": [],
+            "nice_to_have": [],
+            "domain_experience": ["banking domain experience"],
+            "exclusions": [],
+            "search_depth": "standard",
+            "profile_sources": ["linkedin_public"],
+            "notes": None,
+        },
+        "confidence": "high",
+        "reason_codes": ["extracted_multi_signal_request"],
+    }
+
+
+def assert_validator_accepts_and_separates_domain_context() -> None:
+    validated, errors = extractor.validate_search_brief_extractor_output(
+        valid_raw_extractor_output()
+    )
+    assert errors == [], errors
+    assert validated is not None, validated
+    normalized_brief = validated["normalized_brief"]
+    assert validated["validator_version"] == "search_brief_extractor_validator_v1", validated
+    assert normalized_brief["role_family"] == "Analyst", normalized_brief
+    assert normalized_brief["technology"] == "SQL", normalized_brief
+    assert normalized_brief["stack"] == ["SQL"], normalized_brief
+    assert normalized_brief["location"] == "Canada", normalized_brief
+    assert "banking domain experience" in normalized_brief["must_have"], normalized_brief
+    assert "banking domain experience" in validated["domain_experience"], validated
+    assert validated["role_ambiguity"]["is_ambiguous"] is True, validated
+    assert "role_family" in validated["clarification_targets"], validated
+    assert normalized_brief["brief_status"] == "needs_clarification", normalized_brief
+
+
+def assert_validator_rejects_domain_as_technology() -> None:
+    raw = valid_raw_extractor_output()
+    raw["draft_brief"]["technology"] = "Banking domain"
+    raw["draft_brief"]["domain_experience"] = []
+    validated, errors = extractor.validate_search_brief_extractor_output(raw)
+    assert validated is None, validated
+    assert any(error["field"] == "technology" for error in errors), errors
+
+
+def assert_validator_rejects_unsafe_values() -> None:
+    raw = valid_raw_extractor_output()
+    raw["draft_brief"]["location"] = "https://example.com"
+    validated, errors = extractor.validate_search_brief_extractor_output(raw)
+    assert validated is None, validated
+    assert any(error["field"] == "location" for error in errors), errors
+
+
+def assert_validator_rejects_low_confidence_and_unknown_fields() -> None:
+    raw = valid_raw_extractor_output()
+    raw["confidence"] = "low"
+    raw["extra"] = "not allowed"
+    raw["draft_brief"]["extra"] = "not allowed"
+    validated, errors = extractor.validate_search_brief_extractor_output(raw)
+    assert validated is None, validated
+    assert any(error["field"] == "confidence" for error in errors), errors
+    assert any(error["field"] == "extractor_output" for error in errors), errors
+    assert any(error["field"] == "draft_brief" for error in errors), errors
+
+
+def assert_validator_rejects_too_many_stack_items() -> None:
+    raw = valid_raw_extractor_output()
+    raw["draft_brief"]["stack"] = ["SQL", "AWS", "Terraform", "Power BI"]
+    validated, errors = extractor.validate_search_brief_extractor_output(raw)
+    assert validated is None, validated
+    assert any(error["field"] == "stack" for error in errors), errors
+
+
 async def assert_missing_openai_config() -> None:
     old_key = os.environ.pop("OPENAI_API_KEY", None)
     old_model = os.environ.pop("OPENAI_MODEL", None)
@@ -173,6 +258,11 @@ async def assert_openai_wrapper_rejects_invalid_json() -> None:
 async def main() -> None:
     assert_prompt_contract()
     assert_openai_payload_contract()
+    assert_validator_accepts_and_separates_domain_context()
+    assert_validator_rejects_domain_as_technology()
+    assert_validator_rejects_unsafe_values()
+    assert_validator_rejects_low_confidence_and_unknown_fields()
+    assert_validator_rejects_too_many_stack_items()
     await assert_missing_openai_config()
     await assert_openai_wrapper_parses_json()
     await assert_openai_wrapper_rejects_invalid_json()

@@ -14,7 +14,7 @@ Phase 3 - Candidate Quality Layer is completed.
 
 Phase 4 - AI Agent Foundation is completed.
 
-Current phase: Phase 9.9 `AI Agent Semantic Understanding Hardening` is in progress and completed through `P9.9-001`; Phase 10+ is parked unless the POC is explicitly reopened.
+Current phase: Phase 9.9 `AI Agent Semantic Understanding Hardening` is in progress and completed through `P9.9-002`; Phase 10+ is parked unless the POC is explicitly reopened.
 
 Phase 10+ persistence and later feature tracks are parked for now. The current decision is to close the project as a POC after a final hardening/deploy slice. The working plan is recorded in `docs/phase-9-5-final-poc-plan.md`. Phase 9.5 is completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`.
 
@@ -54,7 +54,7 @@ Phase 9.7 is completed as semantic chat-understanding hardening. `P9.7-001` thro
 
 Phase 9.8 is completed as role-anchored planning/scoring hardening. `P9.8-001` adds deterministic `RoleAliasPlan` metadata to rule-based query plans, prevents technology-only role drift for arbitrary roles, preserves configured domain plans, and makes candidate scoring use approved aliases as the strong role evidence set.
 
-Phase 9.9 is in progress as `AI Agent Semantic Understanding Hardening`. `P9.9-001` is completed: it added an isolated bounded `SearchBriefExtractor v2` foundation with prompt contract, OpenAI JSON wrapper, and no-network smoke coverage, without integrating it into recruiter chat and without making LLM output authoritative. Remaining planned tasks are `P9.9-002` strict backend validator, `P9.9-003` clean-state chat integration, `P9.9-004` legacy semantic-branch retirement, `P9.9-005` automated semantic recruiter UAT that Codex must run during verification, `P9.9-006` bounded Search Brief refinement interpreter v2, and `P9.9-007` closeout decision. The phase addresses clean-state initial recruiter messages where the current parser can fail before a valid Search Brief exists.
+Phase 9.9 is in progress as `AI Agent Semantic Understanding Hardening`. `P9.9-001` added an isolated bounded `SearchBriefExtractor v2` foundation with prompt contract, OpenAI JSON wrapper, and no-network smoke coverage. `P9.9-002` added strict backend validation for raw extractor output, including schema/confidence/type/safety checks, domain-vs-technology guardrails, normalized Search Brief draft output, `domain_experience`, `role_ambiguity`, `clarification_targets`, and validator provenance. The extractor is still not integrated into recruiter chat; `P9.9-003` owns that. Remaining planned tasks are `P9.9-003` clean-state chat integration, `P9.9-004` legacy semantic-branch retirement, `P9.9-005` automated semantic recruiter UAT that Codex must run during verification, `P9.9-006` bounded Search Brief refinement interpreter v2, and `P9.9-007` closeout decision.
 
 After Phase 7 closeout, Phase 7.5 was inserted as the QA gate before Phase 8. Phase 7.5 is now closed with the readiness decision `ready after approved fixes completed`. Phase 8 is closed through `P8-032`, Phase 8.5 has `P8.5-001` through `P8.5-005` completed, and Phase 8.75 is completed as the recruiter UAT gate before Phase 9 multi-provider expansion and Phase 10 persistence. `P8-001` is completed as the Candidate Workspace v0 contract and `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, `P8-006 Define bounded candidate explanation wording contract`, `P8-006.1 Implement explicit selected-candidate wording overlay`, `P8-007 Prepare export workflow`, `P8-007A Implement export model and serializers`, and `P8-007B Add export UI and download workflow` are implemented/completed. Phase 8.75 added `docs/phase-8-75-uat-acceptance-gate.md`, deterministic no-live UAT in `scripts/uat_phase_8_75_no_live.py`, Candidate Workspace helper UAT in `scripts/uat_phase_8_75_workspace_cases.js`, limited live backend-runtime UAT in `scripts/uat_phase_8_75_live.py`, and the aggregate report in `docs/phase-8-75-uat-report.md`. Phase 8.75.1 added `docs/phase-8-75-1-conversation-ux-uat.md`, `scripts/uat_phase_8_75_1_ui_conversation.py`, and `docs/phase-8-75-1-conversation-ux-report.md`; the real frontend simulated-user gate passed `116/116` UI scenarios with deterministic OpenAI/Tavily doubles. The gates keep live Tavily out of CI and preserve the absolute boundaries: no direct web-search bypass, no direct LinkedIn access/login/scraping, no candidate messaging, no account actions, no autonomous execution, no persistence, and no unreviewed providers.
 
@@ -157,7 +157,7 @@ Planned current and later phases:
 - Phase 9.6: `Post-Deploy Recruiter UX Polish`, completed through `P9.6-008`.
 - Phase 9.7: `Recruiter Chat Semantic Interpreter`, completed through `P9.7-008`.
 - Phase 9.8: `Role-Anchored Query Planning And Scoring Guardrail`, completed through `P9.8-001`.
-- Phase 9.9: `AI Agent Semantic Understanding Hardening`, in progress through `P9.9-001`, proposed as the clean-state initial-message understanding correction with automated semantic recruiter UAT.
+- Phase 9.9: `AI Agent Semantic Understanding Hardening`, in progress through `P9.9-002`, proposed as the clean-state initial-message understanding correction with automated semantic recruiter UAT.
 - Phase 11: `Manual Candidate Evidence Intake`, future track where the recruiter manually pastes public profile text copied outside the app, and the agent compares that user-provided evidence against the current Search Brief and workspace context.
 - Phase 12: `Resume Upload & Fit Analysis`, future track for structured resume/CV analysis after provider expansion and persistence decisions.
 
@@ -516,7 +516,7 @@ Recommended next steps:
 - Phase 8.8: `Recruiter Concern Backlog before Persistence`; `P8.8-001` through `P8.8-024` are approved and implemented.
 - Phase 9: `Multi-Provider Search Expansion`.
 - Phase 9.8: `Role-Anchored Query Planning And Scoring Guardrail`; `P9.8-001` is completed. Rule-based query plans now carry deterministic `RoleAliasPlan` metadata, generic planning rejects technology-only role phrases for arbitrary roles, configured domain plans are preserved, and candidate scoring uses approved aliases as the strong role evidence set.
-- Phase 9.9: `AI Agent Semantic Understanding Hardening`; in progress through `P9.9-001`. Current correction path: bounded LLM clean-state Search Brief extraction with backend validation, domain/technology separation, and automated semantic recruiter UAT.
+- Phase 9.9: `AI Agent Semantic Understanding Hardening`; in progress through `P9.9-002`. Current correction path: bounded LLM clean-state Search Brief extraction with backend validation, domain/technology separation, and automated semantic recruiter UAT.
 - Phase 10: `Persistent Memory + Saved Searches`.
 - Phase 11: `Manual Candidate Evidence Intake`.
 - Phase 12: `Resume Upload & Fit Analysis`.
