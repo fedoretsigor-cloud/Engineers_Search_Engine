@@ -17,6 +17,7 @@ from app.search_validation import (
     add_validation_error,
     normalize_role_family_value,
     normalize_search_location_value,
+    normalize_stack_item_value,
     normalize_stack_items,
     normalize_technology_value,
 )
@@ -105,6 +106,68 @@ SEARCH_BRIEF_EXTRACTOR_MISSING_FIELD_PRIORITY = {
     "search_depth": 4,
     "profile_sources": 5,
 }
+REQUIREMENT_SEARCH_SIGNAL_RESOLVER_VERSION = "requirement_search_signal_resolver_v1"
+NON_DEVELOPER_REQUIREMENT_ROLE_PATTERNS = [
+    r"\bproject manager\b",
+    r"\bprogram manager\b",
+    r"\bproduct manager\b",
+    r"\bproduct owner\b",
+    r"\bscrum master\b",
+    r"\bagile coach\b",
+    r"\bdelivery manager\b",
+    r"\bbusiness analyst\b",
+    r"\bsystems analyst\b",
+    r"\bfunctional analyst\b",
+]
+DEVELOPER_REQUIREMENT_ROLE_BLOCK_PATTERNS = [
+    r"\bdeveloper\b",
+    r"\bengineer\b",
+    r"\bprogrammer\b",
+    r"\barchitect\b",
+    r"\bdevops\b",
+    r"\bsre\b",
+    r"\bqa\b",
+    r"\btester\b",
+    r"\bautomation\b",
+    r"\bsecurity\b",
+    r"\bdba\b",
+    r"\bsysadmin\b",
+]
+REQUIREMENT_SIGNAL_ADJECTIVE_PATTERN = re.compile(
+    r"^(?:strong|advanced|excellent|fluent|good|solid|deep|proven|hands[- ]on)\s+",
+    flags=re.IGNORECASE,
+)
+REQUIREMENT_SIGNAL_TRAILING_CONTEXT_PATTERN = re.compile(
+    r"\s+(?:skills?|experience|background|knowledge|expertise)$",
+    flags=re.IGNORECASE,
+)
+REQUIREMENT_SIGNAL_GENERIC_TOKENS = {
+    "and",
+    "domain",
+    "experience",
+    "background",
+    "knowledge",
+    "expertise",
+    "skill",
+    "skills",
+    "strong",
+}
+REQUIREMENT_SIGNAL_UPPERCASE_TOKENS = {
+    "ai",
+    "api",
+    "aws",
+    "bi",
+    "crm",
+    "erp",
+    "gcp",
+    "hr",
+    "ml",
+    "qa",
+    "sql",
+    "ui",
+    "uk",
+    "ux",
+}
 
 
 def search_brief_extractor_system_prompt() -> str:
@@ -140,8 +203,8 @@ def search_brief_extractor_user_prompt(
                         "options": ["safe role options when obvious"],
                         "clarification_question": "one targeted role question or null",
                     },
-                    "technology": "main technical skill/platform/language/tool or null",
-                    "stack": ["1-3 explicitly requested technical stack signals"],
+                    "technology": "main technical skill/platform/language/tool, or primary domain/search anchor for non-developer IT roles when no technical skill is explicit, or null",
+                    "stack": ["1-3 explicitly requested technical, tool, language, or work-skill search signals"],
                     "location": "target country/city/region/remote value or null",
                     "seniority": "optional seniority or null",
                     "must_have": ["required non-stack requirements"],
@@ -162,6 +225,8 @@ def search_brief_extractor_user_prompt(
                 "Keep the requested candidate role in role_family.",
                 "Do not convert a technology into the target role.",
                 "Separate domain/business context from technical skills.",
+                "For non-developer IT roles such as Project Manager or Product Manager, a primary business domain can be the search anchor when no technical skill is explicit.",
+                "For non-developer IT roles, explicit work-skill requirements such as English or Excel can be stack/search signals.",
                 "Examples of domain/business context: banking, fintech, healthcare, ecommerce, telecom.",
                 "Examples of technical skills: SQL, Java, Selenium, AWS, Terraform, Power BI.",
                 "If a role label such as Analyst is ambiguous, set role_ambiguity.is_ambiguous to true.",
@@ -319,6 +384,186 @@ def looks_like_domain_context(value: object) -> bool:
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in DOMAIN_CONTEXT_PATTERNS)
 
 
+def role_allows_requirement_search_signal_resolution(role_family: object) -> bool:
+    role = normalize_text_value(role_family)
+    if not role:
+        return False
+
+    if any(
+        re.search(pattern, role, flags=re.IGNORECASE)
+        for pattern in DEVELOPER_REQUIREMENT_ROLE_BLOCK_PATTERNS
+    ):
+        return False
+
+    return any(
+        re.search(pattern, role, flags=re.IGNORECASE)
+        for pattern in NON_DEVELOPER_REQUIREMENT_ROLE_PATTERNS
+    )
+
+
+def humanize_requirement_signal_label(value: str) -> str | None:
+    label = compact_spaces(value).strip(" .,:;\"'()[]")
+    label = REQUIREMENT_SIGNAL_ADJECTIVE_PATTERN.sub("", label)
+    label = REQUIREMENT_SIGNAL_TRAILING_CONTEXT_PATTERN.sub("", label)
+    label = compact_spaces(label).strip(" .,:;\"'()[]")
+    if not label:
+        return None
+
+    tokens = re.findall(r"[A-Za-z0-9+#./&-]+", label)
+    if not tokens:
+        return None
+    if all(token.lower() in REQUIREMENT_SIGNAL_GENERIC_TOKENS for token in tokens):
+        return None
+
+    normalized_tokens: list[str] = []
+    for token in tokens:
+        lowered = token.lower()
+        if lowered in REQUIREMENT_SIGNAL_UPPERCASE_TOKENS:
+            normalized_tokens.append(lowered.upper())
+        elif token.isupper():
+            normalized_tokens.append(token)
+        else:
+            normalized_tokens.append(token[:1].upper() + token[1:].lower())
+
+    return " ".join(normalized_tokens)
+
+
+def requirement_domain_search_anchor(requirement: str) -> str | None:
+    text = normalize_text_value(requirement)
+    if not text:
+        return None
+
+    patterns = [
+        r"\b(?P<value>[A-Za-z0-9+#./&() _-]{2,80}?)\s+(?:domain|industry|sector)\s*(?:experience|background|knowledge|expertise)?\b",
+        r"\b(?P<value>[A-Za-z0-9+#./&() _-]{2,80}?)\s+(?:business|functional)\s+(?:experience|background|knowledge|expertise)\b",
+        r"\b(?P<value>[A-Za-z0-9+#./&() _-]{2,80}?)\s+experience\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        raw_value = match.group("value")
+        if looks_like_domain_context(raw_value) or looks_like_domain_context(text):
+            return humanize_requirement_signal_label(raw_value)
+
+    return None
+
+
+def split_requirement_signal_terms(value: str) -> list[str]:
+    return [
+        compact_spaces(term).strip(" .,:;\"'()[]")
+        for term in re.split(r"\s+(?:and|or)\s+|[,/;]+", value, flags=re.IGNORECASE)
+        if compact_spaces(term).strip(" .,:;\"'()[]")
+    ]
+
+
+def requirement_stack_signals(requirement: str) -> list[str]:
+    text = normalize_text_value(requirement)
+    if not text:
+        return []
+    if looks_like_domain_context(text):
+        return []
+
+    raw_candidates: list[str] = []
+    patterns = [
+        r"\b(?:strong|advanced|excellent|fluent|good|solid|deep|proven|hands[- ]on)?\s*(?P<value>[A-Za-z0-9+#./&() _-]{2,80}?)\s+skills?\b",
+        r"\b(?:experience|knowledge|expertise)\s+(?:in|with|of)\s+(?P<value>[A-Za-z0-9+#./&() _-]{2,80})\b",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            raw_candidates.extend(split_requirement_signal_terms(match.group("value")))
+
+    signals: list[str] = []
+    seen: set[str] = set()
+    for raw_candidate in raw_candidates:
+        signal = humanize_requirement_signal_label(raw_candidate)
+        if not signal:
+            continue
+        signal_key = signal.lower()
+        if signal_key in seen:
+            continue
+        normalized_signal, signal_error = normalize_stack_item_value(signal)
+        if signal_error or not normalized_signal:
+            continue
+        seen.add(signal_key)
+        signals.append(normalized_signal)
+
+    return signals
+
+
+def requirement_search_signal_sources(draft: dict) -> list[str]:
+    sources = []
+    for field_name in ("must_have", "nice_to_have", "domain_experience"):
+        sources.extend(normalize_text_list(draft.get(field_name)))
+
+    deduped_sources: list[str] = []
+    seen_sources: set[str] = set()
+    for source in sources:
+        source_key = source.lower()
+        if source_key not in seen_sources:
+            seen_sources.add(source_key)
+            deduped_sources.append(source)
+    return deduped_sources
+
+
+def apply_requirement_search_signal_resolution_to_draft(
+    draft: dict,
+) -> tuple[dict, bool]:
+    resolved = dict(draft)
+    if not role_allows_requirement_search_signal_resolution(resolved.get("role_family")):
+        return resolved, False
+
+    requirement_sources = requirement_search_signal_sources(resolved)
+    if not requirement_sources:
+        return resolved, False
+
+    changed = False
+    if not normalize_text_value(resolved.get("technology")):
+        for requirement in requirement_sources:
+            anchor = requirement_domain_search_anchor(requirement)
+            if not anchor:
+                continue
+            technology, technology_errors = normalize_technology_value(anchor)
+            if not technology_errors and technology:
+                resolved["technology"] = technology
+                changed = True
+                break
+
+    if not normalize_text_list(resolved.get("stack")):
+        stack_candidates: list[str] = []
+        seen_stack: set[str] = set()
+        for requirement in requirement_sources:
+            for signal in requirement_stack_signals(requirement):
+                signal_key = signal.lower()
+                if signal_key in seen_stack:
+                    continue
+                seen_stack.add(signal_key)
+                stack_candidates.append(signal)
+                if len(stack_candidates) == 3:
+                    break
+            if len(stack_candidates) == 3:
+                break
+
+        if stack_candidates:
+            normalized_stack, stack_errors = normalize_stack_items(stack_candidates)
+            if not stack_errors and normalized_stack:
+                resolved["stack"] = normalized_stack
+                if not normalize_text_list(resolved.get("nice_to_have")):
+                    resolved["nice_to_have"] = normalized_stack
+                changed = True
+
+    if changed:
+        assumptions = normalize_text_list(resolved.get("assumptions"))
+        assumption = (
+            "Derived executable search signals from explicit recruiter requirements."
+        )
+        if assumption not in assumptions:
+            assumptions.append(assumption)
+            resolved["assumptions"] = assumptions
+
+    return resolved, changed
+
+
 def normalize_reason_codes(value: object) -> list[str]:
     raw_codes = normalize_text_list(value)
     reason_codes: list[str] = []
@@ -441,10 +686,19 @@ def validate_search_brief_extractor_output(
     if draft_brief.get("technology") is not None and not raw_technology:
         add_validation_error(errors, "technology", "Technology value is unsafe.")
     elif raw_technology:
-        if looks_like_domain_context(raw_technology):
+        if looks_like_domain_context(raw_technology) and not (
+            role_allows_requirement_search_signal_resolution(role_family)
+        ):
             add_validation_error(errors, "technology", "Technology looks like domain context.")
         else:
-            technology, technology_errors = normalize_technology_value(raw_technology)
+            if looks_like_domain_context(raw_technology):
+                technology_source = (
+                    requirement_domain_search_anchor(raw_technology)
+                    or humanize_requirement_signal_label(raw_technology)
+                )
+            else:
+                technology_source = raw_technology
+            technology, technology_errors = normalize_technology_value(technology_source)
             errors.extend(technology_errors)
 
     raw_stack = draft_brief.get("stack")
@@ -520,6 +774,23 @@ def validate_search_brief_extractor_output(
             if domain_item not in must_have:
                 must_have.append(domain_item)
 
+    resolved_draft, _ = apply_requirement_search_signal_resolution_to_draft(
+        {
+            "role_family": role_family,
+            "technology": technology,
+            "stack": stack,
+            "must_have": must_have,
+            "nice_to_have": nice_to_have,
+            "domain_experience": domain_experience,
+            "assumptions": [],
+        }
+    )
+    technology = resolved_draft.get("technology")
+    stack = resolved_draft.get("stack") or []
+    if not nice_to_have:
+        nice_to_have = resolved_draft.get("nice_to_have") or []
+    assumptions = resolved_draft.get("assumptions") or []
+
     if errors:
         return None, errors
 
@@ -542,7 +813,7 @@ def validate_search_brief_extractor_output(
         search_depth=search_depth,
         profile_sources=profile_sources,
         notes=notes,
-        assumptions=[],
+        assumptions=assumptions,
     )
     normalized_brief, brief_errors = validate_and_normalize_search_brief(candidate_brief)
     if brief_errors:

@@ -30148,3 +30148,125 @@ Make target-location validation a global backend pattern instead of a Ukraine-on
 ### Implementation result
 
 Completed in `docs/phase-9-10-locationguard.md`, `app/domain_config.py`, `app/main.py`, `app/candidate_quality.py`, `app/static/app.js`, `scripts/smoke_p910_location_guard.py`, and `scripts/check_all.ps1`.
+
+---
+
+## Phase 9.11 - Requirement-To-Search-Signal Resolver
+
+### Approved
+
+- [x] P9.11-001 Add requirement-to-search-signal resolver for non-developer recruiter briefs
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.11-001 Add requirement-to-search-signal resolver for non-developer recruiter briefs
+
+### Current Phase 9.11 strategy note
+
+The user requested this as `P9.10-001`, but current `origin/main` already uses `P9.10-001` for `Global LocationGuard v1`. This task is therefore numbered `P9.11-001` while keeping the requested scope unchanged.
+
+This is a narrow reopened AI Agent chat-understanding hardening slice. It fixes non-developer IT recruiter briefs where explicit requirements such as domain experience, English, and Excel are extracted into `must_have` but the executable Search Brief still asks for generic `technology` / `stack` fields.
+
+## Task: P9.11-001 Add requirement-to-search-signal resolver for non-developer recruiter briefs
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed conversation issue:
+
+```text
+Recruiter: I need Project Manager with banking domain experience, strong English and Excel skils
+AI Assistant: What target location should the search use?
+Recruiter: Ukraine
+AI Assistant: Updated the search summary (updated location). Which 1-3 stack signals are important for this search?
+```
+
+This is wrong because the recruiter already provided usable search requirements: `banking domain experience`, `strong English`, and `Excel skills`. The agent should not ask a generic stack question when explicit requirements can be safely mapped into the current Search Brief execution fields.
+
+### Goal
+
+Add a bounded requirement-to-search-signal resolver for non-developer IT roles. The resolver should map explicit recruiter requirements into the existing executable fields without adding new Search Brief schema fields:
+
+- primary domain/search anchor -> existing `technology` field;
+- explicit skill/tool/language requirements -> existing `stack` field;
+- original requirements remain preserved in `must_have`.
+
+Example target brief:
+
+```json
+{
+  "role_family": "Project Manager",
+  "technology": "Banking",
+  "stack": ["English", "Excel"],
+  "location": "Ukraine",
+  "must_have": [
+    "banking domain experience",
+    "strong English skills",
+    "strong Excel skills"
+  ]
+}
+```
+
+### Architecture
+
+1. Keep LLM extraction/refinement bounded.
+   - The existing Search Brief extractor may extract domain and requirement facts.
+   - The LLM does not mutate final state, build queries, execute search, approve runtime actions, or call providers.
+
+2. Add backend resolver after extraction/patching.
+   - Read only current `role_family`, `technology`, `stack`, `must_have`, and `nice_to_have`.
+   - Apply only to non-developer IT roles such as Project Manager / Product Manager / Business Analyst style briefs.
+   - Preserve developer/engineer/QA/DevOps flows where `technology` and `stack` remain explicit technical fields.
+
+3. Reuse existing validation.
+   - Derived `technology` must pass existing technology validation.
+   - Derived `stack` values must pass existing stack validation and stay within 1-3 values.
+   - If resolution is unsafe or insufficient, keep asking the normal missing-field clarification.
+
+4. Preserve product boundaries.
+   - Do not start search automatically.
+   - Do not build a QueryPlan from chat turn.
+   - Do not change provider fanout, runtime approval, scoring, dedupe, LocationGuard, persistence, Candidate Workspace, export, or LinkedIn/account boundaries.
+
+### Acceptance Criteria
+
+- `Project Manager + banking domain + strong English + Excel + Ukraine` becomes ready for planning without asking for generic stack signals.
+- The first turn may still ask only for missing location when location is absent.
+- Original explicit requirements stay visible/preserved in `must_have`.
+- Developer baseline behavior such as `Backend Developer + Java` without stack still asks for stack.
+- Resolver works after a pending-location answer, not only on clean-state extraction.
+- No search starts automatically; `Prepare search` / runtime approval boundaries remain unchanged.
+- New no-network smoke coverage is wired into `scripts/check_all.ps1`.
+
+### Non-Goals
+
+- New Search Brief fields.
+- LLM-generated QueryPlans.
+- Direct LLM mutation of Search Brief state.
+- Changing provider execution, runtime approval, scoring, dedupe, LocationGuard, persistence, candidate workspace, or export.
+- LinkedIn login, scraping, profile automation, messaging, autonomous execution, or account actions.
+
+### Implementation result
+
+Implemented in `app/search_brief_extractor.py`, `app/main.py`, `scripts/smoke_p911_requirement_signals.py`, and `scripts/check_all.ps1`.
+
+The backend now applies a bounded `requirement_search_signal_resolver_v1` after validated clean-state extraction and after draft brief patches. For approved non-developer IT roles such as `Project Manager`, it can derive `technology = Banking` from explicit domain requirements and derive `stack = ["English", "Excel"]` from explicit skill/language/tool requirements while preserving the original requirements in `must_have`. Developer/engineer/QA-style roles remain blocked from this resolver so they still require explicit technical `technology` / `stack` values.
+
+The exact observed flow now asks only for missing location on the first turn and becomes `ready_for_planning` after `Ukraine`, without asking the stale generic stack question. Chat still does not build a QueryPlan or execute search automatically.
+
+### Verification result
+
+- `python -m compileall app scripts\smoke_p911_requirement_signals.py`
+- `python scripts\smoke_p911_requirement_signals.py`
+- `python scripts\smoke_p99_search_brief_extractor.py`
+- `python scripts\uat_phase_9_9_semantic_search_brief.py`
+- `python scripts\smoke_p99_search_brief_refinement.py`
+- `python scripts\smoke_p910_location_guard.py`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`

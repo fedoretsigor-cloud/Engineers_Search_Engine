@@ -239,6 +239,7 @@ from app.search_brief import (
     validate_and_normalize_search_brief,
 )
 from app.search_brief_extractor import (
+    apply_requirement_search_signal_resolution_to_draft,
     run_openai_json_search_brief_extractor as _run_openai_json_search_brief_extractor,
     validate_search_brief_extractor_output,
 )
@@ -3759,6 +3760,9 @@ def merge_chat_draft_brief(
         merged["search_depth"] = SEARCH_DEPTH_STANDARD
     if "profile_sources" not in merged:
         merged["profile_sources"] = [PROFILE_SOURCE_LINKEDIN_PUBLIC]
+
+    merged, _ = apply_requirement_search_signal_resolution_to_draft(merged)
+
     if merged.get("stack"):
         synced_stack, _ = normalize_brief_stack_items(merged["stack"])
         merged["stack"] = synced_stack
@@ -5201,6 +5205,11 @@ def apply_brief_patch_to_draft(
         candidate["search_depth"] = SEARCH_DEPTH_STANDARD
     if "profile_sources" not in candidate:
         candidate["profile_sources"] = [PROFILE_SOURCE_LINKEDIN_PUBLIC]
+
+    candidate, requirement_signals_changed = (
+        apply_requirement_search_signal_resolution_to_draft(candidate)
+    )
+    changed = changed or requirement_signals_changed
 
     try:
         candidate_brief = SearchBrief(**candidate)
