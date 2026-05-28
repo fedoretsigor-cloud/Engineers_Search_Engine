@@ -344,7 +344,8 @@ async def assert_clean_state_chat_preserves_domain_and_role_ambiguity() -> None:
         assert normalized_brief["stack"] == ["SQL"], normalized_brief
         assert normalized_brief["location"] == "Canada", normalized_brief
         assert "banking domain experience" in normalized_brief["must_have"], normalized_brief
-        assert response["next_question"], response
+        assert response["next_question"] == "Which Analyst role should the search target?", response
+        assert response["assistant_message"] == "Which Analyst role should the search target?", response
     finally:
         app_main.run_openai_json_search_brief_extractor = old_extractor
         app_main.run_openai_json_recruiter_chat = old_legacy_chat

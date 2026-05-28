@@ -231,6 +231,7 @@ from app.routes import RouteDependencies, create_router
 from app.search_brief import (
     adapt_search_brief_to_structured_request,
     build_structured_request_from_brief,
+    clarifying_question_for_missing_field as canonical_clarifying_question_for_missing_field,
     normalize_brief_stack_items,
     search_brief_fingerprint,
     search_brief_fingerprint_payload,
@@ -3536,10 +3537,17 @@ def localized_clarifying_question_for_missing_field(field: str, language: str) -
 
 def one_clarifying_question(normalized_brief: dict, language: str) -> str | None:
     missing_fields = normalized_brief.get("missing_fields") or []
+    questions = normalized_brief.get("clarifying_questions") or []
     if missing_fields:
+        generic_questions = {
+            canonical_clarifying_question_for_missing_field(field)
+            for field in missing_fields
+        }
+        for question in questions:
+            if question and question not in generic_questions:
+                return question
         return localized_clarifying_question_for_missing_field(missing_fields[0], language)
 
-    questions = normalized_brief.get("clarifying_questions") or []
     return questions[0] if questions else None
 
 
