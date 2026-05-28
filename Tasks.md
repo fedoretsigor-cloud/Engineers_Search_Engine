@@ -30587,3 +30587,95 @@ While verifying the full regression baseline, the pending-location interpreter p
 - `.\.venv\Scripts\python.exe scripts\smoke_p99_search_brief_refinement.py`
 - `.\.venv\Scripts\python.exe scripts\smoke_p88_conversation_hardening.py`
 - `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
+
+---
+
+## Phase 9.15 - Pending Search Brief Update Backend Routing
+
+### Approved
+
+- [x] P9.15-001 Route pending Search Brief update text through backend semantic update resolver
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.15-001 Route pending Search Brief update text through backend semantic update resolver
+
+### Current Phase 9.15 strategy note
+
+This is a narrow frontend ownership correction after P9.14. P9.14 added a generalized backend replacement resolver, but the frontend pending-update state could still intercept a full natural-language update such as `change SQL to React` and ask the broad field question again before backend semantic resolution had a chance to run.
+
+The correct ownership boundary is: frontend may handle control signals and short field selection; backend owns semantic update/refinement meaning.
+
+## Task: P9.15-001 Route pending Search Brief update text through backend semantic update resolver
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed conversation issue:
+
+```text
+AI Assistant: Sure. What would you like to update in the search summary?
+Recruiter: change SQL to React
+AI Assistant: Which field should I update: role, technology, stack, location, seniority, or depth?
+```
+
+This is wrong because the second user message is a full update request, not a field-selection answer. The frontend should not try to semantically understand or reject it. It should route that text to `/api/recruiter-chat/turn`, where P9.14 backend replacement resolution can validate it against the current Search Brief.
+
+### Goal
+
+Route pending Search Brief update text through the backend semantic update resolver unless it is a local control signal or a clear short field selection.
+
+### Architecture
+
+1. Keep local frontend handling for:
+   - restart/start-over;
+   - cancel/stop/no changes;
+   - clear short field selection such as `stack`.
+
+2. For broad pending update text:
+   - clear the pending local update action;
+   - return control to `sendChatTurn()`;
+   - mark the user message for backend history;
+   - send the request to `/api/recruiter-chat/turn` without injecting a selected `pending_update_field`.
+
+3. Preserve selected-field update behavior.
+   - If the recruiter explicitly selects a field first, follow-up values still pass `pending_update_field` to backend.
+
+### Acceptance Criteria
+
+- After `Sure. What would you like to update...`, `change SQL to React` is not answered by the frontend broad field-question fallback.
+- The same message is routed to backend recruiter chat so P9.14 replacement/refinement resolution can apply or return a narrow backend clarification.
+- Short field answers such as `stack` still produce the selected-field pending question.
+- Cancel/restart still work locally.
+- No QueryPlan is built and no search starts automatically.
+- No provider/runtime/scoring/dedupe/LocationGuard/persistence/LinkedIn/account behavior changes.
+- New no-network frontend routing smoke is wired into `scripts/check_all.ps1`.
+
+### Non-Goals
+
+- New backend replacement semantics beyond P9.14.
+- Phrase-specific hardcode for SQL, React, or any fixed pair.
+- New Search Brief schema fields.
+- Changing provider execution, runtime approval, scoring, dedupe, LocationGuard, persistence, candidate workspace, or export.
+- LinkedIn login, scraping, profile automation, messaging, autonomous execution, or account actions.
+
+### Implementation result
+
+Implemented in `app/static/app.js`, `scripts/smoke_p915_pending_update_backend_route.py`, and `scripts/check_all.ps1`.
+
+The frontend pending Search Brief update handler now handles restart/cancel/short field selection locally, but broad update text clears the local pending update action and returns `false`, allowing normal backend chat submission. `sendChatTurn()` then marks the optimistic user message for backend history and sends it to `/api/recruiter-chat/turn`, where the backend owns semantic update resolution.
+
+### Verification result
+
+- `.\.venv\Scripts\python.exe scripts\smoke_p915_pending_update_backend_route.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p914_update_replacement.py`
+- `.\.venv\Scripts\python.exe scripts\smoke_p88_conversation_hardening.py`
+- `& "$HOME\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --check app\static\app.js`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`

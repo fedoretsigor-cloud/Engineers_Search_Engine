@@ -3175,16 +3175,9 @@ async function handlePendingSearchSummaryUpdateAction(userText) {
   }
 
   if (pendingChatAction.type === "update_search_summary") {
-    appendSearchConfirmationReply(
-      responseLanguage === "ru"
-        ? "\u0427\u0442\u043e \u0438\u043c\u0435\u043d\u043d\u043e \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c: role, technology, stack, location, seniority \u0438\u043b\u0438 depth?"
-        : "Which field should I update: role, technology, stack, location, seniority, or depth?",
-      AGENT_MESSAGE_TYPES.VALIDATION_FEEDBACK
-    );
-    renderChatMessages();
+    clearPendingChatAction();
     updateActionState();
-    chatInput.focus();
-    return true;
+    return false;
   }
 
   return false;

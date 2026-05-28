@@ -200,6 +200,10 @@ Invoke-Check "P9.14 Search Brief Update Replacement smoke" {
     & $python scripts/smoke_p914_update_replacement.py
 }
 
+Invoke-Check "P9.15 Pending Update Backend Route smoke" {
+    & $python scripts/smoke_p915_pending_update_backend_route.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }
