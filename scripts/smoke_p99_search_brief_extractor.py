@@ -382,6 +382,51 @@ async def assert_clean_state_chat_rejects_invalid_extractor_without_legacy_fallb
         app_main.run_openai_json_recruiter_chat = old_legacy_chat
 
 
+async def assert_clean_state_intent_role_label_does_not_bypass_extractor() -> None:
+    old_extractor = app_main.run_openai_json_search_brief_extractor
+    old_legacy_chat = app_main.run_openai_json_recruiter_chat
+    old_intent_classifier = app_main.classify_recruiter_chat_intent_response
+
+    async def fake_intent_classifier(*args, **kwargs):
+        return {
+            "intent": "candidate_search",
+            "role_domain": "it_software",
+            "role_support_status": "supported",
+            "role_label": "Legacy Backend Developer",
+            "pending_action_intent": "unclear",
+            "field_intent": "unclear",
+            "unsupported_role_label": None,
+            "confidence": "high",
+            "response_language": "en",
+        }
+
+    async def fake_extractor(**kwargs):
+        return valid_raw_extractor_output(), None
+
+    async def fail_legacy_chat(*args, **kwargs):
+        raise AssertionError("legacy recruiter chat parser should not run for clean state")
+
+    app_main.classify_recruiter_chat_intent_response = fake_intent_classifier
+    app_main.run_openai_json_search_brief_extractor = fake_extractor
+    app_main.run_openai_json_recruiter_chat = fail_legacy_chat
+    try:
+        response = await app_main.recruiter_chat_turn_response(
+            recruiter_chat_request(
+                "I told you role Analyst in Canada with banking domain experience and SQL skills."
+            )
+        )
+        normalized_brief = response["normalized_brief"]
+        assert response["ok"] is True, response
+        assert normalized_brief["role_family"] == "Analyst", normalized_brief
+        assert normalized_brief["role_family"] != "Legacy Backend Developer", normalized_brief
+        assert normalized_brief["technology"] == "SQL", normalized_brief
+        assert normalized_brief["location"] == "Canada", normalized_brief
+    finally:
+        app_main.classify_recruiter_chat_intent_response = old_intent_classifier
+        app_main.run_openai_json_search_brief_extractor = old_extractor
+        app_main.run_openai_json_recruiter_chat = old_legacy_chat
+
+
 async def main() -> None:
     assert_prompt_contract()
     assert_openai_payload_contract()
@@ -396,6 +441,7 @@ async def main() -> None:
     await assert_clean_state_chat_uses_validated_extractor_for_qa_role()
     await assert_clean_state_chat_preserves_domain_and_role_ambiguity()
     await assert_clean_state_chat_rejects_invalid_extractor_without_legacy_fallback()
+    await assert_clean_state_intent_role_label_does_not_bypass_extractor()
 
 
 if __name__ == "__main__":

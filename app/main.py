@@ -6439,6 +6439,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
 
     if (
         intent_decision
+        and request.draft_brief
         and intent_decision.get("role_domain") == RECRUITER_ROLE_DOMAIN_IT_SOFTWARE
         and intent_decision.get("role_label")
         and not explicit_technology_signal(latest_user_text)
@@ -6477,6 +6478,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
 
     if (
         intent_decision
+        and request.draft_brief
         and intent_decision.get("role_domain") == RECRUITER_ROLE_DOMAIN_IT_SOFTWARE
         and intent_decision.get("role_support_status")
         == RECRUITER_ROLE_SUPPORT_UNSUPPORTED
@@ -6507,6 +6509,7 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
 
     if (
         intent_decision
+        and request.draft_brief
         and intent_decision.get("role_support_status")
         == RECRUITER_ROLE_SUPPORT_AMBIGUOUS
         and intent_decision.get("confidence")
@@ -6775,45 +6778,6 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             latest_user_text=latest_user_text,
             user_text=user_text,
             brief_changed=brief_changed,
-        )
-
-    role_only_value, role_only_errors = normalize_role_family_value(latest_user_text)
-    if (
-        not request.draft_brief
-        and role_only_value
-        and not role_only_errors
-        and explicit_it_role_signal(latest_user_text)
-        and not explicit_technology_signal(latest_user_text)
-        and not java_stack_terms_in_text(latest_user_text)
-        and not explicit_ukraine_location_signal(latest_user_text)
-    ):
-        partial_brief = {
-            "source_text": chat_text,
-            "brief_status": SEARCH_BRIEF_STATUS_NEEDS_CLARIFICATION,
-            "role_family": role_only_value,
-            "technology": None,
-            "stack": [],
-            "location": None,
-            "seniority": None,
-            "must_have": [],
-            "nice_to_have": [],
-            "exclusions": [],
-            "search_depth": SEARCH_DEPTH_STANDARD,
-            "profile_sources": ["linkedin_public"],
-            "notes": None,
-            "missing_fields": ["technology", "location", "stack"],
-            "clarifying_questions": [],
-            "assumptions": [],
-        }
-        return build_recruiter_chat_response(
-            ok=True,
-            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
-            language=language,
-            normalized_brief=partial_brief,
-            next_question=one_clarifying_question(partial_brief, language),
-            planner_mode=planner_mode,
-            brief_changed=True,
-            stale_state_should_clear=True,
         )
 
     ai_output, ai_errors = await run_openai_json_recruiter_chat(request)

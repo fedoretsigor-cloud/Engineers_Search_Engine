@@ -21071,7 +21071,7 @@ This keeps the fix global and avoids a QA-specific patch.
 
 ### Backlog
 
-- [ ] P9.9-004 Retire duplicated legacy clean-state semantic branches
+- [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [ ] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
 - [ ] P9.9-006 Add bounded Search Brief refinement interpreter v2
 - [ ] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
@@ -21083,6 +21083,7 @@ This keeps the fix global and avoids a QA-specific patch.
 - [x] P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
 - [x] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
 - [x] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
+- [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
 
 ### Current Phase 9.9 strategy note
 
@@ -21359,7 +21360,7 @@ Use the new bounded LLM extractor only for the first clean-state full recruiter 
 
 ### Status
 
-Draft / not approved.
+Completed.
 
 ### Goal
 
@@ -21367,22 +21368,48 @@ Remove or isolate old phrase-specific clean-state semantic branches after `Searc
 
 ### Proposed Steps
 
-1. Inventory legacy clean-state semantic functions and unreachable/dead branches in `app/main.py`.
-2. Identify which branches are still required for safety, greeting, off-topic, reset, or deterministic fallback.
-3. Remove only duplicated business-meaning parsing that is replaced by `SearchBriefExtractor v2`.
-4. Keep deterministic safety prechecks and backend validators.
-5. Add regression coverage for removed branches before deletion.
+1. Inventory legacy clean-state semantic branches after `P9.9-003`.
+2. Remove the now-unreachable `role_only_value` clean-state branch after the extractor return.
+3. Guard legacy intent-classifier partial-brief role branches so they do not build or reject clean-state Search Briefs before `SearchBriefExtractor v2`.
+4. Keep deterministic safety/scope prechecks that must still run before extraction:
+   - English-only/Cyrillic rejection;
+   - prohibited LinkedIn/account/web-search/candidate-message actions;
+   - reset/start-over;
+   - greeting/near-empty onboarding;
+   - explicit field explanation;
+   - non-IT role refusal;
+   - small talk, off-topic, and clearly unclear/noise handling.
+5. Keep the old `run_openai_json_recruiter_chat` parser only for existing-draft/refinement paths until `P9.9-006`.
+6. Add no-network regression coverage proving clean-state requests are handled by the extractor path and not by old role-label partial branches.
+7. Preserve planner, provider, runtime approval, scoring, dedupe, Candidate Results, and persistence boundaries.
 
 ### Acceptance Criteria
 
 - The clean-state path has one primary semantic extraction layer.
 - Safety/off-topic/greeting/reset behavior is preserved.
 - No Java/Ukraine/backend-specific branch can override a validated generic IT-role brief.
+- Clean-state `QA Automation`, `Analyst`, and multi-signal IT requests are not converted through the old role-only/role-label branch.
+- Existing draft/refinement behavior remains available until `P9.9-006`.
 
 ### Non-Goals
 
 - No cosmetic UI changes.
 - No search execution changes.
+- No Search Brief refinement interpreter changes; `P9.9-006` owns that.
+
+### Implementation Result
+
+- Removed the unreachable clean-state `role_only_value` branch that sat after the extractor return.
+- Guarded legacy intent-classifier role-label partial-brief, unsupported-IT-role, and ambiguous-role branches with `request.draft_brief`, so they no longer build/reject clean-state Search Briefs before `SearchBriefExtractor v2`.
+- Kept deterministic safety, non-IT, small-talk, off-topic, reset, greeting, unclear/noise, pending-answer, and existing-draft/refinement paths intact.
+- Added regression coverage proving a clean-state intent-classifier `role_label` cannot bypass the extractor or turn an Analyst request into the old backend-oriented partial brief.
+
+### Verification Completed
+
+- `.venv\Scripts\python.exe scripts\smoke_p99_search_brief_extractor.py`
+- `.venv\Scripts\python.exe -m compileall app scripts`
+- `git diff --check`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
 
 ---
 
