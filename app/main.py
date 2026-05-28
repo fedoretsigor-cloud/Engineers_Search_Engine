@@ -48,6 +48,14 @@ from app.domain_config import (
     SEARCH_DEPTH_VALUES,
     location_filter_config_for,
 )
+from app.help_smalltalk import (
+    HELP_SMALLTALK_INTENT_HELP_OR_ONBOARDING,
+    HELP_SMALLTALK_INTENT_SMALL_TALK,
+    deterministic_help_smalltalk_intent,
+    run_openai_json_help_smalltalk_intent as _run_openai_json_help_smalltalk_intent,
+    should_run_help_smalltalk_resolver,
+    validate_help_smalltalk_intent_output,
+)
 from app.ai_planning import (
     ai_plan_output_assumptions,
     ai_plan_output_warnings,
@@ -3181,6 +3189,18 @@ async def run_openai_json_search_brief_extractor(
     )
 
 
+async def run_openai_json_help_smalltalk_intent(
+    *,
+    latest_message: str,
+    language: str,
+) -> tuple[dict | None, str | None]:
+    return await _run_openai_json_help_smalltalk_intent(
+        latest_message=latest_message,
+        language=language,
+        chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
+    )
+
+
 async def run_openai_json_role_understanding(
     *,
     latest_message: str,
@@ -4302,6 +4322,11 @@ def build_recruiter_chat_preserve_current_brief_response(
 
 def recruiter_chat_small_talk_prefix(text: str, language: str) -> str:
     normalized_text = normalized_chat_control_text(text)
+    if should_run_help_smalltalk_resolver(normalized_text):
+        if language == "ru":
+            return "Ð”Ð°, Ð¿Ð¾Ð¼Ð¾Ð³Ñƒ."
+        return "Yes, I can help."
+
     gratitude_phrases = {
         "thanks",
         "thank you",
@@ -4358,6 +4383,66 @@ def recruiter_chat_small_talk_message(
     return (
         f"{prefix} Tell me who we should find: role, main technology, "
         "location, and 1-3 stack signals."
+    )
+
+
+async def help_smalltalk_response_if_any(
+    *,
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    latest_user_text: str,
+) -> dict | None:
+    if not should_run_help_smalltalk_resolver(latest_user_text):
+        return None
+
+    help_smalltalk_decision = None
+    llm_output, llm_error = await run_openai_json_help_smalltalk_intent(
+        latest_message=latest_user_text,
+        language=language,
+    )
+    if not llm_error and llm_output is not None:
+        help_smalltalk_decision, validation_errors = (
+            validate_help_smalltalk_intent_output(
+                llm_output,
+                latest_message=latest_user_text,
+            )
+        )
+        if validation_errors:
+            help_smalltalk_decision = None
+
+    if help_smalltalk_decision is None:
+        help_smalltalk_decision = deterministic_help_smalltalk_intent(latest_user_text)
+    if not help_smalltalk_decision:
+        return None
+
+    if help_smalltalk_decision.get("intent") not in {
+        HELP_SMALLTALK_INTENT_HELP_OR_ONBOARDING,
+        HELP_SMALLTALK_INTENT_SMALL_TALK,
+    }:
+        return None
+
+    deterministic_message = recruiter_chat_small_talk_message(
+        request,
+        latest_user_text,
+        language,
+    )
+    assistant_message, wording_provenance, llm_warnings = (
+        await apply_llm_wording_to_recruiter_chat_conversation(
+            request=request,
+            language=language,
+            latest_user_text=latest_user_text,
+            deterministic_message=deterministic_message,
+            message_type="small_talk",
+        )
+    )
+    return build_recruiter_chat_preserve_current_brief_response(
+        request,
+        language,
+        planner_mode,
+        assistant_message,
+        wording_provenance,
+        llm_warnings,
     )
 
 
@@ -6526,6 +6611,15 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             planner_mode,
             pending_hypothesis_unclear_message(language),
         )
+
+    help_smalltalk_response = await help_smalltalk_response_if_any(
+        request=request,
+        language=language,
+        planner_mode=planner_mode,
+        latest_user_text=latest_user_text,
+    )
+    if help_smalltalk_response is not None:
+        return help_smalltalk_response
 
     current_pending_field = pending_clarification_field(request, language)
     intent_request = RecruiterChatIntentRequest(

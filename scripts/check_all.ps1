@@ -192,6 +192,10 @@ Invoke-Check "P9.12 Role Understanding Resolver smoke" {
     & $python scripts/smoke_p912_role_understanding.py
 }
 
+Invoke-Check "P9.13 Help/SmallTalk Resolver smoke" {
+    & $python scripts/smoke_p913_help_smalltalk.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

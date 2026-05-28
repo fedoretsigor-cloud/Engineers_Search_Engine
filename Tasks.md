@@ -30383,3 +30383,98 @@ Developer/engineer/QA-style roles remain on the existing extractor/validator pat
 - `python scripts\smoke_p99_search_brief_extractor.py`
 - `python scripts\uat_phase_9_9_semantic_search_brief.py`
 - `python scripts\smoke_p88_conversation_hardening.py`
+
+---
+
+## Phase 9.13 - Help/SmallTalk Intent Resolver
+
+### Approved
+
+- [x] P9.13-001 Add bounded Help/SmallTalk intent resolver before unclear-search fallback
+
+### Backlog
+
+### In Progress
+
+### Done
+
+- [x] P9.13-001 Add bounded Help/SmallTalk intent resolver before unclear-search fallback
+
+### Current Phase 9.13 strategy note
+
+This is a narrow recruiter-chat quality hardening slice after P9.12. The observed issue is that harmless opening/help turns such as `Can you help me?` can fall through to an invalid-search or extractor failure response instead of friendly onboarding. The fix keeps the AI Agent direction: LLM may classify conversational intent where useful, but backend validation remains authoritative and no state/execution authority is delegated to the model.
+
+## Task: P9.13-001 Add bounded Help/SmallTalk intent resolver before unclear-search fallback
+
+### Status
+
+Approved / implemented.
+
+### Context
+
+Observed conversation issue:
+
+```text
+Recruiter: Can you help me
+AI Assistant: That does not look like a candidate-search role request...
+```
+
+This is wrong for a harmless help/opening message. The assistant should answer with friendly onboarding, for example:
+
+```text
+Yes, I can help. Tell me who we should find: role, main technology, location, and 1-3 stack signals.
+```
+
+### Goal
+
+Add a bounded Help/SmallTalk intent resolver before the unclear-search fallback. The resolver should distinguish harmless help/opening turns from invalid candidate-search requests, while preserving all existing Search Brief and execution boundaries.
+
+### Architecture
+
+1. Add `app/help_smalltalk.py`.
+   - Owns `help_smalltalk_resolver_v1` prompt/payload.
+   - Classifies only `help_or_onboarding`, `small_talk`, `candidate_search`, `off_topic`, or `unclear`.
+   - Validates schema, confidence, safe text, evidence, and hard booleans.
+   - Requires `should_preserve_brief = true`, `can_mutate_search_brief = false`, and `can_execute = false`.
+
+2. Integrate before broad unclear fallback.
+   - Safety/prohibited checks remain first.
+   - Existing reset/greeting/near-empty/pending-update/pending-hypothesis routes remain first.
+   - For harmless help/opening turns, call the resolver before broad recruiter-intent/unclear-search handling.
+   - If the resolver is unavailable or invalid, use deterministic safe fallback only for tightly matched help phrases.
+
+3. Preserve current state.
+   - Do not create or mutate Search Brief.
+   - Preserve existing draft/ready brief state.
+   - Do not build QueryPlan.
+   - Do not prepare or execute search.
+
+### Acceptance Criteria
+
+- `Can you help me?` returns friendly onboarding, not unclear-search fallback.
+- `I need help`, `What can you do?`, and `help me find candidates` route to the same bounded help/onboarding behavior.
+- Existing ready or pending Search Brief state is preserved.
+- Concrete search requests such as `Find Backend Developer in Ukraine with Java and Spring` still use the Search Brief extractor path.
+- Prohibited requests still refuse before any help/small-talk resolver call.
+- The resolver cannot mutate Search Brief, build QueryPlans, call providers, execute search, or change LinkedIn/account boundaries.
+- New no-network smoke coverage is wired into `scripts/check_all.ps1`.
+
+### Non-Goals
+
+- New Search Brief fields.
+- LLM-generated Search Briefs or QueryPlans.
+- Changing provider execution, runtime approval, scoring, dedupe, LocationGuard, persistence, candidate workspace, or export.
+- LinkedIn login, scraping, profile automation, messaging, autonomous execution, or account actions.
+
+### Implementation result
+
+Implemented in `app/help_smalltalk.py`, `app/main.py`, `scripts/smoke_p913_help_smalltalk.py`, and `scripts/check_all.ps1`.
+
+The clean recruiter-chat path now routes tightly bounded help/opening messages through `help_smalltalk_resolver_v1` before the unclear-search fallback. Valid `help_or_onboarding` / `small_talk` output renders the existing safe small-talk/onboarding response path, with deterministic fallback when OpenAI is unavailable. The response preserves any current Search Brief and cannot trigger planning or execution. Concrete search requests continue to the Search Brief extractor, and prohibited requests remain blocked before the resolver.
+
+### Verification result
+
+- `python -m compileall app scripts\smoke_p913_help_smalltalk.py`
+- `python scripts\smoke_p913_help_smalltalk.py`
+- `python scripts\smoke_p8_chat_quality.py`
+- `python scripts\smoke_p88_conversation_hardening.py`

@@ -165,6 +165,7 @@ Planned current and later phases:
 - Phase 9.10: `Global LocationGuard v1`, completed through `P9.10-001`.
 - Phase 9.11: `Requirement-To-Search-Signal Resolver`, completed through `P9.11-001` for non-developer IT briefs such as `Project Manager + banking domain + English + Excel`.
 - Phase 9.12: `Role Understanding Resolver`, completed through `P9.12-001` for bounded LLM classification of IT-adjacent/generic/non-IT clean-state recruiter roles before backend Search Brief validation.
+- Phase 9.13: `Help/SmallTalk Intent Resolver`, completed through `P9.13-001` so harmless help/opening messages such as `Can you help me?` route to bounded friendly onboarding before unclear-search fallback.
 - Phase 11: `Manual Candidate Evidence Intake`, future track where the recruiter manually pastes public profile text copied outside the app, and the agent compares that user-provided evidence against the current Search Brief and workspace context.
 - Phase 12: `Resume Upload & Fit Analysis`, future track for structured resume/CV analysis after provider expansion and persistence decisions.
 
