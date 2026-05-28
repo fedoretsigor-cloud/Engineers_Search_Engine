@@ -548,9 +548,9 @@ def build_location_score_component(result: dict) -> dict:
         return score_component(
             "location",
             0,
-            0,
+            25,
             "not_evaluated",
-            "Location filter was not evaluated.",
+            "Target location was not confirmed.",
         )
 
     score_by_status = {

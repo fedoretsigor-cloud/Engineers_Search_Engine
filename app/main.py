@@ -522,10 +522,11 @@ LOCATION_QUALIFIER_PATTERN = re.compile(
 )
 NON_LOCATION_FRAGMENT_PATTERN = re.compile(
     r"\b("
-    r"academy|architect|backend|college|company|consultant|developer|education|"
-    r"engineer|frontend|full[- ]?stack|hibernate|inc|institute|java|kafka|lead|"
-    r"llc|ltd|manager|middle|polytechnic|programmer|python|school|senior|"
-    r"software|solutions|spring|systems|technologies|technology|university"
+    r"academy|analyst|architect|backend|business|college|company|consultant|"
+    r"data|developer|education|engineer|frontend|full[- ]?stack|hibernate|"
+    r"inc|institute|java|kafka|lead|llc|ltd|manager|middle|polytechnic|"
+    r"programmer|python|reporting|school|senior|software|solutions|spring|"
+    r"sql|systems|technologies|technology|university"
     r")\b",
     flags=re.IGNORECASE,
 )

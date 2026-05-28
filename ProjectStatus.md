@@ -14,7 +14,7 @@ Phase 3 - Candidate Quality Layer is completed.
 
 Phase 4 - AI Agent Foundation is completed.
 
-Current phase: Phase 9.9 `AI Agent Semantic Understanding Hardening` is completed through `P9.9-007`; Phase 10+ is parked unless the POC is explicitly reopened.
+Current phase: Phase 9.10 `Global LocationGuard v1` is completed through `P9.10-001`; Phase 10+ is parked unless the POC is explicitly reopened.
 
 Phase 10+ persistence and later feature tracks are parked for now. The current decision is to close the project as a POC after a final hardening/deploy slice. The working plan is recorded in `docs/phase-9-5-final-poc-plan.md`. Phase 9.5 is completed and deployed to Render at `https://engineers-search-engine-poc.onrender.com/`.
 
@@ -55,6 +55,8 @@ Phase 9.7 is completed as semantic chat-understanding hardening. `P9.7-001` thro
 Phase 9.8 is completed as role-anchored planning/scoring hardening. `P9.8-001` adds deterministic `RoleAliasPlan` metadata to rule-based query plans, prevents technology-only role drift for arbitrary roles, preserves configured domain plans, and makes candidate scoring use approved aliases as the strong role evidence set.
 
 Phase 9.9 is completed as `AI Agent Semantic Understanding Hardening`. `P9.9-001` added an isolated bounded `SearchBriefExtractor v2` foundation with prompt contract, OpenAI JSON wrapper, and no-network smoke coverage. `P9.9-002` added strict backend validation for raw extractor output, including schema/confidence/type/safety checks, domain-vs-technology guardrails, normalized Search Brief draft output, `domain_experience`, `role_ambiguity`, `clarification_targets`, and validator provenance. `P9.9-003` integrated the validated extractor into clean-state recruiter chat and deliberately blocks legacy clean-state parser fallback when extractor/validator output is rejected. `P9.9-004` removed or guarded legacy clean-state role-only/role-label branches so they no longer compete with the extractor. `P9.9-005` added deterministic no-network semantic recruiter UAT for clean-state Search Brief extraction and wired it into `scripts/check_all.ps1`. `P9.9-006` added bounded Search Brief refinement interpretation for existing drafts, backend-owned must-have/domain patch operations, and no-legacy-fallback behavior on rejected interpreter output. `P9.9-007` closed the phase in `docs/phase-9-9-closeout.md`.
+
+Phase 9.10 is completed as `Global LocationGuard v1`. `P9.10-001` makes location validation global for every non-empty target location instead of relying on the old Ukraine-only config. LocationGuard now uses seeded country/city/domain aliases for common POC locations, exact requested-location fallback for unseeded locations, default backend location filtering for normalized searches, hidden explicit foreign-current-location results, hidden weak history-only/unknown non-country-domain results, and a UI status guardrail so unconfirmed location is not shown as `Strong match`.
 
 After Phase 7 closeout, Phase 7.5 was inserted as the QA gate before Phase 8. Phase 7.5 is now closed with the readiness decision `ready after approved fixes completed`. Phase 8 is closed through `P8-032`, Phase 8.5 has `P8.5-001` through `P8.5-005` completed, and Phase 8.75 is completed as the recruiter UAT gate before Phase 9 multi-provider expansion and Phase 10 persistence. `P8-001` is completed as the Candidate Workspace v0 contract and `P8-002 Build recruiter-facing candidate table`, `P8-003 Add sorting and filtering by quality signals`, `P8-004 Add shortlist, notes, and statuses`, `P8-005 Add candidate-level agent explanations`, `P8-006 Define bounded candidate explanation wording contract`, `P8-006.1 Implement explicit selected-candidate wording overlay`, `P8-007 Prepare export workflow`, `P8-007A Implement export model and serializers`, and `P8-007B Add export UI and download workflow` are implemented/completed. Phase 8.75 added `docs/phase-8-75-uat-acceptance-gate.md`, deterministic no-live UAT in `scripts/uat_phase_8_75_no_live.py`, Candidate Workspace helper UAT in `scripts/uat_phase_8_75_workspace_cases.js`, limited live backend-runtime UAT in `scripts/uat_phase_8_75_live.py`, and the aggregate report in `docs/phase-8-75-uat-report.md`. Phase 8.75.1 added `docs/phase-8-75-1-conversation-ux-uat.md`, `scripts/uat_phase_8_75_1_ui_conversation.py`, and `docs/phase-8-75-1-conversation-ux-report.md`; the real frontend simulated-user gate passed `116/116` UI scenarios with deterministic OpenAI/Tavily doubles. The gates keep live Tavily out of CI and preserve the absolute boundaries: no direct web-search bypass, no direct LinkedIn access/login/scraping, no candidate messaging, no account actions, no autonomous execution, no persistence, and no unreviewed providers.
 
@@ -315,13 +317,13 @@ Implemented:
 - `QueryPlanner v1` builds a visible 10-query `QueryPlan` from the adapted structured request.
 - Tavily receives only the generated queries from the visible `QueryPlan`.
 - `LinkedIn profiles only` is an explicit visible filter.
-- `Location filter` is an explicit visible filter and currently has the first config for `Ukraine`.
-- `ua.linkedin.com/in/...` is treated as a country-domain signal, not a guaranteed current physical-location signal.
-- The Ukraine `Location filter` uses `target_location_terms` and extracts a conservative `current_location_line` from Tavily public LinkedIn header/snippet text.
+- `Location filter` is an explicit visible filter backed by global LocationGuard v1 for every non-empty target location.
+- Country LinkedIn domains such as `ua.linkedin.com/in/...`, `pl.linkedin.com/in/...`, or `es.linkedin.com/in/...` are treated as country-domain signals, not guaranteed current physical-location signals.
+- LocationGuard uses seeded `target_location_terms` for common POC locations and exact requested-location fallback for unseeded locations, then extracts a conservative `current_location_line` from public LinkedIn header/snippet text.
 - Current-location classification is `target_location`, `foreign_current_location`, or `unknown_current_location`.
 - Explicit foreign current location, for example `Warsaw, Mazowieckie, Poland`, hides the candidate even if the URL is `ua.linkedin.com/in/...`.
 - Unknown current location can still fall back to softer signals: `country_domain`, `rescued_header_location`, `weak_history_only`, or `unknown_non_country_domain`.
-- Non-UA LinkedIn profiles can be rescued only when the Tavily public header/current-location signal contains supported Ukraine target-location terms.
+- Non-country-domain LinkedIn profiles can be rescued only when the public header/current-location signal contains supported target-location terms for the requested location.
 
 ## Phase 1.1 test results
 
@@ -591,8 +593,8 @@ Phase 4 is completed as AI Agent Foundation. Phase 5 is completed as the narrow 
 - LinkedIn public snippets remain incomplete and inconsistent.
 - Tavily search behavior can vary between runs.
 - `LinkedIn profiles only` filters by URL pattern only.
-- `Location filter` currently has only the first country config: `Ukraine`.
-- Future countries need their own country-domain and `target_location_terms` mapping; they should reuse current-location classification instead of introducing finite negative-location blacklists.
+- `Location filter` is now global through LocationGuard v1, with seeded presets for common countries and exact-term fallback for unseeded locations.
+- Future country/city support can improve `target_location_terms` and LinkedIn country-domain mappings, but must reuse LocationGuard/current-location classification instead of introducing finite negative-location blacklists.
 - Header/location detection uses Tavily public snippets/content only and is not equivalent to verified profile enrichment.
 - `ua.linkedin.com/in/...` is not a guaranteed current physical location.
 - Current-location extraction is conservative and can keep ambiguous snippets unknown.

@@ -26810,7 +26810,7 @@ Main conclusion: the application is ready to explore an AI Agent foundation beca
 - Tavily live results vary between runs.
 - LinkedIn public snippets are incomplete.
 - Selected stack evidence can be missing from snippets even for relevant candidates.
-- `Location filter` remains heuristic and currently has only Ukraine config.
+- At that time, `Location filter` remained heuristic and only had Ukraine config; this limitation is superseded by Phase 9.10 Global LocationGuard v1.
 - Multi-wave search can add candidates, but should remain explicit and off by default.
 - Candidate quality score is deterministic v1 ranking support, not final recruiting judgment.
 
@@ -30108,3 +30108,43 @@ Codex должен пересказать задачу, показать точ�
 - Для запроса `site:linkedin.com/in AND "Java Software Engineer" AND "Ukraine"` с включенными `LinkedIn profiles only` и `Ukraine LinkedIn domain only` получено 16 украинских LinkedIn-профилей из 20 raw Tavily results.
 - За 10 тестовых запросов найдено 53 уникальных `ua.linkedin.com/in/...` профиля.
 - Широкий запрос `site:linkedin.com/in AND "Java" AND ("Developer" OR "Engineer") AND ("Java" OR "Spring") AND "Ukraine"` дал 0 украинских LinkedIn-профилей после включения обоих фильтров.
+
+---
+
+## Phase 9.10 - Global LocationGuard v1
+
+- [x] P9.10-001 Global LocationGuard v1 for all target locations
+
+## Task: P9.10-001 Global LocationGuard v1 for all target locations
+
+### Goal
+
+Make target-location validation a global backend pattern instead of a Ukraine-only filter. Candidate Results must not show a candidate as a strong match when the requested location is not confirmed.
+
+### Approved implementation scope
+
+1. Keep the approved backend provider pipeline and human-approved runtime boundary unchanged.
+2. Replace the Ukraine-only location-filter availability assumption with a global LocationGuard config builder.
+3. Preserve the existing Ukraine behavior.
+4. Add seeded country/city/domain aliases for common POC locations: Ukraine, Poland, Spain, Canada, Germany, UK, USA, and Remote.
+5. For unseeded locations, build a safe fallback config from the exact requested location term.
+6. Enable location filtering by default for every non-empty normalized target location.
+7. Hide candidates with explicit foreign current-location evidence.
+8. Hide weak history-only and unknown non-country-domain location evidence when the LocationGuard is active.
+9. Prevent primary UI status `Strong match` when candidate location is not confirmed or location was not evaluated.
+10. Add no-live regression coverage for Poland, seeded countries, and unseeded fallback locations.
+
+### Boundaries
+
+- No LinkedIn login.
+- No LinkedIn scraping.
+- No LinkedIn profile-opening automation.
+- No direct web-search bypass outside the approved backend provider pipeline.
+- No candidate messaging.
+- No autonomous execution.
+- No persistence or account actions.
+- No per-candidate LLM calls inside search execution. LLM remains bounded to Search Brief understanding/refinement; backend validation remains authoritative.
+
+### Implementation result
+
+Completed in `docs/phase-9-10-locationguard.md`, `app/domain_config.py`, `app/main.py`, `app/candidate_quality.py`, `app/static/app.js`, `scripts/smoke_p910_location_guard.py`, and `scripts/check_all.ps1`.

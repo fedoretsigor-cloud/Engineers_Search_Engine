@@ -180,6 +180,10 @@ Invoke-Check "P9.9 Search Brief Refinement smoke" {
     & $python scripts/smoke_p99_search_brief_refinement.py
 }
 
+Invoke-Check "P9.10 LocationGuard smoke" {
+    & $python scripts/smoke_p910_location_guard.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

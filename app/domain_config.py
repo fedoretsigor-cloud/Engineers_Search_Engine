@@ -406,6 +406,123 @@ LOCATION_FILTER_CONFIG = {
     }
 }
 
+LOCATION_GUARD_PRESETS = {
+    "poland": {
+        "label": "Poland",
+        "linkedin_domains": ["pl.linkedin.com"],
+        "target_location_terms": [
+            "Poland",
+            "Polska",
+            "Warsaw",
+            "Warszawa",
+            "Krakow",
+            "Kraków",
+            "Wroclaw",
+            "Wrocław",
+            "Gdansk",
+            "Gdańsk",
+            "Poznan",
+            "Poznań",
+            "Lodz",
+            "Łódź",
+            "Katowice",
+        ],
+    },
+    "spain": {
+        "label": "Spain",
+        "linkedin_domains": ["es.linkedin.com"],
+        "target_location_terms": [
+            "Spain",
+            "España",
+            "Madrid",
+            "Barcelona",
+            "Valencia",
+            "Seville",
+            "Sevilla",
+            "Malaga",
+            "Málaga",
+            "Bilbao",
+        ],
+    },
+    "canada": {
+        "label": "Canada",
+        "linkedin_domains": ["ca.linkedin.com"],
+        "target_location_terms": [
+            "Canada",
+            "Toronto",
+            "Vancouver",
+            "Montreal",
+            "Montréal",
+            "Ottawa",
+            "Calgary",
+            "Edmonton",
+        ],
+    },
+    "germany": {
+        "label": "Germany",
+        "linkedin_domains": ["de.linkedin.com"],
+        "target_location_terms": [
+            "Germany",
+            "Deutschland",
+            "Berlin",
+            "Munich",
+            "München",
+            "Hamburg",
+            "Frankfurt",
+            "Cologne",
+            "Köln",
+            "Dusseldorf",
+            "Düsseldorf",
+        ],
+    },
+    "united kingdom": {
+        "label": "United Kingdom",
+        "linkedin_domains": ["uk.linkedin.com"],
+        "target_location_terms": [
+            "United Kingdom",
+            "UK",
+            "U.K.",
+            "Great Britain",
+            "England",
+            "London",
+            "Manchester",
+            "Birmingham",
+            "Leeds",
+            "Glasgow",
+            "Edinburgh",
+        ],
+    },
+    "uk": {
+        "alias_for": "united kingdom",
+    },
+    "usa": {
+        "label": "United States",
+        "linkedin_domains": [],
+        "target_location_terms": [
+            "United States",
+            "USA",
+            "U.S.",
+            "US",
+            "America",
+            "New York",
+            "San Francisco",
+            "Los Angeles",
+            "Chicago",
+            "Seattle",
+            "Austin",
+            "Boston",
+        ],
+    },
+    "united states": {
+        "alias_for": "usa",
+    },
+    "remote": {
+        "label": "Remote",
+        "linkedin_domains": [],
+        "target_location_terms": ["Remote", "Remote work", "Remote-first"],
+    },
+}
+
 
 def generic_quality_config_for(technology: str, stack: list[str] | None = None) -> dict:
     selected_stack = stack or []
@@ -436,4 +553,26 @@ def search_domain_config_for(
 
 
 def location_filter_config_for(location: str) -> dict | None:
-    return LOCATION_FILTER_CONFIG.get(location.strip().lower())
+    location_key = (location or "").strip().lower()
+    if not location_key:
+        return None
+
+    configured = LOCATION_FILTER_CONFIG.get(location_key)
+    if configured is not None:
+        return configured
+
+    preset = LOCATION_GUARD_PRESETS.get(location_key)
+    if preset and preset.get("alias_for"):
+        preset = LOCATION_GUARD_PRESETS.get(preset["alias_for"])
+    if preset:
+        return {
+            "label": preset["label"],
+            "linkedin_domains": list(preset.get("linkedin_domains", [])),
+            "target_location_terms": list(preset["target_location_terms"]),
+        }
+
+    return {
+        "label": location.strip(),
+        "linkedin_domains": [],
+        "target_location_terms": [location.strip()],
+    }

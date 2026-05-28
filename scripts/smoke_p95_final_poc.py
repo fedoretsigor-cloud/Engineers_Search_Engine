@@ -58,7 +58,7 @@ def assert_generic_structured_search_is_supported() -> dict:
     assert normalized["technology"] == "TypeScript"
     assert normalized["stack"] == ["React", "Next.js"]
     assert normalized["location"] == "Poland"
-    assert normalized["location_filter_enabled"] is False
+    assert normalized["location_filter_enabled"] is True
     return normalized
 
 

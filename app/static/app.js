@@ -971,8 +971,15 @@ function workspaceCandidateStatus(candidate) {
   if (!candidate.has_quality_score) {
     return "Needs review";
   }
+  const locationStatus = String(candidate.location_status || "").toLowerCase();
+  const hasConfirmedLocation = [
+    "target_location",
+    "country_domain",
+    "rescued_header_location",
+    "target_current_location",
+  ].includes(locationStatus);
   if (candidate.quality_score >= 70) {
-    return "Strong match";
+    return hasConfirmedLocation ? "Strong match" : "Review";
   }
   if (candidate.quality_score >= 40) {
     return "Review";
