@@ -9,7 +9,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app import agent_wording, main, search_execution
+from app import agent_wording, main, search_brief_extractor as extractor, search_execution
 
 
 NORMALIZED_REQUEST = {
@@ -111,6 +111,48 @@ async def fake_recruiter_chat_llm(
             "assumptions": [],
         }
     }, []
+
+
+async def fake_search_brief_extractor(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    request = main.RecruiterChatTurnRequest(
+        language=language,
+        messages=[main.RecruiterChatMessage(role="user", content=latest_message)],
+    )
+    output, errors = await fake_recruiter_chat_llm(request)
+    if errors or not output:
+        return None, "fake_search_brief_extractor_error"
+    draft = output["draft_brief"]
+    return {
+        "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+        "draft_brief": {
+            "source_text": draft.get("source_text") or latest_message,
+            "role_family": draft.get("role_family"),
+            "role_ambiguity": {
+                "is_ambiguous": False,
+                "label": None,
+                "options": [],
+                "clarification_question": None,
+            },
+            "technology": draft.get("technology"),
+            "stack": draft.get("stack") or [],
+            "location": draft.get("location"),
+            "seniority": draft.get("seniority"),
+            "must_have": draft.get("must_have") or [],
+            "nice_to_have": draft.get("nice_to_have") or [],
+            "domain_experience": [],
+            "exclusions": draft.get("exclusions") or [],
+            "search_depth": draft.get("search_depth") or "standard",
+            "profile_sources": draft.get("profile_sources") or ["linkedin_public"],
+            "notes": None,
+        },
+        "confidence": "high",
+        "reason_codes": ["smoke_fixture"],
+    }, None
 
 
 async def forbidden_recruiter_chat_llm(*args, **kwargs):
@@ -613,6 +655,7 @@ async def run_smoke() -> None:
         "OPENAI_CHAT_COMPLETIONS_URL": os.environ.get("OPENAI_CHAT_COMPLETIONS_URL"),
     }
     original_recruiter_llm = main.run_openai_json_recruiter_chat
+    original_extractor = main.run_openai_json_search_brief_extractor
     original_planner_llm = main.run_openai_json_planner
     original_wording_llm = main.run_openai_json_agent_wording
     original_query_plan_wave = main.run_query_plan_wave
@@ -628,6 +671,7 @@ async def run_smoke() -> None:
     os.environ.pop("TAVILY_API_KEY", None)
     os.environ.pop("OPENAI_CHAT_COMPLETIONS_URL", None)
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_llm
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor
     main.run_openai_json_planner = forbidden_planner_llm
     main.run_openai_json_agent_wording = forbidden_wording_llm
     main.run_query_plan_wave = forbidden_query_plan_wave
@@ -655,6 +699,7 @@ async def run_smoke() -> None:
         assert RECORDER.search_execution_calls == 0
     finally:
         main.run_openai_json_recruiter_chat = original_recruiter_llm
+        main.run_openai_json_search_brief_extractor = original_extractor
         main.run_openai_json_planner = original_planner_llm
         main.run_openai_json_agent_wording = original_wording_llm
         main.run_query_plan_wave = original_query_plan_wave

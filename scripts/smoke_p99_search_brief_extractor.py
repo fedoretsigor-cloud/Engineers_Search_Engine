@@ -9,6 +9,8 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_DIR))
 
 from app import search_brief_extractor as extractor
+from app import main as app_main
+from app.schemas import RecruiterChatMessage, RecruiterChatTurnRequest
 
 
 def assert_prompt_contract() -> None:
@@ -255,6 +257,131 @@ async def assert_openai_wrapper_rejects_invalid_json() -> None:
             os.environ["OPENAI_MODEL"] = old_model
 
 
+def recruiter_chat_request(message: str) -> RecruiterChatTurnRequest:
+    return RecruiterChatTurnRequest(
+        messages=[RecruiterChatMessage(role="user", content=message)],
+        language="en",
+    )
+
+
+async def assert_clean_state_chat_uses_validated_extractor_for_qa_role() -> None:
+    old_extractor = app_main.run_openai_json_search_brief_extractor
+    old_legacy_chat = app_main.run_openai_json_recruiter_chat
+
+    async def fake_extractor(**kwargs):
+        assert kwargs["latest_message"] == "I need QA Automation in Spain with Java skills"
+        return {
+            "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+            "draft_brief": {
+                "source_text": kwargs["latest_message"],
+                "role_family": "QA Automation",
+                "role_ambiguity": {
+                    "is_ambiguous": False,
+                    "label": None,
+                    "options": [],
+                    "clarification_question": None,
+                },
+                "technology": "Java",
+                "stack": ["Java"],
+                "location": "Spain",
+                "seniority": None,
+                "must_have": [],
+                "nice_to_have": [],
+                "domain_experience": [],
+                "exclusions": [],
+                "search_depth": "standard",
+                "profile_sources": ["linkedin_public"],
+                "notes": None,
+            },
+            "confidence": "high",
+            "reason_codes": ["clean_state_extraction"],
+        }, None
+
+    async def fail_legacy_chat(*args, **kwargs):
+        raise AssertionError("legacy recruiter chat parser should not run for clean state")
+
+    app_main.run_openai_json_search_brief_extractor = fake_extractor
+    app_main.run_openai_json_recruiter_chat = fail_legacy_chat
+    try:
+        response = await app_main.recruiter_chat_turn_response(
+            recruiter_chat_request("I need QA Automation in Spain with Java skills")
+        )
+        normalized_brief = response["normalized_brief"]
+        assert response["ok"] is True, response
+        assert response["state"] == "ready_for_planning", response
+        assert normalized_brief["role_family"] == "QA Automation", normalized_brief
+        assert normalized_brief["technology"] == "Java", normalized_brief
+        assert normalized_brief["stack"] == ["Java"], normalized_brief
+        assert normalized_brief["location"] == "Spain", normalized_brief
+    finally:
+        app_main.run_openai_json_search_brief_extractor = old_extractor
+        app_main.run_openai_json_recruiter_chat = old_legacy_chat
+
+
+async def assert_clean_state_chat_preserves_domain_and_role_ambiguity() -> None:
+    old_extractor = app_main.run_openai_json_search_brief_extractor
+    old_legacy_chat = app_main.run_openai_json_recruiter_chat
+
+    async def fake_extractor(**kwargs):
+        return valid_raw_extractor_output(), None
+
+    async def fail_legacy_chat(*args, **kwargs):
+        raise AssertionError("legacy recruiter chat parser should not run for clean state")
+
+    app_main.run_openai_json_search_brief_extractor = fake_extractor
+    app_main.run_openai_json_recruiter_chat = fail_legacy_chat
+    try:
+        response = await app_main.recruiter_chat_turn_response(
+            recruiter_chat_request(
+                "I need Analyst in Canada with banking domain experience and SQL skills."
+            )
+        )
+        normalized_brief = response["normalized_brief"]
+        assert response["ok"] is True, response
+        assert response["state"] == "needs_clarification", response
+        assert normalized_brief["role_family"] == "Analyst", normalized_brief
+        assert normalized_brief["technology"] == "SQL", normalized_brief
+        assert normalized_brief["stack"] == ["SQL"], normalized_brief
+        assert normalized_brief["location"] == "Canada", normalized_brief
+        assert "banking domain experience" in normalized_brief["must_have"], normalized_brief
+        assert response["next_question"], response
+    finally:
+        app_main.run_openai_json_search_brief_extractor = old_extractor
+        app_main.run_openai_json_recruiter_chat = old_legacy_chat
+
+
+async def assert_clean_state_chat_rejects_invalid_extractor_without_legacy_fallback() -> None:
+    old_extractor = app_main.run_openai_json_search_brief_extractor
+    old_legacy_chat = app_main.run_openai_json_recruiter_chat
+
+    async def fake_extractor(**kwargs):
+        raw = valid_raw_extractor_output()
+        raw["draft_brief"]["technology"] = "Banking domain"
+        raw["draft_brief"]["domain_experience"] = []
+        return raw, None
+
+    async def fail_legacy_chat(*args, **kwargs):
+        raise AssertionError("legacy recruiter chat parser should not run after validator rejection")
+
+    app_main.run_openai_json_search_brief_extractor = fake_extractor
+    app_main.run_openai_json_recruiter_chat = fail_legacy_chat
+    try:
+        response = await app_main.recruiter_chat_turn_response(
+            recruiter_chat_request(
+                "I need Analyst in Canada with banking domain experience and SQL skills."
+            )
+        )
+        assert response["ok"] is False, response
+        assert response["state"] == "needs_clarification", response
+        assert any(
+            error["field"] == "technology"
+            for error in response["validation_errors"]
+        ), response
+    finally:
+        app_main.run_openai_json_search_brief_extractor = old_extractor
+        app_main.run_openai_json_recruiter_chat = old_legacy_chat
+
+
 async def main() -> None:
     assert_prompt_contract()
     assert_openai_payload_contract()
@@ -266,6 +393,9 @@ async def main() -> None:
     await assert_missing_openai_config()
     await assert_openai_wrapper_parses_json()
     await assert_openai_wrapper_rejects_invalid_json()
+    await assert_clean_state_chat_uses_validated_extractor_for_qa_role()
+    await assert_clean_state_chat_preserves_domain_and_role_ambiguity()
+    await assert_clean_state_chat_rejects_invalid_extractor_without_legacy_fallback()
 
 
 if __name__ == "__main__":

@@ -21071,7 +21071,6 @@ This keeps the fix global and avoids a QA-specific patch.
 
 ### Backlog
 
-- [ ] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
 - [ ] P9.9-004 Retire duplicated legacy clean-state semantic branches
 - [ ] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
 - [ ] P9.9-006 Add bounded Search Brief refinement interpreter v2
@@ -21083,10 +21082,11 @@ This keeps the fix global and avoids a QA-specific patch.
 
 - [x] P9.9-001 Add bounded LLM Search Brief Extractor v2 with domain/technology separation
 - [x] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
+- [x] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
 
 ### Current Phase 9.9 strategy note
 
-Phase 9.9 is a proposed post-deploy correction for initial recruiter-message understanding. Phase 9.7 improved pending-answer semantics and Phase 9.8 fixed planner/scoring role drift, but the first full recruiter message can still be parsed incorrectly before a valid Search Brief exists.
+Phase 9.9 is an approved post-deploy correction for initial recruiter-message understanding. Phase 9.7 improved pending-answer semantics and Phase 9.8 fixed planner/scoring role drift, but the first full recruiter message can still be parsed incorrectly before a valid Search Brief exists.
 
 Observed issue:
 
@@ -21304,7 +21304,7 @@ Make the backend, not the LLM, authoritative for whether extracted Search Brief 
 
 ### Status
 
-Draft / not approved.
+Completed.
 
 ### Goal
 
@@ -21313,23 +21313,45 @@ Use the new bounded LLM extractor only for the first clean-state full recruiter 
 ### Proposed Steps
 
 1. Locate the current clean-state recruiter chat extraction path in `app/main.py`.
-2. Insert the new extractor after deterministic safety/language checks and before legacy fallback parsing.
-3. Accept only validator-approved output.
-4. If extraction is incomplete or ambiguous, ask one targeted clarification question.
-5. Keep Phase 9.7 `PendingAnswerInterpreter` for follow-up clarification answers.
-6. Preserve current planner, provider, runtime approval, scoring, dedupe, and Candidate Results behavior.
+2. Define clean-state for this task as `request.draft_brief is None` after deterministic safety/language/reset/greeting/near-empty checks.
+3. Route clean-state full recruiter requests through `SearchBriefExtractor v2` before the legacy clean-state chat parser can infer role/technology/location.
+4. Accept only `validate_search_brief_extractor_output()` approved output.
+5. Do not fall back to legacy clean-state parser when the extractor call or validator fails; return a bounded clarification/error response instead, so old hardcoded parsing cannot silently reintroduce role/technology drift.
+6. If extraction is incomplete or role-ambiguous, keep the normalized partial brief and ask one targeted clarification question.
+7. Keep Phase 9.7 `PendingAnswerInterpreter` and existing refinement paths for follow-up clarification answers; this task must not rewrite pending/refinement semantics.
+8. Keep the old `run_openai_json_recruiter_chat` path only for non-clean-state draft/refinement flows until `P9.9-006`.
+9. Preserve current planner, provider, runtime approval, scoring, dedupe, and Candidate Results behavior.
+10. Add targeted no-network smoke coverage for clean-state integration, including successful extraction, role ambiguity, and validator rejection without legacy fallback.
 
 ### Acceptance Criteria
 
 - `I need QA Automation in Spain with Java skills` produces a QA Automation search brief, not Java Developer.
 - `I need Analyst in Canada with banking domain experience and SQL skills` separates role/location/domain/technical skill.
 - Existing supported cases such as Backend Developer / Java / Ukraine / Spring remain valid.
+- A validator-rejected clean-state extraction does not call the legacy chat parser as a fallback.
+- Existing draft/pending clarification flows still use the Phase 9.7 pending-answer interpreter path.
 - Search still starts only through existing confirmation/runtime approval boundaries.
 
 ### Non-Goals
 
 - No pending-answer rewrite in this task.
 - No planner/scoring/provider change.
+
+### Implementation Result
+
+- Clean-state recruiter chat requests with no existing `draft_brief` now call `SearchBriefExtractor v2` through `run_openai_json_search_brief_extractor`.
+- Only `validate_search_brief_extractor_output()` approved output is allowed to become the normalized Search Brief.
+- If the extractor call or validator fails, the backend returns a bounded clarification/error response and does not fall back to the legacy clean-state parser.
+- The validated clean-state brief reuses the existing readiness evidence gate and existing approval-gated runtime flow.
+- Existing draft/pending/refinement paths still use the Phase 9.7 pending-answer/refinement logic and the legacy `run_openai_json_recruiter_chat` path until later reviewed Phase 9.9 work.
+- Added smoke coverage for QA Automation / Spain / Java, Analyst / Canada / banking domain / SQL ambiguity, and validator rejection without legacy fallback.
+
+### Verification Completed
+
+- `.venv\Scripts\python.exe scripts\smoke_p99_search_brief_extractor.py`
+- `.venv\Scripts\python.exe -m compileall app scripts`
+- `git diff --check`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
 
 ---
 

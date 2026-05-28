@@ -7,7 +7,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app import main
+from app import main, search_brief_extractor as extractor
 
 
 SINGLE_WAVE_TOOL = "run_single_wave_search"
@@ -99,8 +99,6 @@ async def fake_recruiter_chat_llm(
             stack.append("Docker")
         if "kubernetes" in normalized:
             stack.append("Kubernetes")
-        if "docker" in normalized and "kubernetes" in normalized and "spring" not in normalized:
-            stack.append("Spring")
         if not stack:
             stack = ["Spring", "Kafka"]
 
@@ -136,6 +134,48 @@ async def fake_recruiter_chat_llm(
             "assumptions": [],
         }
     }, []
+
+
+async def fake_search_brief_extractor(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    request = main.RecruiterChatTurnRequest(
+        language=language,
+        messages=[main.RecruiterChatMessage(role="user", content=latest_message)],
+    )
+    output, errors = await fake_recruiter_chat_llm(request)
+    if errors or not output:
+        return None, "fake_search_brief_extractor_error"
+    draft = output["draft_brief"]
+    return {
+        "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+        "draft_brief": {
+            "source_text": draft.get("source_text") or latest_message,
+            "role_family": draft.get("role_family"),
+            "role_ambiguity": {
+                "is_ambiguous": False,
+                "label": None,
+                "options": [],
+                "clarification_question": None,
+            },
+            "technology": draft.get("technology"),
+            "stack": draft.get("stack") or [],
+            "location": draft.get("location"),
+            "seniority": draft.get("seniority"),
+            "must_have": draft.get("must_have") or [],
+            "nice_to_have": draft.get("nice_to_have") or [],
+            "domain_experience": [],
+            "exclusions": draft.get("exclusions") or [],
+            "search_depth": draft.get("search_depth") or "standard",
+            "profile_sources": draft.get("profile_sources") or ["linkedin_public"],
+            "notes": None,
+        },
+        "confidence": "high",
+        "reason_codes": ["smoke_fixture"],
+    }, None
 
 
 async def forbidden_planner_llm(*args, **kwargs):
@@ -618,12 +658,14 @@ def assert_frontend_runtime_and_refusal_guardrails() -> None:
 
 async def run_async_smoke() -> None:
     original_recruiter_llm = main.run_openai_json_recruiter_chat
+    original_extractor = main.run_openai_json_search_brief_extractor
     original_planner_llm = main.run_openai_json_planner
     original_wording_llm = main.run_openai_json_agent_wording
     original_single = main.execute_single_wave_structured_search_response
     original_multi = main.execute_multi_wave_structured_search_response
 
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_llm
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor
     main.run_openai_json_planner = forbidden_planner_llm
     main.run_openai_json_agent_wording = no_live_wording_llm
     main.execute_single_wave_structured_search_response = forbidden_single_wave_execution
@@ -638,6 +680,7 @@ async def run_async_smoke() -> None:
         assert_frontend_runtime_and_refusal_guardrails()
     finally:
         main.run_openai_json_recruiter_chat = original_recruiter_llm
+        main.run_openai_json_search_brief_extractor = original_extractor
         main.run_openai_json_planner = original_planner_llm
         main.run_openai_json_agent_wording = original_wording_llm
         main.execute_single_wave_structured_search_response = original_single

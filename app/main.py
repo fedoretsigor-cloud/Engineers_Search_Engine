@@ -234,6 +234,10 @@ from app.search_brief import (
     search_brief_validation_response,
     validate_and_normalize_search_brief,
 )
+from app.search_brief_extractor import (
+    run_openai_json_search_brief_extractor as _run_openai_json_search_brief_extractor,
+    validate_search_brief_extractor_output,
+)
 from app.search_validation import (
     add_validation_error,
     canonical_value,
@@ -3147,6 +3151,20 @@ async def run_openai_json_pending_answer_interpreter(
     )
 
 
+async def run_openai_json_search_brief_extractor(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    return await _run_openai_json_search_brief_extractor(
+        latest_message=latest_message,
+        language=language,
+        previous_brief=previous_brief,
+        chat_completions_url=OPENAI_CHAT_COMPLETIONS_URL,
+    )
+
+
 async def classify_pending_answer_interpreter_from_message(
     *,
     text: str,
@@ -5977,6 +5995,101 @@ async def pending_clarification_response_if_any(
     return None
 
 
+async def build_recruiter_chat_validated_brief_turn_response(
+    *,
+    request: RecruiterChatTurnRequest,
+    language: str,
+    planner_mode: str,
+    normalized_brief: dict,
+    validation_errors: list[dict[str, str]],
+    latest_user_text: str,
+    user_text: str,
+    brief_changed: bool,
+) -> dict:
+    next_question = one_clarifying_question(normalized_brief, language)
+    readiness_evidence = search_brief_readiness_evidence(
+        normalized_brief=normalized_brief,
+        latest_user_text=latest_user_text,
+        user_text=user_text,
+        existing_brief=request.draft_brief,
+    )
+    if readiness_evidence["ready_evidence"] == "insufficient":
+        missing_evidence = readiness_evidence.get("missing_evidence") or []
+        if (
+            readiness_evidence.get("reason") in {"noisy_latest_turn", "no_sourcing_signal"}
+            and not has_sourcing_or_recruiter_context_signal(user_text)
+        ):
+            deterministic_message = recruiter_chat_unclear_request_message(language)
+            assistant_message, wording_provenance, llm_warnings = (
+                await apply_llm_wording_to_recruiter_chat_conversation(
+                    request=request,
+                    language=language,
+                    latest_user_text=latest_user_text,
+                    deterministic_message=deterministic_message,
+                    message_type="unclear",
+                )
+            )
+            return build_recruiter_chat_preserve_current_brief_response(
+                request,
+                language,
+                planner_mode,
+                assistant_message,
+                wording_provenance,
+                llm_warnings,
+            )
+
+        downgraded_brief = downgraded_brief_for_insufficient_evidence(
+            normalized_brief,
+            missing_evidence,
+        )
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=downgraded_brief,
+            validation_errors=[],
+            next_question=one_clarifying_question(downgraded_brief, language),
+            planner_mode=planner_mode,
+            brief_changed=brief_changed,
+            stale_state_should_clear=brief_changed,
+        )
+
+    if validation_errors:
+        return build_recruiter_chat_response(
+            ok=False,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=normalized_brief,
+            validation_errors=validation_errors,
+            next_question=next_question,
+            planner_mode=planner_mode,
+            brief_changed=brief_changed,
+            stale_state_should_clear=brief_changed,
+        )
+
+    if normalized_brief["brief_status"] != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
+        return build_recruiter_chat_response(
+            ok=True,
+            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+            language=language,
+            normalized_brief=normalized_brief,
+            next_question=next_question,
+            planner_mode=planner_mode,
+            brief_changed=brief_changed,
+            stale_state_should_clear=brief_changed,
+        )
+
+    return build_recruiter_chat_response(
+        ok=True,
+        state=RECRUITER_CHAT_STATE_READY_FOR_PLANNING,
+        language=language,
+        normalized_brief=normalized_brief,
+        planner_mode=planner_mode,
+        brief_changed=brief_changed,
+        stale_state_should_clear=brief_changed,
+    )
+
+
 async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dict:
     language = recruiter_chat_language(request)
     planner_mode = request.planner_mode or RECRUITER_CHAT_DEFAULT_PLANNER_MODE
@@ -6614,6 +6727,56 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
             ambiguity["message"],
         )
 
+    if not request.draft_brief:
+        extractor_output, extractor_error = await run_openai_json_search_brief_extractor(
+            latest_message=latest_user_text,
+            language=language,
+            previous_brief=None,
+        )
+        if extractor_error or extractor_output is None:
+            return build_recruiter_chat_response(
+                ok=False,
+                state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+                language=language,
+                validation_errors=[
+                    {
+                        "field": "search_brief_extractor",
+                        "message": extractor_error
+                        or "Search Brief extractor returned no output.",
+                    }
+                ],
+                planner_mode=planner_mode,
+            )
+
+        extractor_validation, extractor_validation_errors = (
+            validate_search_brief_extractor_output(extractor_output)
+        )
+        if extractor_validation_errors or extractor_validation is None:
+            return build_recruiter_chat_response(
+                ok=False,
+                state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
+                language=language,
+                validation_errors=extractor_validation_errors,
+                planner_mode=planner_mode,
+            )
+
+        normalized_brief = extractor_validation["normalized_brief"]
+        brief_changed = normalized_brief_state_payload(
+            current_brief_context_for_language(request.draft_brief, language)[
+                "normalized_brief"
+            ]
+        ) != normalized_brief_state_payload(normalized_brief)
+        return await build_recruiter_chat_validated_brief_turn_response(
+            request=request,
+            language=language,
+            planner_mode=planner_mode,
+            normalized_brief=normalized_brief,
+            validation_errors=[],
+            latest_user_text=latest_user_text,
+            user_text=user_text,
+            brief_changed=brief_changed,
+        )
+
     role_only_value, role_only_errors = normalize_role_family_value(latest_user_text)
     if (
         not request.draft_brief
@@ -6681,91 +6844,19 @@ async def recruiter_chat_turn_response(request: RecruiterChatTurnRequest) -> dic
     brief_response = search_brief_validation_response(brief)
     normalized_brief = brief_response["normalized_brief"]
     validation_errors = brief_response["errors"]
-    next_question = one_clarifying_question(normalized_brief, language)
     brief_changed = normalized_brief_state_payload(
         current_brief_context_for_language(request.draft_brief, language)["normalized_brief"]
     ) != normalized_brief_state_payload(normalized_brief)
 
-    readiness_evidence = search_brief_readiness_evidence(
+    return await build_recruiter_chat_validated_brief_turn_response(
+        request=request,
+        language=language,
+        planner_mode=planner_mode,
         normalized_brief=normalized_brief,
+        validation_errors=validation_errors,
         latest_user_text=latest_user_text,
         user_text=user_text,
-        existing_brief=request.draft_brief,
-    )
-    if readiness_evidence["ready_evidence"] == "insufficient":
-        missing_evidence = readiness_evidence.get("missing_evidence") or []
-        if (
-            readiness_evidence.get("reason") in {"noisy_latest_turn", "no_sourcing_signal"}
-            and not has_sourcing_or_recruiter_context_signal(user_text)
-        ):
-            deterministic_message = recruiter_chat_unclear_request_message(language)
-            assistant_message, wording_provenance, llm_warnings = (
-                await apply_llm_wording_to_recruiter_chat_conversation(
-                    request=request,
-                    language=language,
-                    latest_user_text=latest_user_text,
-                    deterministic_message=deterministic_message,
-                    message_type="unclear",
-                )
-            )
-            return build_recruiter_chat_preserve_current_brief_response(
-                request,
-                language,
-                planner_mode,
-                assistant_message,
-                wording_provenance,
-                llm_warnings,
-            )
-
-        downgraded_brief = downgraded_brief_for_insufficient_evidence(
-            normalized_brief,
-            missing_evidence,
-        )
-        return build_recruiter_chat_response(
-            ok=True,
-            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
-            language=language,
-            normalized_brief=downgraded_brief,
-            validation_errors=[],
-            next_question=one_clarifying_question(downgraded_brief, language),
-            planner_mode=planner_mode,
-            brief_changed=brief_changed,
-            stale_state_should_clear=brief_changed,
-        )
-
-    if validation_errors:
-        return build_recruiter_chat_response(
-            ok=False,
-            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
-            language=language,
-            normalized_brief=normalized_brief,
-            validation_errors=validation_errors,
-            next_question=next_question,
-            planner_mode=planner_mode,
-            brief_changed=brief_changed,
-            stale_state_should_clear=brief_changed,
-        )
-
-    if normalized_brief["brief_status"] != SEARCH_BRIEF_STATUS_READY_FOR_PLANNING:
-        return build_recruiter_chat_response(
-            ok=True,
-            state=RECRUITER_CHAT_STATE_NEEDS_CLARIFICATION,
-            language=language,
-            normalized_brief=normalized_brief,
-            next_question=next_question,
-            planner_mode=planner_mode,
-            brief_changed=brief_changed,
-            stale_state_should_clear=brief_changed,
-        )
-
-    return build_recruiter_chat_response(
-        ok=True,
-        state=RECRUITER_CHAT_STATE_READY_FOR_PLANNING,
-        language=language,
-        normalized_brief=normalized_brief,
-        planner_mode=planner_mode,
         brief_changed=brief_changed,
-        stale_state_should_clear=brief_changed,
     )
 
 

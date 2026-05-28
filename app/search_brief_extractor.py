@@ -97,6 +97,14 @@ DOMAIN_CONTEXT_PATTERNS = [
     r"\breal estate\b",
 ]
 SAFE_REASON_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+SEARCH_BRIEF_EXTRACTOR_MISSING_FIELD_PRIORITY = {
+    "role_family": 0,
+    "technology": 1,
+    "stack": 2,
+    "location": 3,
+    "search_depth": 4,
+    "profile_sources": 5,
+}
 
 
 def search_brief_extractor_system_prompt() -> str:
@@ -321,6 +329,17 @@ def normalize_reason_codes(value: object) -> list[str]:
     return reason_codes or ["validated"]
 
 
+def prioritize_extractor_missing_fields(normalized_brief: dict) -> None:
+    missing_fields = normalized_brief.get("missing_fields") or []
+    normalized_brief["missing_fields"] = sorted(
+        missing_fields,
+        key=lambda field: (
+            SEARCH_BRIEF_EXTRACTOR_MISSING_FIELD_PRIORITY.get(field, 99),
+            field,
+        ),
+    )
+
+
 def normalize_role_ambiguity_value(
     value: object,
     errors: list[dict[str, str]],
@@ -541,6 +560,8 @@ def validate_search_brief_extractor_output(
                 0,
                 role_ambiguity["clarification_question"],
             )
+
+    prioritize_extractor_missing_fields(normalized_brief)
 
     return {
         "validator_version": SEARCH_BRIEF_EXTRACTOR_VALIDATOR_VERSION,

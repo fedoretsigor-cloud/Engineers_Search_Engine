@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from app import main  # noqa: E402
+from app import main, search_brief_extractor as extractor  # noqa: E402
 
 
 WORKSPACE_JS_UAT = REPO_ROOT / "scripts" / "uat_phase_8_75_workspace_cases.js"
@@ -207,6 +207,48 @@ async def fake_recruiter_chat_llm(
             )
         }, []
     return {"draft_brief": fixture}, []
+
+
+async def fake_search_brief_extractor(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    request = main.RecruiterChatTurnRequest(
+        language=language,
+        messages=[main.RecruiterChatMessage(role="user", content=latest_message)],
+    )
+    output, errors = await fake_recruiter_chat_llm(request)
+    if errors or not output:
+        return None, "fake_search_brief_extractor_error"
+    draft = output["draft_brief"]
+    return {
+        "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+        "draft_brief": {
+            "source_text": draft.get("source_text") or latest_message,
+            "role_family": draft.get("role_family"),
+            "role_ambiguity": {
+                "is_ambiguous": False,
+                "label": None,
+                "options": [],
+                "clarification_question": None,
+            },
+            "technology": draft.get("technology"),
+            "stack": draft.get("stack") or [],
+            "location": draft.get("location"),
+            "seniority": draft.get("seniority"),
+            "must_have": draft.get("must_have") or [],
+            "nice_to_have": draft.get("nice_to_have") or [],
+            "domain_experience": [],
+            "exclusions": draft.get("exclusions") or [],
+            "search_depth": draft.get("search_depth") or "standard",
+            "profile_sources": draft.get("profile_sources") or ["linkedin_public"],
+            "notes": None,
+        },
+        "confidence": "high",
+        "reason_codes": ["uat_fixture"],
+    }, None
 
 
 def chat_request(
@@ -726,6 +768,7 @@ The no-live gate covers recruiter chat behavior, Search Brief validation, Agent 
 async def run_all(write_report_path: Path | None) -> dict[str, Any]:
     runner = UatRunner()
     original_chat_llm = main.run_openai_json_recruiter_chat
+    original_extractor = main.run_openai_json_search_brief_extractor
     original_wording_llm = main.run_openai_json_agent_wording
     original_env = {
         "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
@@ -736,6 +779,7 @@ async def run_all(write_report_path: Path | None) -> dict[str, Any]:
         return None, [{"field": "openai", "message": "No-live UAT disables OpenAI wording."}]
 
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_llm
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor
     main.run_openai_json_agent_wording = no_live_wording
     os.environ.pop("OPENAI_API_KEY", None)
     os.environ.pop("OPENAI_MODEL", None)
@@ -748,6 +792,7 @@ async def run_all(write_report_path: Path | None) -> dict[str, Any]:
         run_workspace_js_cases(runner)
     finally:
         main.run_openai_json_recruiter_chat = original_chat_llm
+        main.run_openai_json_search_brief_extractor = original_extractor
         main.run_openai_json_agent_wording = original_wording_llm
         for key, value in original_env.items():
             if value is None:

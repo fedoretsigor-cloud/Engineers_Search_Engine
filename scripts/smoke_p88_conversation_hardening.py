@@ -8,7 +8,7 @@ from typing import Any
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app import main
+from app import main, search_brief_extractor as extractor
 
 
 RECRUITER_LLM_CALLS: list[str] = []
@@ -259,6 +259,136 @@ async def fake_recruiter_chat_valid(
     }, []
 
 
+def raw_extractor_output_from_draft(draft: dict, reason_code: str = "smoke_fixture") -> dict:
+    return {
+        "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+        "draft_brief": {
+            "source_text": draft.get("source_text"),
+            "role_family": draft.get("role_family"),
+            "role_ambiguity": {
+                "is_ambiguous": False,
+                "label": None,
+                "options": [],
+                "clarification_question": None,
+            },
+            "technology": draft.get("technology"),
+            "stack": draft.get("stack") or [],
+            "location": draft.get("location"),
+            "seniority": draft.get("seniority"),
+            "must_have": draft.get("must_have") or [],
+            "nice_to_have": draft.get("nice_to_have") or [],
+            "domain_experience": [],
+            "exclusions": draft.get("exclusions") or [],
+            "search_depth": draft.get("search_depth") or "standard",
+            "profile_sources": draft.get("profile_sources") or ["linkedin_public"],
+            "notes": None,
+        },
+        "confidence": "high",
+        "reason_codes": [reason_code],
+    }
+
+
+async def fake_search_brief_extractor_hallucinated_ready(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    request = main.RecruiterChatTurnRequest(
+        language=language,
+        messages=[main.RecruiterChatMessage(role="user", content=latest_message)],
+    )
+    output, errors = await fake_recruiter_chat_hallucinated_ready(request)
+    if errors or not output:
+        return None, "fake_search_brief_extractor_error"
+    return raw_extractor_output_from_draft(output["draft_brief"], "hallucinated_ready"), None
+
+
+async def fake_search_brief_extractor_valid(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    request = main.RecruiterChatTurnRequest(
+        language=language,
+        messages=[main.RecruiterChatMessage(role="user", content=latest_message)],
+    )
+    output, errors = await fake_recruiter_chat_valid(request)
+    if errors or not output:
+        return None, "fake_search_brief_extractor_error"
+    return raw_extractor_output_from_draft(output["draft_brief"], "valid_ready"), None
+
+
+async def fake_search_brief_extractor_default(
+    *,
+    latest_message: str,
+    language: str,
+    previous_brief: dict | None = None,
+) -> tuple[dict | None, str | None]:
+    normalized_message = latest_message.lower().strip()
+    if normalized_message in {"qa automation", "analyst"}:
+        role_family = "QA Automation" if normalized_message == "qa automation" else "Analyst"
+        return {
+            "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+            "draft_brief": {
+                "source_text": latest_message,
+                "role_family": role_family,
+                "role_ambiguity": {
+                    "is_ambiguous": False,
+                    "label": None,
+                    "options": [],
+                    "clarification_question": None,
+                },
+                "technology": None,
+                "stack": [],
+                "location": None,
+                "seniority": None,
+                "must_have": [],
+                "nice_to_have": [],
+                "domain_experience": [],
+                "exclusions": [],
+                "search_depth": "standard",
+                "profile_sources": ["linkedin_public"],
+                "notes": None,
+            },
+            "confidence": "high",
+            "reason_codes": ["role_only_partial"],
+        }, None
+    if "data engineer" in normalized_message:
+        return {
+            "schema_version": extractor.SEARCH_BRIEF_EXTRACTOR_PROMPT_VERSION,
+            "draft_brief": {
+                "source_text": latest_message,
+                "role_family": "Data Engineer",
+                "role_ambiguity": {
+                    "is_ambiguous": False,
+                    "label": None,
+                    "options": [],
+                    "clarification_question": None,
+                },
+                "technology": None,
+                "stack": [],
+                "location": "Ukraine",
+                "seniority": None,
+                "must_have": [],
+                "nice_to_have": [],
+                "domain_experience": [],
+                "exclusions": [],
+                "search_depth": "standard",
+                "profile_sources": ["linkedin_public"],
+                "notes": None,
+            },
+            "confidence": "high",
+            "reason_codes": ["data_engineer_partial"],
+        }, None
+    return await fake_search_brief_extractor_valid(
+        latest_message=latest_message,
+        language=language,
+        previous_brief=previous_brief,
+    )
+
+
 async def fake_conversation_wording(payload: dict[str, Any]) -> tuple[dict, str | None]:
     WORDING_PAYLOADS.append(payload)
     assert payload["wording_use_case"] == main.RECRUITER_CHAT_WORDING_USE_CASE_CONVERSATION
@@ -309,6 +439,7 @@ async def assert_non_it_roles_do_not_advance_brief() -> None:
 
 async def assert_evidence_gate_blocks_hallucinated_ready() -> None:
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_hallucinated_ready
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor_hallucinated_ready
     weak = await main.recruiter_chat_turn_response(
         chat_request("candidate candidate candidate", "en")
     )
@@ -325,6 +456,7 @@ async def assert_evidence_gate_blocks_hallucinated_ready() -> None:
 
 async def assert_valid_request_still_reaches_ready() -> None:
     main.run_openai_json_recruiter_chat = fake_recruiter_chat_valid
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor_valid
     valid = await main.recruiter_chat_turn_response(
         chat_request("Find Backend Developer in Ukraine, Java, Spring.", "en")
     )
@@ -353,6 +485,7 @@ async def assert_small_talk_uses_safe_wording() -> None:
 
 
 async def assert_llm_role_classifier_handles_java_scope_edges() -> None:
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor_default
     qa = await main.recruiter_chat_turn_response(chat_request("QA Automation", "en"))
     assert qa["state"] == "needs_clarification"
     assert qa["normalized_brief"]["role_family"] == "QA Automation"
@@ -592,11 +725,13 @@ async def run_smoke() -> None:
         "OPENAI_MODEL": os.environ.get("OPENAI_MODEL"),
     }
     original_chat_llm = main.run_openai_json_recruiter_chat
+    original_extractor = main.run_openai_json_search_brief_extractor
     original_intent_llm = main.run_openai_json_recruiter_intent
     original_wording_llm = main.run_openai_json_agent_wording
 
     os.environ["OPENAI_API_KEY"] = "fake-openai-key"
     os.environ["OPENAI_MODEL"] = "fake-model"
+    main.run_openai_json_search_brief_extractor = fake_search_brief_extractor_default
     main.run_openai_json_recruiter_intent = fake_recruiter_intent
     main.run_openai_json_agent_wording = fake_conversation_wording
 
@@ -614,6 +749,7 @@ async def run_smoke() -> None:
         assert_frontend_phase_88_contract()
     finally:
         main.run_openai_json_recruiter_chat = original_chat_llm
+        main.run_openai_json_search_brief_extractor = original_extractor
         main.run_openai_json_recruiter_intent = original_intent_llm
         main.run_openai_json_agent_wording = original_wording_llm
         for key, value in original_env.items():
