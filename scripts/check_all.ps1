@@ -172,6 +172,10 @@ Invoke-Check "P9.9 Search Brief Extractor smoke" {
     & $python scripts/smoke_p99_search_brief_extractor.py
 }
 
+Invoke-Check "Phase 9.9 Semantic Search Brief UAT" {
+    & $python scripts/uat_phase_9_9_semantic_search_brief.py
+}
+
 Invoke-Check "Phase 8.75 No-Live UAT" {
     & $python scripts/uat_phase_8_75_no_live.py
 }

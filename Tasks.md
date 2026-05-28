@@ -21072,7 +21072,7 @@ This keeps the fix global and avoids a QA-specific patch.
 ### Backlog
 
 - [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
-- [ ] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
+- [x] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
 - [ ] P9.9-006 Add bounded Search Brief refinement interpreter v2
 - [ ] P9.9-007 Close Phase 9.9 with semantic AI Agent understanding decision
 
@@ -21084,6 +21084,7 @@ This keeps the fix global and avoids a QA-specific patch.
 - [x] P9.9-002 Add strict backend validator for SearchBriefExtractor v2
 - [x] P9.9-003 Replace clean-state recruiter chat extraction with SearchBriefExtractor v2
 - [x] P9.9-004 Retire duplicated legacy clean-state semantic branches
+- [x] P9.9-005 Add automated semantic recruiter UAT for Search Brief extraction
 
 ### Current Phase 9.9 strategy note
 
@@ -21417,7 +21418,7 @@ Remove or isolate old phrase-specific clean-state semantic branches after `Searc
 
 ### Status
 
-Draft / not approved.
+Completed.
 
 ### Goal
 
@@ -21425,7 +21426,7 @@ Add an automated semantic UAT suite that Codex runs during implementation verifi
 
 ### Proposed Steps
 
-1. Create a deterministic no-network UAT script for clean-state recruiter prompts with mocked/bounded LLM responses where needed.
+1. Create a deterministic no-network UAT script for clean-state recruiter prompts with mocked `SearchBriefExtractor v2` responses.
 2. Cover at least these categories:
    - QA Automation / Spain / Java / Selenium;
    - Analyst / Canada / banking domain / SQL;
@@ -21443,8 +21444,12 @@ Add an automated semantic UAT suite that Codex runs during implementation verifi
    - technology/stack remain technical;
    - location remains location;
    - ambiguity asks clarification.
-4. Wire the UAT into `scripts/check_all.ps1` if stable and no-network.
-5. During implementation, Codex must run this suite plus the relevant existing smoke checks and report failures before commit.
+4. Assert negative boundaries:
+   - off-topic/noise does not call the extractor;
+   - Cyrillic/unsafe input does not call the extractor;
+   - validator-rejected domain-as-technology does not fall back to the legacy parser.
+5. Wire the UAT into `scripts/check_all.ps1` if stable and no-network.
+6. During implementation, Codex must run this suite plus the relevant existing smoke checks and report failures before commit.
 
 ### Acceptance Criteria
 
@@ -21457,6 +21462,20 @@ Add an automated semantic UAT suite that Codex runs during implementation verifi
 
 - No live Tavily/provider UAT inside CI.
 - No screenshots or raw candidate/profile URLs committed.
+
+### Implementation Result
+
+- Added `scripts/uat_phase_9_9_semantic_search_brief.py` as deterministic no-network semantic UAT for clean-state recruiter prompts.
+- The UAT mocks `SearchBriefExtractor v2`, forbids the legacy clean-state recruiter-chat parser, and disables live wording/provider behavior.
+- Covered QA Automation, Analyst/domain context, Data Analyst, DevOps Engineer, Product Manager, Business Analyst, Cybersecurity Analyst, ambiguous Analyst, off-topic/noise, Cyrillic/unsafe input, and validator-rejected domain-as-technology.
+- Wired the UAT into `scripts/check_all.ps1`.
+
+### Verification Completed
+
+- `.venv\Scripts\python.exe scripts\uat_phase_9_9_semantic_search_brief.py`
+- `.venv\Scripts\python.exe -m compileall app scripts`
+- `git diff --check`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check_all.ps1`
 
 ---
 
